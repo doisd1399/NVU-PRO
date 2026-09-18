@@ -13,11 +13,13 @@ O novo repositório privado **NVU-PRO** foi criado e publicado na branch `main`.
 | Repositório | [doisd1399/NVU-PRO][1] |
 | Visibilidade | Privado |
 | Branch oficial | `main` |
-| Commit publicado | `0433a5fe240f3d5102bf88c77ca008863dca8ae9` |
+| Commit da baseline publicada | `2a7af8134213455a39a355654bc1007544aed7a0` |
 | Tag oficial | **NÃO CRIADA**; a regra exige build, assinatura e validação anteriores |
 | Tag recomendada após validação | `v1.0.359-release` |
 
 O GitHub não usa espaços no slug de repositório; por isso, o nome técnico publicado é `NVU-PRO`, mantendo **NVU PRO** como identidade apresentada no README e na descrição do repositório.
+
+Os commits posteriores no mesmo `main` (`0433a5fe` e o commit atual) contêm somente o relatório e sua correção de identidade; a árvore de código da baseline permanece a do commit `2a7af813`.
 
 ## Base oficial
 
