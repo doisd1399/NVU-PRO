@@ -647,6 +647,7 @@ export default function AdminLayout() {
           profile="company"
           open={isMobileMenuOpen}
           onClose={() => setIsMobileMenuOpen(false)}
+          nativeAndroid={nativeAndroid}
           onNavigate={handleSidebarNavigation}
           currentUserName={currentUser?.name || "Administrador"}
           profilePhotoUrl={resolveProfilePhoto(currentUser)}

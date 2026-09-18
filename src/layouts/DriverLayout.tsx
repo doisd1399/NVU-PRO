@@ -679,6 +679,7 @@ export default function DriverLayout() {
               profile="driver"
               open={isMobileMenuOpen}
               onClose={() => setIsMobileMenuOpen(false)}
+              nativeAndroid={nativeAndroid}
               onNavigate={handleSidebarNavigation}
               currentUserName={currentUser?.name || "Motorista"}
               profilePhotoUrl={resolveDriverPhoto(currentUser)}

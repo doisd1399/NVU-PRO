@@ -40,6 +40,7 @@ export type GlobalMenuProps = {
   profile: GlobalMenuProfile;
   open: boolean;
   onClose: () => void;
+  nativeAndroid?: boolean;
   onNavigate?: (event: React.MouseEvent<HTMLAnchorElement>, path: string) => void;
   currentUserName: string;
   profilePhotoUrl?: string | null;
@@ -95,6 +96,7 @@ export function GlobalMenu({
   profile,
   open,
   onClose,
+  nativeAndroid = false,
   onNavigate,
   currentUserName,
   profilePhotoUrl,
@@ -122,6 +124,13 @@ export function GlobalMenu({
   const copy = profileCopy[profile];
   const IntroIcon = copy.icon;
   const isCompany = profile === "company";
+  const menuStateClass = nativeAndroid
+    ? open
+      ? "nvu-native-sidebar-open flex"
+      : "nvu-native-sidebar-closed hidden"
+    : open
+      ? "nvu-native-sidebar-open flex translate-x-0"
+      : "nvu-native-sidebar-closed -translate-x-full";
 
   return (
     <>
@@ -143,9 +152,10 @@ export function GlobalMenu({
         data-nvu-menu-open={open ? "true" : "false"}
         aria-label={copy.menuLabel}
         className={cn(
-          "nvu-native-sidebar nvu-floating-menu-card nvu-profile-menu-card w-64 bg-white dark:bg-[#09090b] border-r border-gray-100 dark:border-[#2A2F3A] flex flex-col fixed top-11 md:top-12 bottom-0 left-0 z-40 shadow-sm dark:shadow-none transition-transform duration-300 ease-in-out hidden md:flex",
+          "nvu-native-sidebar nvu-floating-menu-card nvu-profile-menu-card w-64 bg-white dark:bg-[#09090b] border-r border-gray-100 dark:border-[#2A2F3A] flex flex-col fixed top-11 md:top-12 bottom-0 left-0 z-40 shadow-sm dark:shadow-none hidden md:flex",
           isCompany && "nvu-admin-sidebar",
-          open ? "nvu-native-sidebar-open flex translate-x-0" : "nvu-native-sidebar-closed -translate-x-full",
+          !nativeAndroid && "transition-transform duration-300 ease-in-out",
+          menuStateClass,
         )}
       >
         <div className={cn("nvu-profile-menu-intro", isCompany && "nvu-admin-menu-intro")}>
@@ -173,7 +183,7 @@ export function GlobalMenu({
               }
             }}
             className={cn(
-              "flex items-center justify-between px-3 py-2.5 rounded-xl border transition-colors cursor-pointer shadow-sm dark:shadow-none relative",
+              cn("flex items-center justify-between px-3 py-2.5 rounded-xl border cursor-pointer shadow-sm dark:shadow-none relative", !nativeAndroid && "transition-colors"),
               isProfileMenuOpen
                 ? "border-green-200 bg-green-50 dark:bg-green-500/10 dark:border-green-500/20/50"
                 : "border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#09090b] hover:bg-gray-50 dark:hover:bg-[#3f3f46]",
@@ -202,7 +212,7 @@ export function GlobalMenu({
                 <p className="text-[11px] text-[#0cb49f] dark:text-[#0cb49f] font-semibold truncate leading-tight mt-0.5">{roleLabel}</p>
               </div>
             </div>
-            <ChevronDown size={16} className={cn("text-gray-400 transition-transform duration-200", isProfileMenuOpen ? "rotate-180 text-[#0cb49f] dark:text-[#0cb49f]" : "")} />
+            <ChevronDown size={16} className={cn("text-gray-400", !nativeAndroid && "transition-transform duration-200", isProfileMenuOpen ? "rotate-180 text-[#0cb49f] dark:text-[#0cb49f]" : "")} />
           </div>
         </div>
 
@@ -275,7 +285,7 @@ export function GlobalMenu({
         ) : (
           <nav className="nvu-profile-menu-nav flex-1 px-4 py-6 space-y-2 overflow-y-auto" aria-label="Páginas e recursos">
             {driverItems.map((item) => (
-              <NavLink key={item.path} to={item.path} end={item.exact} onClick={(event) => (onNavigate ? onNavigate(event, item.path) : onClose())} className={({ isActive }) => cn("nvu-profile-menu-item flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-colors", isActive ? "bg-[#0cb49f]/10 dark:bg-[#0cb49f]/10 text-[#0cb49f] dark:text-[#0cb49f]" : "text-gray-600 dark:text-[#d4d4d8] hover:bg-gray-50 dark:hover:bg-[#3f3f46] hover:text-gray-900 dark:hover:text-[#f4f4f5]") }>
+              <NavLink key={item.path} to={item.path} end={item.exact} onClick={(event) => (onNavigate ? onNavigate(event, item.path) : onClose())} className={({ isActive }) => cn("nvu-profile-menu-item flex items-center gap-3 px-4 py-2.5 rounded-xl text-[13px] font-medium", !nativeAndroid && "transition-colors", isActive ? "bg-[#0cb49f]/10 dark:bg-[#0cb49f]/10 text-[#0cb49f] dark:text-[#0cb49f]" : "text-gray-600 dark:text-[#d4d4d8] hover:bg-gray-50 dark:hover:bg-[#3f3f46] hover:text-gray-900 dark:hover:text-[#f4f4f5]") }>
                 <item.icon size={18} />{item.label}
               </NavLink>
             ))}
@@ -290,16 +300,16 @@ export function GlobalMenu({
               </div>
               <span className="text-[13px] font-bold text-gray-900 dark:text-[#fafafa]">Modo Escuro</span>
             </div>
-            <button type="button" onClick={onToggleTheme} className={cn("relative w-10 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#0cb49f] focus:ring-offset-2 dark:focus:ring-offset-[#121213]", theme === "dark" ? "bg-[#0cb49f]" : "bg-gray-200")} aria-label="Alternar modo escuro">
-              <div className={cn("absolute top-1 left-1 w-4 h-4 rounded-full bg-white dark:bg-[#09090b] shadow-sm transition-transform", theme === "dark" ? "translate-x-4" : "")} />
+            <button type="button" onClick={onToggleTheme} className={cn("relative w-10 h-6 rounded-full focus:outline-none focus:ring-2 focus:ring-[#0cb49f] focus:ring-offset-2 dark:focus:ring-offset-[#121213]", !nativeAndroid && "transition-colors", theme === "dark" ? "bg-[#0cb49f]" : "bg-gray-200")} aria-label="Alternar modo escuro">
+              <div className={cn("absolute top-1 left-1 w-4 h-4 rounded-full bg-white dark:bg-[#09090b] shadow-sm", !nativeAndroid && "transition-transform", theme === "dark" ? "translate-x-4" : "")} />
             </button>
           </div>
           {isCompany && hasSeniorPanelAccess && (
-            <button type="button" onClick={onSeniorPanel} className="nvu-profile-menu-item nvu-admin-menu-item flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-[#d4d4d8] hover:bg-gray-50 dark:bg-[#09090b] dark:hover:bg-[#3f3f46] hover:text-gray-900 dark:hover:text-[#f4f4f5] transition-colors">
+            <button type="button" onClick={onSeniorPanel} className={cn("nvu-profile-menu-item nvu-admin-menu-item flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-[#d4d4d8] hover:bg-gray-50 dark:bg-[#09090b] dark:hover:bg-[#3f3f46] hover:text-gray-900 dark:hover:text-[#f4f4f5]", !nativeAndroid && "transition-colors")}>
               <Crown size={18} />Painel Sênior
             </button>
           )}
-          <button type="button" onClick={onLogout} className={cn("nvu-profile-logout-button w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors", isCompany ? "nvu-admin-logout-button" : "nvu-driver-logout-button")}>
+          <button type="button" onClick={onLogout} className={cn("nvu-profile-logout-button w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium", !nativeAndroid && "transition-colors", isCompany ? "nvu-admin-logout-button" : "nvu-driver-logout-button")}>
             <LogOut size={16} />Sair
           </button>
         </div>
