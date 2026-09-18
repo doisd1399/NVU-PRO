@@ -1,0 +1,16 @@
+{
+  "releaseName": "NVU PRO",
+  "baseline": "NVU ANDROID OFFICIAL BASELINE",
+  "sourceRepository": "https://github.com/doisd1399/NVU-ZZZ-Android-",
+  "sourceCommit": "2dc553ee5fdab1a93f8859ade3d3539aa484bc4e",
+  "webVersion": "2.3.141",
+  "runtimeRevision": "R3.34-PC-WEB-AUTH-ARCHITECTURE-MODULAR",
+  "capacitorRuntime": "local",
+  "androidVersion": "1.0.359",
+  "androidVersionCode": 359,
+  "otaChannelPolicy": "production-<nativeVersionCode>",
+  "otaDefault": "disabled; explicit opt-in only",
+  "goldenApkSha256": "a77efea8849c1bdc950366d7ddb1370e155a6112f7ed83bca1767a8fec635a65",
+  "goldenApkVersion": "1.0.358",
+  "goldenApkVersionCode": 358
+}

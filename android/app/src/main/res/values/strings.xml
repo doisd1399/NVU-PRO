@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NVU</string>
+    <string name="title_activity_main">NVU</string>
+    <string name="package_name">com.nvu.operacional</string>
+    <string name="custom_url_scheme">com.nvu.operacional</string>
+    <string name="gto_touch_service_name">NVU · Seleção precisa GTO</string>
+    <string name="gto_touch_service_description">Detecta somente a coordenada do toque do motorista na lista de fretes do Global Truck Online e devolve o gesto imediatamente ao jogo.</string>
+</resources>

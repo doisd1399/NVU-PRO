@@ -1,0 +1,33 @@
+import fs from "node:fs";
+import assert from "node:assert/strict";
+
+const root = new URL("..", import.meta.url).pathname;
+const selector = fs.readFileSync(`${root}src/components/driver/SimpleCitySelector.tsx`, "utf8");
+const native = fs.readFileSync(`${root}android/app/src/main/java/com/nvu/operacional/SimpleAutomationService.java`, "utf8");
+const activity = fs.readFileSync(`${root}android/app/src/main/java/com/nvu/operacional/MainActivity.java`, "utf8");
+const bridge = fs.readFileSync(`${root}src/components/SimpleAutomationCompletionBridge.tsx`, "utf8");
+const layout = fs.readFileSync(`${root}src/layouts/DriverLayout.tsx`, "utf8");
+
+assert.match(selector, /bg-orange-500/);
+assert.match(selector, /transition-colors duration-200 ease-out/);
+assert.match(selector, /aria-pressed=\{active\}/);
+assert.match(native, /private Button cityButton\(String text, boolean active\)/);
+assert.match(native, /Color\.rgb\(234, 88, 12\)/);
+assert.match(native, /setDuration\(180L\)/);
+assert.match(native, /addActionRow\(target, "Cancelar",[\s\S]*"Finalizar"/);
+assert.match(native, /private Button infoMenuButton\(\)/);
+assert.match(native, /Abrir operação atual/);
+assert.match(native, /private Button compactMenuButton\(String text\)/);
+assert.match(native, /setOnTouchListener\(\(view, event\)/);
+assert.match(native, /scaleX\(0\.96f\)/);
+assert.match(native, /onTaskRemoved\(Intent rootIntent\)/);
+assert.match(native, /stopForeground\(STOP_FOREGROUND_REMOVE\)/);
+assert.match(native, /manager\.cancel\(NOTIFICATION_ID\)/);
+assert.match(activity, /if \(isFinishing\(\)\)/);
+assert.match(activity, /SimpleAutomationService\.stopForAppClosure\(this\)/);
+assert.match(bridge, /SimpleAutomation\.refreshOperationSnapshot\(\{/);
+assert.match(bridge, /currentJob\.progress/);
+assert.match(bridge, /activeVehicle/);
+assert.match(bridge, /activeTrailer/);
+assert.match(layout, /selectCurrentOperationJob\(jobs, currentUser\?\.id, activeCompanyId\)/);
+console.log("[PASS] Pro visual/lifecycle improvements: orange city selection, smooth transition, uniform Cancelar/Finalizar, info icon, touch feedback, live snapshot and notification cleanup.");

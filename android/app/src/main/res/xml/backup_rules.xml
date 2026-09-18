@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- GTO runtime state must never return after uninstall/reinstall or device restore. -->
+    <exclude domain="sharedpref" path="nvu_gto_observer.xml" />
+    <exclude domain="sharedpref" path="nvu_gto_auto_trip_queue_v1.xml" />
+    <exclude domain="sharedpref" path="nvu_gto_auto_trip_retry_v1.xml" />
+    <exclude domain="sharedpref" path="nvu_gto_trip_snapshot_v2.xml" />
+    <exclude domain="sharedpref" path="nvu_gto_auto_trip_quarantine_v2.xml" />
+</full-backup-content>

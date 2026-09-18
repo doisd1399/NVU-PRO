@@ -1,0 +1,64 @@
+import fs from 'node:fs';
+
+const read = (p) => fs.readFileSync(p, 'utf8');
+const service = read('android/app/src/main/java/com/nvu/operacional/GtoObserverService.java');
+const sync = read('android/app/src/main/java/com/nvu/operacional/GtoAutoTripSync.java');
+const launcher = read('src/services/gtoWorkLauncher.ts');
+const gradle = read('android/app/build.gradle');
+const pkg = JSON.parse(read('package.json'));
+const checks = [];
+const check = (name, ok, detail='') => checks.push({name, ok: !!ok, detail});
+const n = (re, text=service) => { const v=(text.match(re)||[])[1]; return v==null?-1:Number(String(v).replaceAll('_','')); };
+
+const versionCode = n(/versionCode\s+(\d+)/, gradle);
+const versionPatch = n(/versionName\s+"1\.0\.(\d+)"/, gradle);
+const heartbeat = n(/HEARTBEAT_PERSIST_INTERVAL_MS\s*=\s*([0-9_]+)L/);
+const fgPersist = n(/FOREGROUND_STATUS_PERSIST_INTERVAL_MS\s*=\s*([0-9_]+)L/);
+const freightPersist = n(/FREIGHT_RUNTIME_PERSIST_INTERVAL_MS\s*=\s*([0-9_]+)L/);
+const pageOcr = n(/FREIGHT_PAGE_OCR_REFRESH_MS\s*=\s*([0-9_]+)L/);
+const preciseWait = n(/PRECISE_OCR_BUSY_WAIT_TIMEOUT_MS\s*=\s*([0-9_]+)L/);
+const preciseRetry = n(/PRECISE_OCR_BUSY_RETRY_MS\s*=\s*([0-9_]+)L/);
+
+check('R3.11 version advanced', versionCode >= 31 && versionPatch >= 31, `${versionCode}/${versionPatch}`);
+check('initial work still authorizes capture before opening GTO', launcher.indexOf('requestScreenCapture()') > 0 && launcher.indexOf('requestScreenCapture()') < launcher.indexOf('openGto()'));
+check('heartbeat persistence is throttled for low-end devices', heartbeat >= 1000 && heartbeat <= 2500, `${heartbeat}ms`);
+check('foreground diagnostic persistence is throttled', fgPersist >= 800 && fgPersist <= 2500, `${fgPersist}ms`);
+check('freight runtime diagnostic persistence is throttled', freightPersist >= 250 && freightPersist <= 800, `${freightPersist}ms`);
+check('background freight-page OCR refresh is reduced', pageOcr >= 1500 && pageOcr <= 3000, `${pageOcr}ms`);
+check('detection heartbeat uses throttled helper', service.includes('persistServiceHeartbeatIfDue(now);'));
+check('foreground package uses change-aware throttled helper', service.includes('persistForegroundRuntimeIfDue(now);') && service.includes('lastPersistedForegroundPackage'));
+check('freight-list hot path uses throttled persistence helper', service.includes('persistFreightRuntimeStatus("FREIGHT_LIST", current.buttons.size(), now, sequence);'));
+check('freight-list exit uses same throttled persistence helper', service.includes('persistFreightRuntimeStatus("OTHER", 0, now, sequence);'));
+check('page snapshot still refreshes every 900ms for selection correctness', service.includes('now - lastFastPanelSnapshotAt >= 900L'));
+check('page OCR still runs immediately for first/new page', service.includes('boolean textRefreshDue = noSnapshot || pageChanged'));
+check('precise OCR busy wait is bounded', preciseWait >= 2500 && preciseWait <= 5000, `${preciseWait}ms`);
+check('precise OCR busy retry avoids 45ms spin', preciseRetry >= 60 && preciseRetry <= 200, `${preciseRetry}ms`);
+check('selection transaction is bound to session and generation', service.includes('final String sessionId;') && service.includes('final long generation;') && service.includes('preciseSelectionOcrGeneration'));
+check('stale selection transaction is rejected before OCR', service.includes('transaction.generation != preciseSelectionOcrGeneration') && service.includes('!transaction.sessionId.equals(currentSessionId)'));
+check('precise OCR success ignores stale session callback', service.includes('if (!isCurrentPreciseSelectionOcr(scheduledSelectionGeneration, scheduledSelectionSessionId)) return;'));
+check('precise OCR completion cannot clear a newer OCR busy flag', service.includes('if (isCurrentPreciseSelectionOcr(scheduledSelectionGeneration, scheduledSelectionSessionId)) {\n                    preciseSelectionOcrBusy = false;'));
+check('main/result OCR captures session generation before async ML Kit call', service.includes('final long scheduledOcrGeneration = analysisOcrGeneration;') && service.includes('final String scheduledOcrSessionId'));
+check('main/result OCR success rejects stale callback', service.includes('if (!isCurrentAnalysisOcr(scheduledOcrGeneration, scheduledOcrSessionId)) return;'));
+check('main/result OCR guard accepts only unresolved active-trip states', service.includes('STATE_TRIP_IN_PROGRESS.equals(state)\n            || STATE_RESULT_DETECTED.equals(state)\n            || STATE_AWAITING_BONUS.equals(state)'));
+check('trip reset invalidates both async OCR generations', service.includes('preciseSelectionOcrGeneration++;') && service.includes('analysisOcrGeneration++;'));
+const clearBlock = service.slice(service.indexOf('private void clearTripAnalysis()'), service.indexOf('private void requestProjectionPermission()'));
+check('freight page generation stays monotonic across resets', service.includes('Keep this generation monotonic across sessions') && !clearBlock.includes('freightPageGeneration = 0L;'));
+check('old persisted freight text is cleared on trip reset', ['.remove("freightOptions")','.remove("freightTextGeneration")','.remove("freightTextAt")'].every(x => service.includes(x)));
+check('page OCR callback still validates exact page generation', service.includes('generation != freightPageGeneration'));
+check('selected freight remains locked before TRIP_IN_PROGRESS', service.indexOf('GtoAutoTripSync.lockSelectedFreight(this, prefs)') < service.indexOf('setTripState(STATE_TRIP_IN_PROGRESS'));
+check('completion still uses synchronous persistence before confirmed state', service.indexOf('boolean completionPersisted = prefs.edit()') < service.indexOf('setTripState(STATE_RESULT_CONFIRMED'));
+check('durable queue still commits before Firebase call', sync.indexOf('queue.edit().putString(QUEUE_PREFIX + sessionId, sealed).commit()') < sync.indexOf('FirebaseFunctions.getInstance'));
+check('exact ACK still required before local dequeue', sync.indexOf('sessionId.equals(responseSession)') < sync.indexOf('queue.edit().remove(key).commit()'));
+check('active-session ACK is durably committed before queue deletion', sync.indexOf('boolean ackPersisted = mainPrefs.edit()') > 0 && sync.indexOf('boolean ackPersisted = mainPrefs.edit()') < sync.indexOf('queue.edit().remove(key).commit()'));
+check('failed local ACK preserves queue and schedules idempotent retry', sync.includes('if (!ackPersisted)') && sync.includes('fila e snapshot foram preservados para retry idempotente'));
+check('queue-cleanup failure does not revoke an already durable server ACK', sync.includes('gtoTripQueueCleanupPending') && sync.includes('Backend e ACK local confirmados'));
+check('new trip reset clears prior queue-cleanup diagnostics', service.includes('.remove("gtoTripQueueCleanupPending")') && service.includes('.remove("gtoTripSyncLastErrorCode")'));
+check('bubble self-heal remains sub-second', service.includes('FOREGROUND_POLL_INTERVAL_MS = 350L') && service.includes('BUBBLE_RETRY_INTERVAL_MS = 350L') && service.includes('lastBubbleAttemptAt = 0L'));
+check('projection remains restart-safe and requires reauthorization after process death', service.includes('REAUTH_REQUIRED_AFTER_RESTART') && service.includes('projectionReauthRequired'));
+check('new trip remains blocked until previous server ACK', service.includes('Aguarde a confirmação da entrega anterior antes de iniciar outra viagem.'));
+check('cap sync now gates R3.11 audit and race model', (pkg.scripts?.['cap:sync:android']||'').includes('audit:gto-r3.11') && (pkg.scripts?.['cap:sync:android']||'').includes('test:gto-r3.11-races'));
+
+let passed=0;
+for (const c of checks) { if(c.ok) passed++; console.log(`${c.ok?'OK  ':'FAIL'} ${c.name}${c.detail?` — ${c.detail}`:''}`); }
+console.log(`\n${passed}/${checks.length} R3.11 stabilization checks passed.`);
+if (passed !== checks.length) process.exit(1);

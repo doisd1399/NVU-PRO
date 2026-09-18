@@ -1,0 +1,37 @@
+# Dependencies and caches
+node_modules/
+.npm/
+.vite/
+
+# Generated Web and Android outputs
+dist/
+android/.gradle/
+android/build/
+android/app/build/
+ android/app/src/main/assets/public/
+ android/app/src/main/assets/cordova.js
+ android/app/src/main/assets/cordova_plugins.js
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+ android/capacitor.settings.gradle
+android/capacitor-cordova-android-plugins/
+android/capacitor-*/
+
+# Local machine configuration and secrets
+.env
+.env.*
+!.env.example
+android/local.properties
+android/app/google-services.json
+*.jks
+*.keystore
+*.p12
+
+# Release outputs are kept only when explicitly promoted and reviewed
+release/*
+!release/.gitkeep
+
+# Logs and temporary files
+*.log
+.DS_Store
+coverage/

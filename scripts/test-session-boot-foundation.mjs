@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+const root = process.cwd();
+const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
+const appContext = read("src/context/AppContext.tsx");
+const app = read("src/App.tsx");
+const initialBootOverlay = read("src/components/common/InitialBootOverlay.tsx");
+const projection = read("src/services/authSessionProjection.ts");
+const telemetry = read("src/lib/sessionBootTelemetry.ts");
+const packageJson = JSON.parse(read("package.json"));
+
+assert.match(projection, /sessionUiReady: hasVisualIdentity \|\| hasCoherentIdentity/);
+assert.match(projection, /sessionAuthorized:\s*hasCoherentIdentity && membershipsLoaded/);
+assert.match(appContext, /sessionActiveRoleKey\(uid\)/);
+assert.match(appContext, /writeLocalStorageValue\(sessionActiveRoleKey\(currentUser\.id\), role\)/);
+assert.match(appContext, /localStorage\.getItem\(operationalScopeSessionKey\(key\)\)/);
+assert.match(appContext, /localStorage\.removeItem\(operationalScopeSessionKey\(key\)\)/);
+assert.match(app, /profileIndex\.status === "ready"/);
+assert.match(app, /profileIndex\.profiles\.length === 1/);
+assert.match(app, /const targetPath =/);
+assert.doesNotMatch(app, /readSessionResumeRoute\(currentUser\.id\)/);
+assert.match(telemetry, /APP_START/);
+assert.match(telemetry, /AUTH_RESTORED/);
+assert.match(telemetry, /SNAPSHOT_READ/);
+assert.match(telemetry, /PROFILE_RESTORED/);
+assert.match(telemetry, /SESSION_UI_READY/);
+assert.match(telemetry, /FIRST_RENDER/);
+assert.match(telemetry, /AUTHORIZATION_READY/);
+assert.match(telemetry, /DATA_SYNC_STARTED/);
+assert.match(telemetry, /DATA_SYNC_READY/);
+assert.match(appContext, /markSessionBootEvent\("APP_START"/);
+assert.match(appContext, /markSessionBootEvent\(\n\s+"DATA_SYNC_READY"/);
+assert.match(app, /markSessionBootEvent\(\n\s+"FIRST_RENDER"/);
+assert.match(app, /markSessionBootEvent\(\n\s+"ROUTE_RESTORED"/);
+assert.match(initialBootOverlay, /pointer-events-none/);
+assert.match(initialBootOverlay, /isInteractionFirstRoute/);
+assert.match(initialBootOverlay, /NVU_FOREGROUND_ROUTE_EVENT/);
+assert.doesNotMatch(telemetry, /fetch\(|axios|firestore|Firestore|sendBeacon/);
+assert.ok(packageJson.scripts["test:session-boot-foundation"]);
+
+console.log("session-boot-foundation: PASS");
+console.log("UI readiness, authorization, UID-scoped persistence and local-only timing events remain separate.");

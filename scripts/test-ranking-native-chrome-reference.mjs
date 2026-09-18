@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = path.resolve(new URL('..', import.meta.url).pathname);
+const ranking = fs.readFileSync(path.join(root, 'src/pages/RankingGlobal.tsx'), 'utf8');
+const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
+const admin = fs.readFileSync(path.join(root, 'src/layouts/AdminLayout.tsx'), 'utf8');
+const driver = fs.readFileSync(path.join(root, 'src/layouts/DriverLayout.tsx'), 'utf8');
+const css = fs.readFileSync(path.join(root, 'src/index.css'), 'utf8');
+const statusBarController = fs.readFileSync(path.join(root, 'src/components/common/NvuStatusBarController.tsx'), 'utf8');
+
+assert.match(statusBarController, /The NVU theme is the only authority/);
+assert.match(statusBarController, /location\.key/);
+assert.match(statusBarController, /SystemBarsStyle\.Dark/);
+assert.match(statusBarController, /SystemBarsStyle\.Light/);
+assert.match(statusBarController, /theme === "dark"/);
+assert.match(statusBarController, /SystemBarsStyle\.Light/);
+assert.match(statusBarController, /isProfileBannerRoute/);
+assert.match(ranking, /nvu-ranking-page/);
+assert.match(ranking, /nvu-ranking-header/);
+assert.match(ranking, /nvu-ranking-app-header/);
+assert.match(ranking, /NotificationCenter/);
+assert.match(ranking, /nvu-open-shell-menu/);
+assert.doesNotMatch(ranking, /nvu-ranking-closed/);
+assert.match(ranking, /aria-label="Abrir menu do aplicativo"/);
+assert.doesNotMatch(ranking, /onClick=\{\(\) => navigate\(-1\)\}[\s\S]{0,80}aria-label="Abrir menu do aplicativo"/);
+assert.match(app, /nvu-ranking-overlay fixed inset-0/);
+assert.match(app, /Capacitor\.isNativePlatform\(\) && "nvu-native-android"/);
+assert.match(css, /nvu-native-android\.nvu-ranking-overlay/);
+assert.match(css, /nvu-ranking-header/);
+assert.match(css, /nvu-native-android \.nvu-ranking-app-header/);
+assert.match(css, /nvu-native-android \.nvu-ranking-overlay \.nvu-ranking-header/);
+assert.match(css, /padding-top: var\(--nvu-safe-top\) !important/);
+assert.match(css, /\.dark \.nvu-native-android\.nvu-ranking-overlay/);
+assert.match(css, /body:has\(\.nvu-ranking-overlay\)[\s\S]*\.nvu-native-menu-overlay[\s\S]*z-index: 2100 !important/);
+assert.match(css, /body:has\(\.nvu-ranking-overlay\)[\s\S]*\.nvu-native-sidebar[\s\S]*z-index: 2200 !important/);
+assert.doesNotMatch(admin, /SystemBars\.setStyle|SystemBarsStyle\.(Dark|Light)|nvu-ranking-closed/);
+assert.match(admin, /nvu-open-shell-menu/);
+assert.doesNotMatch(driver, /SystemBars\.setStyle|SystemBarsStyle\.(Dark|Light)|nvu-ranking-closed/);
+assert.match(driver, /nvu-open-shell-menu/);
+
+console.log('ranking-native-chrome-reference: PASS native wrapper, theme-aware header/status bar and Ranking surface');

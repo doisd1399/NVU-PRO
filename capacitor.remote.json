@@ -1,0 +1,5 @@
+{
+  "enabled": false,
+  "url": "",
+  "usage": "Legacy configuration retained for history only. Production Android uses bundled local Web assets; do not configure server.url."
+}
