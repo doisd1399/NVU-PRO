@@ -13,7 +13,7 @@ O novo repositório privado **NVU-PRO** foi criado e publicado na branch `main`.
 | Repositório | [doisd1399/NVU-PRO][1] |
 | Visibilidade | Privado |
 | Branch oficial | `main` |
-| Commit publicado | `2a7af8134213455a39a355654bc1007544aed7a0` |
+| Commit publicado | `0433a5fe240f3d5102bf88c77ca008863dca8ae9` |
 | Tag oficial | **NÃO CRIADA**; a regra exige build, assinatura e validação anteriores |
 | Tag recomendada após validação | `v1.0.359-release` |
 
