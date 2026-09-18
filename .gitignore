@@ -8,12 +8,12 @@ dist/
 android/.gradle/
 android/build/
 android/app/build/
- android/app/src/main/assets/public/
- android/app/src/main/assets/cordova.js
- android/app/src/main/assets/cordova_plugins.js
+android/app/src/main/assets/public/
+android/app/src/main/assets/cordova.js
+android/app/src/main/assets/cordova_plugins.js
 android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
- android/capacitor.settings.gradle
+android/capacitor.settings.gradle
 android/capacitor-cordova-android-plugins/
 android/capacitor-*/
 
