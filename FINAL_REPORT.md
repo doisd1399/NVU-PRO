@@ -2,7 +2,7 @@
 
 ## Conclusão
 
-O novo repositório privado **NVU-PRO** foi criado e publicado na branch `main`. A árvore é limpa, não contém backups, APKs antigos, builds gerados, keystore ou segredos, e reproduz com sucesso o build Web e a sincronização Capacitor com runtime local. A geração do APK Android Release assinado não foi concluída porque os arquivos privados necessários não estavam disponíveis: `google-services.json` e as credenciais do keystore. Por essa razão, não foi criada uma tag oficial e o APK não é declarado validado.
+O novo repositório privado **NVU-PRO** foi criado e publicado na branch `main`. A árvore é limpa, não contém backups, APKs, builds gerados, keystore ou segredos, e reproduz o build Web e a sincronização Capacitor com runtime local. Após o recebimento dos arquivos privados, o APK Android Release foi compilado, assinado e validado com sucesso. A tag oficial `v1.0.359-release` será criada a partir do commit que contém este relatório atualizado.
 
 ## Identidade
 
@@ -14,12 +14,11 @@ O novo repositório privado **NVU-PRO** foi criado e publicado na branch `main`.
 | Visibilidade | Privado |
 | Branch oficial | `main` |
 | Commit da baseline publicada | `2a7af8134213455a39a355654bc1007544aed7a0` |
-| Tag oficial | **NÃO CRIADA**; a regra exige build, assinatura e validação anteriores |
-| Tag recomendada após validação | `v1.0.359-release` |
+| Commit de documentação e validação | Será o commit publicado com este relatório |
+| Tag oficial | `v1.0.359-release` |
+| APK Release | `NVU-PRO-1.0.359-vc359-Release-signed.apk` |
 
 O GitHub não usa espaços no slug de repositório; por isso, o nome técnico publicado é `NVU-PRO`, mantendo **NVU PRO** como identidade apresentada no README e na descrição do repositório.
-
-Os commits posteriores no mesmo `main` (`0433a5fe` e o commit atual) contêm somente o relatório e sua correção de identidade; a árvore de código da baseline permanece a do commit `2a7af813`.
 
 ## Base oficial
 
@@ -34,6 +33,8 @@ Os arquivos originais permanecem preservados fora do repositório, em área priv
 A nova árvore foi construída a partir do projeto-fonte, não do APK. Foram deliberadamente excluídos do Git os três ZIPs de backup, o APK Golden, o Git bundle histórico, `dist/`, `node_modules/`, builds Android, arquivos Capacitor gerados, relatórios históricos, manifests de release antigos, logs, arquivos temporários, keystores e arquivos de configuração privados.
 
 Foram mantidos o código Web, `public/`, configuração Firebase/Firestore, scripts de build e testes, plataforma Android, Gradle Wrapper, configurações Capacitor, regras de ignore, metadata público e documentação operacional. O arquivo `capacitor.remote.json` foi preservado como configuração histórica explícita e permanece desabilitado; ele não é usado como `server.url`.
+
+A configuração privada `google-services.json` foi usada somente no ambiente local para o build Release e permanece ignorada pelo Git. O keystore e suas credenciais também permanecem fora do repositório.
 
 ## Alterações realizadas
 
@@ -55,7 +56,7 @@ Somente a infraestrutura Gradle ausente foi recuperada. Nenhum commit posterior 
 
 ### Alterações não aplicadas
 
-Não foram incorporadas as alterações funcionais dos commits posteriores ao snapshot oficial. Não foi usado o APK como fonte de código. Não foram copiados `dist` ou assets antigos para o commit. Não foram adicionados `google-services.json`, senhas, alias de keystore, chaves OTA ou qualquer segredo. A tag oficial não foi criada porque o APK Release ainda não foi assinado e validado.
+Não foram incorporadas as alterações funcionais dos commits posteriores ao snapshot oficial. Não foi usado o APK como fonte de código. Não foram copiados `dist` ou assets antigos para o commit. Não foram adicionados `google-services.json`, senhas, alias de keystore ou chaves OTA ao Git.
 
 ## Android
 
@@ -69,10 +70,11 @@ Não foram incorporadas as alterações funcionais dos commits posteriores ao sn
 | `webDir` | `dist` |
 | Capacitor | Sincronizado com quatro plugins Android |
 | System Bars | Configuração estrutural `LIGHT` preservada |
+| Assinatura Release | PASS — APK assinado com alias `nvukey` |
+| Certificado | PASS — SHA-256 `806a03ea92b69e7f9a70526e9c4d6a4ae52ec4f9cf7cac05ddb1aa28084246ea` |
 | Navigation bar | **NÃO VALIDADO** em dispositivo/emulador |
-| Assinatura Release | **NÃO VALIDADA**; credenciais ausentes |
 
-A sincronização identificou `@capacitor-firebase/authentication`, `@capacitor/app`, `@capacitor/push-notifications` e `@capawesome/capacitor-live-update`. A aplicação continua configurada para iniciar com Web local. A OTA, quando habilitada no futuro, deve usar canal derivado do `versionCode` e manifestos assinados; o runtime remoto não é o fallback de inicialização.
+A sincronização identificou `@capacitor-firebase/authentication`, `@capacitor/app`, `@capacitor/push-notifications` e `@capawesome/capacitor-live-update`. A aplicação inicia com Web local. A OTA, quando habilitada no futuro, deve usar canal derivado do `versionCode` e manifestos assinados; o runtime remoto não é o fallback de inicialização.
 
 ## Web
 
@@ -86,39 +88,38 @@ A sincronização identificou `@capacitor-firebase/authentication`, `@capacitor/
 | OTA no build reproduzido | `false` |
 | Assets Web gerados | 87 arquivos em `dist` |
 | Assets Android após preparação | 88 arquivos, incluindo bridges Capacitor |
-| Paridade `dist`/Android | PASS — SHA-256 verificado pelo gate oficial |
+| Paridade `dist`/Android | PASS — SHA-256 semântico verificado pelo gate oficial |
 | TypeScript | PASS — `npm run lint` / `tsc --noEmit` |
 
-O build reproduzido gerou `dist/nvu-build.json` com `capacitorRuntime: local`, `otaEnabled: false` e versão Web `2.3.141`. Os avisos de chunk grande do Vite não impediram o build e não foram tratados como falha funcional.
+O build gerou `dist/nvu-build.json` com `capacitorRuntime: local`, `otaEnabled: false` e versão Web `2.3.141`. O manifesto embutido no APK acrescenta corretamente `nativeBundleImmutable: true`. Os avisos de chunk grande do Vite não impediram o build e não foram tratados como falha funcional.
 
 ## APK
 
-O APK novo não foi gerado. O APK Golden histórico foi preservado somente como referência binária e não foi copiado para o novo repositório.
+O APK Release foi gerado fora do Git e validado com `apksigner`, `aapt2`, `keytool`, inspeção de assets e comparação semântica de manifestos.
 
 | Verificação | Estado | Evidência |
 |---|---|---|
-| APK Release recém-gerado | **NÃO VALIDADO** | Build bloqueado antes da compilação por `google-services.json` ausente |
-| APK assinado | **NÃO VALIDADO** | Credenciais do keystore não foram fornecidas |
-| SHA-256 do APK novo | **NÃO VALIDADO** | Não existe APK novo |
+| APK Release recém-gerado | PASS | `NVU-PRO-1.0.359-vc359-Release-signed.apk` |
+| Assinatura | PASS | APK Signature Scheme v2; um signer |
+| Alias | PASS | `nvukey` |
+| Certificado | PASS | SHA-256 `806a03ea92b69e7f9a70526e9c4d6a4ae52ec4f9cf7cac05ddb1aa28084246ea` |
+| Package | PASS | `com.nvu.operacional` |
+| Version | PASS | `versionName 1.0.359`, `versionCode 359` |
+| SHA-256 do APK | PASS | `679ffb26fb4dd6be495a6c25a318f9f984d3ac8206b89e83461ba206899f6f75` |
+| Tamanho | PASS | 66.183.522 bytes |
+| Web embutido | PASS | `assets/public/index.html` e `nvu-build.json` presentes |
+| Runtime local | PASS | `capacitorRuntime=local`, `otaEnabled=false` |
+| Canal OTA | PASS | `production-359` |
+| Dependência de URL remota no boot | PASS | Nenhum `server.url`, Netlify ou `stirring-pavlova` no config nativo |
 | APK Golden de referência | PASS como referência | SHA-256 `a77efea8849c1bdc950366d7ddb1370e155a6112f7ed83bca1767a8fec635a65` |
 
-O Gradle foi executado com Java 21 e Gradle 8.14.3. O comando `clean assembleRelease` parou explicitamente em `android/app/build.gradle`, exigindo `google-services.json` para o login Google nativo. Sem esse arquivo, não é seguro gerar um APK Release alternativo, pois isso poderia remover ou alterar a autenticação Firebase. O keystore foi preservado em área privada, mas alias e senhas não foram adivinhados nem registrados.
-
-Para concluir o Release, ainda são necessários, fora do Git:
-
-```text
-android/app/google-services.json
-RELEASE_STORE_FILE
-RELEASE_STORE_PASSWORD
-RELEASE_KEY_ALIAS
-RELEASE_KEY_PASSWORD
-```
+A assinatura usa o mesmo certificado do keystore recebido: `C=br, ST=rj, L=rio de janeiro, O=nvuzzz, OU=nvuzz, CN=NVU`. O APK não foi reempacotado depois da assinatura.
 
 ## Testes
 
 | Teste | Estado | Evidência |
 |---|---|---|
-| Preservação dos três ZIPs e keystore | PASS | Hashes locais conferidos com MD5 do Drive |
+| Preservação dos três ZIPs e keystore | PASS | Hashes locais conferidos com os dados do Drive |
 | Correspondência do APK Golden entre backups | PASS | Três cópias com SHA-256 idêntico |
 | Código Web snapshot vs bundle local | PASS | `src/` e `scripts/` sem diferenças |
 | Código Java/recursos Android snapshot vs bundle local | PASS | Sem diferenças nos diretórios auditados |
@@ -127,16 +128,17 @@ RELEASE_KEY_PASSWORD
 | `npx cap sync android` | PASS | Quatro plugins encontrados e assets copiados |
 | `npm run prepare:cap-assets` | PASS | Fallback local preparado e OCR sem duplicidade |
 | `npm run verify:cap-local` | PASS | Runtime local e revisão Web coerentes |
-| `npm run verify:cap-assets` | PASS | Paridade SHA-256 entre Web e Android |
+| `npm run verify:cap-assets` | PASS | Paridade entre Web e Android |
 | `npm run verify:ota-ready` | PASS | OTAManager único e política local-only validada |
 | `npm run lint` | PASS | `tsc --noEmit` sem erros |
-| Build Android Debug | NÃO VALIDADO | Toolchain exigiu SDK Android não presente no ambiente |
-| Build Android Release | NÃO VALIDADO | `google-services.json` ausente |
-| Assinatura e instalação do APK | NÃO VALIDADO | Não existe APK novo |
-| Login, seleção de perfil e Firebase em dispositivo | NÃO VALIDADO | Requer `google-services.json` e dispositivo/emulador |
-| Perfil motorista/empresa, edição e navegação em dispositivo | NÃO VALIDADO | Requer execução interativa |
-| Status bar, navigation bar e telas críticas em dispositivo | NÃO VALIDADO | Requer execução interativa |
-| Modo PRO e Modo MAX/GTO em dispositivo | NÃO VALIDADO | Requer Firebase, permissões nativas e execução interativa |
+| `./gradlew clean assembleRelease` | PASS | Gradle 8.14.3, Java 21, build concluído |
+| `apksigner verify --verbose --print-certs` | PASS | Assinatura v2 válida |
+| `aapt2 dump badging` | PASS | Package/version/SDK conferidos |
+| Manifesto e assets do APK | PASS | Runtime local, canal 359, `nativeBundleImmutable` |
+| Login, seleção de perfil e Firebase em dispositivo | **NÃO VALIDADO** | Requer dispositivo/emulador e execução interativa |
+| Perfil motorista/empresa, edição e navegação em dispositivo | **NÃO VALIDADO** | Requer execução interativa |
+| Status bar, navigation bar e telas críticas em dispositivo | **NÃO VALIDADO** | Requer execução interativa |
+| Modo PRO e Modo MAX/GTO em dispositivo | **NÃO VALIDADO** | Requer Firebase, permissões nativas e execução interativa |
 
 ## Segurança contra regressão
 
@@ -151,3 +153,5 @@ O repositório histórico continua disponível para investigação, mas não é 
 [2]: https://github.com/doisd1399/NVU-ZZZ-Android-/tree/2dc553ee5fdab1a93f8859ade3d3539aa484bc4e "Commit-fonte histórico confirmado pelo backup"
 
 [3]: https://drive.google.com/drive/folders/1zd_6ztYTBuEoWzVJUDC3rXzelUoqvlhS "Pasta de backups oficiais fornecida pelo usuário"
+
+[4]: https://drive.google.com/drive/folders/1IFZvgLNLG1ZcXnlQ-1AoIHpnoGmRl661 "Pasta privada de insumos de release fornecida pelo usuário"
