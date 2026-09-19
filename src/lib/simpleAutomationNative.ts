@@ -6,6 +6,13 @@ export type SimpleAutomationNativeStatus = {
   running?: boolean;
   overlayPermission?: boolean;
   overlayVisible?: boolean;
+  overlayType?: string;
+  bubbleVisible?: boolean;
+  captureUiHidden?: boolean;
+  overlayLastAction?: string;
+  overlayLastError?: string;
+  overlayLastErrorAt?: number;
+  projectionPermissionState?: string;
   simulatorKey?: string;
   simulatorCode?: "GTO" | "TOE3" | "WTDS" | "WBDS" | string;
   simulatorLabel?: string;

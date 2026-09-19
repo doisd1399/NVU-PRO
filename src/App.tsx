@@ -637,6 +637,21 @@ const ProtectedRoute = ({
   return <>{children}</>;
 };
 
+function RankingShellRoute() {
+  const { currentUser } = useSessionStore();
+  const { activeRole } = useProfileSession();
+
+  if (!currentUser?.id) return <Navigate to="/login" replace />;
+  if (activeRole !== "admin" && activeRole !== "driver") {
+    return <Navigate to="/select-profile" replace />;
+  }
+
+  const ranking = <RankingGlobal />;
+  return activeRole === "admin"
+    ? <LazyRoute fullPage><AdminLayout>{ranking}</AdminLayout></LazyRoute>
+    : <LazyRoute fullPage><DriverLayout>{ranking}</DriverLayout></LazyRoute>;
+}
+
 function AppRouteContent() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -820,7 +835,7 @@ function AppRouteContent() {
         </Route>
 
         {/* Driver Routes */}
-        <Route path="/ranking" element={<LazyRoute fullPage><RankingGlobal /></LazyRoute>} />
+        <Route path="/ranking" element={<RankingShellRoute />} />
         <Route
           path="/driver"
           element={

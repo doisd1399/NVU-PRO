@@ -1270,8 +1270,8 @@ export default function RankingGlobal() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("nvu-open-shell-menu"))}
-            aria-label="Abrir menu do aplicativo"
+            onClick={() => window.dispatchEvent(new CustomEvent("nvu-toggle-shell-menu"))}
+            aria-label="Alternar menu do aplicativo"
             className="rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-white/10"
           >
             <Menu size={24} />

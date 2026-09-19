@@ -307,6 +307,14 @@ public class SimpleAutomationPlugin extends Plugin {
         status.put("running", prefs.getBoolean("running", false));
         status.put("overlayPermission", Settings.canDrawOverlays(getContext()));
         status.put("overlayVisible", prefs.getBoolean("overlayVisible", false));
+        status.put("overlayType", android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O
+            ? "TYPE_APPLICATION_OVERLAY" : "TYPE_PHONE");
+        status.put("bubbleVisible", prefs.getBoolean("bubbleVisible", prefs.getBoolean("overlayVisible", false)));
+        status.put("captureUiHidden", prefs.getBoolean("captureUiHidden", false));
+        status.put("overlayLastAction", prefs.getString("overlayLastAction", ""));
+        status.put("overlayLastError", prefs.getString("overlayLastError", ""));
+        status.put("overlayLastErrorAt", prefs.getLong("overlayLastErrorAt", 0L));
+        status.put("projectionPermissionState", prefs.getString("captureStage", "IDLE"));
         status.put("simulatorKey", prefs.getString("simulatorKey", ""));
         status.put("simulatorCode", prefs.getString("simulatorCode", ""));
         status.put("simulatorLabel", prefs.getString("simulatorLabel", ""));

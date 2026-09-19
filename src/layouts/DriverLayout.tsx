@@ -56,7 +56,7 @@ import {
   warmRegisteredRankingPhotos,
 } from "../lib/rankingPhotoWarmup";
 
-export default function DriverLayout() {
+export default function DriverLayout({ children }: { children?: React.ReactNode }) {
   const { currentUser, switchRole, activeRole, logOutApp } = useSessionStore();
   const { companies, activeCompanyId, setActiveCompanyId, memberships } = useCompanyStore();
   const { notifications, markNotificationAsRead } = useNotificationStore();
@@ -134,9 +134,15 @@ export default function DriverLayout() {
   }, [navigate]);
 
   React.useEffect(() => {
-    const handleOpenShellMenu = () => setIsMobileMenuOpen(true);
-    window.addEventListener("nvu-open-shell-menu", handleOpenShellMenu);
-    return () => window.removeEventListener("nvu-open-shell-menu", handleOpenShellMenu);
+    const handleToggleShellMenu = () => setIsMobileMenuOpen((open) => !open);
+    window.addEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
+    // Legacy event kept as an alias with toggle semantics; no caller can force
+    // the menu open and accidentally trap the second tap in the open state.
+    window.addEventListener("nvu-open-shell-menu", handleToggleShellMenu);
+    return () => {
+      window.removeEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
+      window.removeEventListener("nvu-open-shell-menu", handleToggleShellMenu);
+    };
   }, []);
 
   const currentActiveCompany = React.useMemo(() => {
@@ -712,7 +718,7 @@ export default function DriverLayout() {
                   isDriverProfileRoute && "nvu-native-profile-content",
                 )}
               >
-                <Outlet />
+                {children ?? <Outlet />}
               </div>
             </main>
           </div>

@@ -772,7 +772,7 @@ public final class SimpleAutomationService extends Service {
         boolean captureHidden = prefs.getBoolean("captureUiHidden", false);
         String simpleState = prefs.getString("simpleState", DEFAULT_STATE);
         if (captureHidden && (STATE_CAPTURE_PENDING.equals(simpleState) || "CAPTURE_CAPTURED".equals(simpleState))) {
-            showBubbleIfAllowed(true);
+            showBubbleIfAllowed();
         } else if (!captureHidden) {
             showBubbleIfAllowed();
         }
@@ -1199,7 +1199,15 @@ public final class SimpleAutomationService extends Service {
         // The Pro bubble is visual-only: orientation controls visibility.
         // Foreground/package evidence must never authorize, block or cancel capture.
         if (!isProBubbleOrientationAllowed()) return;
-        if (windowManager == null || bubbleView != null || !android.provider.Settings.canDrawOverlays(this)) return;
+        boolean overlayPermission = android.provider.Settings.canDrawOverlays(this);
+        if (prefs != null) {
+            prefs.edit().putBoolean("overlayPermission", overlayPermission).apply();
+            if (!overlayPermission) {
+                prefs.edit().putString("overlayLastError", "overlay-permission")
+                    .putLong("overlayLastErrorAt", System.currentTimeMillis()).apply();
+            }
+        }
+        if (windowManager == null || bubbleView != null || !overlayPermission) return;
         final int buttonWidth = dp(68);
         final int buttonHeight = dp(32);
         final int healthDotSize = dp(6);
@@ -1317,12 +1325,20 @@ public final class SimpleAutomationService extends Service {
             windowManager.addView(bubbleView, bubbleParams);
             bubbleLayoutDisplayWidth = initialMetrics.widthPixels;
             bubbleLayoutDisplayHeight = initialMetrics.heightPixels;
-            prefs.edit().putBoolean("overlayVisible", true).apply();
-        } catch (Exception error) {
+            prefs.edit().putBoolean("overlayVisible", true).putBoolean("bubbleVisible", true)
+                .putString("overlayLastAction", "added:bubble").apply();
+        } catch (SecurityException error) {
             bubbleView = null;
             bubbleLabelView = null;
             captureHealthDotView = null;
-            prefs.edit().putString("overlayError", String.valueOf(error)).apply();
+            prefs.edit().putBoolean("overlayVisible", false).putBoolean("bubbleVisible", false).apply();
+            recordOverlayDiagnostic("add_security_exception", error);
+        } catch (RuntimeException error) {
+            bubbleView = null;
+            bubbleLabelView = null;
+            captureHealthDotView = null;
+            prefs.edit().putBoolean("overlayVisible", false).putBoolean("bubbleVisible", false).apply();
+            recordOverlayDiagnostic("add_runtime_exception", error);
         }
     }
 
@@ -2326,7 +2342,43 @@ public final class SimpleAutomationService extends Service {
         hideSimpleBubbleRemoveTarget();
         hideStatusChip();
         closeMenu();
-        if (bubbleView == null) showBubbleIfAllowed(true);
+        removeBubbleForSensitiveScreen("MEDIA_PROJECTION_CONSENT");
+    }
+
+    private void removeBubbleForSensitiveScreen(String reason) {
+        if (bubbleView != null && windowManager != null) {
+            try {
+                windowManager.removeViewImmediate(bubbleView);
+            } catch (SecurityException error) {
+                recordOverlayDiagnostic("remove_security_exception", error);
+            } catch (RuntimeException error) {
+                recordOverlayDiagnostic("remove_runtime_exception", error);
+            }
+        }
+        bubbleView = null;
+        bubbleLabelView = null;
+        captureHealthDotView = null;
+        bubbleParams = null;
+        if (prefs != null) {
+            prefs.edit()
+                .putBoolean("captureUiHidden", true)
+                .putBoolean("overlayVisible", false)
+                .putString("overlayLastAction", "removed:" + safe(reason))
+                .apply();
+        }
+    }
+
+    private void recordOverlayDiagnostic(String code, Throwable error) {
+        if (prefs == null) return;
+        String detail = error == null ? "" : safe(error.getClass().getSimpleName());
+        prefs.edit()
+            .putBoolean("overlayPermission", android.provider.Settings.canDrawOverlays(this))
+            .putString("overlayType", String.valueOf(overlayType()))
+            .putBoolean("bubbleVisible", bubbleView != null)
+            .putBoolean("captureUiHidden", prefs.getBoolean("captureUiHidden", false))
+            .putString("overlayLastError", safe(code) + (detail.isEmpty() ? "" : ":" + detail))
+            .putLong("overlayLastErrorAt", System.currentTimeMillis())
+            .apply();
     }
 
     /**
@@ -2490,7 +2542,7 @@ public final class SimpleAutomationService extends Service {
                 .putBoolean("visibilityEstablished", false).apply();
             // During capture the bubble remains an orientation-only visual affordance.
             // MediaProjection and OCR never depend on this branch.
-            showBubbleIfAllowed(true);
+            showBubbleIfAllowed();
             if (menuView != null && menuParams != null) {
                 mainHandler.post(this::adjustProMenuLayoutAfterMeasure);
             }
@@ -2525,7 +2577,8 @@ public final class SimpleAutomationService extends Service {
         bubbleLabelView = null;
         captureHealthDotView = null;
         bubbleParams = null;
-        if (prefs != null) prefs.edit().putBoolean("overlayVisible", false).apply();
+        if (prefs != null) prefs.edit().putBoolean("overlayVisible", false).putBoolean("bubbleVisible", false)
+            .putString("overlayLastAction", "removed:simulator_outside").apply();
     }
 
     private void removeOverlays() {
@@ -2538,7 +2591,8 @@ public final class SimpleAutomationService extends Service {
         }
         bubbleView = null;
         bubbleParams = null;
-        if (prefs != null) prefs.edit().putBoolean("overlayVisible", false).apply();
+        if (prefs != null) prefs.edit().putBoolean("overlayVisible", false).putBoolean("bubbleVisible", false)
+            .putString("overlayLastAction", "removed:service").apply();
     }
 
     private int overlayType() {

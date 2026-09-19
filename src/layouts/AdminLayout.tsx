@@ -59,7 +59,7 @@ import {
   warmRegisteredRankingPhotos,
 } from "../lib/rankingPhotoWarmup";
 
-export default function AdminLayout() {
+export default function AdminLayout({ children }: { children?: React.ReactNode }) {
   const {
     currentUser,
     switchRole,
@@ -169,9 +169,14 @@ export default function AdminLayout() {
   }, [navigate]);
 
   React.useEffect(() => {
-    const handleOpenShellMenu = () => setIsMobileMenuOpen(true);
-    window.addEventListener("nvu-open-shell-menu", handleOpenShellMenu);
-    return () => window.removeEventListener("nvu-open-shell-menu", handleOpenShellMenu);
+    const handleToggleShellMenu = () => setIsMobileMenuOpen((open) => !open);
+    window.addEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
+    // Legacy event kept as an alias with toggle semantics for older callers.
+    window.addEventListener("nvu-open-shell-menu", handleToggleShellMenu);
+    return () => {
+      window.removeEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
+      window.removeEventListener("nvu-open-shell-menu", handleToggleShellMenu);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -754,7 +759,7 @@ export default function AdminLayout() {
                   </button>
                 </div>
               ) : (
-                <Outlet />
+                children ?? <Outlet />
               )}
             </div>
           </div>
