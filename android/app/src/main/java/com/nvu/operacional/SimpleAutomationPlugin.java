@@ -88,6 +88,24 @@ public class SimpleAutomationPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void recordConfirmedTrip(PluginCall call) {
+        SimpleAutomationService.recordConfirmedTrip(
+            getContext(),
+            safe(call.getString("tripId")),
+            safe(call.getString("jobId")),
+            safe(call.getString("companyId")),
+            safe(call.getString("driverId")),
+            safe(call.getString("contractId")),
+            safe(call.getString("simulatorKey")),
+            safe(call.getString("origin")),
+            safe(call.getString("destination")),
+            Math.max(0L, call.getLong("amountCents", 0L)),
+            Math.max(0L, call.getLong("completedAt", System.currentTimeMillis()))
+        );
+        call.resolve(buildStatus());
+    }
+
+    @PluginMethod
     public void openOverlaySettings(PluginCall call) {
         try {
             Intent intent = new Intent(

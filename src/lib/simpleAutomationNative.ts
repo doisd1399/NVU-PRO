@@ -69,6 +69,18 @@ interface SimpleAutomationPlugin {
   addListener(eventName: "receiptCaptured", listenerFunc: (event: { stage?: string }) => void): Promise<{ remove: () => Promise<void> }>;
   getStatus(): Promise<SimpleAutomationNativeStatus>;
   recordProTiming(input: { stage: string; elapsedMs?: number }): Promise<SimpleAutomationNativeStatus>;
+  recordConfirmedTrip(input: {
+    tripId: string;
+    jobId: string;
+    companyId: string;
+    driverId: string;
+    contractId?: string;
+    simulatorKey?: string;
+    origin: string;
+    destination: string;
+    amountCents: number;
+    completedAt?: number;
+  }): Promise<SimpleAutomationNativeStatus>;
   openOverlaySettings(): Promise<SimpleAutomationNativeStatus>;
   start(): Promise<SimpleAutomationNativeStatus>;
   stop(): Promise<SimpleAutomationNativeStatus>;

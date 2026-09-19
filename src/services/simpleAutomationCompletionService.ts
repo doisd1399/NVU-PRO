@@ -36,6 +36,7 @@ export type SimpleAutomationCompletionTrace = {
 export type SimpleAutomationCompletionResult = {
   validation: SimpleReceiptValidation;
   submitted: boolean;
+  tripId?: string;
   reason?: string;
   trace?: SimpleAutomationCompletionTrace;
   operationProgress?: number;
@@ -426,6 +427,7 @@ export async function completeSimpleAutomationReceipt(
   return {
     validation,
     submitted: true,
+    tripId: result.docRef.id,
     trace,
     operationProgress: result.operationProgress,
     operationTotalDeliveries: result.operationTotalDeliveries,

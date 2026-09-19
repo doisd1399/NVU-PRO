@@ -113,6 +113,10 @@ final class SimpleProNativeSubmissionCoordinator {
                 DocumentSnapshot contractSnapshot = contractTask.getResult();
                 if (existing != null && existing.exists()) {
                     if (sameTripOwner(existing, driverId, companyId, jobId, contractId, attemptId)) {
+                        SimpleAutomationService.recordConfirmedTrip(
+                            appContext, tripRef.getId(), jobId, companyId, driverId, contractId,
+                            simulatorKey, origin, destination, receipt.amountCents, System.currentTimeMillis()
+                        );
                         nativeSuccess(prefs, tripRef.getId(), listener);
                     } else {
                         fallback(prefs, "A chave de idempotência já pertence a outra viagem", listener);
@@ -258,6 +262,10 @@ final class SimpleProNativeSubmissionCoordinator {
                 return;
             }
             refreshNativeOperationSnapshot(context, prefs, job, contract, progress + 1, total);
+            SimpleAutomationService.recordConfirmedTrip(
+                context, tripRef.getId(), jobId, companyId, driverId, contractId,
+                simulatorKey, origin, destination, receipt.amountCents, System.currentTimeMillis()
+            );
             nativeSuccess(prefs, tripRef.getId(), listener);
         });
     }

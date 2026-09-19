@@ -25,6 +25,9 @@ const now = (): number =>
     ? performance.now()
     : Date.now();
 
+const validationAmountCents = (validation: { amount: number | null }): number =>
+  validation.amount === null ? 0 : Math.round(validation.amount * 100);
+
 export function SimpleAutomationCompletionBridge({
   currentUser,
   currentCompany,
@@ -201,9 +204,28 @@ export function SimpleAutomationCompletionBridge({
         completionMs: bridgeCompletionMs,
       });
       if (result.submitted) {
+        const historyStartedAt = now();
+        if (result.tripId && validationAmountCents(result.validation) > 0) {
+          await SimpleAutomation.recordConfirmedTrip({
+            tripId: result.tripId,
+            jobId: String(status.captureJobId || context.currentJob.id),
+            companyId: String(status.captureCompanyId || context.currentCompany.id),
+            driverId: String(status.captureDriverId || context.currentUser.id),
+            contractId: String(status.captureContractId || context.currentContract.id),
+            simulatorKey: String(status.captureSimulatorKey || status.simulatorKey || ""),
+            origin: String(status.captureOrigin || ""),
+            destination: String(status.captureDestination || ""),
+            amountCents: validationAmountCents(result.validation),
+            completedAt: Date.now(),
+          });
+        }
+        const historyUpdatedMs = now() - historyStartedAt;
+        recordSimpleAutomationProTiming("history_updated", historyUpdatedMs);
+        recordSimpleAutomationProTiming("preview_shown", 0);
         console.info("[NVU-ProTiming]", {
           bridgeStatusReadMs: Number(statusReadMs.toFixed(1)),
           ...(result.trace || {}),
+          historyUpdatedMs: Number(historyUpdatedMs.toFixed(1)),
         });
         if (result.operationClosed) {
           const completedAt = new Date();

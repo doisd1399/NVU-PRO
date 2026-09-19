@@ -140,8 +140,15 @@ export function GlobalMenu({
             "nvu-native-menu-overlay fixed inset-0 bg-gray-900/50 z-40 md:hidden overflow-hidden",
             isCompany && "nvu-admin-menu-overlay",
           )}
-          onPointerDown={onClose}
-          onClick={onClose}
+          onPointerDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onClose();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
           aria-hidden="true"
           data-nvu-menu-overlay="true"
         />

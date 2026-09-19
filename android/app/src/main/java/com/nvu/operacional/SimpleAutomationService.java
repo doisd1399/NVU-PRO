@@ -47,10 +47,12 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -108,6 +110,7 @@ public final class SimpleAutomationService extends Service {
     private int bubbleXBeforeStatusMessage = Integer.MIN_VALUE;
     private int bubbleYBeforeStatusMessage = Integer.MIN_VALUE;
     private boolean bubbleMovedForStatusMessage;
+    private boolean historyExpanded;
     private int bubbleLayoutDisplayWidth;
     private int bubbleLayoutDisplayHeight;
     private TextView bubbleRemoveTargetView;
@@ -333,6 +336,9 @@ public final class SimpleAutomationService extends Service {
         android.content.SharedPreferences preferences = context.getApplicationContext()
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         String existingState = preferences.getString("simpleState", DEFAULT_STATE);
+        boolean historyScopeChanged = !safe(jobId).equals(safe(preferences.getString("historyScopeJobId", "")))
+            || !safe(companyId).equals(safe(preferences.getString("historyScopeCompanyId", "")))
+            || !safe(driverId).equals(safe(preferences.getString("historyScopeDriverId", "")));
         boolean preservePendingReceipt = STATE_CAPTURE_PENDING.equals(existingState)
             || hasCapturedReceipt(context);
         android.content.SharedPreferences.Editor editor = preferences.edit();
@@ -366,6 +372,13 @@ public final class SimpleAutomationService extends Service {
         editor.putString("trailerName", safe(trailerName));
         editor.putString("packageId", safe(packageId));
         editor.putString("citiesJson", safe(citiesJson));
+        if (historyScopeChanged) {
+            editor.remove("operationHistoryJson")
+                .remove("historyScopeJobId")
+                .remove("historyScopeCompanyId")
+                .remove("historyScopeDriverId")
+                .remove("historyUpdatedAt");
+        }
         if (!preservePendingReceipt) {
             editor.remove("captureAttemptId");
             editor.remove("captureContextEpoch");
@@ -602,6 +615,71 @@ public final class SimpleAutomationService extends Service {
         instance.mainHandlerPost(instance::beginCaptureConsent);
     }
 
+    public static void recordConfirmedTrip(
+        Context context,
+        String tripId,
+        String jobId,
+        String companyId,
+        String driverId,
+        String contractId,
+        String simulatorKey,
+        String origin,
+        String destination,
+        long amountCents,
+        long completedAt
+    ) {
+        if (context == null || safe(tripId).isEmpty() || safe(jobId).isEmpty()
+            || safe(companyId).isEmpty() || safe(driverId).isEmpty()
+            || amountCents <= 0L) return;
+        android.content.SharedPreferences preferences = context.getApplicationContext()
+            .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (!safe(jobId).equals(safe(preferences.getString("jobId", "")))
+            || !safe(companyId).equals(safe(preferences.getString("companyId", "")))
+            || !safe(driverId).equals(safe(preferences.getString("driverId", "")))) return;
+        try {
+            JSONArray current = new JSONArray(preferences.getString("operationHistoryJson", "[]"));
+            List<JSONObject> entries = new ArrayList<>();
+            boolean duplicate = false;
+            for (int index = 0; index < current.length(); index++) {
+                JSONObject item = current.optJSONObject(index);
+                if (item == null) continue;
+                if (safe(tripId).equals(safe(item.optString("tripId", "")))) duplicate = true;
+                entries.add(item);
+            }
+            if (!duplicate) {
+                JSONObject item = new JSONObject();
+                item.put("tripId", safe(tripId));
+                item.put("jobId", safe(jobId));
+                item.put("companyId", safe(companyId));
+                item.put("driverId", safe(driverId));
+                item.put("contractId", safe(contractId));
+                item.put("simulatorKey", safe(simulatorKey));
+                item.put("origin", safe(origin));
+                item.put("destination", safe(destination));
+                item.put("amountCents", amountCents);
+                item.put("completedAt", completedAt > 0L ? completedAt : System.currentTimeMillis());
+                entries.add(item);
+            }
+            Collections.sort(entries, (left, right) -> {
+                int byTime = Long.compare(left.optLong("completedAt", 0L), right.optLong("completedAt", 0L));
+                return byTime != 0 ? byTime : safe(left.optString("tripId", ""))
+                    .compareTo(safe(right.optString("tripId", "")));
+            });
+            JSONArray rebuilt = new JSONArray();
+            for (JSONObject item : entries) rebuilt.put(item);
+            preferences.edit()
+                .putString("historyScopeJobId", safe(jobId))
+                .putString("historyScopeCompanyId", safe(companyId))
+                .putString("historyScopeDriverId", safe(driverId))
+                .putString("operationHistoryJson", rebuilt.toString())
+                .putLong("historyUpdatedAt", System.currentTimeMillis())
+                .apply();
+            if (instance != null) instance.refreshMenuContents();
+        } catch (JSONException ignored) {
+            preferences.edit().remove("operationHistoryJson").apply();
+        }
+    }
+
     public static void retryReceiptCapture(Context context) {
         if (context == null) return;
         android.content.SharedPreferences preferences = context.getApplicationContext()
@@ -667,8 +745,8 @@ public final class SimpleAutomationService extends Service {
                 instance.emitSimpleTripCompletedVoice("simple-completed:" + System.currentTimeMillis());
                 instance.showStatusChip(
                     preferences.getBoolean("operationClosed", false)
-                        ? "Operação concluída. Solicite uma nova operação para continuar."
-                        : "Viagem registrada com sucesso.",
+                        ? instance.latestHistoryPreview() + "\nOperação concluída."
+                        : instance.latestHistoryPreview(),
                     preferences.getBoolean("operationClosed", false) ? 6500L : 3600L
                 );
             } else {
@@ -1867,6 +1945,7 @@ public final class SimpleAutomationService extends Service {
             // A short tap on the NVU pill always opens the Pro home card. The
             // operation summary is entered only through its explicit action.
             summaryExpanded = false;
+            historyExpanded = false;
             openMenu();
         }
     }
@@ -1905,8 +1984,7 @@ public final class SimpleAutomationService extends Service {
         }
         menuParams = new WindowManager.LayoutParams(
             dp(256), WindowManager.LayoutParams.WRAP_CONTENT, overlayType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
                 | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
@@ -1961,8 +2039,11 @@ public final class SimpleAutomationService extends Service {
         menuView.setOnTouchListener((view, event) -> {
             if (event != null && event.getActionMasked() == MotionEvent.ACTION_OUTSIDE) {
                 closeMenu();
-                return false;
+                return true;
             }
+            // The menu owns every touch inside its window. Child controls still
+            // receive their normal click/scroll events; nothing falls through
+            // to the simulator while the modal menu is open.
             return false;
         });
         try {
@@ -2003,6 +2084,27 @@ public final class SimpleAutomationService extends Service {
 
         target.addView(label(company, 14f, true), fullParams(0, dp(1)));
         target.addView(label("Sistema inteligente de automação pro", 10.5f, false), fullParams(0, dp(5)));
+
+        if (!safe(prefs.getString("jobId", "")).isEmpty()) {
+            LinearLayout historyRow = new LinearLayout(this);
+            historyRow.setOrientation(LinearLayout.HORIZONTAL);
+            historyRow.setGravity(Gravity.CENTER_VERTICAL);
+            TextView historyLabel = label(historyExpanded ? "Viagens realizadas" : "Histórico da operação", 10.5f, false);
+            historyRow.addView(historyLabel, new LinearLayout.LayoutParams(0, -2, 1f));
+            Button historyButton = historyMenuButton();
+            historyButton.setOnClickListener(v -> {
+                historyExpanded = true;
+                summaryExpanded = false;
+                refreshMenuContents();
+            });
+            historyRow.addView(historyButton, new LinearLayout.LayoutParams(dp(30), dp(30)));
+            target.addView(historyRow, fullParams(0, dp(5)));
+        }
+
+        if (historyExpanded) {
+            addHistoryContents(target);
+            return;
+        }
 
         if (STATE_ROUTE_ORIGIN.equals(state)) {
             target.addView(label("Selecione a cidade de origem", 11f, false), fullParams(0, dp(5)));
@@ -2301,6 +2403,73 @@ public final class SimpleAutomationService extends Service {
         button.setPadding(0, 0, 0, 0);
         button.setLayoutParams(new LinearLayout.LayoutParams(dp(30), dp(30)));
         return button;
+    }
+
+    private Button historyMenuButton() {
+        Button button = miniButton("☷");
+        button.setTextSize(16f);
+        button.setContentDescription("Abrir histórico de viagens da operação atual");
+        button.setPadding(0, 0, 0, 0);
+        button.setLayoutParams(new LinearLayout.LayoutParams(dp(30), dp(30)));
+        return button;
+    }
+
+    private void addHistoryContents(LinearLayout target) {
+        target.addView(label("VIAGENS REALIZADAS", 12f, true), fullParams(dp(2), dp(4)));
+        try {
+            JSONArray history = new JSONArray(prefs.getString("operationHistoryJson", "[]"));
+            if (history.length() == 0) {
+                target.addView(label("Nenhuma viagem confirmada nesta operação.", 10.5f, false), fullParams(0, dp(6)));
+            }
+            for (int index = 0; index < history.length(); index++) {
+                JSONObject item = history.optJSONObject(index);
+                if (item == null) continue;
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(dp(8), dp(5), dp(8), dp(5));
+                card.setBackground(roundBackground(Color.argb(120, 62, 69, 79), 9));
+                card.addView(label("Viagem " + (index + 1), 11f, true), fullParams(0, dp(1)));
+                card.addView(label(
+                    safe(item.optString("origin", "")) + " → " + safe(item.optString("destination", "")),
+                    10.5f,
+                    false
+                ), fullParams(0, dp(1)));
+                card.addView(label(formatAmountCents(item.optLong("amountCents", 0L)), 11f, true), fullParams(0, 0));
+                target.addView(card, fullParams(0, dp(4)));
+            }
+        } catch (JSONException ignored) {
+            target.addView(label("Histórico indisponível no momento.", 10.5f, false), fullParams(0, dp(6)));
+        }
+        Button back = menuButton("Voltar");
+        back.setOnClickListener(v -> { historyExpanded = false; refreshMenuContents(); });
+        target.addView(back, fullParams(dp(4), 0));
+    }
+
+    private String formatAmountCents(long amountCents) {
+        long absolute = Math.abs(amountCents);
+        long whole = absolute / 100L;
+        long cents = absolute % 100L;
+        String grouped = String.format(Locale.ROOT, "%d", whole);
+        StringBuilder formatted = new StringBuilder();
+        for (int index = 0; index < grouped.length(); index++) {
+            if (index > 0 && (grouped.length() - index) % 3 == 0) formatted.append('.');
+            formatted.append(grouped.charAt(index));
+        }
+        return (amountCents < 0 ? "-" : "") + "R$ " + formatted + "," + String.format(Locale.ROOT, "%02d", cents);
+    }
+
+    private String latestHistoryPreview() {
+        try {
+            JSONArray history = new JSONArray(prefs.getString("operationHistoryJson", "[]"));
+            if (history.length() == 0) return "Viagem registrada com sucesso.";
+            JSONObject item = history.optJSONObject(history.length() - 1);
+            if (item == null) return "Viagem registrada com sucesso.";
+            return "VIAGEM REGISTRADA ✓\n"
+                + safe(item.optString("origin", "")) + " → " + safe(item.optString("destination", ""))
+                + "\n" + formatAmountCents(item.optLong("amountCents", 0L));
+        } catch (JSONException ignored) {
+            return "Viagem registrada com sucesso.";
+        }
     }
 
     private LinearLayout.LayoutParams compactParams(int topMargin, int bottomMargin) {
