@@ -57,10 +57,7 @@ function DriversTab() {
     const member = allCompanyMembers.find(
       (m) => m.userId === driver.id && m.companyId === activeCompanyId,
     );
-    if (member && member.status === "active") return member.roles;
-    if (driver.companyId === activeCompanyId && driver.status === "active")
-      return driver.roles || [driver.role];
-    return [];
+    return member?.status === "active" ? member.roles : [];
   }, [activeCompanyId, allCompanyMembers]);
 
   const allEmployees = React.useMemo(

@@ -126,6 +126,20 @@ public final class SimpleAutomationService extends Service {
     private long bubbleGestureLastEventAt;
     private Handler mainHandler;
     private final Runnable visibilityMonitorRunnable = this::monitorSimulatorVisibility;
+    private final Runnable nativeSubmissionRetryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (prefs != null
+                && "CAPTURE_CAPTURED".equals(prefs.getString("simpleState", DEFAULT_STATE))
+                && prefs.getBoolean("nativeRetryPending", false)
+                && !safe(prefs.getString("receiptText", "")).isEmpty()) {
+                submitNativeReceiptIfPending();
+            }
+            if (mainHandler != null) {
+                mainHandler.postDelayed(this, NATIVE_SUBMISSION_RETRY_INTERVAL_MS);
+            }
+        }
+    };
     private boolean simulatorVisible;
     private boolean simulatorVisibilityEstablished;
     private boolean simulatorLaunchPending;
@@ -161,6 +175,7 @@ public final class SimpleAutomationService extends Service {
     private static final int CAPTURE_MAX_OCR_ATTEMPTS = 2;
     private static final long VISIBILITY_POLL_MS = 250L;
     private static final long RECENT_FOREGROUND_HEARTBEAT_MAX_MS = 30000L;
+    private static final long NATIVE_SUBMISSION_RETRY_INTERVAL_MS = 15000L;
     private final MediaProjection.Callback projectionCallback = new MediaProjection.Callback() {
         @Override
         public void onStop() {
@@ -396,6 +411,11 @@ public final class SimpleAutomationService extends Service {
             || "completed".equalsIgnoreCase(safe(jobStatus))
             || "cancelled".equalsIgnoreCase(safe(jobStatus))
             || (safeTotal > 0 && safeProgress >= safeTotal);
+        String existingJobId = safe(preferences.getString("jobId", ""));
+        int existingProgress = Math.max(0, preferences.getInt("jobProgress", 0));
+        boolean existingClosed = preferences.getBoolean("operationClosed", false);
+        if (!safe(jobId).isEmpty() && safe(jobId).equals(existingJobId)
+            && (safeProgress < existingProgress || (existingClosed && !closed))) return;
         android.content.SharedPreferences.Editor editor = preferences.edit();
         if (!safe(companyName).isEmpty()) editor.putString("companyName", safe(companyName));
         if (!safe(operationName).isEmpty()) editor.putString("operationName", safe(operationName));
@@ -438,6 +458,9 @@ public final class SimpleAutomationService extends Service {
             || "completed".equalsIgnoreCase(safe(jobStatus))
             || "cancelled".equalsIgnoreCase(safe(jobStatus))
             || (safeTotal > 0 && safeProgress >= safeTotal);
+        int existingProgress = Math.max(0, preferences.getInt("jobProgress", 0));
+        boolean existingClosed = preferences.getBoolean("operationClosed", false);
+        if (safeProgress < existingProgress || (existingClosed && !closed)) return;
         preferences.edit()
             .putInt("jobProgress", safeProgress)
             .putInt("jobTotalDeliveries", safeTotal)
@@ -621,6 +644,7 @@ public final class SimpleAutomationService extends Service {
             .putBoolean("captureUiHidden", false)
             .putString("lastEvent", safe(reason))
             .putString("nativeSubmissionState", accepted ? "SYNCED" : "IDLE")
+            .putBoolean("nativeRetryPending", false)
             .remove("nativeSubmissionError")
             .remove("receiptText")
             .remove("captureAttemptId")
@@ -714,6 +738,7 @@ public final class SimpleAutomationService extends Service {
         createNotificationChannel();
         startSimpleForeground(false);
         startVisibilityMonitor();
+        scheduleNativeSubmissionRetry();
     }
 
     @Override
@@ -752,10 +777,12 @@ public final class SimpleAutomationService extends Service {
             showBubbleIfAllowed();
         }
         if ("CAPTURE_CAPTURED".equals(simpleState)
-            && "SUBMITTING_NATIVE".equals(prefs.getString("nativeSubmissionState", ""))
+            && ("SUBMITTING_NATIVE".equals(prefs.getString("nativeSubmissionState", ""))
+                || "WEB_FALLBACK".equals(prefs.getString("nativeSubmissionState", "")))
             && !safe(prefs.getString("receiptText", "")).isEmpty()) {
             mainHandlerPost(this::submitNativeReceiptIfPending);
         }
+        scheduleNativeSubmissionRetry();
         if (STATE_CAPTURE_PENDING.equals(simpleState)
             && !captureFrameRequested
             && (intent == null || !ACTION_START_CAPTURE.equals(intent.getAction()))) {
@@ -808,6 +835,7 @@ public final class SimpleAutomationService extends Service {
     @Override
     public void onDestroy() {
         if (mainHandler != null) mainHandler.removeCallbacks(visibilityMonitorRunnable);
+        if (mainHandler != null) mainHandler.removeCallbacks(nativeSubmissionRetryRunnable);
         cleanupCapture();
         hideStatusChip();
         if (audioManager != null) {
@@ -822,6 +850,12 @@ public final class SimpleAutomationService extends Service {
         if (prefs != null) prefs.edit().putBoolean("running", false).apply();
         if (instance == this) instance = null;
         super.onDestroy();
+    }
+
+    private void scheduleNativeSubmissionRetry() {
+        if (mainHandler == null) return;
+        mainHandler.removeCallbacks(nativeSubmissionRetryRunnable);
+        mainHandler.postDelayed(nativeSubmissionRetryRunnable, NATIVE_SUBMISSION_RETRY_INTERVAL_MS);
     }
 
     public static void markCaptureDenied(Context context) {
@@ -954,14 +988,16 @@ public final class SimpleAutomationService extends Service {
                         + " readable=" + (!ocrText.trim().isEmpty())
                         + " chars=" + ocrText.length()
                         + " elapsedMs=" + (SystemClock.elapsedRealtime() - captureStartedElapsedAt));
-                    // Simulator identity is already frozen in captureSimulatorKey/code
-                    // before consent. Do not make native capture wait for OCR to infer a
-                    // simulator-specific marker; the Web adapter validates the receipt
-                    // against that immutable snapshot after this handoff.
-                    boolean readable = ocrText != null && !ocrText.trim().isEmpty();
-                    if (readable || attempt >= CAPTURE_MAX_OCR_ATTEMPTS) {
+                    // Simulator identity is frozen before consent, but native capture
+                    // must still reject arbitrary readable HUD text. The coordinator
+                    // performs the exact monetary parse; this first gate only accepts
+                    // a result screen with the required receipt field and amount token.
+                    boolean readable = !safe(ocrText).isEmpty();
+                    boolean resultReceipt = readable && isLikelyResultReceiptText(ocrText)
+                        && hasMonetaryCandidateForReceipt(ocrText);
+                    if (resultReceipt || attempt >= CAPTURE_MAX_OCR_ATTEMPTS) {
                         captureFrameRequested = false;
-                        finishCapture(ocrText);
+                        finishCapture(resultReceipt ? ocrText : "");
                     } else {
                         prefs.edit().putString("captureStage", "OCR_RETRYING").apply();
                     }
@@ -1002,6 +1038,30 @@ public final class SimpleAutomationService extends Service {
         }
         if ("wtds".equals(simulatorKey) || "wbds".equals(simulatorKey)) {
             return compact.contains("GANHOS") || compact.contains("TOTAL");
+        }
+        return false;
+    }
+
+    private boolean hasMonetaryCandidateForReceipt(String text) {
+        String normalized = Normalizer.normalize(safe(text), Normalizer.Form.NFD)
+            .replaceAll("\\p{InCombiningDiacriticalMarks}+", "")
+            .toUpperCase(Locale.ROOT)
+            .replaceAll("\\s+", " ")
+            .trim();
+        String simulatorKey = safe(prefs.getString("captureSimulatorKey", prefs.getString("simulatorKey", "")));
+        String[] labels = "global-truck".equals(simulatorKey)
+            ? new String[]{"VALOR A RECEBER"}
+            : "toe-3".equals(simulatorKey)
+                ? new String[]{"RENDA TOTAL", "GANHOS"}
+                : new String[]{"GANHOS DA VIAGEM", "TOTAL"};
+        for (String label : labels) {
+            int index = normalized.indexOf(label);
+            while (index >= 0) {
+                int end = Math.min(normalized.length(), index + label.length() + 80);
+                String tail = normalized.substring(index + label.length(), end);
+                if (tail.matches(".*(?:R\\$|BRL|EUR|€|\\$)?\\s*[0-9]+(?:[.,][0-9]{3})*[.,][0-9]{2}.*")) return true;
+                index = normalized.indexOf(label, index + 1);
+            }
         }
         return false;
     }
@@ -1051,8 +1111,10 @@ public final class SimpleAutomationService extends Service {
         if (prefs == null || !"CAPTURE_CAPTURED".equals(prefs.getString("simpleState", DEFAULT_STATE))) return;
         String receipt = safe(prefs.getString("receiptText", ""));
         if (receipt.isEmpty()) return;
+        if ("SUBMITTING_NATIVE".equals(prefs.getString("nativeSubmissionState", ""))) return;
         prefs.edit()
             .putString("nativeSubmissionState", "SUBMITTING_NATIVE")
+            .putBoolean("nativeRetryPending", false)
             .putString("captureStage", "NATIVE_SUBMITTING")
             .apply();
         SimpleProNativeSubmissionCoordinator.submit(this, prefs, receipt, new SimpleProNativeSubmissionCoordinator.Listener() {
@@ -1071,6 +1133,7 @@ public final class SimpleAutomationService extends Service {
                 android.util.Log.i(PRO_TIMING_TAG, "stage=native_pro_submission_fallback");
                 prefs.edit()
                     .putString("nativeSubmissionState", "WEB_FALLBACK")
+                    .putBoolean("nativeRetryPending", true)
                     .putString("nativeSubmissionError", safe(reason))
                     .apply();
                 SimpleAutomationPlugin.emitReceiptCaptured();

@@ -16,6 +16,12 @@ const baseTruck = validateSimpleReceiptText(
 assert(baseTruck.decision === "accept", "resultado sem bônus deve ser aceito");
 assert(baseTruck.amount === 45863.47, "valor base do caminhão não foi extraído");
 
+const exactGto = validateSimpleReceiptText(
+  "Concluído Valor a receber: R$ 30.138,00 Receber Dobrar valor (ADS)",
+);
+assert(exactGto.decision === "accept", "recibo GTO com valor brasileiro deve ser aceito");
+assert(exactGto.amount === 30138, "R$ 30.138,00 deve resultar em 30138");
+
 const staticZeroAdLabel = validateSimpleReceiptText(
   "Resultados Ganhos da Viagem: $ 45863,47\nBônus Video ADS: 0 0\nTotal: $ 45863,47\nAnúncio Assistido disponível",
 );

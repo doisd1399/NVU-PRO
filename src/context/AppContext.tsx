@@ -5364,6 +5364,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       await removalBatch.commit();
+      setFetchedMissingUsers((current) => current.filter((user) => user.id !== driverId));
+      setAllCompanyMembers((current) =>
+        current.filter(
+          (member) => !(member.userId === driverId && member.companyId === targetCompanyId),
+        ),
+      );
       toast.success("Motorista removido da empresa com sucesso.");
       console.log("Driver removido com sucesso!");
     } catch (e) {
@@ -5917,7 +5923,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const combinedUsers = useMemo(() => {
     const merged = [...users];
-    fetchedMissingUsers.forEach((missingUser) => {
+    const activeMemberIds = new Set(
+      allCompanyMembers
+        .filter((member) => member.status === "active")
+        .map((member) => member.userId),
+    );
+    const missingUsers = allCompanyMembersReady
+      ? fetchedMissingUsers.filter((missingUser) => activeMemberIds.has(missingUser.id))
+      : fetchedMissingUsers;
+    missingUsers.forEach((missingUser) => {
       if (!merged.some((user) => user.id === missingUser.id)) merged.push(missingUser);
     });
 
@@ -5935,6 +5949,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [
     activeCompanyId,
     allCompanyMembers,
+    allCompanyMembersReady,
     currentUser,
     fetchedMissingUsers,
     users,

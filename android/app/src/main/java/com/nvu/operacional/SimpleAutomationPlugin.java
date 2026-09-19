@@ -328,6 +328,7 @@ public class SimpleAutomationPlugin extends Plugin {
         status.put("companyId", prefs.getString("companyId", ""));
         status.put("driverId", prefs.getString("driverId", ""));
         status.put("nativeSubmissionState", prefs.getString("nativeSubmissionState", "IDLE"));
+        status.put("nativeRetryPending", prefs.getBoolean("nativeRetryPending", false));
         status.put("nativeTripId", prefs.getString("nativeTripId", ""));
         status.put("nativeSubmissionError", prefs.getString("nativeSubmissionError", ""));
         status.put("jobProgress", prefs.getInt("jobProgress", 0));
