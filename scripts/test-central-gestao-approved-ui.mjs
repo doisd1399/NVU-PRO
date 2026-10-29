@@ -32,9 +32,11 @@ const contracts=[{id:"bls",companyId:"dc",name:"BLS - 140",simulatorId:"gto",sim
 const vehicles=[{id:"iveco",companyId:"dc",name:"Iveco S Way",paintCode:"https://example.com/pintura",status:"in_use"},...${audit489 ? 15 : 0}?Array.from({length:${audit489 ? 15 : 0}},(_,i)=>({id:"v"+i,companyId:"dc",name:"Veículo "+i,status:"available"})):[]];
 const trailers=[{id:"trailer",companyId:"dc",name:"Rodocaçamba 6 eixos",paintCode:"NVU-2026",status:"in_use"}];
 const jobs=[{id:"operation",operationId:"operation",companyId:"dc",driverId:"driver",vehicleId:"iveco",trailerId:"trailer",contractId:"bls",simulatorId:"gto",status:"active",progress:99,assignedAt:"2026-10-15T10:00:00Z",dueAt:"2026-10-22T12:49:00Z",totalDeliveries:10}];
+const manyUsers=["Lucas Almeida","Mariana Souza","Rafael Costa","Beatriz Lima","Gustavo Rocha","Camila Duarte","Thiago Martins"].map((name,i)=>({id:"drv"+i,name,profilePhotoURL:avatar,isOnline:true,status:"active",roles:["driver"]}));
+const manyJobs=manyUsers.map((user,i)=>({id:"many"+i,operationId:"many"+i,companyId:"dc",driverId:user.id,vehicleId:"iveco",trailerId:"trailer",contractId:"bls",simulatorId:"gto",status:"active",assignedAt:"2026-10-15T10:00:00Z",dueAt:"2026-10-2"+(i%5+2)+"T12:49:00Z",totalDeliveries:10}));
 const trips=Array.from({length:5},(_,i)=>({id:"trip-"+i,jobId:i<3?"operation":"previous",driverId:"driver",companyId:"dc",contractId:"bls",simulatorId:"gto",simulator:"GTO",status:"completed",recordStatus:"completed",serverValidatedAt:"2026-10-19T12:00:00Z",completedAt:"2026-10-19T12:00:00Z",valorCents:[3000000,3000000,3000000,3000000,2168200][i],currency:"BRL",currencyStatus:"known"}));
 let revision=0;const listeners=new Set(),goalListeners=new Set();
-const state={activeCompanyId:"dc",empty:false,missing:false,denied:false,authorized:true,mixed:false,late:false};
+const state={activeCompanyId:"dc",empty:false,missing:false,denied:false,authorized:true,mixed:false,late:false,many:false};
 window.__fixtureState=state;window.__writes=[];window.__cancels=[];window.__photos=[];window.__goalManagedCalls=0;window.__goalSubscriptions=0;window.__goalReadStarts=0;window.__fleetMounts=0;window.__roleRequests=[];
 const publish=()=>{revision++;listeners.forEach(f=>f());};
 window.__scenario=(next)=>{Object.assign(state,next);publish();};
@@ -43,7 +45,7 @@ function subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn);}
 function useFixture(){useSyncExternalStore(subscribe,()=>revision);}
 export function useSessionStore(){useFixture();return {currentUser:state.authorized?users[0]:{...users[0],id:"viewer"},activeRole:"admin",switchRole:async role=>{window.__roleRequests.push(role);},logOutApp:load,setSeniorCompanyId:noop};}
 export function useCompanyStore(){useFixture();return {activeCompanyId:state.activeCompanyId,setActiveCompanyId:id=>window.__scenario({activeCompanyId:id}),companies,allCompanies:companies,memberships,allCompanyMembers:memberships,allCompanyMembersReady:true,recruitmentApplications:empty};}
-export function useOperationalStore(){useFixture();return {sequences:empty,addVehicle:load,updateVehicle:load,deleteVehicle:load,createSequence:load,updateSequence:load,deleteSequence:load,users,contracts,jobs:(!navigator.onLine||state.empty)?empty:state.late?[{...jobs[0],dueAt:"2026-10-18T12:00:00Z"}]:jobs,vehicles,trailers,simulators,cancelJob:async id=>{window.__cancels.push(id);window.__scenario({empty:true});},rejectJobDemand:load,operationalDataReady:navigator.onLine,operationalDataRefreshing:false};}
+export function useOperationalStore(){useFixture();return {sequences:empty,addVehicle:load,updateVehicle:load,deleteVehicle:load,createSequence:load,updateSequence:load,deleteSequence:load,users:state.many?[...users,...manyUsers]:users,contracts,jobs:(!navigator.onLine||state.empty)?empty:state.late?[{...jobs[0],dueAt:"2026-10-18T12:00:00Z"}]:state.many?[...jobs,...manyJobs]:jobs,vehicles,trailers,simulators,cancelJob:async id=>{window.__cancels.push(id);window.__scenario({empty:true});},rejectJobDemand:load,operationalDataReady:navigator.onLine,operationalDataRefreshing:false};}
 export function useActivityStore(){return {jobDemands:empty};}
 export function useNotificationStore(){return {notifications:empty,markNotificationAsRead:load};}
 const mixed=[...trips,{...trips[4],id:"eur",currency:"EUR",valorCents:9999900}];
@@ -392,6 +394,38 @@ try {
     await page.evaluate(()=>{localStorage.removeItem("__qa-offline");Object.defineProperty(navigator,"onLine",{value:true,configurable:true});window.dispatchEvent(new Event("online"));});
     await page.waitForFunction(()=>window.__writes.length===1);
     assert.equal((await page.evaluate(()=>window.__writes))[0].data.targetAmount,300000);
+  });
+  await check("Horizontal central: company, summary and management on the left; active jobs on the right with their own scroll",async()=>{
+    await fresh();
+    await page.setViewportSize({width:1280,height:800});
+    await page.evaluate(()=>window.__scenario({many:true}));
+    await page.waitForFunction(()=>document.querySelectorAll(".nvu-central-operation").length===8&&document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central")&&getComputedStyle(document.querySelector(".nvu-central-page")).getPropertyValue("--nvu-fill-h").trim().endsWith("px"));
+    await page.evaluate(()=>document.fonts.ready);
+    const read=()=>page.evaluate(()=>{
+      const box=selector=>{const node=document.querySelector(selector);if(!node)return null;const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height};};
+      const list=document.querySelector(".nvu-central-job-list");
+      return {flagged:document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"),title:box(".nvu-workspace-page-title"),company:box(".nvu-central-company-row"),simulator:box(".nvu-central-simulator"),summary:box(".nvu-central-summary"),actions:box(".nvu-central-actions"),jobs:box(".nvu-central-jobs"),
+        list:{client:list.clientHeight,scroll:list.scrollHeight,overflow:getComputedStyle(list).overflowY},doc:{scroll:document.documentElement.scrollHeight,inner:innerHeight,scrollWidth:document.documentElement.scrollWidth,width:innerWidth},
+        rows:[...document.querySelectorAll(".nvu-central-operation")].map(node=>node.getBoundingClientRect().height)};
+    });
+    const wide=await read(),info=JSON.stringify(wide);
+    assert(wide.flagged,info);
+    for(const key of ["company","summary","actions"]) assert(Math.abs(wide[key].left-wide.company.left)<=1&&wide[key].right<=wide.jobs.left,key+" "+info);
+    assert(wide.simulator.right<=wide.jobs.left,info);
+    assert(wide.title.bottom<=wide.company.top+1&&wide.title.bottom<=wide.jobs.top+1,"The title stays above both columns: "+info);
+    assert(wide.company.top<wide.summary.top&&wide.summary.top<wide.actions.top,info);
+    assert(Math.abs(wide.jobs.top-wide.company.top)<=1&&wide.jobs.left>wide.actions.right,info);
+    assert(wide.jobs.bottom<=wide.doc.inner&&wide.doc.scroll<=wide.doc.inner+1&&wide.doc.scrollWidth<=wide.doc.width,"The management center fits the window: "+info);
+    assert(wide.list.overflow==="auto"&&wide.list.scroll>wide.list.client,"The job list scrolls inside its card: "+info);
+    assert(wide.rows.length===8&&wide.rows.every(height=>height<=140),"Operations use compact rows: "+info);
+    await page.evaluate(()=>{document.querySelector(".nvu-central-job-list").scrollTop=300;});
+    assert.deepEqual(await page.evaluate(()=>({page:scrollY,list:document.querySelector(".nvu-central-job-list").scrollTop>0})),{page:0,list:true},"Scrolling the list must not scroll the page");
+    await page.setViewportSize({width:390,height:867});
+    await page.waitForFunction(()=>!document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"));
+    const narrow=await read();
+    assert(!narrow.flagged,JSON.stringify(narrow));
+    assert(narrow.summary.top<narrow.actions.top&&narrow.actions.top<narrow.jobs.top&&Math.abs(narrow.jobs.left-narrow.summary.left)<=1&&narrow.rows.every(height=>height>250),"Portrait keeps the single column and the full cards: "+JSON.stringify(narrow));
+    await page.evaluate(()=>window.__scenario({many:false}));
   });
   await check("Designar Trabalhos keeps the existing assignment route",async()=>{
     await page.getByRole("button",{name:"Designar Trabalhos",exact:true}).click();

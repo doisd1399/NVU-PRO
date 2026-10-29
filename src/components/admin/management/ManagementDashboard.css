@@ -208,3 +208,130 @@ body .nvu-central-shell .nvu-admin-shell-content > main > div:first-child { padd
 @media (prefers-reduced-motion: reduce) {
   .nvu-central-progress > span, .nvu-central-disclosure-icon svg { transition: none; }
 }
+
+/* ---- Horizontal workspace -------------------------------------------------------------------------------------
+   Fleet flags the page with .nvu-landscape-central while the window is landscape and at least 720px wide (the same
+   query as the driver's horizontal layouts). The title stays on top; the company name, the simulator button and the
+   summary and management cards form the left column; "Trabalhos ativos" is one tall card on the right whose list
+   scrolls inside it (useLandscapeFillHeight sets --nvu-fill-h), with each operation in a compact row.
+   Portrait keeps the single column above. The wrappers between the stack and its cards are flattened with
+   display: contents, so no markup changes. */
+.nvu-landscape-central .nvu-central-stack {
+  display: grid;
+  grid-template-columns: clamp(300px, 38%, 355px) minmax(0, 1fr);
+  grid-template-rows: repeat(7, auto) 1fr;
+  column-gap: 16px;
+  max-width: 912px;
+  padding: 18px 14px 10px;
+}
+.nvu-landscape-central .nvu-central-intro,
+.nvu-landscape-central .nvu-central-content,
+.nvu-landscape-central .nvu-central-content > [data-nvu-panel-active="true"],
+.nvu-landscape-central .nvu-central-dashboard { display: contents; }
+
+.nvu-landscape-central .nvu-workspace-page-title { grid-column: 1 / -1; grid-row: 1; }
+body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row: 2; margin: 0 0 10px; }
+.nvu-landscape-central .nvu-central-summary { grid-column: 1; grid-row: 3; margin-bottom: 12px; }
+.nvu-landscape-central .nvu-central-actions { grid-column: 1; grid-row: 4; }
+.nvu-landscape-central .nvu-central-cache-status { grid-column: 1; grid-row: 5; margin: 8px 0 0; }
+.nvu-landscape-central .nvu-central-dashboard + .nvu-central-section { grid-column: 1; grid-row: 6; }
+.nvu-landscape-central .nvu-central-sync-status { grid-column: 1; grid-row: 7; margin-top: 8px; }
+.nvu-landscape-central .nvu-central-action { min-height: 40px; }
+.nvu-landscape-central .nvu-central-action-list { gap: 4px; padding: 0 12px 12px; }
+.nvu-landscape-central .nvu-central-summary-body { padding: 0 12px 12px; }
+.nvu-landscape-central .nvu-central-summary > .nvu-central-summary-heading { padding-inline: 16px; }
+.nvu-landscape-central .nvu-central-summary-heading > h2 { flex: none; white-space: nowrap; font-size: 15px; }
+.nvu-landscape-central .nvu-central-summary-heading > .nvu-central-period { flex: 0 1 auto; max-width: none; }
+
+.nvu-landscape-central .nvu-central-jobs {
+  grid-column: 2;
+  grid-row: 2 / -1;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--nvu-fill-h, none);
+}
+.nvu-landscape-central .nvu-central-jobs-header { flex: none; }
+.nvu-landscape-central .nvu-central-jobs .nvu-central-section-toggle { padding: 12px 14px; }
+.nvu-landscape-central .nvu-central-job-list {
+  flex: 0 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--central-line) transparent;
+}
+.nvu-landscape-central .nvu-central-job-list::-webkit-scrollbar { width: 6px; }
+.nvu-landscape-central .nvu-central-job-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--central-line); }
+
+/* One compact row per operation: photo on the left, everything else in five short lines. */
+.nvu-landscape-central .nvu-central-operation,
+.nvu-landscape-central .nvu-central-operation + .nvu-central-operation {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-areas: "photo driver" "photo vehicle" "photo metrics" "photo progress" "photo timing";
+  grid-template-rows: repeat(5, auto);
+  column-gap: 12px;
+  row-gap: 3px;
+  flex: none;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--central-line);
+  border-radius: 12px;
+}
+.nvu-landscape-central .nvu-central-driver-row { grid-area: driver; min-height: 0; padding: 0; border-top: 0; }
+.nvu-landscape-central .nvu-central-driver { gap: 8px; padding: 0; }
+.nvu-landscape-central .nvu-central-avatar { width: 24px; height: 24px; font-size: 10px; }
+.nvu-landscape-central .nvu-central-job-status { font-size: 10.5px; }
+.nvu-landscape-central .nvu-central-vehicle-photo { grid-area: photo; aspect-ratio: auto; min-height: 96px; border-radius: 9px; }
+.nvu-landscape-central .nvu-central-photo-frame { position: absolute; inset: 0; width: auto; height: auto; }
+.nvu-landscape-central .nvu-central-photo-empty { gap: 4px; padding: 6px; text-align: center; font-size: 10px; }
+.nvu-landscape-central .nvu-central-photo-empty svg { width: 24px; height: 24px; }
+.nvu-landscape-central .nvu-central-operation-info { top: 4px; right: 4px; width: 24px; height: 24px; }
+.nvu-landscape-central .nvu-central-operation-info > svg { width: 14px; height: 14px; }
+.nvu-landscape-central .nvu-central-vehicle-line { grid-area: vehicle; gap: 8px; min-height: 0; padding: 0; border-bottom: 0; }
+.nvu-landscape-central .nvu-central-paint-button { width: 22px; height: 22px; }
+.nvu-landscape-central .nvu-central-paint-button > svg { width: 15px; height: 15px; }
+.nvu-landscape-central .nvu-central-vehicle-name { flex-direction: row; align-items: baseline; gap: 6px; }
+.nvu-landscape-central .nvu-central-vehicle-name strong { flex: 0 0 auto; max-width: 70%; }
+.nvu-landscape-central .nvu-central-vehicle-name small { flex: 1 1 0; min-width: 0; font-size: 10px; }
+.nvu-landscape-central .nvu-central-operation-name { max-width: 34%; padding-left: 8px; }
+.nvu-landscape-central .nvu-central-operation-metrics { grid-area: metrics; padding: 0; }
+.nvu-landscape-central .nvu-central-operation-metrics > div { flex-direction: row; align-items: baseline; justify-content: center; gap: 4px; }
+.nvu-landscape-central .nvu-central-operation-metrics > div + div::before { top: 1px; bottom: 1px; }
+.nvu-landscape-central .nvu-central-operation-metrics strong { font-size: 12.5px; }
+.nvu-landscape-central .nvu-central-operation-metrics span { font-size: 10px; }
+.nvu-landscape-central .nvu-central-operation > .nvu-central-progress { grid-area: progress; align-self: center; margin: 0; height: 4px; }
+.nvu-landscape-central .nvu-central-operation-timing { grid-area: timing; gap: 6px; padding: 2px 0 0; border-top: 0; }
+.nvu-landscape-central .nvu-central-operation-timing > div { gap: 6px; }
+.nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 10px; }
+.nvu-landscape-central .nvu-central-operation-timing svg { width: 15px; height: 15px; }
+
+/* Smaller windows: narrower photo and stacked indicators; the bottom pill returns below 1100px (see WorkspaceDock.css). */
+@media (max-width: 1099px) {
+  .nvu-landscape-central .nvu-central-stack { padding-bottom: 10px; }
+  .nvu-landscape-central .nvu-central-operation,
+  .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { grid-template-columns: 104px minmax(0, 1fr); }
+}
+@media (max-width: 899px) {
+  .nvu-landscape-central .nvu-central-operation,
+  .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { grid-template-columns: 84px minmax(0, 1fr); column-gap: 10px; }
+  .nvu-landscape-central .nvu-central-operation-metrics > div { flex-direction: column; gap: 0; }
+  .nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 8px; }
+}
+@media (min-width: 1100px) {
+  .nvu-landscape-central .nvu-central-stack { padding-bottom: 20px; }
+}
+/* Low windows (laptops with the browser bars): tighter left column so it still fits without page scroll. */
+@media (max-height: 760px) {
+  .nvu-landscape-central .nvu-central-action { min-height: 36px; }
+  .nvu-landscape-central .nvu-central-action-arrow { width: 26px; height: 26px; }
+  .nvu-landscape-central .nvu-central-action-list { gap: 3px; padding-bottom: 10px; }
+  .nvu-landscape-central .nvu-central-summary { margin-bottom: 8px; }
+  .nvu-landscape-central .nvu-central-summary > .nvu-central-summary-heading { padding-top: 10px; }
+  .nvu-landscape-central .nvu-central-summary-body { padding-bottom: 10px; }
+}

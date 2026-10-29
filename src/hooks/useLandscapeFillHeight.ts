@@ -2,20 +2,22 @@ import { useLayoutEffect, type RefObject } from "react";
 import { freeHeightBelow } from "./useLandscapeBodyHeight";
 
 /**
- * Lists of the horizontal driver profile (trips, daily results, operation history) scroll inside their own
- * card instead of scrolling the page. The height still free under the visible list is written to
+ * Lists of the horizontal driver profile (trips, daily results, operation history) and the management center's
+ * job list scroll inside their own card instead of scrolling the page. The height still free under the visible list is written to
  * `--nvu-fill-h` on the workspace; the stylesheet turns it into the card's max-height. A window too short
  * for `min` falls back to the normal page scroll.
  */
 export function useLandscapeFillHeight(
   enabled: boolean,
-  root: RefObject<HTMLElement | null>,
+  root: RefObject<HTMLElement | null> | HTMLElement | null,
   selector: string | null,
   options: { min?: number; alignTo?: string } = {},
 ) {
   const { min = 240, alignTo } = options;
   useLayoutEffect(() => {
-    const workspace = root.current;
+    // A page whose root sits inside a Suspense boundary passes the element itself (from a callback ref), so the
+    // effect runs again once that element is committed.
+    const workspace: HTMLElement | null = root instanceof HTMLElement ? root : root ? root.current : null;
     if (!enabled || !workspace || !selector) return;
     let frame = 0;
     const apply = () => {
