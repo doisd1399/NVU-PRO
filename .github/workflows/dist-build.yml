@@ -39,7 +39,9 @@ jobs:
 
       - name: Lint result
         if: always()
-        run: echo "Lint outcome: ${{ steps.lint.outcome }}" | tee -a "$GITHUB_STEP_SUMMARY"
+        env:
+          LINT_OUTCOME: ${{ steps.lint.outcome }}
+        run: echo "Lint result - $LINT_OUTCOME" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         with:
