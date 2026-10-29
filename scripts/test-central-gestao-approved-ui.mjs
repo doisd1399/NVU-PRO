@@ -406,7 +406,7 @@ try {
       return page.evaluate(()=>{
         const box=selector=>{const node=document.querySelector(selector);if(!node)return null;const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height};};
         const list=document.querySelector(".nvu-central-job-list");
-        return {flagged:document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"),title:box(".nvu-workspace-page-title"),company:box(".nvu-central-company-row"),simulator:box(".nvu-central-simulator"),summary:box(".nvu-central-summary"),actions:box(".nvu-central-actions"),jobs:box(".nvu-central-jobs"),
+        return {flagged:document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"),title:box(".nvu-workspace-page-title"),company:box(".nvu-central-company-row"),simulator:box(".nvu-central-simulator"),summary:box(".nvu-central-summary"),actions:box(".nvu-central-actions"),jobs:box(".nvu-central-jobs"),chip:box(".nvu-central-summary-heading > .nvu-central-period"),photo:box(".nvu-central-vehicle-photo"),info:box(".nvu-central-operation-info"),
           list:{client:list.clientHeight,scroll:list.scrollHeight,overflow:getComputedStyle(list).overflowY},doc:{scroll:document.documentElement.scrollHeight,inner:innerHeight,scrollWidth:document.documentElement.scrollWidth,width:innerWidth},
           rows:[...document.querySelectorAll(".nvu-central-operation")].map(node=>node.getBoundingClientRect().height),buttons:[...document.querySelectorAll(".nvu-central-action")].map(node=>node.getBoundingClientRect().height)};
       });
@@ -426,6 +426,9 @@ try {
       assert(wide.list.overflow==="auto"&&wide.list.scroll>wide.list.client,"The job list scrolls inside its card: "+info);
       assert(wide.rows.length===8&&wide.rows.every(rowHeight=>rowHeight<=140),"Operations use compact rows: "+info);
       assert(wide.buttons.length===6&&wide.buttons.every(buttonHeight=>buttonHeight>=30&&buttonHeight<=64),"The six management buttons share the left column height: "+info);
+      assert(Math.abs((wide.photo.right-wide.photo.left)/wide.photo.height-16/9)<=.03,"The vehicle photo is a 16:9 rectangle, not a square: "+info);
+      assert(wide.info.right-wide.info.left<=21&&wide.info.height<=21&&wide.info.right<=wide.photo.right&&wide.info.top>=wide.photo.top,"The information button is small and stays on the photo: "+info);
+      assert(wide.chip.height<=26,"The period button stays compact: "+info);
     }
     await page.setViewportSize({width:1280,height:800});
     await read();
@@ -436,6 +439,7 @@ try {
     const narrow=await read();
     assert(!narrow.flagged,JSON.stringify(narrow));
     assert(narrow.summary.top<narrow.actions.top&&narrow.actions.top<narrow.jobs.top&&Math.abs(narrow.jobs.left-narrow.summary.left)<=1&&narrow.rows.every(rowHeight=>rowHeight>250),"Portrait keeps the single column and the full cards: "+JSON.stringify(narrow));
+    assert(Math.abs((narrow.photo.right-narrow.photo.left)/narrow.photo.height-2.64)<=.03&&narrow.info.height>=32&&narrow.chip.height>=26,"Portrait keeps the approved photo, information button and period button: "+JSON.stringify(narrow));
     await page.evaluate(()=>window.__scenario({many:false}));
   });
   await check("Designar Trabalhos keeps the existing assignment route",async()=>{

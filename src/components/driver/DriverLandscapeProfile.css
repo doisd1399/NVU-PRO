@@ -1,129 +1,131 @@
 /* Horizontal density for the tabs of the driver profile: Resumo, Atividade, Operações and Resultados.
    DriverLayout adds .nvu-landscape-profile only on /driver/profile while the window is landscape and at least
    720px wide, so portrait keeps the original layout. The cover, the profile photo and the driver name are not
-   touched here: only the space and the blocks below them get denser. */
+   touched here: only the space and the blocks below them get denser.
+   The company profile (AdminLayout adds .nvu-landscape-company on its cover pages under the same condition)
+   shares the toolbar, the summary and the identity row with the driver's, so these rules apply to both. */
 
 /* ---- Space under the identity row (photo and name stay exactly where they are) ---- */
-.nvu-landscape-profile:not(.nvu-landscape-dashboard) .nvu-cover-identity { min-height: 72px; }
-body .nvu-landscape-profile:not(.nvu-landscape-dashboard) .nvu-profile-cover-stack > .nvu-driver-surface { padding-top: 4px; padding-bottom: 4px; min-height: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company):not(.nvu-landscape-dashboard) .nvu-cover-identity { min-height: 72px; }
+body :is(.nvu-landscape-profile, .nvu-landscape-company):not(.nvu-landscape-dashboard) .nvu-profile-cover-stack > .nvu-driver-surface { padding-top: 4px; padding-bottom: 4px; min-height: 0; }
 
 /* ---- Shared: page headings, tab rows and period selectors ---- */
-.nvu-landscape-profile .nvu-driver-page-heading:not([data-page="dashboard"]) { margin: 0 0 6px; }
-.nvu-landscape-profile .nvu-driver-page-heading:not([data-page="dashboard"]) > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
-.nvu-landscape-profile .nvu-driver-page-heading:not([data-page="dashboard"]) h1 { font-size: 19px; line-height: 1.3; }
-.nvu-landscape-profile .nvu-driver-page-heading:not([data-page="dashboard"]) p { margin: 0; font-size: 12px; }
-.nvu-landscape-profile .nvu-driver-tabs { margin-bottom: 8px; }
-.nvu-landscape-profile .nvu-driver-tabs button { min-height: 34px; padding: 6px 10px 8px; }
-.nvu-landscape-profile .nvu-driver-period-select { min-height: 32px; padding: 5px 10px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-page-heading:not([data-page="dashboard"]) { margin: 0 0 6px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-page-heading:not([data-page="dashboard"]) > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-page-heading:not([data-page="dashboard"]) h1 { font-size: 19px; line-height: 1.3; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-page-heading:not([data-page="dashboard"]) p { margin: 0; font-size: 12px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-tabs { margin-bottom: 8px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-tabs button { min-height: 34px; padding: 6px 10px 8px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-period-select { min-height: 32px; padding: 5px 10px; }
 
 /* ---- Resumo / Estatísticas toolbar ---- */
-.nvu-landscape-profile .nvu-driver-profile-toolbar { min-height: 36px; margin: 4px 0 8px; padding: 3px 6px; }
-.nvu-landscape-profile .nvu-driver-profile-ranking button { min-height: 28px; padding-block: 4px; }
-.nvu-landscape-profile .nvu-driver-profile-actions button { width: 28px; height: 28px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-profile-toolbar { min-height: 36px; margin: 4px 0 8px; padding: 3px 6px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-profile-ranking button { min-height: 28px; padding-block: 4px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-profile-actions button { width: 28px; height: 28px; }
 
 /* ---- Resumo: photo beside the vehicle and the figures instead of above them ---- */
-.nvu-landscape-profile .nvu-profile-summary-card {
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-card {
   display: grid;
   grid-template-columns: clamp(240px, 36%, 330px) minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
   column-gap: 20px;
   padding: 12px 16px 14px;
 }
-.nvu-landscape-profile .nvu-profile-summary-heading { grid-column: 1 / -1; margin-bottom: 8px; }
-.nvu-landscape-profile .nvu-profile-summary-photo { grid-column: 1; grid-row: 2 / span 2; align-self: start; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: 2.2 / 1; }
-.nvu-landscape-profile .nvu-profile-summary-vehicle { grid-column: 2; grid-row: 2; padding: 2px 0 10px; }
-.nvu-landscape-profile .nvu-profile-summary-photo img { object-position: 65% 50%; }
-.nvu-landscape-profile .nvu-profile-summary-figures { grid-column: 2; grid-row: 3; align-self: end; padding-top: 10px; }
-.nvu-landscape-profile .nvu-profile-summary-vehicle > strong { font-size: 18px; }
-.nvu-landscape-profile .nvu-profile-company-card { gap: 12px; padding: 10px 14px; }
-.nvu-landscape-profile .nvu-profile-company-logo { width: 40px; height: 40px; flex-basis: 40px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-heading { grid-column: 1 / -1; margin-bottom: 8px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-photo { grid-column: 1; grid-row: 2 / span 2; align-self: start; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: 2.2 / 1; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-vehicle { grid-column: 2; grid-row: 2; padding: 2px 0 10px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-photo img { object-position: 65% 50%; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-figures { grid-column: 2; grid-row: 3; align-self: end; padding-top: 10px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-vehicle > strong { font-size: 18px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-company-card { gap: 12px; padding: 10px 14px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-company-logo { width: 40px; height: 40px; flex-basis: 40px; }
 
 /* ---- Atividade: denser trip list ---- */
-.nvu-landscape-profile .nvu-driver-activity-controls { margin-bottom: 8px; }
-.nvu-landscape-profile .nvu-driver-activity-day { padding: 5px 12px; }
-.nvu-landscape-profile .nvu-driver-activity-row { min-height: 52px; padding: 8px 12px; gap: 12px; }
-.nvu-landscape-profile .nvu-driver-activity-value { display: grid; grid-template-columns: auto auto; justify-content: end; align-items: center; column-gap: 8px; row-gap: 0; max-width: 46%; }
-.nvu-landscape-profile .nvu-driver-activity-value > strong { grid-column: 1 / -1; text-align: right; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-controls { margin-bottom: 8px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-day { padding: 5px 12px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-row { min-height: 52px; padding: 8px 12px; gap: 12px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-value { display: grid; grid-template-columns: auto auto; justify-content: end; align-items: center; column-gap: 8px; row-gap: 0; max-width: 46%; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-value > strong { grid-column: 1 / -1; text-align: right; }
 
 /* ---- Resultados: summary in one row; daily list and reports side by side ---- */
-.nvu-landscape-profile .nvu-driver-results { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 8px 12px; align-items: start; }
-.nvu-landscape-profile .nvu-driver-results > .nvu-driver-result-filters,
-.nvu-landscape-profile .nvu-driver-results > .nvu-driver-results-summary { grid-column: 1 / -1; }
-.nvu-landscape-profile .nvu-driver-result-filters .nvu-driver-tabs { margin: 0; }
-.nvu-landscape-profile .nvu-driver-paper { padding: 10px 14px; }
-.nvu-landscape-profile .nvu-driver-results-summary {
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-results { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 8px 12px; align-items: start; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-results > .nvu-driver-result-filters,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-results > .nvu-driver-results-summary { grid-column: 1 / -1; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-result-filters .nvu-driver-tabs { margin: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-paper { padding: 10px 14px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-results-summary {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   column-gap: 24px;
   align-items: center;
 }
-.nvu-landscape-profile .nvu-driver-results-summary > * { grid-column: 1; }
-.nvu-landscape-profile .nvu-driver-results-summary > .nvu-driver-result-stats { grid-column: 2; grid-row: 1 / span 3; align-self: stretch; padding: 0 0 0 24px; border-top: 0; border-left: 1px solid var(--driver-line); align-content: center; }
-.nvu-landscape-profile .nvu-driver-result-total { font-size: 28px; line-height: 1.2; }
-.nvu-landscape-profile .nvu-driver-result-count strong { font-size: 17px; }
-.nvu-landscape-profile .nvu-driver-paper-heading { padding-bottom: 4px; }
-.nvu-landscape-profile .nvu-driver-daily-row { padding: 6px 0; }
-.nvu-landscape-profile .nvu-driver-report-links > h2 { padding-bottom: 4px; }
-.nvu-landscape-profile .nvu-driver-report-links > button { padding: 8px 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-results-summary > * { grid-column: 1; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-results-summary > .nvu-driver-result-stats { grid-column: 2; grid-row: 1 / span 3; align-self: stretch; padding: 0 0 0 24px; border-top: 0; border-left: 1px solid var(--driver-line); align-content: center; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-result-total { font-size: 28px; line-height: 1.2; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-result-count strong { font-size: 17px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-paper-heading { padding-bottom: 4px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-daily-row { padding: 6px 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-report-links > h2 { padding-bottom: 4px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-report-links > button { padding: 8px 0; }
 
-.nvu-landscape-profile div:has(> .nvu-driver-activity-list) { gap: 2px; }
-.nvu-landscape-profile .nvu-driver-more-trips { padding: 4px 14px; font-size: 12px; }
-.nvu-landscape-profile .nvu-driver-trip-count { margin: 0; font-size: 11px; line-height: 1.3; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) div:has(> .nvu-driver-activity-list) { gap: 2px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-more-trips { padding: 4px 14px; font-size: 12px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-trip-count { margin: 0; font-size: 11px; line-height: 1.3; }
 /* ---- Atividade / Operações: title and tabs share one row ---- */
-.nvu-landscape-profile .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) {
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) {
   display: grid;
   grid-template-columns: clamp(300px, 39%, 356px) minmax(0, 1fr);
   row-gap: 8px;
   align-items: start;
 }
-.nvu-landscape-profile .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) > * { grid-column: 1 / -1; min-width: 0; }
-.nvu-landscape-profile .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) > .nvu-driver-page-heading { grid-column: 1; grid-row: 1; align-self: end; margin: 0; padding: 0 0 7px; border-bottom: 1px solid var(--driver-line); }
-.nvu-landscape-profile .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) > .nvu-driver-tabs { grid-column: 2; grid-row: 1; align-self: end; justify-content: flex-end; margin: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) > * { grid-column: 1 / -1; min-width: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) > .nvu-driver-page-heading { grid-column: 1; grid-row: 1; align-self: end; margin: 0; padding: 0 0 7px; border-bottom: 1px solid var(--driver-line); }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) > .nvu-driver-tabs { grid-column: 2; grid-row: 1; align-self: end; justify-content: flex-end; margin: 0; }
 
 /* ---- Operações: current operation (compact card) beside the filter and the history ---- */
-.nvu-landscape-profile .nvu-driver-operation-filters { margin-bottom: 0; }
-.nvu-landscape-profile .nvu-driver-section-title { margin: 0 0 6px; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] { grid-template-rows: auto auto 1fr; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] > .nvu-ops-card-panel { grid-column: 1; grid-row: 2 / span 2; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] > .nvu-ops-filters-panel { grid-column: 2; grid-row: 2; margin-left: 16px; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] > .nvu-ops-history-panel { grid-column: 2; grid-row: 3; margin-left: 16px; }
-.nvu-landscape-profile .nvu-ops-history-panel > div { padding-bottom: 12px; }
-.nvu-landscape-profile .nvu-ops-history-panel h3 { margin-bottom: 6px; padding-inline: 2px; }
-.nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > div > button { padding: 8px 12px; }
-.nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > div > button .h-px { margin-block: 6px; }
-.nvu-landscape-profile .nvu-ops-history-panel .space-y-3 { display: flex; flex-direction: column; gap: 8px; }
-.nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > * { margin: 0; flex-shrink: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-operation-filters { margin-bottom: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-section-title { margin: 0 0 6px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] { grid-template-rows: auto auto 1fr; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] > .nvu-ops-card-panel { grid-column: 1; grid-row: 2 / span 2; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] > .nvu-ops-filters-panel { grid-column: 2; grid-row: 2; margin-left: 16px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] > .nvu-ops-history-panel { grid-column: 2; grid-row: 3; margin-left: 16px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-panel > div { padding-bottom: 12px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-panel h3 { margin-bottom: 6px; padding-inline: 2px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-panel .space-y-3 > div > button { padding: 8px 12px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-panel .space-y-3 > div > button .h-px { margin-block: 6px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-panel .space-y-3 { display: flex; flex-direction: column; gap: 8px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-panel .space-y-3 > * { margin: 0; flex-shrink: 0; }
 
-.nvu-landscape-profile .nvu-ops-card-panel > div { padding-bottom: 0; }
-.nvu-landscape-profile .nvu-ops-card-panel > div > [data-testid="operation-controls-and-card"] { margin-bottom: 0; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] { gap: 0; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > div:empty { display: none; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > .order-3 { margin: 0; border-radius: 16px; border-color: var(--driver-line); box-shadow: 0 2px 10px rgb(24 35 50 / .06); }
-.dark .nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > .order-3 { box-shadow: none; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-card-panel > div { padding-bottom: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-card-panel > div > [data-testid="operation-controls-and-card"] { margin-bottom: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] { gap: 0; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > div:empty { display: none; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > .order-3 { margin: 0; border-radius: 16px; border-color: var(--driver-line); box-shadow: 0 2px 10px rgb(24 35 50 / .06); }
+.dark :is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > .order-3 { box-shadow: none; }
 
 /* ---- Lists scroll inside their own card (useLandscapeFillHeight sets --nvu-fill-h) ---- */
-.nvu-landscape-profile .nvu-driver-activity-list,
-.nvu-landscape-profile .nvu-ops-history-list,
-.nvu-landscape-profile .nvu-driver-daily-list {
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-list,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-list,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-daily-list {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: var(--driver-line) transparent;
 }
-.nvu-landscape-profile .nvu-driver-activity-list::-webkit-scrollbar,
-.nvu-landscape-profile .nvu-ops-history-list::-webkit-scrollbar,
-.nvu-landscape-profile .nvu-driver-daily-list::-webkit-scrollbar { width: 6px; }
-.nvu-landscape-profile .nvu-driver-activity-list::-webkit-scrollbar-thumb,
-.nvu-landscape-profile .nvu-ops-history-list::-webkit-scrollbar-thumb,
-.nvu-landscape-profile .nvu-driver-daily-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--driver-line); }
-.nvu-landscape-profile .nvu-driver-activity-list { max-height: var(--nvu-fill-h, none); }
-.nvu-landscape-profile .nvu-driver-activity-day { position: sticky; top: 0; z-index: 1; background: var(--driver-paper); }
-.nvu-landscape-profile .nvu-ops-history-list { max-height: var(--nvu-fill-h, none); padding: 2px 6px 2px 2px; margin-right: -6px; }
-.nvu-landscape-profile .nvu-driver-daily-results { display: flex; flex-direction: column; max-height: var(--nvu-fill-h, none); }
-.nvu-landscape-profile .nvu-driver-daily-list { flex: 1 1 auto; min-height: 0; margin-right: -8px; padding-right: 8px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-list::-webkit-scrollbar,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-list::-webkit-scrollbar,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-daily-list::-webkit-scrollbar { width: 6px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-list::-webkit-scrollbar-thumb,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-list::-webkit-scrollbar-thumb,
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-daily-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--driver-line); }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-list { max-height: var(--nvu-fill-h, none); }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-activity-day { position: sticky; top: 0; z-index: 1; background: var(--driver-paper); }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-ops-history-list { max-height: var(--nvu-fill-h, none); padding: 2px 6px 2px 2px; margin-right: -6px; }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-daily-results { display: flex; flex-direction: column; max-height: var(--nvu-fill-h, none); }
+:is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-daily-list { flex: 1 1 auto; min-height: 0; margin-right: -8px; padding-right: 8px; }
 
 /* Slimmer layout on tablets and phones turned sideways. */
 @media (max-width: 899px) {
-  .nvu-landscape-profile .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) { grid-template-columns: clamp(280px, 40%, 340px) minmax(0, 1fr); }
-  .nvu-landscape-profile .nvu-profile-summary-card { column-gap: 14px; padding-inline: 12px; }
+  :is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) { grid-template-columns: clamp(280px, 40%, 340px) minmax(0, 1fr); }
+  :is(.nvu-landscape-profile, .nvu-landscape-company) .nvu-profile-summary-card { column-gap: 14px; padding-inline: 12px; }
 }

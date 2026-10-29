@@ -2,6 +2,7 @@
 node_modules/
 dist/
 verification/central-management/
+verification/company-landscape/
 
 # Android/Gradle generated outputs and caches (all modules)
 **/build/

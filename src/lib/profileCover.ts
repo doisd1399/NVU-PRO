@@ -15,3 +15,19 @@ export function isProfileCoverPage(pathname: string, state?: unknown): boolean {
   if (pathname === "/driver/profile") return ["activity", "operations", "results", "profile"].includes(String(navigation.profileTab));
   return pathname === "/admin/fleet" && ["company", "history", "reports"].includes(String(navigation.activeTab));
 }
+
+/** What the device keeps about a cover: the user's own unsent choice, or a cached copy of what the server had. */
+export type ProfileCoverCacheView = { status: "pending" | "synced"; removed?: boolean; imageDataUrl: string; remoteUrl: string } | null;
+
+/**
+ * Which image to show. The user's own unsent choice (a new photo, or a removal) always wins. A synced cache row is only
+ * trusted while it describes the current remote cover: a row cached when the server had no cover, or older bytes, must
+ * never hide a newer remote URL, even if the new bytes cannot be downloaded (a browser without CORS on the bucket):
+ * the remote URL itself is displayable by the img element.
+ */
+export function resolveProfileCoverSource(record: ProfileCoverCacheView, remoteUrl: string): string {
+  if (!record) return remoteUrl;
+  if (record.status === "pending") return record.removed ? "" : record.imageDataUrl || remoteUrl;
+  if (remoteUrl && record.remoteUrl !== remoteUrl) return remoteUrl;
+  return record.removed ? "" : record.imageDataUrl || remoteUrl;
+}

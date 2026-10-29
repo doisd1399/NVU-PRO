@@ -675,8 +675,8 @@ const TripListItem = React.memo(({
         </div>
       )}
       {/* Top Bar */}
-      <div className="flex items-center justify-between pb-1.5">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="nvu-trip-card-top flex items-center justify-between pb-1.5">
+        <div className="nvu-trip-card-company flex items-center gap-2 min-w-0">
           {comp?.logoUrl ? (
             <StableImage
               src={comp.logoUrl}
@@ -718,7 +718,7 @@ const TripListItem = React.memo(({
             </span>
           </div>
         </div>
-        <div className="flex items-center justify-end shrink-0 ml-2">
+        <div className="nvu-trip-card-date flex items-center justify-end shrink-0 ml-2">
           <CalendarIcon
             size={10}
             className="text-gray-400 shrink-0"
@@ -730,11 +730,11 @@ const TripListItem = React.memo(({
         </div>
       </div>
 
-      <div className="w-full h-px bg-gray-50 dark:bg-nvu-line" />
+      <div className="nvu-trip-card-rule w-full h-px bg-gray-50 dark:bg-nvu-line" />
 
       {/* Middle Grid Row 1 */}
-      <div className="grid grid-cols-2 py-1 sm:py-1.5 relative">
-        <div className="flex items-center gap-2 pr-2 min-w-0">
+      <div className="nvu-trip-card-meta grid grid-cols-2 py-1 sm:py-1.5 relative">
+        <div className="nvu-trip-card-driver flex items-center gap-2 pr-2 min-w-0">
           <User
             size={12}
             className="text-gray-500 dark:text-nvu-muted shrink-0"
@@ -750,9 +750,9 @@ const TripListItem = React.memo(({
         </div>
 
         {/* Vertical Divider */}
-        <div className="absolute left-[50%] top-1.5 bottom-1.5 w-px bg-gray-50 dark:bg-nvu-line" />
+        <div className="nvu-trip-card-divider absolute left-[50%] top-1.5 bottom-1.5 w-px bg-gray-50 dark:bg-nvu-line" />
 
-        <div className="flex items-center justify-between pl-3 min-w-0 w-full">
+        <div className="nvu-trip-card-sim flex items-center justify-between pl-3 min-w-0 w-full">
           <div className="flex items-center gap-2 min-w-0">
           <Gamepad2
             size={12}
@@ -768,7 +768,7 @@ const TripListItem = React.memo(({
           </div>
         </div>
           {tripNumber !== undefined && (
-            <div className="flex flex-col items-center justify-center shrink-0 ml-1">
+            <div className="nvu-trip-card-number flex flex-col items-center justify-center shrink-0 ml-1">
               <div className="flex items-center justify-center min-w-8 h-6 px-1 rounded bg-gray-100 dark:bg-nvu-surface/80 text-[11px] font-bold text-gray-700 dark:text-nvu-text-soft" aria-label={`Ordem ${tripNumber} no histórico do escopo`} title="Ordem cronológica no histórico do escopo">
                 {tripNumber.toString()}
               </div>
@@ -778,7 +778,7 @@ const TripListItem = React.memo(({
       </div>
 
       {isExpanded && (
-        <div className="flex flex-col animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="nvu-trip-card-more flex flex-col animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="w-full h-px bg-gray-50 dark:bg-nvu-line" />
 
           {/* Middle Grid Row 2 */}
@@ -876,8 +876,8 @@ const TripListItem = React.memo(({
       )}
 
       {/* Bottom Row (Badges & Actions) */}
-      <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-nvu-line/60">
-        <div className="flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-full border border-green-100/50 dark:border-transparent">
+      <div className="nvu-trip-card-foot flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-nvu-line/60">
+        <div className="nvu-trip-card-money flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-full border border-green-100/50 dark:border-transparent">
           <div className="nvu-trip-money-icon w-3 h-3 rounded-full border-[1px] flex items-center justify-center shrink-0">
             <DollarSign
               size={8}
@@ -895,7 +895,7 @@ const TripListItem = React.memo(({
           </span>
         )}
 
-        <div className="flex items-center gap-1">
+        <div className="nvu-trip-card-actions flex items-center gap-1">
           {operationCounterLabel && (
             <div
               className="min-w-[42px] h-6 px-2 rounded-md bg-gray-100 dark:bg-nvu-surface/80 text-[11px] font-bold text-gray-700 dark:text-nvu-text-soft flex items-center justify-center"
@@ -2246,7 +2246,7 @@ export default function TripHistory({
   return (
     <div
       className={cn(
-        "flex flex-col w-full relative",
+        "nvu-trip-history flex flex-col w-full relative",
         compactDriverView || hideFloatingSummary ? "pb-0" : !embeddedJob && !isInsideAdminTab
           ? "w-full max-w-7xl mx-auto min-h-[calc(100vh-64px)] bg-gray-50/50 dark:bg-nvu-page pb-6"
           : "pb-24" // Extra padding for the fixed footer in tab view
@@ -2269,7 +2269,7 @@ export default function TripHistory({
       </div>}
       {/* Header Section */}
       {(!hideHeader || !hideHeaderActions) && (
-      <div className={cn("flex items-start mb-4 pt-2", hideHeader ? "justify-end" : "justify-between")}>
+      <div className={cn("nvu-trip-history-header flex items-start mb-4 pt-2", hideHeader ? "justify-end" : "justify-between")}>
         {!hideHeader && (
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
@@ -2459,7 +2459,8 @@ export default function TripHistory({
       <div
         className={cn(
           "flex flex-col gap-3 w-full",
-          compactDriverView || hideFloatingSummary ? "pb-0 px-0" : "pb-4 px-0"
+          compactDriverView || hideFloatingSummary ? "pb-0 px-0" : "pb-4 px-0",
+          !compactDriverView && "nvu-trip-history-list nvu-company-fill"
         )}
       >
         {!embeddedJob && !compactDriverView && <HistoryReadCoverageNotice

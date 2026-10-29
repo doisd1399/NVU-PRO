@@ -35,6 +35,10 @@ import {
 } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
 import { WorkspaceProfileCover } from "../components/common/WorkspaceProfileCover";
+import { useLandscapeWorkspace } from "../hooks/useLandscapeWorkspace";
+import { useLandscapeFillHeight } from "../hooks/useLandscapeFillHeight";
+import "../components/driver/DriverLandscapeProfile.css";
+import "../components/admin/CompanyLandscape.css";
 import { isProfileCoverPage } from "../lib/profileCover";
 import { useProfileChrome } from "../hooks/useProfileChrome";
 import { cn } from "../lib/utils";
@@ -109,6 +113,14 @@ export default function AdminLayout() {
   const isCompanyProfileRoute = isAdminCompanyRoute && fleetTab === "company";
   const isCoverPage = isProfileCoverPage(location.pathname, location.state);
   const isLegacyCoverPage = isCoverPage && !isAdminCompanyRoute;
+  // Horizontal screens: the company profile pages (cover pages) share the driver's cover box and keep their content, with
+  // lists scrolling inside their own card, in the visible area (CompanyLandscape.css, DriverLandscapeProfile.css).
+  const landscapeWorkspace = useLandscapeWorkspace();
+  const isLandscapeCompany = landscapeWorkspace && isCoverPage;
+  const shellRef = React.useRef<HTMLDivElement>(null);
+  useLandscapeFillHeight(isLandscapeCompany, shellRef,
+    ".nvu-company-fill, .nvu-company-profile-view .nvu-profile-ranking-layout[data-nvu-profile-view=\"statistics\"]",
+    { refresh: `${location.pathname}|${fleetTab || ""}` });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
@@ -414,12 +426,13 @@ export default function AdminLayout() {
   );
 
   return (
-    <div className={cn(
+    <div ref={shellRef} className={cn(
       "nvu-admin-shell nvu-workspace-shell min-h-screen bg-gray-50 dark:bg-nvu-page flex flex-col text-gray-900 dark:text-nvu-text font-sans",
       nativeAndroid && "nvu-native-android",
       !nativeAndroid && "nvu-desktop-shell nvu-desktop-admin-shell",
       isCompanyProfileRoute && "nvu-company-profile-route nvu-native-profile-route",
       isCoverPage && "nvu-cover-page-shell",
+      isLandscapeCompany && "nvu-landscape-company",
       isAdminCompanyRoute && !isCompanyProfileRoute && "nvu-central-shell",
     )}>
       {/* Top Bar fixed at the top */}

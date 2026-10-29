@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ProfileCoverMetadata, ProfileCoverTarget } from "../lib/profileCover";
+import { resolveProfileCoverSource, type ProfileCoverMetadata, type ProfileCoverTarget } from "../lib/profileCover";
 import { cacheProfileCover, observeProfileCover, retryProfileCoverSync } from "../services/profileCoverService";
 import { getProfileCover, profileCoverKey, PROFILE_COVER_CHANGED, readProfileCoverMemory, type ProfileCoverRecord } from "../services/profileCoverStore";
 
@@ -31,6 +31,6 @@ export function useProfileCover(viewerId: string, target: ProfileCoverTarget, kn
   }, [key, known.url, known.revision]);
   const record = local?.key === key ? local : readProfileCoverMemory(viewerId, target);
   const canonical = remote.key === key ? remote : known;
-  const src = record?.removed ? "" : record?.imageDataUrl || canonical.url;
+  const src = resolveProfileCoverSource(record, canonical.url);
   return { src, pending: record?.status === "pending", failed: Boolean(record?.failure), retry: retryProfileCoverSync };
 }

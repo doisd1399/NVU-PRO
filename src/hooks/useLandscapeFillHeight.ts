@@ -11,18 +11,23 @@ export function useLandscapeFillHeight(
   enabled: boolean,
   root: RefObject<HTMLElement | null>,
   selector: string | null,
-  options: { min?: number; alignTo?: string } = {},
+  options: { min?: number; alignTo?: string; refresh?: string | number } = {},
 ) {
-  const { min = 240, alignTo } = options;
+  // `refresh` re-measures when a retained page becomes the visible one without any node being added or removed.
+  const { min = 240, alignTo, refresh } = options;
   useLayoutEffect(() => {
     const workspace = root.current;
     if (!enabled || !workspace || !selector) return;
     let frame = 0;
     const apply = () => {
       frame = 0;
-      const target = workspace.querySelector<HTMLElement>(`[data-nvu-panel-active="true"] ${selector}`);
+      // The active retained panel first; pages that are not in a RetainedPanel (retained routes) use the visible match.
+      const target = workspace.querySelector<HTMLElement>(`[data-nvu-panel-active="true"] ${selector}`)
+        ?? Array.from(workspace.querySelectorAll<HTMLElement>(selector)).find(node => node.getClientRects().length > 0) ?? null;
       if (!target) { workspace.style.removeProperty("--nvu-fill-h"); return; }
-      let free = freeHeightBelow(target);
+      // A page keeps room for what follows the list (a notice, a footer) through --nvu-fill-reserve on the list itself.
+      const reserve = Number.parseFloat(getComputedStyle(target).getPropertyValue("--nvu-fill-reserve")) || 0;
+      let free = freeHeightBelow(target) - reserve;
       // Optionally end on the same line as a neighbouring card (the operation card beside the history).
       const neighbour = alignTo ? workspace.querySelector<HTMLElement>(`[data-nvu-panel-active="true"] ${alignTo}`) : null;
       if (neighbour) free = Math.min(free, Math.floor(neighbour.getBoundingClientRect().bottom - target.getBoundingClientRect().top));
@@ -47,5 +52,5 @@ export function useLandscapeFillHeight(
       mutations.disconnect();
       workspace.style.removeProperty("--nvu-fill-h");
     };
-  }, [enabled, root, selector, min, alignTo]);
+  }, [enabled, root, selector, min, alignTo, refresh]);
 }

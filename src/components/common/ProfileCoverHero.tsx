@@ -33,6 +33,14 @@ export function ProfileCoverHero({ scope, profileId, profile, name, description,
     return () => { document.removeEventListener("pointerdown", outside, true); document.removeEventListener("keydown", escape); };
   }, [showCoverActions, editing]);
   const [failedImage, setFailedImage] = useState("");
+  // A failed load (offline, a transient error) must not leave the placeholder for good: try the same image again when the
+  // connection is back or the window regains focus.
+  useEffect(() => {
+    if (!failedImage) return;
+    const retry = () => setFailedImage("");
+    window.addEventListener("online", retry); window.addEventListener("focus", retry);
+    return () => { window.removeEventListener("online", retry); window.removeEventListener("focus", retry); };
+  }, [failedImage]);
   const Icon = scope === "company" ? Building2 : UserRound;
   return <section className="nvu-cover-hero" data-nvu-profile-cover data-profile-scope={scope} aria-label={scope === "company" ? "Perfil da empresa" : "Perfil do motorista"}>
     <div className="nvu-cover-image" ref={imageArea}>

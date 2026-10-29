@@ -105,12 +105,12 @@ export function ProfileRankingOverview({
 
   return (
     <div
-      className="space-y-4"
+      className="nvu-stats-ranking-body space-y-4"
       aria-live="polite"
       aria-busy={status === "loading"}
     >
       {ready && result.stale && <p role="status" className="text-xs text-slate-500 dark:text-nvu-muted">Último resultado salvo · aguardando atualização</p>}
-      <div className="rounded-[20px] border border-teal-500/15 bg-teal-50 dark:bg-nvu-accent-soft p-4 sm:p-5">
+      <div className="nvu-stats-hero rounded-[20px] border border-teal-500/15 bg-teal-50 dark:bg-nvu-accent-soft p-4 sm:p-5">
         <div className="flex items-center gap-2 text-teal-700 dark:text-teal-400 mb-3">
           <Trophy size={19} aria-hidden="true" />
           <span className="text-xs font-semibold">{scopeLabels[scope]}</span>
@@ -137,7 +137,7 @@ export function ProfileRankingOverview({
           </button>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="nvu-stats-tiles grid grid-cols-2 gap-3">
         <div className="rounded-[16px] border border-slate-200 dark:border-white/10 p-3 sm:p-4">
           <div className="flex items-center gap-2 text-slate-500 dark:text-nvu-muted text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
             <Package
@@ -174,7 +174,7 @@ export function ProfileRankingOverview({
         </div>
       </div>
       {ready && summary.hasActivity && summary.next && (
-        <div className="rounded-[16px] border border-slate-200 dark:border-white/10 p-4">
+        <div className="nvu-stats-extra rounded-[16px] border border-slate-200 dark:border-white/10 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nvu-muted">
             Logo acima de você
           </p>
@@ -222,7 +222,7 @@ export function ProfileRankingOverview({
         !summary.isLeader &&
         summary.leader &&
         summary.leaderRatio !== null && (
-          <div className="rounded-[16px] border border-slate-200 dark:border-white/10 p-4">
+          <div className="nvu-stats-extra rounded-[16px] border border-slate-200 dark:border-white/10 p-4">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nvu-muted">
               Ganhos em relação ao líder
             </p>
@@ -259,11 +259,11 @@ export function ProfileRankingOverview({
       <button
         type="button"
         onClick={onOpenRanking}
-        className="w-full flex items-center justify-between gap-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20"
+        className="nvu-stats-more w-full flex items-center justify-between gap-2 rounded-xl bg-blue-50 dark:bg-blue-500/10 px-4 py-3 text-sm font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20"
       >
         Ver ranking completo <ChevronRight size={17} aria-hidden="true" />
       </button>
-      <p className="text-[11px] leading-relaxed text-slate-500 dark:text-nvu-muted">
+      <p className="nvu-stats-note text-[11px] leading-relaxed text-slate-500 dark:text-nvu-muted">
         Ordenação por ganhos. Em empate, seguem os critérios de desempate do
         ranking.
       </p>
@@ -289,14 +289,14 @@ export function ProfileActivityCalendar({
     [end, referenceDate, start, trips],
   );
   return (
-    <section className={cardClass}>
+    <section className={cn(cardClass, "nvu-stats-calendar")}>
       <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-nvu-text-soft">
         Atividade no período
       </h3>
       <p className="text-xs text-slate-500 dark:text-nvu-muted mt-2 mb-5">
         Dias com viagens nesta empresa {loading ? "· atualizando" : ""}
       </p>
-      <div className="grid grid-cols-7 gap-y-2 gap-x-1 max-w-md mx-auto text-center">
+      <div className="nvu-stats-calendar-grid grid grid-cols-7 gap-y-2 gap-x-1 max-w-md mx-auto text-center">
         {["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"].map((day) => (
           <span
             key={day}
@@ -314,7 +314,7 @@ export function ProfileActivityCalendar({
             title={`${day.key}: ${day.trips} viagens`}
             aria-label={`${day.key}: ${day.future ? "dia futuro" : `${day.trips} viagens no histórico`}`}
             className={cn(
-              "w-8 h-8 sm:w-10 sm:h-10 mx-auto rounded-full flex items-center justify-center text-xs",
+              "nvu-stats-day w-8 h-8 sm:w-10 sm:h-10 mx-auto rounded-full flex items-center justify-center text-xs",
               day.trips > 0
                 ? "bg-teal-500 text-white shadow-sm"
                 : "border border-slate-200 dark:border-nvu-line text-slate-500 dark:text-nvu-muted",
@@ -568,7 +568,7 @@ export const ProfileRankingPerformanceCard = React.memo(
             ))}
           </div>
         )}
-        <section className={cardClass}>
+        <section className={cn(cardClass, "nvu-stats-ranking")}>
           <div className="nvu-profile-performance-heading flex flex-wrap items-center justify-between gap-3 mb-4">
             <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-nvu-text-soft">
               Desempenho no ranking
@@ -589,7 +589,7 @@ export const ProfileRankingPerformanceCard = React.memo(
             onOpenRanking={openRanking}
           />
         </section>
-        <section className={cardClass}>
+        <section className={cn(cardClass, "nvu-stats-career")}>
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-nvu-text-soft">
               Carreira

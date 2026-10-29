@@ -299,10 +299,10 @@ export default function Reports({
     }
     
     return (
-        <div className="space-y-2.5">
+        <div className="nvu-company-reports-list nvu-company-fill space-y-2.5">
           {list.slice(0, visibleItems).map((item) => (
-            <div key={item.id} className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm p-3.5 flex flex-col gap-3">
-              <div className="flex flex-col gap-0.5">
+            <div key={item.id} className="nvu-company-report-card bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm p-3.5 flex flex-col gap-3">
+              <div className="nvu-company-report-heading flex flex-col gap-0.5">
                 <span className="text-[15px] font-semibold text-slate-900 dark:text-white leading-tight">
                   {item.title}
                 </span>
@@ -315,7 +315,7 @@ export default function Reports({
                 </span>
               </div>
               
-              <div className="grid grid-cols-2 gap-2">
+              <div className="nvu-company-report-tiles grid grid-cols-2 gap-2">
                 <div className="bg-slate-50 dark:bg-black/20 rounded-[8px] p-2 flex flex-col items-center justify-center border border-slate-100 dark:border-nvu-line/50 text-center">
                   <span className="text-[11px] font-medium text-slate-500 dark:text-nvu-muted mb-1 flex items-center leading-none uppercase tracking-wider break-normal">Ganhos</span>
                   <div className="text-[13px] sm:text-[14px] leading-tight">
@@ -331,7 +331,7 @@ export default function Reports({
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 dark:border-nvu-line flex justify-between items-center">
+              <div className="nvu-company-report-foot pt-2 border-t border-slate-100 dark:border-nvu-line flex justify-between items-center">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] font-medium text-slate-500 dark:text-nvu-muted leading-none mt-0.5">Ticket Médio:</span>
                   <span className="text-[12px] font-semibold text-slate-800 dark:text-nvu-text leading-none">{item.currencySummaries.length === 1 && item.unknownCurrencySummaries.length === 0 && item.currencySummaries[0].avgTicket !== null ? `${formatCurrency(item.currencySummaries[0].avgTicket, item.currencySummaries[0].currency)}` : "Separado por moeda"}</span>
@@ -365,12 +365,12 @@ export default function Reports({
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-nvu-page font-sans pb-8 w-full box-border">
-      <div className="max-w-[900px] mx-auto flex flex-col gap-4 pt-4 sm:pt-6 w-full px-4 sm:px-4 md:px-0 box-border">
+    <div className="nvu-company-reports min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-nvu-page font-sans pb-8 w-full box-border">
+      <div className="nvu-company-reports-inner max-w-[900px] mx-auto flex flex-col gap-4 pt-4 sm:pt-6 w-full px-4 sm:px-4 md:px-0 box-border">
         
         {/* Header Container */}
         {!hideHeader && (
-        <div className="px-1 mb-2 flex items-center gap-2.5">
+        <div className="nvu-company-reports-heading px-1 mb-2 flex items-center gap-2.5">
           <button 
             onClick={() => navigate(activeRole === "admin" ? "/admin" : "/driver")}
             className="w-7 h-7 rounded-full bg-slate-200 dark:bg-nvu-surface flex items-center justify-center text-slate-600 dark:text-nvu-muted hover:bg-slate-300 dark:hover:bg-nvu-strip transition-colors shrink-0"
@@ -388,9 +388,9 @@ export default function Reports({
         </div>
         )}
 
-        <div className="space-y-3">
+        <div className="nvu-company-reports-controls space-y-3">
           {/* Period Selector */}
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="nvu-company-reports-toggle grid grid-cols-2 gap-2.5">
             <button
               onClick={() => handlePeriodChange("semanal")}
               className={cn(
@@ -418,7 +418,7 @@ export default function Reports({
           </div>
 
           {!isDriverView && (
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="nvu-company-reports-toggle grid grid-cols-2 gap-2.5">
             <button
               onClick={() => handleModeChange("empresa")}
               className={cn(
@@ -450,8 +450,8 @@ export default function Reports({
         <HistoryReadCoverageNotice coverage={tripsCoverage} hasError={Boolean(tripsError)} error={tripsError} readCoverage={tripsReadCoverage} backgroundRefresh={tripsHistoryReady} />
 
         {mode === "empresa" && (
-          <div className="mt-5">
-            <div className="flex items-center gap-2 mb-3 px-1">
+          <div className="nvu-company-reports-history mt-5">
+            <div className="nvu-company-reports-history-title flex items-center gap-2 mb-3 px-1">
               <div className="w-[3px] h-[16px] bg-emerald-600 rounded-full"></div>
               <h2 className="text-[16px] font-bold text-slate-900 dark:text-white tracking-tight">Histórico de Fechamento</h2>
             </div>
@@ -460,8 +460,8 @@ export default function Reports({
         )}
 
         {mode === "funcionarios" && !selectedDriverId && (
-          <div className="mt-5 flex flex-col gap-2.5">
-            <div className="flex items-center gap-2 mb-1 px-1">
+          <div className="nvu-company-reports-history mt-5 flex flex-col gap-2.5">
+            <div className="nvu-company-reports-history-title flex items-center gap-2 mb-1 px-1">
               <div className="w-[3px] h-[16px] bg-emerald-600 rounded-full"></div>
               <h2 className="text-[16px] font-bold text-slate-900 dark:text-white tracking-tight">
                 Selecione um Motorista
@@ -473,7 +473,7 @@ export default function Reports({
                 <span className="text-[15px] font-medium text-slate-600 dark:text-nvu-muted">Nenhum motorista ativo encontrado.</span>
               </div>
             ) : (
-              <>
+              <div className="nvu-company-reports-list nvu-company-fill flex flex-col gap-2.5">
                 {activeDrivers.map((driver) => (
                   <div 
                     key={driver.id} 
@@ -493,13 +493,13 @@ export default function Reports({
                     </div>
                   </div>
                 ))}
-              </>
+              </div>
             )}
           </div>
         )}
 
         {mode === "funcionarios" && selectedDriverId && (
-          <div className="mt-5">
+          <div className="nvu-company-reports-history mt-5">
             <div className="flex items-center gap-3 mb-4 px-1">
               {!isDriverView && (
                 <button 
@@ -522,7 +522,7 @@ export default function Reports({
         )}
 
         {/* Info Notice */}
-        <div className="mt-5 mb-4">
+        <div className="nvu-company-reports-notice mt-5 mb-4">
           <div className="bg-[#f8fafc] dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-[12px] p-3.5 flex gap-2.5 shadow-sm">
             <Info className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" size={18} />
             <p className="text-[12px] text-slate-600 dark:text-nvu-text-soft font-medium leading-relaxed">

@@ -260,7 +260,8 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 .nvu-landscape-central .nvu-central-summary-body { padding: 0 12px 12px; }
 .nvu-landscape-central .nvu-central-summary > .nvu-central-summary-heading { padding-inline: 16px; }
 .nvu-landscape-central .nvu-central-summary-heading > h2 { flex: none; white-space: nowrap; font-size: 15px; }
-.nvu-landscape-central .nvu-central-summary-heading > .nvu-central-period { flex: 0 1 auto; max-width: none; }
+.nvu-landscape-central .nvu-central-summary-heading > .nvu-central-period { flex: 0 1 auto; max-width: none; min-height: 24px; gap: 5px; padding: 3px 7px; border-radius: 6px; font-size: 10.5px; }
+.nvu-landscape-central .nvu-central-summary-heading > .nvu-central-period > svg { width: 14px; height: 14px; }
 
 /* Management card: it fills the left column down to the bottom line of the jobs card; the six buttons share the
    height (36px to 64px each) and the list scrolls inside the card on a window too low for the minimum. */
@@ -305,6 +306,7 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
   scrollbar-color: var(--central-line) transparent;
 }
 .nvu-landscape-central .nvu-central-job-list > .nvu-central-empty { margin: auto; }
+.nvu-landscape-central .nvu-central-job-list { container: central-jobs / inline-size; }
 .nvu-landscape-central .nvu-central-job-list::-webkit-scrollbar,
 .nvu-landscape-central .nvu-central-action-list::-webkit-scrollbar { width: 6px; }
 .nvu-landscape-central .nvu-central-job-list::-webkit-scrollbar-thumb,
@@ -314,7 +316,7 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 .nvu-landscape-central .nvu-central-operation,
 .nvu-landscape-central .nvu-central-operation + .nvu-central-operation {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: clamp(112px, 34%, 176px) minmax(0, 1fr);
   grid-template-areas: "photo driver" "photo vehicle" "photo metrics" "photo progress" "photo timing";
   grid-template-rows: repeat(5, auto);
   column-gap: 12px;
@@ -329,12 +331,13 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 .nvu-landscape-central .nvu-central-driver { gap: 8px; padding: 0; }
 .nvu-landscape-central .nvu-central-avatar { width: 24px; height: 24px; font-size: 10px; }
 .nvu-landscape-central .nvu-central-job-status { font-size: 10.5px; }
-.nvu-landscape-central .nvu-central-vehicle-photo { grid-area: photo; aspect-ratio: auto; min-height: 96px; border-radius: 9px; }
+/* The vehicle photo is a 16:9 rectangle, centered beside the five lines. */
+.nvu-landscape-central .nvu-central-vehicle-photo { grid-area: photo; align-self: center; aspect-ratio: 16 / 9; min-height: 0; border-radius: 9px; }
 .nvu-landscape-central .nvu-central-photo-frame { position: absolute; inset: 0; width: auto; height: auto; }
 .nvu-landscape-central .nvu-central-photo-empty { gap: 4px; padding: 6px; text-align: center; font-size: 10px; }
 .nvu-landscape-central .nvu-central-photo-empty svg { width: 24px; height: 24px; }
-.nvu-landscape-central .nvu-central-operation-info { top: 4px; right: 4px; width: 24px; height: 24px; }
-.nvu-landscape-central .nvu-central-operation-info > svg { width: 14px; height: 14px; }
+.nvu-landscape-central .nvu-central-operation-info { top: 4px; right: 4px; width: 20px; height: 20px; }
+.nvu-landscape-central .nvu-central-operation-info > svg { width: 12px; height: 12px; }
 .nvu-landscape-central .nvu-central-vehicle-line { grid-area: vehicle; gap: 8px; min-height: 0; padding: 0; border-bottom: 0; }
 .nvu-landscape-central .nvu-central-paint-button { width: 22px; height: 22px; }
 .nvu-landscape-central .nvu-central-paint-button > svg { width: 15px; height: 15px; }
@@ -353,16 +356,12 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 .nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 10px; }
 .nvu-landscape-central .nvu-central-operation-timing svg { width: 15px; height: 15px; }
 
-/* Narrower windows: smaller photo and stacked indicators. */
-@media (max-width: 1099px) {
-  .nvu-landscape-central .nvu-central-operation,
-  .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { grid-template-columns: 104px minmax(0, 1fr); }
-}
-@media (max-width: 899px) {
-  .nvu-landscape-central .nvu-central-operation,
-  .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { grid-template-columns: 84px minmax(0, 1fr); column-gap: 10px; }
+/* Narrow job list (smaller windows): stacked indicators, tighter columns; measured on the list itself. */
+@container central-jobs (max-width: 440px) {
   .nvu-landscape-central .nvu-central-operation-metrics > div { flex-direction: column; gap: 0; }
   .nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 8px; }
+  .nvu-landscape-central .nvu-central-operation,
+  .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { column-gap: 10px; }
 }
 /* Low windows (laptops with the browser bars): tighter summary and buttons so the left column keeps fitting; the
    management list scrolls inside its card before the page ever does. Below 1100px the bottom pill takes 72px more. */

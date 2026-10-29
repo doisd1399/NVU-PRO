@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import { JSDOM } from "jsdom";
 import { createProfileCoverSync } from "../src/services/profileCoverSync";
 import { cacheRemoteProfileCover, getProfileCover, listPendingProfileCovers, profileCoverKey, putProfileCover, type ProfileCoverRecord } from "../src/services/profileCoverStore";
-import { isProfileCoverPage, resolveProfileCover } from "../src/lib/profileCover";
+import { isProfileCoverPage, resolveProfileCover, resolveProfileCoverSource } from "../src/lib/profileCover";
 
 const dom = new JSDOM("", { url: "http://127.0.0.1/cover-test" });
 for (const key of ["window", "localStorage", "navigator", "CustomEvent"]) Object.defineProperty(globalThis, key, { value: (dom.window as any)[key], configurable: true });
@@ -100,6 +100,24 @@ await check("Fallback durável vence registro antigo após falha de escrita no I
 await check("Capa nunca é derivada da foto, do logo ou do veículo", () => {
   assert.equal(resolveProfileCover({ profilePhotoURL: "https://test/avatar", vehiclePhotoURL: "https://test/truck", logoUrl: "https://test/logo" }).url, "");
   assert.equal(resolveProfileCover({ profileCoverURL: "https://test/cover", profileCoverRevision: "rev" }).url, "https://test/cover");
+});
+await check("Cache sincronizado antigo nunca esconde a capa remota atual, mesmo sem conseguir baixar os bytes", () => {
+  const url = "https://test/new-cover", old = "https://test/old-cover";
+  // Linha guardada quando o servidor ainda não tinha capa (removed) e a capa publicada depois por outro aparelho.
+  assert.equal(resolveProfileCoverSource({ status: "synced", removed: true, imageDataUrl: "", remoteUrl: "" }, url), url);
+  // Bytes de uma capa anterior não substituem a URL atual.
+  assert.equal(resolveProfileCoverSource({ status: "synced", imageDataUrl: image, remoteUrl: old }, url), url);
+  // Cópia do que o servidor tem agora: os bytes locais valem (abre offline).
+  assert.equal(resolveProfileCoverSource({ status: "synced", imageDataUrl: image, remoteUrl: url }, url), image);
+  // Servidor sem capa e linha de remoção sincronizada: continua sem capa.
+  assert.equal(resolveProfileCoverSource({ status: "synced", removed: true, imageDataUrl: "", remoteUrl: "" }, ""), "");
+  assert.equal(resolveProfileCoverSource(null, url), url);
+  assert.equal(resolveProfileCoverSource(null, ""), "");
+});
+await check("A escolha local ainda não enviada sempre vence a capa remota", () => {
+  const url = "https://test/remote-cover";
+  assert.equal(resolveProfileCoverSource({ status: "pending", imageDataUrl: image, remoteUrl: "" }, url), image);
+  assert.equal(resolveProfileCoverSource({ status: "pending", removed: true, imageDataUrl: "", remoteUrl: "" }, url), "");
 });
 await check("Escopo de páginas inclui somente Atividade, Resultados e Meu perfil", () => {
   for (const profileTab of ["activity", "operations", "results", "profile"]) assert(isProfileCoverPage("/driver/profile", { profileTab }));
