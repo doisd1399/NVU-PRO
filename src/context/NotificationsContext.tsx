@@ -14,6 +14,7 @@ import {
   getDocs,
   limit,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   updateDoc,
@@ -256,6 +257,7 @@ export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({
         collection(db, "notifications"),
         where("userId", "==", userId),
         where("read", "==", false),
+        orderBy("createdAt", "desc"),
         limit(MAX_LIVE_NOTIFICATIONS),
       ),
       publishModernSnapshot,
@@ -270,6 +272,7 @@ export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({
           query(
             collection(db, "notifications"),
             where("userId", "==", userId),
+            orderBy("createdAt", "desc"),
             limit(MAX_LIVE_NOTIFICATIONS),
           ),
           publishModernSnapshot,
@@ -370,7 +373,8 @@ export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({
               liveLegacyNotifications.set(notification.id, notification),
             );
             mergeLegacyNotifications();
-            if (!legacyNotificationCompatibility.readHistory) {
+            // A capacidade de histórico pode estar ativa sem uma busca solicitada.
+            if (!legacyHistoryEnabled) {
               markSourceInitialized("notificacoes");
             }
           },
@@ -380,7 +384,7 @@ export const NotificationsProvider: React.FC<NotificationsProviderProps> = ({
                 "[NVU Notifications] Realtime legado recente indisponível:",
                 error,
               );
-              if (!legacyNotificationCompatibility.readHistory) {
+              if (!legacyHistoryEnabled) {
                 markSourceInitialized("notificacoes");
               }
             }

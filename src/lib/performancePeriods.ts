@@ -3,12 +3,16 @@ import {
   getTodayRange,
   getWeeklyRange,
 } from "./metricsEngine";
+import {
+  addRankingUtcDays,
+  addRankingUtcMonths,
+  getRankingUtcEndOfDay,
+  getRankingUtcStartOfDay,
+  RANKING_TIME_ZONE,
+} from "./rankingPeriods";
 
 export type PerformancePeriodPreset =
-  | "Semana atual"
-  | "Mês atual"
-  | "Hoje"
-  | "Personalizado";
+  "Semana atual" | "Mês atual" | "Hoje" | "Personalizado";
 
 export type ClassificationPeriodView = "Semanal" | "Mensal";
 
@@ -27,43 +31,15 @@ export interface ClassificationPeriod extends DateInterval {
   label: string;
 }
 
-const startOfUtcDay = (value: Date) =>
-  new Date(
-    Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()),
-  );
-
-const endOfUtcDay = (value: Date) =>
-  new Date(startOfUtcDay(value).getTime() + 86_400_000 - 1);
-
 // react-day-picker returns a Date at local midnight. Convert the calendar
 // fields the user selected into the platform's canonical UTC day instead of
 // interpreting the device offset as part of the requested interval.
-const selectedCalendarDayStartUtc = (value: Date) =>
-  new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
-
-const selectedCalendarDayEndUtc = (value: Date) =>
-  new Date(selectedCalendarDayStartUtc(value).getTime() + 86_400_000 - 1);
-
-const addUtcDays = (value: Date, amount: number) => {
-  const date = new Date(value);
-  date.setUTCDate(date.getUTCDate() + amount);
-  return date;
-};
-
-const addUtcMonths = (value: Date, amount: number) =>
-  new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + amount, 1));
+const selectedCalendarDateKey = (value: Date) =>
+  `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 
 const inclusiveCalendarDays = (start: Date, end: Date) => {
-  const startUtc = Date.UTC(
-    start.getUTCFullYear(),
-    start.getUTCMonth(),
-    start.getUTCDate(),
-  );
-  const endUtc = Date.UTC(
-    end.getUTCFullYear(),
-    end.getUTCMonth(),
-    end.getUTCDate(),
-  );
+  const startUtc = getRankingUtcStartOfDay(start).getTime();
+  const endUtc = getRankingUtcStartOfDay(end).getTime();
   return Math.max(1, Math.round((endUtc - startUtc) / 86_400_000) + 1);
 };
 
@@ -87,9 +63,11 @@ export function resolvePerformanceInterval(
     const rawEnd = new Date(customRange.to || customRange.from);
     const first = rawStart <= rawEnd ? rawStart : rawEnd;
     const last = rawStart <= rawEnd ? rawEnd : rawStart;
+    const firstKey = selectedCalendarDateKey(first);
+    const lastKey = selectedCalendarDateKey(last);
     return {
-      start: selectedCalendarDayStartUtc(first),
-      end: selectedCalendarDayEndUtc(last),
+      start: getRankingUtcStartOfDay(firstKey),
+      end: getRankingUtcEndOfDay(lastKey),
     };
   }
 
@@ -108,23 +86,25 @@ export function resolvePreviousPerformanceInterval(
   referenceDate = new Date(),
 ): DateInterval {
   if (preset === "Hoje") {
-    const range = getTodayRange(addUtcDays(referenceDate, -1));
+    const range = getTodayRange(addRankingUtcDays(referenceDate, -1));
     return { start: range.start, end: range.end };
   }
 
   if (preset === "Semana atual") {
-    const range = getWeeklyRange(addUtcDays(referenceDate, -7));
+    const range = getWeeklyRange(addRankingUtcDays(referenceDate, -7));
     return { start: range.start, end: range.end };
   }
 
   if (preset === "Mês atual") {
-    const range = getMonthlyRange(addUtcMonths(referenceDate, -1));
+    const range = getMonthlyRange(addRankingUtcMonths(referenceDate, -1));
     return { start: range.start, end: range.end };
   }
 
   const days = inclusiveCalendarDays(current.start, current.end);
-  const previousEnd = endOfUtcDay(addUtcDays(current.start, -1));
-  const previousStart = startOfUtcDay(addUtcDays(previousEnd, -(days - 1)));
+  const previousEnd = getRankingUtcEndOfDay(
+    addRankingUtcDays(current.start, -1),
+  );
+  const previousStart = addRankingUtcDays(current.start, -days);
   return { start: previousStart, end: previousEnd };
 }
 
@@ -135,26 +115,31 @@ export function buildClassificationPeriods(
 ): ClassificationPeriod[] {
   return Array.from({ length: Math.max(1, count) }, (_, index) => {
     if (view === "Semanal") {
-      const range = getWeeklyRange(addUtcDays(referenceDate, index * -7));
+      const range = getWeeklyRange(
+        addRankingUtcDays(referenceDate, index * -7),
+      );
       return {
         id: index,
         start: range.start,
         end: range.end,
         label: `${range.start.toLocaleDateString("pt-BR", {
-          timeZone: "UTC",
+          timeZone: RANKING_TIME_ZONE,
           day: "2-digit",
           month: "2-digit",
         })} a ${range.end.toLocaleDateString("pt-BR", {
-          timeZone: "UTC",
+          timeZone: RANKING_TIME_ZONE,
           day: "2-digit",
           month: "2-digit",
         })}`,
       };
     }
 
-    const range = getMonthlyRange(addUtcMonths(referenceDate, -index));
+    const range = getMonthlyRange(addRankingUtcMonths(referenceDate, -index));
     const formattedMonth = range.start
-      .toLocaleDateString("pt-BR", { timeZone: "UTC", month: "short" })
+      .toLocaleDateString("pt-BR", {
+        timeZone: RANKING_TIME_ZONE,
+        month: "short",
+      })
       .replace(".", "");
     return {
       id: index,
@@ -174,7 +159,9 @@ export function getClassificationHistoryInterval(
   }
 
   return {
-    start: new Date(Math.min(...periods.map((period) => period.start.getTime()))),
+    start: new Date(
+      Math.min(...periods.map((period) => period.start.getTime())),
+    ),
     end: new Date(Math.max(...periods.map((period) => period.end.getTime()))),
   };
 }

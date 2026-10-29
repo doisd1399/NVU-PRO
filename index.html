@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="transparent" />
     <title>NVU</title>
+    <style>
+      :root { --nvu-page: #f7f9fa; --nvu-surface: #fff; color-scheme: light; }
+      :root.dark { --nvu-page: #10151c; --nvu-surface: #1a1f26; color-scheme: dark; }
+      html, body, #root { min-height: 100%; margin: 0; background: var(--nvu-page); }
+    </style>
     <script
       src="https://accounts.google.com/gsi/client"
       async

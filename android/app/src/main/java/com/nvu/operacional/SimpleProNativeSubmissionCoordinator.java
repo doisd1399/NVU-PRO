@@ -9,18 +9,16 @@ import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QuerySnapshot;
-import com.google.firebase.firestore.SetOptions;
-import com.google.firebase.Timestamp;
+import com.google.firebase.firestore.Source;
 import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.functions.FirebaseFunctions;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,16 +26,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.security.MessageDigest;
 
 /**
  * Native owner for Pro completion after a readable receipt is captured.
  *
- * This is deliberately not a second retry queue. It performs one immediate,
- * authenticated write using a deterministic document id. If any mandatory
- * check cannot be completed, it hands the immutable capture to the Web bridge
- * instead of claiming success or silently dropping it.
+ * Each call handles one immutable attempt from the native durable queue.
+ * It reports server confirmation only after the transactional write succeeds.
  */
 final class SimpleProNativeSubmissionCoordinator {
     interface Listener {
@@ -45,9 +43,12 @@ final class SimpleProNativeSubmissionCoordinator {
         void onFallback(String reason);
     }
 
+    interface CompatibilityListener {
+        void onResult(boolean compatible, boolean unavailable);
+    }
+
     private static final String PRO_STATE_SUBMITTING = "SUBMITTING_NATIVE";
-    private static final String PRO_STATE_FALLBACK = "WEB_FALLBACK";
-    private static final int MAX_DUPLICATE_WINDOW = 50;
+    static final String AUTH_REQUIRED_PREFIX = "AUTH_REQUIRED:";
     private static final Pattern AMOUNT_PATTERN = Pattern.compile("(?:R\\$|EUR|BRL|€|\\$)?\\s*([0-9]+(?:[.,][0-9]{3})*(?:[.,][0-9]{1,2})?)", Pattern.CASE_INSENSITIVE);
     private static final Pattern PERCENT_OFFER = Pattern.compile("BONUS\\s+DE\\s+[0-9]+\\s*%|REMOVER\\s+PENALIDADES|DOBRAR\\s+VALOR");
     private static final Set<String> ZERO_BONUS_LINES = new HashSet<>(Arrays.asList(
@@ -59,6 +60,21 @@ final class SimpleProNativeSubmissionCoordinator {
     static void submit(Context context, SharedPreferences prefs, String rawReceipt, Listener listener) {
         if (context == null || prefs == null || listener == null) return;
         Context appContext = context.getApplicationContext();
+        if (ProPendingTripStore.isCompletionRecorded(appContext.getSharedPreferences(
+            SimpleAutomationService.PREFS_NAME, Context.MODE_PRIVATE), prefs)) return;
+        AtomicBoolean callbackDelivered = new AtomicBoolean(false);
+        Listener onceListener = new Listener() {
+            @Override public void onSuccess(String tripId) {
+                if (callbackDelivered.compareAndSet(false, true)) listener.onSuccess(tripId);
+            }
+            @Override public void onFallback(String reason) {
+                if (callbackDelivered.compareAndSet(false, true)) listener.onFallback(reason);
+            }
+        };
+        if (PendingOperationStartStore.blocks(appContext, prefs)) {
+            fallback(prefs, "OPERATION_START_PENDING", onceListener);
+            return;
+        }
         String driverId = clean(prefs.getString("driverId", ""));
         String jobId = clean(prefs.getString("captureJobId", prefs.getString("jobId", "")));
         String companyId = clean(prefs.getString("captureCompanyId", prefs.getString("companyId", "")));
@@ -71,202 +87,342 @@ final class SimpleProNativeSubmissionCoordinator {
         String simulatorCode = clean(prefs.getString("captureSimulatorCode", prefs.getString("simulatorCode", "")));
         String packageId = clean(prefs.getString("capturePackageId", prefs.getString("packageId", "")));
 
+        final int submissionGeneration = prefs.getInt("nativeAttemptGeneration", 0);
         prefs.edit()
+            .putInt("registrationProtocolVersion", 409)
+            .putLong("lastAttemptAt", System.currentTimeMillis())
             .putString("nativeSubmissionState", PRO_STATE_SUBMITTING)
             .putString("captureStage", "NATIVE_SUBMITTING")
             .apply();
 
-        Receipt receipt = parseReceipt(simulatorKey, rawReceipt);
+        // The saved, validated capture is authoritative on every retry.
+        Receipt receipt = ProPendingTripStore.validatedReceipt(prefs);
         String authUid = currentUid();
+        AuthCheck authCheck = inspectAuth(prefs, driverId, authUid);
+        if (!authCheck.isMatch()) {
+            // FirebaseAuth may still be restoring the native provider session
+            // when the foreground service starts after an app upgrade/restart.
+            // Do not convert that transient state into a user-facing re-login.
+            if ("MISSING".equals(authCheck.state)) {
+                int hydrationAttempts = prefs.getInt("nativeAuthHydrationAttempts", 0) + 1;
+                prefs.edit().putInt("nativeAuthHydrationAttempts", hydrationAttempts).apply();
+                if (hydrationAttempts < 8) {
+                    fallback(prefs, "RETRY_NATIVE_AUTH_HYDRATION", onceListener);
+                    return;
+                }
+            }
+            fallback(prefs, AUTH_REQUIRED_PREFIX + authCheck.state, onceListener);
+            return;
+        }
+        prefs.edit().remove("nativeAuthHydrationAttempts").apply();
         String failure = validateLocalContext(
             driverId, authUid, jobId, companyId, contractId, attemptId, contextEpoch,
             origin, destination, simulatorKey, simulatorCode, packageId, receipt
         );
         if (!failure.isEmpty()) {
-            fallback(prefs, failure, listener);
+            prefs.edit().putString("lastFailureStage", "LOCAL_VALIDATION")
+                .putString("lastQueueCallable", "").putString("reasonCode", "LOCAL_CONTEXT_REJECTED")
+                .putString("serverReason", "").apply();
+            fallback(prefs, failure, onceListener);
+            return;
+        }
+        // GTO Pro is committed by one authenticated server transaction; the
+        // Android client never GETs a missing history slot under old Rules.
+        if ("global-truck".equals(simulatorKey)) {
+            submitGtoReceipt(appContext, prefs, rawReceipt, receipt, driverId, jobId,
+                companyId, contractId, attemptId, contextEpoch, origin, destination,
+                simulatorKey, simulatorCode, packageId, submissionGeneration, onceListener);
             return;
         }
 
-        FirebaseFirestore db;
-        try {
-            db = FirebaseFirestore.getInstance();
-        } catch (RuntimeException error) {
-            fallback(prefs, "Firestore nativo indisponível", listener);
-            return;
-        }
+        submitSimpleTrip(appContext, prefs, rawReceipt, receipt, driverId, jobId, companyId, contractId,
+            attemptId, contextEpoch, origin, destination, simulatorKey, simulatorCode,
+            submissionGeneration, onceListener);
+    }
 
-        DocumentReference jobRef = db.collection("trabalhos").document(jobId);
-        DocumentReference contractRef = db.collection("contratos").document(contractId);
-        DocumentReference tripRef = db.collection("historico_viagens").document(deterministicTripId(driverId, attemptId));
-        Task<DocumentSnapshot> existingTask = tripRef.get();
-        Task<DocumentSnapshot> jobTask = jobRef.get();
-        Task<DocumentSnapshot> contractTask = contractRef.get();
-
-        Tasks.whenAllSuccess(existingTask, jobTask, contractTask).addOnCompleteListener(task -> {
-            if (!task.isSuccessful()) {
-                fallback(prefs, "Não foi possível confirmar a operação nativamente", listener);
-                return;
-            }
-            try {
-                DocumentSnapshot existing = existingTask.getResult();
-                DocumentSnapshot jobSnapshot = jobTask.getResult();
-                DocumentSnapshot contractSnapshot = contractTask.getResult();
-                if (existing != null && existing.exists()) {
-                    if (sameTripOwner(existing, driverId, companyId, jobId, contractId, attemptId)) {
-                        SimpleAutomationService.recordConfirmedTrip(
-                            appContext, tripRef.getId(), jobId, companyId, driverId, contractId,
-                            simulatorKey, origin, destination, receipt.amountCents, System.currentTimeMillis()
-                        );
-                        nativeSuccess(prefs, tripRef.getId(), listener);
-                    } else {
-                        fallback(prefs, "A chave de idempotência já pertence a outra viagem", listener);
-                    }
-                    return;
-                }
-                if (jobSnapshot == null || !jobSnapshot.exists() || contractSnapshot == null || !contractSnapshot.exists()) {
-                    fallback(prefs, "A operação ou contrato não está disponível", listener);
-                    return;
-                }
-                Map<String, Object> job = jobSnapshot.getData() == null ? new HashMap<>() : jobSnapshot.getData();
-                Map<String, Object> contract = contractSnapshot.getData() == null ? new HashMap<>() : contractSnapshot.getData();
-                String jobDriverId = firstText(job, "driverId", "motoristaId", "userId");
-                String jobCompanyId = firstText(job, "companyId", "empresaId");
-                String jobContractId = firstText(job, "contractId", "contratoId");
-                if (!driverId.equals(jobDriverId) || !companyId.equals(jobCompanyId) || !contractId.equals(jobContractId)) {
-                    fallback(prefs, "A operação mudou antes do registro nativo", listener);
-                    return;
-                }
-                int progress = integerValue(job.get("progress"));
-                int total = Math.max(integerValue(job.get("totalDeliveries")), integerValue(contract.get("totalDeliveries")));
-                String status = firstText(job, "status");
-                if (!isRecordable(status, progress, total)) {
-                    fallback(prefs, "Operação concluída ou indisponível", listener);
-                    return;
-                }
-
-                Task<QuerySnapshot> duplicateTask = db.collection("historico_viagens")
-                    .whereEqualTo("jobId", jobId)
-                    .limit(MAX_DUPLICATE_WINDOW + 1)
-                    .get();
-                duplicateTask.addOnCompleteListener(duplicateResult -> {
-                    if (!duplicateResult.isSuccessful()) {
-                        fallback(prefs, "Não foi possível confirmar duplicidade", listener);
-                        return;
-                    }
-                    QuerySnapshot duplicateSnapshot = duplicateResult.getResult();
-                    if (duplicateSnapshot == null || duplicateSnapshot.size() > MAX_DUPLICATE_WINDOW) {
-                        fallback(prefs, "Operação exige verificação completa no NVU", listener);
-                        return;
-                    }
-                    if (hasConsecutiveDuplicate(duplicateSnapshot, driverId, companyId, simulatorCode, receipt.amountCents)) {
-                        fallback(prefs, "Esta viagem Pro foi bloqueada porque o mesmo valor já foi registrado consecutivamente nesta operação", listener);
-                        return;
-                    }
-                    writeTrip(appContext, prefs, tripRef, job, contract, receipt, driverId, companyId, contractId,
-                        jobId, attemptId, contextEpoch, origin, destination, simulatorKey, simulatorCode, progress, total, listener);
-                });
-            } catch (RuntimeException error) {
-                fallback(prefs, "Falha ao preparar registro nativo", listener);
-            }
+    interface AccessRecoveryListener { void onResult(boolean allowed); }
+    static void probeCompanyAccess(Context context, String companyId, AccessRecoveryListener listener) {
+        FirebaseFunctions functions = GtoFirebaseRuntime.functions(context, "us-central1");
+        if (functions == null) { listener.onResult(false); return; }
+        Map<String, Object> payload = new HashMap<>(); payload.put("companyId", companyId);
+        functions.getHttpsCallable("ensureCompanyAccess").call(payload).addOnCompleteListener(task -> {
+            Object data = task.isSuccessful() && task.getResult() != null ? task.getResult().getData() : null;
+            listener.onResult(data instanceof Map && Boolean.TRUE.equals(((Map<?, ?>) data).get("active")));
         });
     }
 
-    private static void writeTrip(
-        Context context,
-        SharedPreferences prefs,
-        DocumentReference tripRef,
-        Map<String, Object> job,
-        Map<String, Object> contract,
-        Receipt receipt,
-        String driverId,
-        String companyId,
-        String contractId,
-        String jobId,
-        String attemptId,
-        String contextEpoch,
-        String origin,
-        String destination,
-        String simulatorKey,
-        String simulatorCode,
-        int progress,
-        int total,
-        Listener listener
-    ) {
-        String vehicleId = firstText(job, "vehicleId", "veiculoId");
-        String trailerId = firstText(job, "trailerId", "reboqueId");
-        if (trailerId.isEmpty()) trailerId = firstText(contract, "trailerId", "reboqueId");
-        String vehicleName = firstText(job, "vehicleName", "veiculoNome");
-        if (vehicleName.isEmpty()) vehicleName = clean(prefs.getString("vehicleName", ""));
-        String trailerName = firstText(job, "trailerName", "reboqueNome");
-        if (trailerName.isEmpty()) trailerName = clean(prefs.getString("trailerName", ""));
-        String companyName = clean(prefs.getString("companyName", "Empresa"));
-        String contractName = clean(prefs.getString("contractName", ""));
-        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        String driverName = user == null || user.getDisplayName() == null ? "Motorista" : clean(user.getDisplayName());
-        Map<String, Object> data = new HashMap<>();
-        data.put("tripId", tripRef.getId());
-        data.put("empresaId", companyId);
-        data.put("companyId", companyId);
-        data.put("empresaNome", companyName.isEmpty() ? "Empresa" : companyName);
-        data.put("motoristaId", driverId);
-        data.put("driverId", driverId);
-        data.put("motoristaNome", driverName.isEmpty() ? "Motorista" : driverName);
-        data.put("contratoId", contractId);
-        data.put("contractId", contractId);
-        data.put("contratoNumero", contractName);
-        data.put("contratoDescricao", contractName);
-        data.put("jobId", jobId);
-        data.put("origem", origin);
-        data.put("destino", destination);
-        data.put("valor", receipt.amountCents / 100.0);
-        data.put("valorCents", receipt.amountCents);
-        data.put("valorDeteccaoMetodo", "simple_native_ocr");
-        data.put("valorDetectadoAutomaticamente", true);
-        data.put("valorBloqueadoPorDeteccao", true);
-        data.put("status", "concluida");
-        data.put("source", "simple_auto");
-        data.put("registroAutomatico", true);
-        data.put("automationSource", "simple-native-v1");
-        data.put("criadoPor", driverId);
-        data.put("dataLancamento", FieldValue.serverTimestamp());
-        data.put("completedAt", FieldValue.serverTimestamp());
-        data.put("createdAt", FieldValue.serverTimestamp());
-        data.put("uploadedAt", FieldValue.serverTimestamp());
-        data.put("simulatorKey", simulatorKey);
-        data.put("simulatorId", simulatorKey);
-        data.put("simulatorCode", simulatorCode);
-        data.put("simulatorName", simulatorCode);
-        data.put("simuladorNome", simulatorCode);
-        data.put("simuladorCodigo", simulatorCode);
-        data.put("veiculoId", vehicleId);
-        data.put("veiculoNome", vehicleName);
-        data.put("reboqueId", supportsTrailer(simulatorKey) ? trailerId : "");
-        data.put("reboqueNome", supportsTrailer(simulatorKey) ? trailerName : "");
-        data.put("simpleAutomation", true);
-        data.put("simpleAutomationVersion", "v3-native-immediate");
-        data.put("simpleReceiptCurrency", receipt.currency);
-        data.put("simpleReceiptResultScreenConfirmed", true);
-        data.put("simpleReceiptBonusEvidence", receipt.bonusEvidence);
-        data.put("simpleReceiptConfidence", 1.0);
-        data.put("simpleReceiptCapturedAt", prefs.getLong("receiptCapturedAt", 0L));
-        data.put("simpleReceiptCaptureAttemptId", attemptId);
-        data.put("simpleReceiptCaptureContextEpoch", contextEpoch);
-        data.put("idempotencyKey", "simple:" + jobId + ":" + driverId + ":" + attemptId);
-        data.put("simpleDuplicateGuardKey", "simple-value:" + jobId + ":" + driverId + ":" + receipt.amountCents);
-        data.put("nativeSubmission", true);
-        data.put("nativeSubmissionVersion", 1);
-
-        tripRef.set(data, SetOptions.merge()).addOnCompleteListener(writeResult -> {
-            if (!writeResult.isSuccessful()) {
-                fallback(prefs, "A gravação nativa não foi confirmada", listener);
+    /** Authenticated, read-only capability probe. It never creates an attempt,
+     * reads Firestore, changes progress or returns an ACK for a trip. */
+    static void probeGtoBackendCompatibility(Context context, CompatibilityListener listener) {
+        if (context == null || listener == null) return;
+        FirebaseFunctions functions = GtoFirebaseRuntime.functions(context, "us-central1");
+        if (functions == null) { listener.onResult(false, true); return; }
+        Map<String, Object> probe = new HashMap<>();
+        probe.put("compatibilityProbe", GtoBackendCompatibilityPolicy.VERSION);
+        functions.getHttpsCallable("registerGtoProReceipt").call(probe).addOnCompleteListener(task -> {
+            if (!task.isSuccessful()) {
+                Exception error = task.getException();
+                boolean oldContract = error instanceof com.google.firebase.functions.FirebaseFunctionsException
+                    && (((com.google.firebase.functions.FirebaseFunctionsException) error).getCode()
+                        == com.google.firebase.functions.FirebaseFunctionsException.Code.INVALID_ARGUMENT
+                        || ((com.google.firebase.functions.FirebaseFunctionsException) error).getCode()
+                        == com.google.firebase.functions.FirebaseFunctionsException.Code.NOT_FOUND);
+                listener.onResult(false, !oldContract);
                 return;
             }
-            refreshNativeOperationSnapshot(context, prefs, job, contract, progress + 1, total);
-            SimpleAutomationService.recordConfirmedTrip(
-                context, tripRef.getId(), jobId, companyId, driverId, contractId,
-                simulatorKey, origin, destination, receipt.amountCents, System.currentTimeMillis()
-            );
-            nativeSuccess(prefs, tripRef.getId(), listener);
+            Object data = task.getResult() == null ? null : task.getResult().getData();
+            boolean compatible = GtoBackendCompatibilityPolicy.isCompatible(data);
+            listener.onResult(compatible, false);
+        });
+    }
+
+    private static void submitSimpleTrip(Context context, SharedPreferences prefs, String rawReceipt,
+        Receipt receipt, String driverId, String jobId, String companyId, String contractId,
+        String attemptId, String contextEpoch, String origin, String destination, String simulatorKey,
+        String simulatorCode, int generation, Listener listener) {
+        com.google.firebase.functions.FirebaseFunctions functions =
+            GtoFirebaseRuntime.functions(context, "us-central1");
+        if (functions == null) {
+            fallback(prefs, "SIMPLE_BACKEND_UNAVAILABLE", listener);
+            return;
+        }
+        String tripId = deterministicTripId(driverId, attemptId);
+        Map<String, Object> trip = new HashMap<>();
+        trip.put("tripId", tripId);
+        trip.put("canonicalTripId", tripId);
+        trip.put("empresaId", companyId);
+        trip.put("companyId", companyId);
+        trip.put("motoristaId", driverId);
+        trip.put("driverId", driverId);
+        trip.put("contratoId", contractId);
+        trip.put("contractId", contractId);
+        trip.put("jobId", jobId);
+        trip.put("operationId", jobId);
+        trip.put("trabalhoId", jobId);
+        trip.put("origem", origin);
+        trip.put("destino", destination);
+        trip.put("valor", receipt.amountCents / 100.0);
+        trip.put("valorCents", receipt.amountCents);
+        trip.put("source", "simple_auto");
+        trip.put("registroAutomatico", true);
+        trip.put("automationSource", "simple-native-v1");
+        trip.put("simulatorKey", simulatorKey);
+        trip.put("simulatorId", simulatorKey);
+        trip.put("simulatorCode", simulatorCode);
+        trip.put("simpleAutomation", true);
+        trip.put("simpleAutomationVersion", "v3-native-callable");
+        trip.put("simpleReceiptCurrency", receipt.currency);
+        trip.put("simpleReceiptResultScreenConfirmed", true);
+        trip.put("simpleReceiptBonusEvidence", receipt.bonusEvidence);
+        trip.put("simpleReceiptConfidence", 1.0);
+        trip.put("simpleReceiptCapturedAt", prefs.getLong("receiptCapturedAt", 0L));
+        trip.put("simpleReceiptCaptureAttemptId", attemptId);
+        trip.put("simpleReceiptCaptureContextEpoch", contextEpoch);
+        trip.put("idempotencyKey", "simple:" + jobId + ":" + driverId + ":" + attemptId);
+        trip.put("simpleDuplicateGuardKey", "simple-value:" + jobId + ":" + driverId + ":" + receipt.amountCents);
+        trip.put("deterministicTripId", tripId);
+        trip.put("nativeSubmission", true);
+        trip.put("nativeSubmissionVersion", 3);
+        trip.put("receiptText", rawReceipt);
+        trip.put("completedAtClient", prefs.getLong("receiptCapturedAt", System.currentTimeMillis()));
+        Map<String, Object> request = new HashMap<>();
+        request.put("trip", trip);
+        functions.getHttpsCallable("registerCanonicalSimpleTrip").call(request).addOnCompleteListener(task -> {
+            if (!isCurrentAttempt(context, prefs, generation)) return;
+            if (!task.isSuccessful()) {
+                Exception error = task.getException();
+                String code = error instanceof com.google.firebase.functions.FirebaseFunctionsException
+                    ? ((com.google.firebase.functions.FirebaseFunctionsException) error).getCode().name() : "UNAVAILABLE";
+                recordCallableFailure(prefs, "registerCanonicalSimpleTrip", error);
+                String reason = "NOT_FOUND".equals(code) ? "SIMPLE_BACKEND_NOT_DEPLOYED"
+                    : "UNAUTHENTICATED".equals(code) ? AUTH_REQUIRED_PREFIX + "TOKEN_EXPIRED"
+                    : "SIMPLE_REGISTRATION_FAILED:" + code + ":" + serverFailureMessage(error);
+                fallback(prefs, reason, listener);
+                return;
+            }
+            Object rawResult = task.getResult() == null ? null : task.getResult().getData();
+            if (!(rawResult instanceof Map)) {
+                fallback(prefs, "SIMPLE_ACK_INVALID", listener);
+                return;
+            }
+            Map<?, ?> result = (Map<?, ?>) rawResult;
+            Object rawTripId = result.get("tripId");
+            Object rawCount = result.get("confirmedTripCount");
+            Object rawTotal = result.get("total");
+            if (!Boolean.TRUE.equals(result.get("registered")) || !(rawTripId instanceof String)
+                || (!tripId.equals(rawTripId) && !Boolean.TRUE.equals(result.get("receiptEventDuplicate")))
+                || !(rawCount instanceof Number)) {
+                fallback(prefs, "SIMPLE_ACK_INVALID", listener);
+                return;
+            }
+            String acknowledgedTripId = (String) rawTripId;
+            int confirmedCount = ((Number) rawCount).intValue();
+            int total = rawTotal instanceof Number ? ((Number) rawTotal).intValue() : 0;
+            Tasks.withTimeout(FirebaseFirestore.getInstance().collection("historico_viagens").document(acknowledgedTripId)
+                .get(Source.SERVER), 12L, TimeUnit.SECONDS).addOnCompleteListener(ack -> {
+                    if (!isCurrentAttempt(context, prefs, generation)) return;
+                    if (!ack.isSuccessful() || ack.getResult() == null || !ack.getResult().exists()
+                        || ack.getResult().get("serverValidatedAt") == null
+                        || !sameTripEvidence(ack.getResult(), receipt, origin, destination, simulatorKey)
+                        || !sameReceiptOwner(ack.getResult(), driverId, companyId, jobId, contractId,
+                            attemptId, contextEpoch, prefs.getLong("receiptCapturedAt", 0L))
+                        || (!receipt.currency.isEmpty() && !receipt.currency.equals(ack.getResult().getString("simpleReceiptCurrency")))) {
+                        fallback(prefs, "SIMPLE_ACK_HISTORY_MISSING", listener);
+                        return;
+                    }
+                    if (!prefs.edit().putString("submissionTripId", acknowledgedTripId)
+                        .remove("nativePermissionTokenRefreshAttempted").commit()) {
+                        fallback(prefs, "SIMPLE_ACK_STATE_PERSIST_FAILED", listener);
+                        return;
+                    }
+                    String jobStatus = result.get("jobStatus") instanceof String
+                        ? (String) result.get("jobStatus") : "active";
+                    SimpleAutomationService.recordConfirmedTrip(context, acknowledgedTripId, jobId, companyId,
+                        driverId, contractId, simulatorKey, origin, destination, receipt.amountCents,
+                        System.currentTimeMillis(), receipt.currency);
+                    SimpleAutomationService.refreshOperationSnapshot(context,
+                        clean(prefs.getString("companyName", "")), clean(prefs.getString("operationName", "")),
+                        clean(prefs.getString("contractName", "")), jobId, contractId, companyId, driverId,
+                        confirmedCount, Math.max(confirmedCount, total), jobStatus,
+                        "completed".equalsIgnoreCase(jobStatus), clean(prefs.getString("vehicleName", "")),
+                        clean(prefs.getString("trailerName", "")));
+                    nativeSuccess(context, prefs, acknowledgedTripId, listener);
+                });
+        });
+    }
+
+    private static void submitGtoReceipt(Context context, SharedPreferences prefs, String rawReceipt,
+        Receipt receipt, String driverId, String jobId, String companyId, String contractId,
+        String attemptId, String epoch, String origin, String destination, String simulatorKey,
+        String simulatorCode, String packageId, int generation, Listener listener) {
+        String validationFailure = GtoProReceiptValidationPolicy.validate(jobId, companyId, contractId, attemptId,
+            epoch, origin, destination, rawReceipt, receipt.amountCents, receipt.bonusEvidence,
+            clean(prefs.getString("submissionTripId", "")));
+        if (!validationFailure.isEmpty()) {
+            prefs.edit().putString("reasonCode", validationFailure).putString("lastFailureStage", "LOCAL_VALIDATION")
+                .putString("lastQueueCallable", "").putString("serverReason", "").apply();
+            fallback(prefs, validationFailure, listener);
+            return;
+        }
+        FirebaseFunctions functions = GtoFirebaseRuntime.functions(context, "us-central1");
+        if (functions == null) {
+            fallback(prefs, "GTO_PRO_BACKEND_UNAVAILABLE", listener);
+            return;
+        }
+        Map<String, Object> request = new HashMap<>();
+        request.put("driverId", driverId);
+        request.put("jobId", jobId);
+        request.put("companyId", companyId);
+        request.put("contractId", contractId);
+        request.put("attemptId", attemptId);
+        request.put("contextEpoch", epoch);
+        request.put("origin", origin);
+        request.put("destination", destination);
+        request.put("simulatorKey", simulatorKey);
+        request.put("simulatorCode", simulatorCode);
+        request.put("packageId", packageId);
+        request.put("amountCents", receipt.amountCents);
+        request.put("currency", receipt.currency);
+        request.put("bonusEvidence", receipt.bonusEvidence);
+        request.put("receiptText", rawReceipt);
+        request.put("capturedAt", prefs.getLong("receiptCapturedAt", 0L));
+        request.put("previousTripId", clean(prefs.getString("submissionTripId", "")));
+        request.put("vehicleName", clean(prefs.getString("vehicleName", "")));
+        request.put("trailerName", clean(prefs.getString("trailerName", "")));
+        functions.getHttpsCallable("registerGtoProReceipt").call(request).addOnCompleteListener(task -> {
+            if (!isCurrentAttempt(context, prefs, generation)) return;
+            if (!task.isSuccessful()) {
+                Exception error = task.getException();
+                String code = error instanceof com.google.firebase.functions.FirebaseFunctionsException
+                    ? ((com.google.firebase.functions.FirebaseFunctionsException) error).getCode().name()
+                    : "UNAVAILABLE";
+                if ("UNAUTHENTICATED".equals(code) &&
+                    !prefs.getBoolean("nativePermissionTokenRefreshAttempted", false)) {
+                    FirebaseUser user = GtoFirebaseRuntime.currentUser(context);
+                    if (user != null && driverId.equals(user.getUid())) {
+                        prefs.edit().putBoolean("nativePermissionTokenRefreshAttempted", true).apply();
+                        user.getIdToken(true).addOnCompleteListener(refreshed -> {
+                            if (!isCurrentAttempt(context, prefs, generation)) return;
+                            if (!refreshed.isSuccessful()) {
+                                fallback(prefs, AUTH_REQUIRED_PREFIX + "TOKEN_REFRESH_FAILED", listener);
+                            } else {
+                                submitGtoReceipt(context, prefs, rawReceipt, receipt, driverId,
+                                    jobId, companyId, contractId, attemptId, epoch, origin, destination,
+                                    simulatorKey, simulatorCode, packageId, generation, listener);
+                            }
+                        });
+                        return;
+                    }
+                }
+                String failureReason = "GTO_PRO_REGISTRATION_FAILED:" + code + ":" + serverFailureMessage(error);
+                recordCallableFailure(prefs, "registerGtoProReceipt", error);
+                if ("INVALID_ARGUMENT".equals(code) && prefs.getString("reasonCode", "").isEmpty()
+                    && "Recibo ou contexto GTO inválido.".equals(serverFailureMessage(error))) {
+                    prefs.edit().putString("reasonCode", "GTO_SERVER_CONTRACT_MISMATCH").apply();
+                }
+                if ("FAILED_PRECONDITION".equals(code)
+                    && PendingTripFailurePolicy.isReconciliationRequired(failureReason) &&
+                    prefs.getInt("nativeOperationReconciliationGeneration", -1) != generation) {
+                    // Reconciliation is allowed once per queue claim/generation. A persisted
+                    // boolean made every future retry skip reconciliation forever after the
+                    // first failure, which could strand an otherwise valid immutable receipt.
+                    prefs.edit().putInt("nativeOperationReconciliationGeneration", generation).apply();
+                    Map<String, Object> repair = new HashMap<>();
+                    repair.put("jobId", jobId);
+                    functions.getHttpsCallable("reconcileOperationTrips").call(repair).addOnCompleteListener(reconciled -> {
+                        if (!isCurrentAttempt(context, prefs, generation)) return;
+                        if (reconciled.isSuccessful()) {
+                            submitGtoReceipt(context, prefs, rawReceipt, receipt, driverId, jobId,
+                                companyId, contractId, attemptId, epoch, origin, destination,
+                                simulatorKey, simulatorCode, packageId, generation, listener);
+                        } else {
+                            Exception repairError = reconciled.getException();
+                            String repairCode = repairError instanceof com.google.firebase.functions.FirebaseFunctionsException
+                                ? ((com.google.firebase.functions.FirebaseFunctionsException) repairError).getCode().name() : "UNAVAILABLE";
+                            recordCallableFailure(prefs, "reconcileOperationTrips", repairError);
+                            fallback(prefs, "GTO_PRO_REGISTRATION_FAILED:" + repairCode + ":" + serverFailureMessage(repairError), listener);
+                        }
+                    });
+                    return;
+                }
+                String reason = "NOT_FOUND".equals(code) ? "GTO_PRO_BACKEND_NOT_DEPLOYED"
+                    : "UNAUTHENTICATED".equals(code) ? AUTH_REQUIRED_PREFIX + "TOKEN_EXPIRED"
+                    : failureReason;
+                android.util.Log.w("NVU-ProSubmit", reason + " attemptFp=" + fingerprint(attemptId));
+                fallback(prefs, reason, listener);
+                return;
+            }
+            Object result = task.getResult() == null ? null : task.getResult().getData();
+            if (!(result instanceof Map) || !Boolean.TRUE.equals(((Map<?, ?>) result).get("registered"))
+                || !(((Map<?, ?>) result).get("tripId") instanceof String)
+                || (!((String) ((Map<?, ?>) result).get("tripId")).startsWith("nvu_") &&
+                    !(Boolean.TRUE.equals(((Map<?, ?>) result).get("duplicate")) &&
+                      ((String) ((Map<?, ?>) result).get("tripId")).startsWith("simple_")))) {
+                fallback(prefs, "GTO_PRO_ACK_INVALID", listener);
+                return;
+            }
+            String tripId = (String) ((Map<?, ?>) result).get("tripId");
+            Object serverProgress = ((Map<?, ?>) result).get("progress");
+            Object serverTotal = ((Map<?, ?>) result).get("total");
+            int progress = serverProgress instanceof Number ? ((Number) serverProgress).intValue() : -1;
+            int total = serverTotal instanceof Number ? ((Number) serverTotal).intValue() : 0;
+            String jobStatus = ((Map<?, ?>) result).get("jobStatus") instanceof String
+                ? (String) ((Map<?, ?>) result).get("jobStatus") : "";
+            if (progress < 1 || progress > 10000 ||
+                !prefs.edit().putString("submissionTripId", tripId)
+                    .remove("nativePermissionTokenRefreshAttempted").commit()) {
+                fallback(prefs, "GTO_PRO_ACK_INVALID", listener);
+                return;
+            }
+            SimpleAutomationService.recordConfirmedTrip(context, tripId, jobId, companyId,
+                driverId, contractId, simulatorKey, origin, destination, receipt.amountCents,
+                System.currentTimeMillis(), receipt.currency);
+            SimpleAutomationService.refreshOperationSnapshot(context,
+                clean(prefs.getString("companyName", "")), clean(prefs.getString("operationName", "")),
+                clean(prefs.getString("contractName", "")), jobId, contractId, companyId, driverId,
+                progress, Math.max(progress, total), jobStatus, "completed".equalsIgnoreCase(jobStatus),
+                clean(prefs.getString("vehicleName", "")), clean(prefs.getString("trailerName", "")));
+            nativeSuccess(context, prefs, tripId, listener);
         });
     }
 
@@ -282,6 +438,11 @@ final class SimpleProNativeSubmissionCoordinator {
         String contractId = clean(prefs.getString("contractId", ""));
         String companyId = clean(prefs.getString("companyId", ""));
         String driverId = clean(prefs.getString("driverId", ""));
+        SharedPreferences active = context.getApplicationContext().getSharedPreferences(
+            SimpleAutomationService.PREFS_NAME, Context.MODE_PRIVATE);
+        if (!jobId.equals(clean(active.getString("jobId", "")))
+            || !companyId.equals(clean(active.getString("companyId", "")))
+            || !driverId.equals(clean(active.getString("driverId", "")))) return;
         String companyName = firstText(job, "companyName", "empresaNome");
         if (companyName.isEmpty()) companyName = firstText(contract, "companyName", "empresaNome");
         if (companyName.isEmpty()) companyName = clean(prefs.getString("companyName", "Empresa"));
@@ -302,6 +463,17 @@ final class SimpleProNativeSubmissionCoordinator {
         );
     }
 
+    /** A matching attempt ID is insufficient when an older OCR result differs. */
+    private static boolean sameTripEvidence(DocumentSnapshot snapshot, Receipt receipt,
+            String origin, String destination, String simulatorKey) {
+        if (snapshot == null || receipt == null) return false;
+        Map<String, Object> data = snapshot.getData();
+        if (data == null || !(data.get("valorCents") instanceof Number)) return false;
+        return ProReceiptEvidencePolicy.matches(receipt.amountCents, origin, destination,
+            simulatorKey, ((Number) data.get("valorCents")).longValue(),
+            firstText(data, "origem"), firstText(data, "destino"), firstText(data, "simulatorKey"));
+    }
+
     private static boolean sameTripOwner(DocumentSnapshot snapshot, String driverId, String companyId, String jobId, String contractId, String attemptId) {
         Map<String, Object> data = snapshot.getData();
         if (data == null) return false;
@@ -312,35 +484,19 @@ final class SimpleProNativeSubmissionCoordinator {
             && attemptId.equals(firstText(data, "simpleReceiptCaptureAttemptId"));
     }
 
-    private static boolean hasConsecutiveDuplicate(QuerySnapshot snapshot, String driverId, String companyId, String simulatorCode, int amountCents) {
-        List<DocumentSnapshot> candidates = new ArrayList<>();
-        for (DocumentSnapshot document : snapshot.getDocuments()) {
-            Map<String, Object> data = document.getData();
-            if (data == null || !Boolean.TRUE.equals(data.get("simpleAutomation"))) continue;
-            if (!driverId.equals(firstText(data, "driverId", "motoristaId"))) continue;
-            if (!companyId.equals(firstText(data, "companyId", "empresaId"))) continue;
-            if (!simulatorCode.equals(firstText(data, "simulatorCode", "simuladorCodigo", "simulatorName"))) continue;
-            if (!"concluida".equalsIgnoreCase(firstText(data, "status"))) continue;
-            candidates.add(document);
-        }
-        candidates.sort(Comparator.comparingLong(SimpleProNativeSubmissionCoordinator::metricTime));
-        if (candidates.isEmpty()) return false;
-        DocumentSnapshot latest = candidates.get(candidates.size() - 1);
-        return integerValue(latest.get("valorCents")) == amountCents;
-    }
-
-    private static long metricTime(DocumentSnapshot snapshot) {
-        Object value = snapshot.get("completedAt");
-        if (value instanceof Timestamp) return ((Timestamp) value).toDate().getTime();
-        value = snapshot.get("createdAt");
-        if (value instanceof Timestamp) return ((Timestamp) value).toDate().getTime();
-        return 0L;
-    }
-
-    private static boolean isRecordable(String status, int progress, int total) {
-        String normalized = clean(status).toLowerCase(Locale.ROOT);
-        if ("active".equals(normalized) || "delayed".equals(normalized)) return total <= 0 || progress < total;
-        return "awaiting_completion".equals(normalized) && total > 0 && progress < total;
+    private static boolean sameReceiptOwner(DocumentSnapshot snapshot, String driverId, String companyId,
+            String jobId, String contractId, String attemptId, String epoch, long capturedAt) {
+        Map<String, Object> data = snapshot.getData();
+        if (data == null || Boolean.TRUE.equals(data.get("deleted")) || "DELETED".equals(data.get("status"))) return false;
+        boolean sameCapture = capturedAt > 0L && data.get("simpleReceiptCapturedAt") instanceof Number
+            && capturedAt == ((Number) data.get("simpleReceiptCapturedAt")).longValue()
+            && epoch.equals(firstText(data, "simpleReceiptCaptureContextEpoch"))
+            && !firstText(data, "receiptEventKey").isEmpty();
+        return driverId.equals(firstText(data, "driverId", "motoristaId"))
+            && companyId.equals(firstText(data, "companyId", "empresaId"))
+            && jobId.equals(firstText(data, "jobId", "operationId"))
+            && contractId.equals(firstText(data, "contractId", "contratoId"))
+            && (attemptId.equals(firstText(data, "simpleReceiptCaptureAttemptId")) || sameCapture);
     }
 
     private static String validateLocalContext(String driverId, String authUid, String jobId, String companyId, String contractId,
@@ -350,7 +506,7 @@ final class SimpleProNativeSubmissionCoordinator {
         if (jobId.isEmpty() || companyId.isEmpty() || contractId.isEmpty() || attemptId.isEmpty() || epoch.isEmpty()) return "Contexto Pro incompleto";
         if (origin.isEmpty() || destination.isEmpty() || origin.equalsIgnoreCase(destination)) return "Rota Pro inválida";
         if (!isCanonicalSimulator(simulatorKey, simulatorCode, packageId)) return "Simulador Pro incompatível";
-        if (receipt == null || receipt.amountCents <= 0 || !receipt.resultScreenConfirmed || !"NONE".equals(receipt.bonusEvidence) && !"ZERO_LABEL".equals(receipt.bonusEvidence) && !"OFFER_ONLY".equals(receipt.bonusEvidence)) return "Recibo Pro não aprovado";
+        if (receipt == null || receipt.amountCents <= 0 || !receipt.earningsAmountConfirmed || !("NONE".equals(receipt.bonusEvidence) || "ZERO_LABEL".equals(receipt.bonusEvidence) || "OFFER_ONLY".equals(receipt.bonusEvidence))) return "Recibo Pro não aprovado";
         return "";
     }
 
@@ -366,30 +522,68 @@ final class SimpleProNativeSubmissionCoordinator {
         return !"wbds".equals(key);
     }
 
-    private static Receipt parseReceipt(String simulatorKey, String rawText) {
+    private static String serverFailureMessage(Exception error) {
+        String message = error == null || error.getMessage() == null ? "" : error.getMessage();
+        return message.substring(0, Math.min(500, message.length()));
+    }
+
+    /** Preserve structured rejection metadata; never copy request/OCR/token data. */
+    private static void recordCallableFailure(SharedPreferences prefs, String callable, Exception error) {
+        String reasonCode = "";
+        Boolean retryable = null;
+        String action = "";
+        if (error instanceof com.google.firebase.functions.FirebaseFunctionsException) {
+            Object details = ((com.google.firebase.functions.FirebaseFunctionsException) error).getDetails();
+            if (details instanceof Map) {
+                Map<?, ?> map = (Map<?, ?>) details;
+                Object candidate = map.get("reasonCode");
+                if (candidate instanceof String && ((String) candidate).matches("[A-Z][A-Z0-9_]{2,79}")) {
+                    reasonCode = (String) candidate;
+                }
+                if (map.get("retryable") instanceof Boolean) retryable = (Boolean) map.get("retryable");
+                if (map.get("action") instanceof String && ((String) map.get("action")).matches("[A-Za-z_]{2,40}"))
+                    action = (String) map.get("action");
+            }
+        }
+        if ("registerCanonicalSimpleTrip".equals(callable)
+            && serverFailureMessage(error).contains("Evidência Simple não confirmada")) {
+            reasonCode = "SIMPLE_EVIDENCE_UNCONFIRMED";
+            retryable = false;
+            action = "review_evidence";
+        }
+        SharedPreferences.Editor diagnostic = prefs.edit().putString("reasonCode", reasonCode)
+            .putBoolean("serverRetryableExplicit", retryable != null)
+            .putBoolean("serverRetryable", retryable == null || retryable)
+            .putString("serverRecoveryAction", action);
+        diagnostic
+            .putString("lastFailureStage", "CALLABLE_REGISTRATION")
+            .putString("lastQueueCallable", callable)
+            .putString("serverReason", serverFailureMessage(error)).apply();
+    }
+
+    static Receipt parseReceipt(String simulatorKey, String rawText) {
         String normalized = normalize(rawText);
         if (normalized.isEmpty()) return null;
-        String[] required;
+        if ("global-truck".equals(simulatorKey)
+            && !GtoResultOcrConsensusPolicy.isSemanticallyComplete(simulatorKey, rawText)) return null;
         String[] labels;
-        String currency;
         if ("global-truck".equals(simulatorKey)) {
-            required = new String[]{"CONCLUIDO"}; labels = new String[]{"VALOR A RECEBER"}; currency = "BRL";
+            labels = new String[]{"VALOR A RECEBER"};
         } else if ("toe-3".equals(simulatorKey)) {
-            required = new String[]{"DISTANCIA", "TEMPO GASTO"}; labels = new String[]{"RENDA TOTAL", "GANHOS"}; currency = "EUR";
+            labels = new String[]{"RENDA TOTAL", "GANHOS"};
         } else {
-            required = new String[]{"DANOS", "COMBUSTIVEL"}; labels = new String[]{"GANHOS DA VIAGEM", "TOTAL"}; currency = "BRL";
+            labels = new String[]{"GANHOS DA VIAGEM", "TOTAL"};
         }
-        for (String marker : required) if (!normalized.contains(marker)) return null;
         boolean baseLabel = false;
         List<Integer> amounts = new ArrayList<>();
         for (String label : labels) {
             int index = normalized.indexOf(label);
             while (index >= 0) {
                 baseLabel = true;
-                String tail = normalized.substring(Math.min(normalized.length(), index + label.length()), Math.min(normalized.length(), index + label.length() + 45));
+                String tail = normalized.substring(Math.min(normalized.length(), index + label.length()), Math.min(normalized.length(), index + label.length() + 140));
                 Matcher matcher = AMOUNT_PATTERN.matcher(tail);
                 if (matcher.find()) {
-                    Integer cents = parseCents(matcher.group(1));
+                    Integer cents = parseAmountCents(matcher.group(1));
                     if (cents != null) amounts.add(cents);
                 }
                 index = normalized.indexOf(label, index + 1);
@@ -400,7 +594,7 @@ final class SimpleProNativeSubmissionCoordinator {
         if (distinct.size() != 1) return null;
         if (hasPositiveBonus(normalized) || hasExplicitDoubledValue(normalized)) return null;
         String bonusEvidence = normalized.contains("BONUS VIDEO ADS: 0") || normalized.contains("BONUS VIDEO ADS 0") ? "ZERO_LABEL" : "NONE";
-        return new Receipt(amounts.get(0), currency, true, bonusEvidence);
+        return new Receipt(amounts.get(0), GtoResultOcrConsensusPolicy.extractCurrency(simulatorKey, rawText), true, bonusEvidence);
     }
 
     private static boolean hasPositiveBonus(String normalized) {
@@ -410,7 +604,7 @@ final class SimpleProNativeSubmissionCoordinator {
                 String tail = normalized.substring(Math.min(normalized.length(), index + label.length()), Math.min(normalized.length(), index + label.length() + 35));
                 Matcher matcher = Pattern.compile("[0-9]+(?:[.,][0-9]{1,2})?").matcher(tail);
                 while (matcher.find()) {
-                    Integer cents = parseCents(matcher.group());
+                    Integer cents = parseAmountCents(matcher.group());
                     if (cents != null && cents > 0) return true;
                 }
                 index = normalized.indexOf(label, index + 1);
@@ -422,7 +616,7 @@ final class SimpleProNativeSubmissionCoordinator {
     private static boolean hasExplicitDoubledValue(String normalized) {
         if (!normalized.matches(".*(?:VALOR DOBRADO|VALOR DUPLICADO|DOBRADO|DUPLICAD|2 X|2X|X 2|X2|X×|×2).*")) return false;
         Matcher matcher = Pattern.compile("(?:VALOR DOBRADO|VALOR DUPLICADO|DOBRADO|DUPLICAD|2 X|2X|X 2|X2|X×|×2)[^0-9]{0,20}([0-9]+(?:[.,][0-9]{1,2})?)").matcher(normalized);
-        return matcher.find() && parseCents(matcher.group(1)) != null && parseCents(matcher.group(1)) > 0;
+        return matcher.find() && parseAmountCents(matcher.group(1)) != null && parseAmountCents(matcher.group(1)) > 0;
     }
 
     /**
@@ -431,37 +625,9 @@ final class SimpleProNativeSubmissionCoordinator {
      * a Brazilian thousands separator (or vice versa) without evidence.
      * Web/Print use the same two-decimal contract before persistence.
      */
-    private static Integer parseCents(String raw) {
-        String cleaned = clean(raw).replaceAll("[^0-9.,]", "");
-        if (cleaned.isEmpty()) return null;
-        int comma = cleaned.lastIndexOf(',');
-        int dot = cleaned.lastIndexOf('.');
-        int separator = Math.max(comma, dot);
-        if (separator < 1 || separator >= cleaned.length() - 1) return null;
-
-        String decimal = cleaned.substring(separator + 1);
-        if (decimal.length() != 2 || !decimal.matches("[0-9]{2}")) return null;
-
-        String integerPart;
-        if (comma >= 0 && dot >= 0) {
-            // The rightmost separator is decimal; all earlier separators are
-            // grouping separators and must be removed.
-            integerPart = cleaned.substring(0, separator).replace(",", "").replace(".", "");
-        } else if (comma >= 0) {
-            integerPart = cleaned.substring(0, comma).replace(".", "");
-        } else {
-            integerPart = cleaned.substring(0, dot).replace(",", "");
-        }
-        integerPart = integerPart.replaceFirst("^0+(?=\\d)", "");
-        if (integerPart.isEmpty() || !integerPart.matches("[0-9]+")) return null;
-
-        try {
-            long cents = Long.parseLong(integerPart) * 100L + Long.parseLong(decimal);
-            if (cents <= 0L || cents > 100_000_000_000L) return null;
-            return cents > Integer.MAX_VALUE ? null : (int) cents;
-        } catch (RuntimeException error) {
-            return null;
-        }
+    private static Integer parseAmountCents(String raw) {
+        Long cents = GtoResultOcrConsensusPolicy.parseAmountCents(raw);
+        return cents == null || cents > Integer.MAX_VALUE ? null : cents.intValue();
     }
 
     private static String deterministicTripId(String driverId, String attemptId) {
@@ -469,19 +635,147 @@ final class SimpleProNativeSubmissionCoordinator {
         return raw.length() > 180 ? raw.substring(0, 180) : raw;
     }
 
-    private static void nativeSuccess(SharedPreferences prefs, String tripId, Listener listener) {
-        prefs.edit().putString("nativeSubmissionState", "SYNCED").putString("nativeTripId", tripId).apply();
+    private static boolean isCurrentAttempt(Context context, SharedPreferences prefs, int generation) {
+        return generation == prefs.getInt("nativeAttemptGeneration", 0)
+            && !ProPendingTripStore.isCompletionRecorded(context.getApplicationContext()
+                .getSharedPreferences(SimpleAutomationService.PREFS_NAME, Context.MODE_PRIVATE), prefs);
+    }
+
+    private static void nativeSuccess(Context context, SharedPreferences prefs, String tripId, Listener listener) {
+        if (ProPendingTripStore.isCompletionRecorded(context.getApplicationContext()
+            .getSharedPreferences(SimpleAutomationService.PREFS_NAME, Context.MODE_PRIVATE), prefs)) return;
+        // The entire ACK is durably committed before any presentation/cleanup
+        // callback. An interrupted cleanup leaves a terminal, non-retryable ACK.
+        boolean saved = prefs.edit()
+            .putString("queueStatus", "SYNCED")
+            .putString(CanonicalTripOutboxSchema.KEY_STATE, CanonicalTripOutboxSchema.STATE_SERVER_CONFIRMED)
+            .putLong(CanonicalTripOutboxSchema.KEY_ACK_AT, System.currentTimeMillis())
+            .putString("nativeSubmissionState", "SYNCED")
+            .putString("nativeTripId", tripId)
+            .putString("captureStage", "SUBMITTED")
+            .putString("simpleState", SimpleAutomationService.STATE_COMPLETED)
+            .putBoolean("captureUiHidden", false)
+            .putBoolean("nativeSubmissionStarted", false)
+            .remove("nativeSubmissionStartedAt")
+            .commit();
+        if (!saved) { fallback(prefs, "NATIVE_ACK_STATE_PERSIST_FAILED", listener); return; }
         listener.onSuccess(tripId);
     }
 
     private static void fallback(SharedPreferences prefs, String reason, Listener listener) {
-        prefs.edit().putString("nativeSubmissionState", PRO_STATE_FALLBACK).putString("nativeSubmissionError", clean(reason)).apply();
+        // Native Android is the sole owner of the Pro write. A fallback is only a
+        // durable queue state, never a handoff to the Web receipt writer. The
+        // immutable receipt remains in this attempt's isolated preferences until
+        // the native transaction receives its server ACK.
+        prefs.edit()
+            .putBoolean("nativeSubmissionStarted", false)
+            .remove("nativeSubmissionStartedAt")
+            .putString("captureStage", "NATIVE_FALLBACK_PENDING")
+            .putString("nativeSubmissionError", clean(reason))
+            .apply();
         listener.onFallback(clean(reason));
     }
 
+    static boolean isAuthRequiredReason(String reason) {
+        String value = clean(reason);
+        return value.startsWith(AUTH_REQUIRED_PREFIX) || value.contains("=UNAUTHENTICATED")
+            || value.contains(":UNAUTHENTICATED");
+    }
+
+    static boolean isPermissionFailureReason(String reason) {
+        String value = clean(reason).toLowerCase(Locale.ROOT);
+        return value.contains("permission_denied")
+            || value.contains("permission-denied")
+            || value.contains("missing or insufficient permissions")
+            || value.contains("unauthenticated");
+    }
+
+    private static void appendPreflightFailure(List<String> failures, String stage, Task<?> task) {
+        if (task == null || task.isSuccessful()) return;
+        failures.add(stage + "=" + classifyFirestoreException(task.getException()));
+    }
+
+    static String classifyFirestoreException(Exception error) {
+        if (error == null) return "UNKNOWN";
+        Throwable cause = error;
+        for (int depth = 0; cause != null && depth < 5; depth++, cause = cause.getCause()) {
+            if (cause instanceof FirebaseFirestoreException) {
+                FirebaseFirestoreException.Code code = ((FirebaseFirestoreException) cause).getCode();
+                return classifyFirestoreCode(code.name());
+            }
+        }
+        String fallback = classifyFirestoreFailure(String.valueOf(error.getMessage()));
+        return "FIRESTORE_WRITE_FAILED".equals(fallback) ? "UNKNOWN" : fallback;
+    }
+
+    static String classifyFirestoreCode(String sdkCode) {
+        String code = clean(sdkCode).toUpperCase(Locale.ROOT);
+        switch (code) {
+            case "PERMISSION_DENIED": return "PERMISSION_DENIED";
+            case "UNAUTHENTICATED": return "UNAUTHENTICATED";
+            case "UNAVAILABLE":
+            case "DEADLINE_EXCEEDED":
+            case "ABORTED":
+            case "RESOURCE_EXHAUSTED": return "NETWORK_TRANSIENT";
+            case "FAILED_PRECONDITION": return "FAILED_PRECONDITION";
+            default: return code.isEmpty() ? "UNKNOWN" : "FIRESTORE_" + code;
+        }
+    }
+
+    private static String classifyFirestoreFailure(String reason) {
+        String value = clean(reason).toLowerCase(Locale.ROOT);
+        if (isPermissionFailureReason(value)) return "PERMISSION_DENIED";
+        if (value.contains("superseded")) return "NATIVE_SUBMISSION_SUPERSEDED";
+        if (value.contains("unavailable") || value.contains("deadline")
+            || value.contains("network") || value.contains("offline")) return "NETWORK_TRANSIENT";
+        if (value.contains("failed-precondition") || value.contains("failed_precondition")) {
+            return "FAILED_PRECONDITION";
+        }
+        return value.isEmpty() ? "UNKNOWN" : "FIRESTORE_WRITE_FAILED";
+    }
+
+    private static AuthCheck inspectAuth(SharedPreferences prefs, String driverId, String authUid) {
+        String normalizedDriver = clean(driverId);
+        String normalizedAuth = clean(authUid);
+        String state = normalizedAuth.isEmpty()
+            ? "MISSING"
+            : normalizedDriver.equals(normalizedAuth) ? "MATCH" : "DIVERGENT";
+        prefs.edit()
+            .putString("nativeAuthState", state)
+            .putBoolean("nativeAuthRequired", !"MATCH".equals(state))
+            .putLong("nativeAuthDiagnosticAt", System.currentTimeMillis())
+            .putString("nativeAuthDriverFingerprint", fingerprint(normalizedDriver))
+            .putString("nativeAuthUidFingerprint", fingerprint(normalizedAuth))
+            .apply();
+        android.util.Log.i("NVU-ProAuth", "state=" + state
+            + " driverFp=" + fingerprint(normalizedDriver)
+            + " nativeFp=" + fingerprint(normalizedAuth));
+        return new AuthCheck(state);
+    }
+
     private static String currentUid() {
-        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
-        return user == null ? "" : clean(user.getUid());
+        try {
+            FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+            return user == null ? "" : clean(user.getUid());
+        } catch (RuntimeException error) {
+            return "";
+        }
+    }
+
+    private static String fingerprint(String value) {
+        String normalized = clean(value);
+        if (normalized.isEmpty()) return "";
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(normalized.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder result = new StringBuilder(16);
+            for (int index = 0; index < Math.min(8, digest.length); index++) {
+                result.append(String.format(Locale.ROOT, "%02x", digest[index]));
+            }
+            return result.toString();
+        } catch (Exception error) {
+            return "unavailable";
+        }
     }
 
     private static String firstText(Map<String, Object> data, String... keys) {
@@ -491,11 +785,6 @@ final class SimpleProNativeSubmissionCoordinator {
             if (value != null && !clean(String.valueOf(value)).isEmpty()) return clean(String.valueOf(value));
         }
         return "";
-    }
-
-    private static int integerValue(Object value) {
-        if (value instanceof Number) return Math.max(0, ((Number) value).intValue());
-        try { return Math.max(0, Integer.parseInt(clean(String.valueOf(value)))); } catch (RuntimeException error) { return 0; }
     }
 
     private static String normalize(String value) {
@@ -510,17 +799,29 @@ final class SimpleProNativeSubmissionCoordinator {
         return value == null ? "" : value.trim();
     }
 
-    private static final class Receipt {
+    static final class Receipt {
         final int amountCents;
         final String currency;
-        final boolean resultScreenConfirmed;
+        final boolean earningsAmountConfirmed;
         final String bonusEvidence;
 
-        Receipt(int amountCents, String currency, boolean resultScreenConfirmed, String bonusEvidence) {
+        Receipt(int amountCents, String currency, boolean earningsAmountConfirmed, String bonusEvidence) {
             this.amountCents = amountCents;
             this.currency = currency;
-            this.resultScreenConfirmed = resultScreenConfirmed;
+            this.earningsAmountConfirmed = earningsAmountConfirmed;
             this.bonusEvidence = bonusEvidence;
+        }
+    }
+
+    private static final class AuthCheck {
+        final String state;
+
+        AuthCheck(String state) {
+            this.state = state;
+        }
+
+        boolean isMatch() {
+            return "MATCH".equals(state);
         }
     }
 }

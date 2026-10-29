@@ -1,3 +1,6 @@
+import { RetainedWorkspaceOutlet } from "../components/common/RetainedWorkspaceOutlet";
+import { NvuWordmark } from "../components/common/NvuWordmark";
+import { resolveNewsSessionSimulator } from "../lib/newsSimulator";
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -10,9 +13,7 @@ import { useCompanyStore } from "../context/CompanyContext";
 import { resolveProfilePhoto } from "../lib/resolveProfilePhoto";
 import {
   Package,
-  LayoutDashboard,
   FileText,
-  Activity,
   Users,
   Settings,
   LogOut,
@@ -31,17 +32,19 @@ import {
   Crown,
   ChevronLeft,
   Check,
-  Trophy,
-  Newspaper,
-  BookOpen,
 } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
+import { WorkspaceProfileCover } from "../components/common/WorkspaceProfileCover";
+import { isProfileCoverPage } from "../lib/profileCover";
+import { useProfileChrome } from "../hooks/useProfileChrome";
 import { cn } from "../lib/utils";
 import { auth } from "../lib/firebase";
 import { CompactProfileEditorModal, type CompactProfileEditorMode } from "../components/CompactProfileEditorModal";
 import { StableImage } from "../components/common/StableImage";
 import { NotificationCenter } from "../components/NotificationCenter";
+import { COMPANY_MENU_GROUPS } from "../components/workspaceMenuItems";
 import { GlobalMenu } from "../components/GlobalMenu";
+import { WorkspaceDock } from "../components/WorkspaceDock";
 import { preloadRoute } from "../lib/routePreload";
 import {
   commitRoleVisualTransition,
@@ -53,13 +56,14 @@ import {
 } from "../lib/navigationTransition";
 import { membershipHasRole, resolveMembershipRoles } from "../lib/membershipRoles";
 import { isNativeAndroid } from "../lib/gtoObserver";
+import { isMobileWebAndroidLike } from "../lib/mobileWebRuntime";
 import {
   beginRankingWarmupSession,
   waitForRankingWarmup,
   warmRegisteredRankingPhotos,
 } from "../lib/rankingPhotoWarmup";
 
-export default function AdminLayout({ children }: { children?: React.ReactNode }) {
+export default function AdminLayout() {
   const {
     currentUser,
     switchRole,
@@ -97,8 +101,14 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
   // not-yet-refreshed role metadata.
   const hasSeniorPanelAccess = true;
   const isNewsRoute = location.pathname.includes("/admin/news");
+  const isAssignmentRoute = location.pathname === "/admin/assign";
   const isManualRoute = location.pathname.includes("/admin/manual");
   const isAdminCompanyRoute = location.pathname.startsWith("/admin/fleet");
+  const fleetTab = (location.state as { activeTab?: string } | null)?.activeTab;
+  const isCentralManagementRoute = isAdminCompanyRoute && (!fleetTab || fleetTab === "operations");
+  const isCompanyProfileRoute = isAdminCompanyRoute && fleetTab === "company";
+  const isCoverPage = isProfileCoverPage(location.pathname, location.state);
+  const isLegacyCoverPage = isCoverPage && !isAdminCompanyRoute;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
@@ -106,8 +116,10 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
   const [profileEditorMode, setProfileEditorMode] = React.useState<CompactProfileEditorMode>("driver");
   const [isHeaderEditRevealed, setIsHeaderEditRevealed] = React.useState(false);
   const [showCompanySwitch, setShowCompanySwitch] = React.useState(false);
-  const [profileChromeProgress, setProfileChromeProgress] = React.useState(0);
-  const nativeAndroid = isNativeAndroid();
+  const { headerRef, heroChromeActive } = useProfileChrome(isCompanyProfileRoute);
+  // Mobile web intentionally reuses the APK visual shell. This flag is only
+  // for layout/chrome classes; native plugins still use isNativeAndroid().
+  const nativeAndroid = isNativeAndroid() || isMobileWebAndroidLike();
 
   const warmRankingAssets = React.useCallback(() => {
     beginRankingWarmupSession(currentUser?.id || "");
@@ -118,28 +130,10 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
   }, [currentUser?.id]);
 
   const warmNewsFeed = React.useCallback(() => {
-    const newsUser = currentUser as any;
-    const activeCompany = companies.find((company) => company.id === activeCompanyId) ||
-      companies.find((company) => company.id === currentUser?.companyId);
-    const simulatorId = activeCompany?.simulatorId || activeCompany?.simuladorId ||
-      newsUser?.simulatorId || newsUser?.simuladorId;
-    const simulatorDocument = simulators.find((simulator) => simulator.id === simulatorId);
+    const selected = resolveNewsSessionSimulator({ activeCompanyId, currentUser, companies, simulators });
     return import("../pages/NewsFeed").then(({ warmNvuNewsFirstPage }) => warmNvuNewsFirstPage({
       userId: currentUser?.id,
-      simulatorValues: [
-        activeCompany?.simulatorName,
-        activeCompany?.simuladorNome,
-        activeCompany?.simulator,
-        simulatorDocument?.name,
-        newsUser?.simulatorName,
-        newsUser?.simuladorNome,
-        newsUser?.simulator,
-        simulatorDocument?.id,
-        activeCompany?.simulatorId,
-        activeCompany?.simuladorId,
-        newsUser?.simulatorId,
-        newsUser?.simuladorId,
-      ],
+      simulatorValues: [selected.key, ...selected.aliases],
     })).catch((error) => {
       console.warn("[NVU NEWS] Pré-carregamento da página indisponível:", error);
     });
@@ -152,66 +146,17 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  React.useEffect(() => {
-    const handleOpenNotification = (event: Event) => {
-      const notification = (event as CustomEvent).detail as { type?: string; tipo?: string };
-      const type = notification?.type ?? notification?.tipo;
-      if (type === "RH_APPLICATION") {
-        navigate("/admin/fleet", { state: { activeTab: "hr" } });
-      } else if (type === "WORK_REQUEST") {
-        navigate("/admin/fleet", { state: { activeTab: "operations" } });
-      } else {
-        navigate("/admin/fleet");
-      }
-    };
-    window.addEventListener("nvu-notification-open", handleOpenNotification);
-    return () => window.removeEventListener("nvu-notification-open", handleOpenNotification);
-  }, [navigate]);
+
 
   React.useEffect(() => {
-    const handleToggleShellMenu = () => setIsMobileMenuOpen((open) => !open);
-    window.addEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
-    // Legacy event kept as an alias with toggle semantics for older callers.
-    window.addEventListener("nvu-open-shell-menu", handleToggleShellMenu);
-    return () => {
-      window.removeEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
-      window.removeEventListener("nvu-open-shell-menu", handleToggleShellMenu);
-    };
+    const handleOpenShellMenu = () => setIsMobileMenuOpen(true);
+    window.addEventListener("nvu-open-shell-menu", handleOpenShellMenu);
+    return () => window.removeEventListener("nvu-open-shell-menu", handleOpenShellMenu);
   }, []);
 
   React.useEffect(() => {
     if (!isProfileMenuOpen) setShowCompanySwitch(false);
   }, [isProfileMenuOpen]);
-
-  React.useEffect(() => {
-    if (!isAdminCompanyRoute) {
-      setProfileChromeProgress(0);
-      return;
-    }
-
-    let frame = 0;
-    const updateChrome = () => {
-      frame = 0;
-      const hero = document.querySelector<HTMLElement>(".nvu-profile-hero");
-      if (!hero) return;
-      const heroBottom = hero.getBoundingClientRect().bottom;
-      const progress = Math.max(0, Math.min(1, (168 - heroBottom) / 120));
-      setProfileChromeProgress((current) => Math.abs(current - progress) < 0.015 ? current : progress);
-    };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(updateChrome);
-    };
-    updateChrome();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [isAdminCompanyRoute]);
-
-  const heroChromeActive = isAdminCompanyRoute && profileChromeProgress < 0.55;
 
   React.useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -243,13 +188,9 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
 
   React.useEffect(() => {
     if (!isMobileMenuOpen) return;
-    void preloadRoute("/admin/fleet");
-    void preloadRoute("/ranking");
-    void preloadRoute("/admin/news");
-    if (!isNewsRoute) void warmNewsFeed();
-    void preloadRoute("/admin/reports");
-  }, [isMobileMenuOpen, isNewsRoute, warmNewsFeed]);
-
+    // Warm the profile switch, not every heavy secondary page at menu-open.
+    void preloadRoute("/driver/profile").catch(() => undefined);
+  }, [isMobileMenuOpen]);
 
   // Secondary route chunks and news data are loaded only after an explicit
   // menu/navigation intent. Mounting the authenticated shell must not compete
@@ -299,8 +240,18 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
   }, [memberships, companies, currentUser]);
 
   const handleSwitchRole = (newRole: "admin" | "driver") => {
+    setIsMobileMenuOpen(false);
     setIsProfileMenuOpen(false);
-    if (activeRole === newRole) return;
+    const target = newRole === "admin" ? "/admin/fleet" : "/driver/profile";
+    if (activeRole === newRole) {
+      // Also cancel a still-pending switch away from the currently visible
+      // profile. Navigation alone would leave its queued role update alive.
+      commitRoleVisualTransition(newRole, () => {
+        void switchRole(newRole, activeCompanyId || undefined);
+        navigate(target, { replace: true });
+      });
+      return;
+    }
 
     const currentMember = memberships.find(
       (m) => m.companyId === activeCompanyId && m.status === "active",
@@ -326,7 +277,6 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
       return;
     }
 
-    const target = newRole === "admin" ? "/admin/fleet" : "/driver/profile";
     commitRoleVisualTransition(newRole, () => {
       void switchRole(newRole, activeCompanyId || undefined);
       navigate(target, { replace: true });
@@ -343,9 +293,8 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
       setActiveCompanyId(companyId);
       void switchRole(nextRole, companyId);
       setIsProfileMenuOpen(false);
-      if (nextRole !== activeRole) {
-        navigate(target, { replace: true });
-      }
+      setIsMobileMenuOpen(false);
+      navigate(target, { replace: true });
     };
 
     if (nextRole === activeRole) {
@@ -426,12 +375,13 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
   ]);
 
   const handleLogout = async () => {
+    setIsMobileMenuOpen(false);
     await logOutApp();
     navigate("/login");
   };
 
   const handleSidebarNavigation = React.useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    (event: React.MouseEvent<HTMLAnchorElement>, path: string, state?: Record<string, unknown>) => {
       setIsMobileMenuOpen(false);
       if (!isPlainPrimaryNavigation(event.nativeEvent)) return;
       event.preventDefault();
@@ -440,7 +390,7 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
           navigate(path, { state: { backgroundLocation: location } });
           return;
         }
-        navigate(path);
+        navigate(path, { state });
       };
       if (path === "/ranking") {
         // Ranking must acknowledge the tap in the same interaction frame.
@@ -457,38 +407,7 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
 
   if (!currentUser) return null;
 
-  const navGroups = [
-    {
-      title: "",
-      items: [
-        {
-          label: "Estrutura da Frota",
-          icon: Truck,
-          path: "/admin/fleet",
-        },
-        {
-          label: "Ranking",
-          icon: Trophy,
-          path: "/ranking",
-        },
-        {
-          label: "NVU News",
-          icon: Newspaper,
-          path: "/admin/news",
-        },
-        {
-          label: "Relatórios",
-          icon: Activity,
-          path: "/admin/reports",
-        },
-        {
-          label: "Manual",
-          icon: BookOpen,
-          path: "/admin/manual",
-        },
-      ],
-    },
-  ];
+  const navGroups = COMPANY_MENU_GROUPS;
 
   const currentActiveAdminCompany = companies.find(
     (c) => c.id === activeCompanyId,
@@ -496,19 +415,23 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
 
   return (
     <div className={cn(
-      "nvu-admin-shell min-h-screen bg-gray-50 dark:bg-[#09090b] flex flex-col text-gray-900 dark:text-[#fafafa] font-sans",
+      "nvu-admin-shell nvu-workspace-shell min-h-screen bg-gray-50 dark:bg-nvu-page flex flex-col text-gray-900 dark:text-nvu-text font-sans",
       nativeAndroid && "nvu-native-android",
-      nativeAndroid && isAdminCompanyRoute && "nvu-native-admin-company-route",
+      !nativeAndroid && "nvu-desktop-shell nvu-desktop-admin-shell",
+      isCompanyProfileRoute && "nvu-company-profile-route nvu-native-profile-route",
+      isCoverPage && "nvu-cover-page-shell",
+      isAdminCompanyRoute && !isCompanyProfileRoute && "nvu-central-shell",
     )}>
       {/* Top Bar fixed at the top */}
       <header className={cn(
-        "nvu-admin-header nvu-profile-chrome-header fixed top-0 left-0 right-0 h-11 md:h-12 flex items-center px-4 md:px-6 justify-between z-50",
-        nativeAndroid && isAdminCompanyRoute
+        "nvu-admin-header fixed top-0 left-0 right-0 h-11 md:h-12 flex items-center px-4 md:px-6 justify-between z-50",
+        isCompanyProfileRoute && "nvu-profile-chrome-header",
+        nativeAndroid && isCompanyProfileRoute
           ? "bg-transparent border-transparent text-white"
-          : "bg-white dark:bg-[#09090b] border-b border-gray-100 dark:border-[#2A2F3A]",
+          : "bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line",
       )}
-        style={isAdminCompanyRoute ? ({ "--nvu-chrome-progress": profileChromeProgress } as React.CSSProperties) : undefined}
-        data-nvu-hero-chrome={isAdminCompanyRoute ? (heroChromeActive ? "active" : "settled") : undefined}
+        ref={headerRef}
+        data-nvu-hero-chrome={isCompanyProfileRoute ? (heroChromeActive ? "active" : "settled") : undefined}
       >
         <div className="flex items-center gap-3 md:gap-4">
           <button
@@ -519,9 +442,9 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
             aria-label={isMobileMenuOpen ? "Fechar menu corporativo" : "Abrir menu corporativo"}
             className={cn(
               "nvu-admin-menu-button lg:hidden p-1.5 -ml-1.5 rounded-lg",
-              nativeAndroid && isAdminCompanyRoute
+              nativeAndroid && isCompanyProfileRoute
                 ? "text-white hover:bg-white/10"
-                : "text-gray-600 dark:text-[#d4d4d8] hover:bg-gray-50 dark:bg-[#09090b] dark:hover:bg-[#3f3f46]",
+                : "text-gray-600 dark:text-nvu-text-soft hover:bg-gray-50 dark:bg-nvu-page dark:hover:bg-nvu-strip",
             )}
           >
             <Menu size={24} />
@@ -531,21 +454,19 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
             data-nvu-layout-brand
             className="hidden lg:flex items-center"
           >
-            <h1 className="font-bold text-lg text-gray-900 dark:text-[#fafafa] tracking-tight">
-              NVU
-            </h1>
+            <NvuWordmark />
           </div>
           <div
             data-nvu-background-brand
             data-nvu-layout-brand
-            className="lg:hidden flex items-center font-bold text-lg text-gray-900 dark:text-[#fafafa] leading-none"
+            className="lg:hidden flex items-center font-bold text-lg text-gray-900 dark:text-nvu-text leading-none"
           >
-            <span>NVU</span>
+            <NvuWordmark />
           </div>
         </div>
 
         {/* Right Box: Bell and User */}
-        <div className={cn("flex items-center gap-1.5 md:gap-4", nativeAndroid && isAdminCompanyRoute && "text-white")}>
+        <div className={cn("flex items-center gap-1.5 md:gap-4", nativeAndroid && isCompanyProfileRoute && "text-white")}>
 
           {isSeniorCompanyPreview && (
             <button
@@ -553,7 +474,7 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
               onClick={handleReturnToSeniorPanel}
               aria-label="Voltar ao Painel Sênior"
               title="Voltar ao Painel Sênior"
-              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 dark:focus:ring-offset-[#09090b]"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700 transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20 dark:focus:ring-offset-nvu-surface"
             >
               <Crown size={16} strokeWidth={2.2} />
             </button>
@@ -572,7 +493,7 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
                 "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-white/40",
                 heroChromeActive
                   ? "text-white/95 hover:bg-white/10 hover:text-white"
-                  : "text-gray-700 dark:text-[#d4d4d8] hover:bg-gray-100 dark:hover:bg-[#3f3f46]/50",
+                  : "text-gray-700 dark:text-nvu-text-soft hover:bg-gray-100 dark:hover:bg-nvu-strip/50",
               )}
             >
               <Pencil size={20} strokeWidth={2} />
@@ -586,9 +507,9 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
             onClose={() => setIsNotificationsOpen(false)}
             buttonClassName={cn(
                 "relative p-2 rounded-lg transition-colors",
-                nativeAndroid && isAdminCompanyRoute && heroChromeActive
+                nativeAndroid && isCompanyProfileRoute && heroChromeActive
                   ? "text-white/90 hover:text-white hover:bg-white/10"
-                  : "text-gray-700 dark:text-[#d4d4d8] hover:text-gray-950 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-[#3f3f46]",
+                  : "text-gray-700 dark:text-nvu-text-soft hover:text-gray-950 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-nvu-strip",
               )}
             onOpen={(notification) => {
               const type = notification.type ?? notification.tipo;
@@ -601,11 +522,11 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
               }
             }}
           />
-          <button className={cn(
+          <button type="button" aria-label="Abrir perfil do administrador" onClick={() => { setProfileEditorMode("driver"); setIsProfileModalOpen(true); }} className={cn(
             "lg:hidden p-1.5 rounded-lg shrink-0",
-            nativeAndroid && isAdminCompanyRoute
+            nativeAndroid && isCompanyProfileRoute
               ? "text-white hover:bg-white/10"
-              : "text-gray-500 dark:text-[#a1a1aa] hover:bg-gray-50 dark:bg-[#09090b] dark:hover:bg-[#3f3f46]",
+              : "text-gray-500 dark:text-nvu-muted hover:bg-gray-50 dark:bg-nvu-page dark:hover:bg-nvu-strip",
           )}>
             {resolveProfilePhoto(currentUser) ? (
               <StableImage
@@ -633,9 +554,9 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
             onClick={handleLogout}
             className={cn(
               "hidden lg:flex p-2",
-              nativeAndroid && isAdminCompanyRoute
+              nativeAndroid && isCompanyProfileRoute
                 ? "text-white/85 hover:text-white"
-                : "text-gray-400 hover:text-gray-600 dark:text-[#d4d4d8] dark:hover:text-[#a1a1aa]",
+                : "text-gray-400 hover:text-gray-600 dark:text-nvu-text-soft dark:hover:text-nvu-muted",
             )}
           >
             <LogOut size={20} />
@@ -668,6 +589,7 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
           activeCompanyId={activeCompanyId}
           onCompanySwitch={handleCompanySwitch}
           onProfileEdit={() => {
+            setIsMobileMenuOpen(false);
             setIsProfileMenuOpen(false);
             setProfileEditorMode("driver");
             setIsProfileModalOpen(true);
@@ -693,7 +615,7 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
           <div
             className={cn(
               "flex-1",
-              isAdminCompanyRoute && nativeAndroid
+              isAssignmentRoute || (isAdminCompanyRoute && nativeAndroid)
                 ? "p-0"
                 : isSeniorPanelRoute
                   ? "px-0 pt-0 pb-4 sm:px-2 sm:pt-1 md:px-4 md:pt-2"
@@ -713,11 +635,11 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
               !activeCompanyId &&
               companies.length > 0 &&
               !location.pathname.includes("/admin/fleet") ? (
-                <div className="text-center py-12 bg-white dark:bg-[#09090b] rounded-3xl border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none">
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-[#fafafa] mb-2">
+                <div className="text-center py-12 bg-white dark:bg-nvu-page rounded-3xl border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-nvu-text mb-2">
                     Selecione uma Frota
                   </h2>
-                  <p className="text-gray-500 dark:text-[#a1a1aa] mb-6">
+                  <p className="text-gray-500 dark:text-nvu-muted mb-6">
                     Você precisa selecionar uma frota ativa na página de Gestão
                     da Frota para continuar.
                   </p>
@@ -737,14 +659,14 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
                 !activeCompanyId &&
                 companies.length === 0 &&
                 !location.pathname.includes("/admin/fleet") ? (
-                <div className="text-center py-12 bg-white dark:bg-[#09090b] rounded-3xl border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none">
+                <div className="text-center py-12 bg-white dark:bg-nvu-page rounded-3xl border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none">
                   <div className="mx-auto w-16 h-16 bg-blue-50 dark:bg-blue-500/10 dark:border-blue-500/20 text-blue-500 flex items-center justify-center rounded-full mb-4">
                     <Truck size={32} />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-[#fafafa] mb-2">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-nvu-text mb-2">
                     Nenhuma frota cadastrada
                   </h2>
-                  <p className="text-gray-500 dark:text-[#a1a1aa] mb-6">
+                  <p className="text-gray-500 dark:text-nvu-muted mb-6">
                     Crie sua primeira empresa/frota para começar a gerenciar.
                   </p>
                   <button
@@ -759,13 +681,14 @@ export default function AdminLayout({ children }: { children?: React.ReactNode }
                   </button>
                 </div>
               ) : (
-                children ?? <Outlet />
+                <>{isLegacyCoverPage && <WorkspaceProfileCover scope="company"/>}<RetainedWorkspaceOutlet scope={`${currentUser?.id || ""}:${activeCompanyId || ""}:admin`} /></>
               )}
             </div>
           </div>
         </main>
       </div>
 
+        <WorkspaceDock role="admin" />
         <CompactProfileEditorModal
           open={isProfileModalOpen}
           mode={profileEditorMode}

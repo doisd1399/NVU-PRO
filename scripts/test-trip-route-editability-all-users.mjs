@@ -12,10 +12,10 @@ const submitBlock = submitBlockStart >= 0 ? modal.slice(submitBlockStart, modal.
 const checks = [
   ["rota autorizada sem requisito exclusivo de sênior", /const canEditTrip[\s\S]*?if \(!currentUser \|\| !trip\.id\) return false;[\s\S]*?getCanonicalTripDriverId\(trip\) === currentUser\.id/.test(history)],
   ["admin pode editar rota da empresa ativa", /activeRole === "admin"[\s\S]*?getCanonicalTripCompanyId\(trip\) === activeCompanyId/.test(history)],
-  ["payload de edição envia origem e destino", /updateTrip\(editingTrip\.id, \{[\s\S]*?origem,[\s\S]*?destino,[\s\S]*?\}\)/.test(submitBlock)],
-  ["payload do modal não envia valor", !/\bvalor\b|valorEditadoNoPainelSenior|valorEditadoPor|valorEditadoEm/.test(submitBlock)],
-  ["modal não possui input de valor", !/<input[\s\S]*?name="valor"/.test(modal)],
-  ["modal não possui metadados de edição de valor", !/valorEditadoNoPainelSenior|valorEditadoPor|valorEditadoEm/.test(modal)],
+  ["payload de edição envia origem e destino", /const updateData[\s\S]*?\{ origem, destino \}/.test(submitBlock) && /canonicalTripCommandService\.update\(editingTrip\.id, updateData\)/.test(submitBlock)],
+  ["edição de valor fica protegida por acesso Senior", /if \(isSeniorAccess\)[\s\S]*?updateData\.valor[\s\S]*?valorEditadoNoPainelSenior/.test(submitBlock)],
+  ["input de valor é exclusivo do Senior", /\{isSeniorAccess &&[\s\S]*?<input[\s\S]*?name="valor"/.test(modal)],
+  ["metadados de edição de valor ficam no fluxo Senior", /if \(isSeniorAccess\)[\s\S]*?valorEditadoPor[\s\S]*?valorEditadoEm/.test(modal)],
   ["regra aceita somente origem e destino no fluxo de rota", /affectedKeys\(\)\s*\.hasOnly\(\['origem', 'destino'\]\)/.test(rules)],
   ["regra mantém integridade do valor", /preservesTripValueIntegrity\(\)/.test(rules)],
 ];

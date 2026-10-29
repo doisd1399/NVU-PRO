@@ -10,6 +10,12 @@ export type IdentityApplication = {
   createdAt?: unknown;
   dataHora?: unknown;
   submittedAt?: unknown;
+  type?: unknown;
+  userId?: unknown;
+  companyId?: unknown;
+  isCurrent?: unknown;
+  accessRevokedAt?: unknown;
+  accessRevokedReason?: unknown;
 };
 
 const asNonEmptyString = (value: unknown): string => {

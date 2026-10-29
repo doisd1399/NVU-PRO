@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const crop = fs.readFileSync(new URL('../src/components/BannerPhotoCrop.tsx', import.meta.url), 'utf8');
+const driver = fs.readFileSync(new URL('../src/pages/driver/Profile.tsx', import.meta.url), 'utf8');
+const fleet = fs.readFileSync(new URL('../src/pages/admin/Fleet.tsx', import.meta.url), 'utf8');
+assert.match(crop, /BANNER_WIDTH = 390/);
+assert.match(crop, /BANNER_HEIGHT = 300/);
+assert.match(crop, /EXPORT_SCALE = 4/);
+assert.match(crop, /context\.scale\(EXPORT_SCALE, EXPORT_SCALE\)/);
+assert.match(crop, /aspectRatio: `\$\{BANNER_WIDTH\} \/ \$\{BANNER_HEIGHT\}`/);
+assert.doesNotMatch(crop, /h-\[100px\].*w-\[320px\]/);
+assert.match(driver, /h-\[300px\]/);
+assert.match(driver, /object-cover object-center/);
+assert.match(fleet, /h-\[300px\]/);
+assert.match(fleet, /object-cover object-center/);
+console.log('banner-crop-integrity: PASS editor, export and mobile hero share 13:10 geometry');

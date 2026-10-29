@@ -9,6 +9,7 @@ const main = read("android/app/src/main/java/com/nvu/operacional/MainActivity.ja
 const plugin = read("android/app/src/main/java/com/nvu/operacional/GtoObserverPlugin.java");
 const manifest = read("android/app/src/main/AndroidManifest.xml");
 const gradle = read("android/app/build.gradle");
+const metadata = JSON.parse(read("NVU_RELEASE_METADATA.json"));
 
 let passed = 0, failed = 0;
 const check = (name, ok) => {
@@ -16,7 +17,7 @@ const check = (name, ok) => {
   else { failed++; console.error(`FAIL ${name}`); }
 };
 
-check("HF6 Android identity", gradle.includes("versionCode 58") && gradle.includes('versionName "1.0.58"'));
+check("HF6 Android identity", gradle.includes(`versionCode ${metadata.androidVersionCode}`) && gradle.includes(`versionName "${metadata.androidVersion}"`));
 check("standalone Reativar overlay removed", !service.includes('action.setText("Reativar")') && !service.includes("projectionReauthButtonView") && !service.includes("projectionReauthButtonParams"));
 check("production overlay menu has no Reativar label", !service.includes('menuButton("Reativar leitura da tela")'));
 check("MainActivity never owns MediaProjection consent", !main.includes("MediaProjectionManager") && !main.includes("REQUEST_GTO_CAPTURE") && !main.includes("EXTRA_REQUEST_GTO_PROJECTION"));

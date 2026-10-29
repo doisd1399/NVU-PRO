@@ -8,6 +8,7 @@ const permission = read("android/app/src/main/java/com/nvu/operacional/GtoProjec
 const plugin = read("android/app/src/main/java/com/nvu/operacional/GtoObserverPlugin.java");
 const manifest = read("android/app/src/main/AndroidManifest.xml");
 const gradle = read("android/app/build.gradle");
+const metadata = JSON.parse(read("NVU_RELEASE_METADATA.json"));
 
 let passed = 0, failed = 0;
 const check = (name, ok) => {
@@ -15,10 +16,10 @@ const check = (name, ok) => {
   else { failed++; console.error(`FAIL ${name}`); }
 };
 
-check("HF8 Android identity", gradle.includes("versionCode 60") && gradle.includes('versionName "1.0.60"'));
+check("HF8 Android identity", gradle.includes(`versionCode ${metadata.androidVersionCode}`) && gradle.includes(`versionName "${metadata.androidVersion}"`));
 check("permission remains GTO-only landscape", manifest.includes('android:name=".GtoProjectionPermissionActivity"') && manifest.includes('android:screenOrientation="landscape"'));
-check("grant is consumed synchronously by live observer", service.includes("acceptProjectionGrantIfRunning") && permission.includes("GtoObserverService.acceptProjectionGrantIfRunning(resultCode, data)"));
-check("grant binding is explicit boolean handshake", service.includes("private boolean startProjection(int resultCode, Intent resultData)") && permission.includes("boolean bound = GtoObserverService.acceptProjectionGrantIfRunning"));
+check("grant is consumed synchronously by live observer", service.includes("stageProjectionGrantFromPermissionHost") && permission.includes("rescueStagedProjectionGrantIfRunning"));
+check("grant binding is explicit boolean handshake", service.includes("private void bindStagedProjectionGrantIfNeeded") && permission.includes("boolean directRescueArmed"));
 check("accepted grant is latched before returning to GTO", service.includes('putBoolean("projectionGrantValidated", true)') && service.includes('putLong("projectionGrantValidatedAt"'));
 check("plugin exposes grant validation diagnostics", plugin.includes('status.put("projectionGrantValidated"') && plugin.includes('status.put("projectionGrantValidatedAt"'));
 check("permission host no longer removes its entire task", !permission.includes("finishAndRemoveTask()"));
@@ -27,12 +28,12 @@ check("granted path does not dispatch token asynchronously through service inten
   const grantedStart = permission.indexOf("if (granted) {");
   const grantedEnd = permission.indexOf("Intent serviceIntent =", grantedStart);
   const grantedBlock = permission.slice(grantedStart, grantedEnd);
-  check("consent latch stays closed until observer validates token", grantedBlock.indexOf("acceptProjectionGrantIfRunning(resultCode, data)") < grantedBlock.indexOf('putBoolean("projectionPermissionInFlight", false)'));
+  check("consent latch stays closed until observer validates token", grantedBlock.indexOf("stageProjectionGrantFromPermissionHost") < grantedBlock.indexOf('putBoolean("projectionPermissionInFlight", true)') && grantedBlock.includes('putBoolean("projectionGrantValidated", false)'));
 }
 check("floating menu blocks duplicate authorize during consent", service.includes("!projectionPermissionInFlight && !projectionSurfacePending") && !service.includes("if (!projectionActive && !projectionSurfacePending) {"));
 check("waiting menu clearly states validated grant", service.includes("Compartilhamento aceito e validado"));
 check("stopped-before-surface is distinguished", service.includes("STOPPED_BEFORE_SURFACE") && service.includes("O Android encerrou o compartilhamento antes de a captura iniciar"));
-check("service does not downgrade mediaProjection FGS while grant is bound", service.includes("startForegroundForTypes(projectionActive || projectionSurfacePending || mediaProjection != null)"));
+check("service does not downgrade mediaProjection FGS while grant is bound", service.includes("startForegroundForTypes(true)") && service.includes("projectionGrantValidated"));
 check("new process clears non-persistent projection grant", service.includes('putBoolean("projectionGrantValidated", false)') && service.includes("MediaProjection itself cannot survive process death"));
 check("active surface keeps grant validated", service.includes('putBoolean("projectionActive", true)') && service.includes('putBoolean("projectionGrantValidated", true)'));
 check("terminal projection stop clears grant validation", /onStop\(\)[\s\S]*?putBoolean\("projectionGrantValidated", false\)/.test(service));

@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   isSimpleAutomationNativeAvailable,
-  recordSimpleAutomationProTiming,
   SimpleAutomation,
 } from "../lib/simpleAutomationNative";
-import { completeSimpleAutomationReceipt } from "../services/simpleAutomationCompletionService";
-import { publishOperationCompletionResult } from "../lib/operationCompletionResult";
+import { authenticateNativeForPendingProTrip } from "../services/googleAuthService";
+import type { NormalizedTrip } from "../lib/tripNormalizer";
+import { toProOperationHistoryRows } from "../lib/proOperationHistory";
 
 interface SimpleAutomationCompletionBridgeProps {
   currentUser: any;
@@ -17,17 +16,25 @@ interface SimpleAutomationCompletionBridgeProps {
   activeVehicle?: any;
   activeTrailer?: any;
   currentOperationProgress?: number;
-  finishJob: (jobId: string) => Promise<void>;
+  currentOperationTrips?: NormalizedTrip[];
+  operationHistoryLoading?: boolean;
+  operationHistoryReady?: boolean;
+  operationHistoryError?: boolean;
 }
 
-const now = (): number =>
-  typeof performance !== "undefined" && typeof performance.now === "function"
-    ? performance.now()
-    : Date.now();
+type PendingProTrip = {
+  attemptId: string;
+  driverId?: string;
+  queueStatus?: string;
+  lastQueueError?: string;
+};
 
-const validationAmountCents = (validation: { amount: number | null }): number =>
-  validation.amount === null ? 0 : Math.round(validation.amount * 100);
-
+/**
+ * Native Pro is the only owner of the Firestore write. This bridge deliberately
+ * does not call the Web completion service and never emits a second trip write.
+ * It only observes durable queue state and presents the user action required to
+ * repair a missing/divergent native Firebase identity.
+ */
 export function SimpleAutomationCompletionBridge({
   currentUser,
   currentCompany,
@@ -36,299 +43,214 @@ export function SimpleAutomationCompletionBridge({
   activeVehicle,
   activeTrailer,
   currentOperationProgress,
-  finishJob,
+  currentOperationTrips,
+  operationHistoryLoading,
+  operationHistoryReady,
+  operationHistoryError,
 }: SimpleAutomationCompletionBridgeProps) {
-  const navigate = useNavigate();
-  const handledReceiptKey = useRef("");
   const running = useRef(false);
-  const pendingPoll = useRef(false);
-  const lastValidContext = useRef<{
-    currentUser: any;
-    currentCompany: any;
-    currentJob: any;
-    currentContract: any;
-    activeVehicle?: any;
-    activeTrailer?: any;
-    currentOperationProgress?: number;
-    finishJob: (jobId: string) => Promise<void>;
-  } | null>(null);
+  const snapshotRevision = useRef(0);
+  const authPromptKey = useRef("");
+  const authRecoveryInFlight = useRef(false);
 
+  // Share the exact validated rows behind the WebView's operation progress
+  // with the native bubble. Do not publish an initial, unresolved empty cache.
   useEffect(() => {
-    if (currentUser?.id && currentCompany?.id && currentJob?.id && currentContract?.id) {
-      lastValidContext.current = {
-        currentUser,
-        currentCompany,
-        currentJob,
-        currentContract,
-        activeVehicle,
-        activeTrailer,
-        currentOperationProgress,
-        finishJob,
-      };
-    }
-  }, [activeTrailer, activeVehicle, currentCompany, currentContract, currentJob, currentOperationProgress, currentUser, finishJob]);
+    if (!isSimpleAutomationNativeAvailable() || !currentJob?.id || !currentCompany?.id
+      || !currentUser?.id || typeof currentOperationProgress !== "number"
+      || (!operationHistoryReady && operationHistoryLoading)
+      || !currentOperationTrips) return;
+    if (operationHistoryError && currentOperationTrips.length === 0) return;
+    const scope = {
+      jobId: String(currentJob.id), companyId: String(currentCompany.id),
+      driverId: String(currentUser.id),
+    };
+    const trips = toProOperationHistoryRows(currentOperationTrips, scope);
+    // Refresh the operation scope before publishing its rows. A stale layout
+    // must never replace the history of a different active operation.
+    void SimpleAutomation.updateOperationHistory({
+      ...scope, trips,
+      confirmedTripCount: Math.max(0, Number(currentOperationProgress)),
+      jobProgress: Math.max(0, Number(currentOperationProgress)),
+    }).catch((error) => {
+      console.warn("[NVU-Pro] operation history projection unavailable", error);
+    });
+  }, [currentUser?.id, currentCompany?.id, currentJob?.id,
+    currentOperationProgress, currentOperationTrips,
+    operationHistoryLoading, operationHistoryReady, operationHistoryError]);
 
+  // Keep the native Pro card bound to the live operation even while a prior
+  // receipt is queued and the driver never opens the overlay again.
   useEffect(() => {
-    if (!isSimpleAutomationNativeAvailable()) return;
-    if (!currentUser?.id || !currentCompany?.id || !currentJob?.id || !currentContract?.id) return;
-
-    const progress = Math.max(
-      0,
-      Number(currentOperationProgress ?? currentJob.progress ?? 0),
-    );
-    const total = Math.max(
-      0,
-      Number(currentJob.totalDeliveries ?? currentContract.totalDeliveries ?? 0),
-    );
+    if (!isSimpleAutomationNativeAvailable() || !currentUser?.id || !currentCompany?.id
+        || !currentJob?.id || !currentContract?.id) return;
+    if (typeof currentOperationProgress !== "number") return;
+    const progress = Math.max(0, Number(currentOperationProgress));
+    const total = Math.max(0, Number(currentJob.totalDeliveries ?? currentContract.totalDeliveries ?? 0));
     const jobStatus = String(currentJob.status ?? "");
-    const operationClosed = Boolean(
-      currentJob.deleted
-        || ["completed", "cancelled"].includes(jobStatus.toLowerCase())
-        || (total > 0 && progress >= total),
-    );
-    const companyName = String(currentCompany.name ?? currentCompany.companyName ?? "").trim();
-    const operationName = String(
-      currentJob.operationName
-        ?? currentJob.contractNameSnapshot
-        ?? currentContract.name
-        ?? "",
-    ).trim();
-    const contractName = String(currentContract.name ?? "").trim();
-    const vehicleName = String(
-      activeVehicle?.name
-        ?? activeVehicle?.model
-        ?? activeVehicle?.vehicleName
-        ?? "",
-    ).trim();
-    const trailerName = String(
-      activeTrailer?.name
-        ?? activeTrailer?.model
-        ?? activeTrailer?.trailerName
-        ?? "",
-    ).trim();
-
+    const operationClosed = Boolean(currentJob.deleted
+      || ["completed", "cancelled"].includes(jobStatus.toLowerCase())
+      || (total > 0 && progress >= total));
+    snapshotRevision.current = Math.max(Date.now(), snapshotRevision.current + 1);
     void SimpleAutomation.refreshOperationSnapshot({
-      companyName,
-      operationName,
-      contractName,
+      companyName: String(currentCompany.name ?? currentCompany.companyName ?? "").trim(),
+      operationName: String(currentJob.operationName ?? currentJob.contractNameSnapshot
+        ?? currentContract.name ?? "").trim(),
+      contractName: String(currentContract.name ?? "").trim(),
       jobId: String(currentJob.id),
       contractId: String(currentContract.id),
       companyId: String(currentCompany.id),
       driverId: String(currentUser.id),
+      confirmedTripCount: progress,
       jobProgress: progress,
       jobTotalDeliveries: total,
       jobStatus,
       operationClosed,
-      vehicleName,
-      trailerName,
-    }).catch(() => undefined);
-  }, [
-    activeTrailer?.id,
-    activeTrailer?.name,
-    activeTrailer?.model,
-    activeTrailer?.trailerName,
-    activeVehicle?.id,
-    activeVehicle?.name,
-    activeVehicle?.model,
-    activeVehicle?.vehicleName,
-    currentCompany?.id,
-    currentCompany?.name,
-    currentCompany?.companyName,
-    currentContract?.id,
-    currentContract?.name,
-    currentContract?.totalDeliveries,
-    currentJob?.id,
-    currentJob?.progress,
-    currentOperationProgress,
-    currentJob?.status,
-    currentJob?.deleted,
-    currentJob?.totalDeliveries,
-    currentJob?.operationName,
-    currentJob?.contractNameSnapshot,
-    currentUser?.id,
-  ]);
+      operationContextRevision: snapshotRevision.current,
+      vehicleName: String(activeVehicle?.name ?? activeVehicle?.model ?? activeVehicle?.vehicleName ?? "").trim(),
+      trailerName: String(activeTrailer?.name ?? activeTrailer?.model ?? activeTrailer?.trailerName ?? "").trim(),
+    }).catch((error) => console.warn("[NVU-Pro] operation snapshot refresh failed", error));
+  }, [currentUser?.id, currentCompany?.id, currentCompany?.name, currentCompany?.companyName,
+    currentJob?.id, currentJob?.totalDeliveries, currentJob?.status,
+    currentJob?.deleted, currentJob?.operationName, currentJob?.contractNameSnapshot,
+    currentContract?.id, currentContract?.name, currentContract?.totalDeliveries,
+    activeVehicle?.name, activeVehicle?.model, activeVehicle?.vehicleName,
+    activeTrailer?.name, activeTrailer?.model, activeTrailer?.trailerName, currentOperationProgress]);
+
+  const recoverNativeAuth = useCallback(
+    (pending: PendingProTrip, nativeAuthState: string, silent = false) => {
+      const attemptId = String(pending.attemptId || "").trim();
+      const expectedDriverId = String(pending.driverId || "").trim();
+      const promptKey = `${attemptId}:${nativeAuthState}:${silent ? "silent" : "interactive"}`;
+      if (!attemptId || authRecoveryInFlight.current || authPromptKey.current === promptKey) return;
+      authPromptKey.current = promptKey;
+
+      const message = nativeAuthState === "DIVERGENT"
+        ? "A conta Google nativa não corresponde ao motorista desta viagem."
+        : "A sessão Google nativa expirou ou está ausente.";
+      const authenticate = async () => {
+        if (authRecoveryInFlight.current) return;
+        authRecoveryInFlight.current = true;
+        try {
+          if (!expectedDriverId || String(currentUser?.id || "") !== expectedDriverId) {
+            toast.error("A operação aberta não corresponde ao usuário autenticado. A viagem foi preservada.");
+            return;
+          }
+          await authenticateNativeForPendingProTrip(expectedDriverId, {
+            allowInteractiveFallback: !silent,
+          });
+          const retry = await SimpleAutomation.retryPending();
+          if (retry.status === "auth-required" || retry.status === "retry-unavailable") {
+            throw new Error(retry.status);
+          }
+          authPromptKey.current = "";
+          if (!silent) {
+            toast.success("Identidade confirmada. Nova tentativa iniciada para a viagem salva.");
+          }
+        } catch (error) {
+          authPromptKey.current = silent ? promptKey : "";
+          console.warn("[NVU-ProAuth] reautenticação não concluída", error);
+          if (silent) {
+            toast.warning("A conta Google nativa precisa de uma confirmação para retomar o envio.", {
+              id: `nvu-pro-auth-${attemptId}`,
+              duration: 20000,
+              action: {
+                label: "Autenticar",
+                onClick: () => {
+                  authPromptKey.current = "";
+                  void recoverNativeAuth(pending, nativeAuthState, false);
+                },
+              },
+            });
+          } else {
+            toast.error("Não foi possível confirmar a conta Google. A viagem continua preservada para nova tentativa.");
+          }
+        } finally {
+          authRecoveryInFlight.current = false;
+        }
+      };
+
+      toast.warning(message, {
+        id: `nvu-pro-auth-${attemptId}`,
+        duration: 20000,
+        description: "Toque em Autenticar para retomar automaticamente, sem refazer a viagem.",
+        action: {
+          label: "Autenticar",
+          onClick: () => {
+            void authenticate();
+          },
+        },
+      });
+    },
+    [currentUser?.id],
+  );
 
   const poll = useCallback(async () => {
     if (!isSimpleAutomationNativeAvailable() || running.current) return;
-    const context = lastValidContext.current;
-    if (!context?.currentUser?.id || !context.currentCompany?.id || !context.currentJob?.id || !context.currentContract?.id) {
-      pendingPoll.current = true;
-      return;
-    }
-
     running.current = true;
-    const readStartedAt = now();
     try {
-      const nativeStatus = await SimpleAutomation.getStatus();
-      const statusReadMs = now() - readStartedAt;
-      if (nativeStatus.simpleState !== "CAPTURE_CAPTURED" || !nativeStatus.receiptText) return;
-      // Native Firestore submission owns the immediate path. The Web bridge must
-      // not race it or show a second success; it takes ownership only after the
-      // native coordinator explicitly marks a safe fallback.
-      if (nativeStatus.nativeSubmissionState === "SUBMITTING_NATIVE"
-        || nativeStatus.nativeSubmissionState === "SYNCED") return;
-      const bridgeCaptureElapsedMs = Number(statusReadMs.toFixed(1));
-      recordSimpleAutomationProTiming("bridge_capture_received", bridgeCaptureElapsedMs);
-      console.info("[NVU-ProTiming]", {
-        stage: "bridge_capture_received",
-        statusReadMs: bridgeCaptureElapsedMs,
-      });
-
-      // Freeze the exact native payload observed by this poll. The completion
-      // service validates the native capture snapshot against the live context;
-      // it never re-reads route/simulator metadata after asynchronous waits.
-      const status = Object.freeze({ ...nativeStatus });
-      const receiptKey = [
-        status.captureAttemptId || "missing-attempt",
-        status.captureContextEpoch || "missing-epoch",
-        status.receiptCapturedAt || 0,
-      ].join(":");
-      if (handledReceiptKey.current === receiptKey) return;
-      handledReceiptKey.current = receiptKey;
-
-      const completionStartedAt = now();
-      const result = await completeSimpleAutomationReceipt({
-        status,
-        currentUser: context.currentUser,
-        currentCompany: context.currentCompany,
-        currentJob: context.currentJob,
-        currentContract: context.currentContract,
-        activeVehicle: context.activeVehicle,
-        activeTrailer: context.activeTrailer,
-        finishJob: context.finishJob,
-      });
-      const bridgeCompletionMs = Number((now() - completionStartedAt).toFixed(1));
-      recordSimpleAutomationProTiming("bridge_completion_finished", bridgeCompletionMs);
-      console.info("[NVU-ProTiming]", {
-        stage: "bridge_completion_finished",
-        completionMs: bridgeCompletionMs,
-      });
-      if (result.submitted) {
-        const historyStartedAt = now();
-        if (result.tripId && validationAmountCents(result.validation) > 0) {
-          await SimpleAutomation.recordConfirmedTrip({
-            tripId: result.tripId,
-            jobId: String(status.captureJobId || context.currentJob.id),
-            companyId: String(status.captureCompanyId || context.currentCompany.id),
-            driverId: String(status.captureDriverId || context.currentUser.id),
-            contractId: String(status.captureContractId || context.currentContract.id),
-            simulatorKey: String(status.captureSimulatorKey || status.simulatorKey || ""),
-            origin: String(status.captureOrigin || ""),
-            destination: String(status.captureDestination || ""),
-            amountCents: validationAmountCents(result.validation),
-            completedAt: Date.now(),
-          });
-        }
-        const historyUpdatedMs = now() - historyStartedAt;
-        recordSimpleAutomationProTiming("history_updated", historyUpdatedMs);
-        recordSimpleAutomationProTiming("preview_shown", 0);
-        console.info("[NVU-ProTiming]", {
-          bridgeStatusReadMs: Number(statusReadMs.toFixed(1)),
-          ...(result.trace || {}),
-          historyUpdatedMs: Number(historyUpdatedMs.toFixed(1)),
-        });
-        if (result.operationClosed) {
-          const completedAt = new Date();
-          const assignedAtMs = context.currentJob.assignedAt
-            ? new Date(context.currentJob.assignedAt).getTime()
-            : context.currentJob.createdAt
-              ? new Date(context.currentJob.createdAt).getTime()
-              : completedAt.getTime();
-          const executionMs = Math.max(0, completedAt.getTime() - assignedAtMs);
-          const executionDays = Math.floor(executionMs / (1000 * 60 * 60 * 24));
-          const executionHours = Math.floor((executionMs / (1000 * 60 * 60)) % 24);
-          const executionMinutes = Math.floor((executionMs / (1000 * 60)) % 60);
-          const dueAt = context.currentJob.dueAt || context.currentJob.deadlineDate;
-          const dueDiffMs = dueAt
-            ? new Date(dueAt).getTime() - completedAt.getTime()
-            : 0;
-          const isAtrasado = Boolean(dueAt) && dueDiffMs < 0;
-          const remainingAbsMs = Math.abs(dueDiffMs);
-          const remainingDays = Math.floor(remainingAbsMs / (1000 * 60 * 60 * 24));
-          const remainingHours = Math.floor((remainingAbsMs / (1000 * 60 * 60)) % 24);
-          const remainingMinutes = Math.floor((remainingAbsMs / (1000 * 60)) % 60);
-
-          publishOperationCompletionResult({
-            userId: context.currentUser.id,
-            jobId: context.currentJob.id,
-            data: {
-              contractName:
-                context.currentContract.name
-                || context.currentJob.operationName
-                || "Operação concluída",
-              tempoExecucao:
-                executionDays > 0
-                  ? `${executionDays}d ${executionHours}h ${executionMinutes}min`
-                  : `${executionHours}h ${executionMinutes}min`,
-              tempoRestante: dueAt
-                ? remainingDays > 0
-                  ? `${remainingDays}d ${remainingHours}h ${remainingMinutes}min`
-                  : `${remainingHours}h ${remainingMinutes}min`
-                : "-",
-              isAtrasado,
-              prazoTotal: `${Math.max(1, Number(context.currentContract.deadlineDays || 1))} dias`,
-              totalViagens: Number(
-                result.operationProgress ?? Number(context.currentJob.progress || 0) + 1,
-              ),
-              vehicleName: context.activeVehicle?.name,
-              showTrailer: Boolean(context.activeTrailer?.id || context.currentJob.trailerId),
-              trailerName: context.activeTrailer?.name,
-            },
-          });
-        }
-        toast.success(
-          result.operationClosed
-            ? "Operação concluída. Exibindo os resultados."
-            : "Viagem registrada com sucesso.",
-          { duration: result.operationClosed ? 3600 : 3600 },
-        );
-        navigate("/driver/dashboard", { replace: true });
-      } else {
-        toast.error(result.reason || "Captura fora da tela correta. Abra a tela de conclusão e tente novamente.");
+      const status = await SimpleAutomation.getStatus();
+      const pending = (status.pendingProTrips || []).find(
+        (item) => item.queueStatus !== "FAILED",
+      ) as PendingProTrip | undefined;
+      if (!pending) {
+        if (!authRecoveryInFlight.current) authPromptKey.current = "";
+        return;
       }
+      const nativeAuthState = String(status.nativeAuthState || "UNKNOWN");
+      if (nativeAuthState === "MISSING" && pending.queueStatus !== "AUTH_REQUIRED") {
+        // A Web Firebase session does not hydrate the native FirebaseAuth
+        // instance automatically. Try Credential Manager once in the
+        // background; only its failure becomes a user-facing action.
+        recoverNativeAuth(pending, nativeAuthState, true);
+        return;
+      }
+      const queueError = String(pending.lastQueueError || "");
+      const identityRequired = nativeAuthState === "MISSING"
+        || nativeAuthState === "DIVERGENT"
+        || queueError.includes("Autenticação nativa não corresponde");
+      // A server permission rejection is not a network retry and does not
+      // justify opening Google repeatedly when the native UID already matches.
+      // The history card keeps the explicit, one-tap repair action available.
+      if (pending.queueStatus !== "AUTH_REQUIRED" || !identityRequired) return;
+      console.info("[NVU-ProAuth] auth-required", {
+        state: nativeAuthState,
+        queueStatus: pending.queueStatus,
+        diagnosticAt: status.nativeAuthDiagnosticAt || 0,
+      });
+      recoverNativeAuth(pending, nativeAuthState, false);
     } catch (error) {
-      handledReceiptKey.current = "";
-      console.error("[NVU] Falha ao concluir viagem Pro", error);
-      const code = String((error as any)?.message || (error as any)?.code || "");
-      toast.error(
-        code.includes("OPERATION_TRIP_LIMIT_REACHED")
-          ? "A operação já atingiu o total previsto de viagens. Solicite uma nova operação."
-          : "Não foi possível validar a captura. Abra a tela de conclusão e tente novamente.",
-      );
+      // Native status polling is best effort. The durable Android queue and
+      // JobScheduler remain the recovery authority when the WebView is paused.
+      console.warn("[SimpleAutomationCompletionBridge] status polling failed", error);
     } finally {
       running.current = false;
-      if (pendingPoll.current) {
-        pendingPoll.current = false;
-        void poll();
-      }
     }
-  }, [navigate]);
-
-  const requestPoll = useCallback(() => {
-    if (running.current) {
-      pendingPoll.current = true;
-      return;
-    }
-    void poll();
-  }, [poll]);
+  }, [recoverNativeAuth]);
 
   useEffect(() => {
+    if (!isSimpleAutomationNativeAvailable()) return;
+    void poll();
     let disposed = false;
     let removeReceiptListener: (() => Promise<void>) | undefined;
-    requestPoll();
     void SimpleAutomation.addListener("receiptCaptured", () => {
-      if (!disposed) requestPoll();
+      if (!disposed) void poll();
     }).then((handle) => {
       if (disposed) {
         void handle.remove();
       } else {
         removeReceiptListener = handle.remove;
       }
-    }).catch(() => undefined);
+    }).catch((error) => {
+      console.warn("[SimpleAutomationCompletionBridge] receipt listener registration failed", error);
+    });
 
-    const intervalId = window.setInterval(requestPoll, 200);
+    // The event listener is authoritative; polling is only a safety net. Keep
+    // the safety net short so an already-correct native session cannot remain
+    // visually stuck for several seconds.
+    const intervalId = window.setInterval(() => void poll(), 750);
     const onVisibility = () => {
-      if (document.visibilityState === "visible") requestPoll();
+      if (document.visibilityState === "visible") void poll();
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
@@ -337,7 +259,7 @@ export function SimpleAutomationCompletionBridge({
       document.removeEventListener("visibilitychange", onVisibility);
       if (removeReceiptListener) void removeReceiptListener();
     };
-  }, [requestPoll]);
+  }, [poll]);
 
   return null;
 }

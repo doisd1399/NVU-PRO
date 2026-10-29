@@ -26,12 +26,14 @@ const checks = [
       && recordTrip.includes("aria-label=\"Destino da rota\""),
   ],
   [
-    "OCR value still blocks manual value changes",
-    recordTrip.includes("if (valorDetectadoAutomaticamente) return;"),
+    "Print GTO blocks manual value changes even before OCR",
+    recordTrip.includes("if (isGtoPrintMode || valorDetectadoAutomaticamente) return;"),
   ],
   [
-    "automatic OCR value remains read-only in the rendered input",
-    recordTrip.includes("readOnly={valorDetectadoAutomaticamente}"),
+    "Print GTO displays the OCR result without an editable input",
+    recordTrip.includes("{isGtoPrintMode ? (")
+      && recordTrip.includes('<output')
+      && recordTrip.includes('{valor || "0,00"}'),
   ],
   [
     "route values are still used in the final trip payload",

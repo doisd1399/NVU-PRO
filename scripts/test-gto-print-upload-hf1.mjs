@@ -21,8 +21,9 @@ const check = (name, ok) => {
 
 check(
   "GTO OCR is detached from the upload critical path",
-  record.includes("void analyzeGtoTripReceipt(file)") &&
-    record.indexOf("void analyzeGtoTripReceipt(file)") <
+  record.includes("const analysisTask = analyzeGtoTripReceipt(file,") &&
+    record.includes("await Promise.race([valueReady, analysisTask])") &&
+    record.indexOf("await Promise.race([valueReady, analysisTask])") <
       record.indexOf('phase = "firebase-upload"'),
 );
 check(
@@ -35,14 +36,15 @@ check(
 check(
   "hash and duplicate checks are bounded",
   record.includes("generateImageHash(bytes, file),\n          10_000") &&
-    record.includes("TripsRepository.checkImageHash(hash),\n          12_000"),
+    record.includes("canonicalTripDuplicateService.findTripByImageHash(hash,") &&
+    record.includes("12_000"),
 );
 check(
-  "unreadable OCR has explicit manual audited fallback",
-  record.includes('gtoReceiptAnalysisStatus === "failed" && !gtoManualConfirmed') &&
-    record.includes("gtoReceiptManualConfirmation") &&
-    record.includes("gtoReceiptReviewRequired") &&
-    record.includes('"manual-fallback"'),
+  "unreadable OCR fails closed without accepting a manual value",
+  record.includes('gtoReceiptAnalysisStatus === "failed"') &&
+    record.includes("Não foi possível ler o valor recebido") &&
+    record.includes("gtoReceiptManualConfirmation: false") &&
+    !record.includes('"manual-fallback"'),
 );
 check(
   "positive ADS/double evidence still blocks launch",
@@ -83,8 +85,8 @@ check(
 check(
   "dev/build prepare local OCR runtime assets",
   pkg.scripts?.["prepare:ocr-assets"] === "node scripts/prepare-tesseract-assets.mjs" &&
-    pkg.scripts?.predev === "npm run prepare:ocr-assets" &&
-    pkg.scripts?.prebuild === "npm run prepare:ocr-assets",
+    pkg.scripts?.predev.split(" && ").includes("npm run prepare:ocr-assets") &&
+    pkg.scripts?.prebuild.split(" && ").includes("npm run prepare:ocr-assets"),
 );
 check(
   "generic async timeout helper is present",

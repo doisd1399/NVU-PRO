@@ -1,0 +1,61 @@
+/* Covers use page tokens and their own selectors; the work dashboard's full
+   bleed hero, the ranking sheet and the reserved dock region stay independent. */
+.nvu-cover-hero {
+  --cover-text: var(--nvu-text, #182332);
+  --cover-muted: var(--nvu-muted, #657584);
+  --cover-line: var(--nvu-line, #dce4e8);
+  --cover-strip: var(--nvu-strip, #edf1f4);
+  color: var(--cover-text);
+  width: 100%; min-width: 0; margin: 0;
+}
+.nvu-cover-image { position: relative; width: 100%; aspect-ratio: 8 / 3; overflow: hidden; border: 1px solid var(--cover-line); border-radius: 15px; background: var(--cover-strip); }
+.nvu-cover-image > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.nvu-cover-placeholder { display: grid; place-items: center; width: 100%; height: 100%; color: var(--cover-muted); background: radial-gradient(ellipse at 90% 0%, rgb(135 154 164 / .16), transparent 70%), linear-gradient(135deg, transparent 47%, rgb(135 154 164 / .08) 48%, rgb(135 154 164 / .08) 68%, transparent 69%); }
+.nvu-cover-activate { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
+.nvu-cover-activate:focus-visible { outline-offset: -4px !important; }
+.nvu-cover-edit { position: absolute; z-index: 1; right: 10px; top: 10px; display: inline-flex; gap: 7px; align-items: center; min-height: 36px; padding: 7px 10px; border: 1px solid rgb(255 255 255 / .25); border-radius: 10px; background: rgb(10 20 26 / .76); color: #f5f8fa; font-size: 11px; font-weight: 600; }
+.nvu-cover-identity { position: relative; display: grid; grid-template-columns: 66px minmax(0, 1fr) auto; column-gap: 12px; align-items: center; min-height: 88px; padding: 12px 0 2px; }
+.nvu-cover-avatar { width: 66px; height: 66px; margin-top: -30px; align-self: start; border: 3px solid var(--nvu-page, #f7f9fa); border-radius: 17px; background: var(--cover-strip); color: var(--cover-muted); }
+.nvu-cover-copy { min-width: 0; align-self: start; padding-top: 2px; }
+.nvu-cover-copy h2 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.025em; line-height: 1.25; overflow-wrap: anywhere; }
+.nvu-cover-copy p { margin: 5px 0 0; color: var(--cover-muted); font-size: 12px; line-height: 1.35; }
+.nvu-cover-simulator { display: inline-flex; align-self: start; align-items: center; justify-content: space-between; gap: 10px; max-width: 120px; min-width: 70px; min-height: 30px; padding: 5px 10px; border: 1px solid var(--cover-line); border-radius: 9px; background: var(--nvu-surface, #fff); color: var(--cover-text); font-size: 12px; font-weight: 650; }
+.nvu-cover-simulator > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nvu-cover-simulator > svg { flex-shrink: 0; }
+.nvu-cover-sync { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 10px; padding: 2px 0 10px; color: var(--cover-muted); font-size: 11px; line-height: 1.5; }
+.nvu-cover-sync button { color: var(--cover-text); text-decoration: underline; text-underline-offset: 3px; }
+.nvu-cover-hero button:focus-visible, .nvu-cover-editor button:focus-visible { outline: 2px solid var(--nvu-accent, #20a9b8); outline-offset: 3px; }
+.nvu-workspace-cover { width: 100%; max-width: 960px; margin: 0 auto 16px; }
+body .nvu-driver-workspace .nvu-profile-cover-stack { padding-top: 14px; max-width: 960px; margin-inline: auto; }
+body .nvu-profile-cover-stack > .nvu-driver-surface { margin: 0 calc(-1 * var(--driver-gutter)) !important; border-radius: 0; padding-top: 6px; }
+body .nvu-profile-cover-stack > .nvu-workspace-cover { margin-bottom: 0; }
+.nvu-cover-page-shell .nvu-workspace-cover { padding-top: 8px; }
+body .nvu-cover-page-shell .nvu-native-content { padding: 0 !important; }
+body .nvu-cover-page-shell .nvu-native-content > .nvu-workspace-cover { padding-inline: 14px; padding-top: 14px; }
+/* A cover sits below the solid app bar; only the operation dashboard retains
+   the former transparent/scroll-aware header. */
+body .nvu-cover-page-shell .nvu-profile-chrome-header { --nvu-chrome-progress: 1 !important; background: var(--nvu-page) !important; border-bottom: 0 !important; box-shadow: none !important; color: var(--nvu-text) !important; }
+body .nvu-cover-page-shell .nvu-profile-chrome-header button,
+body .nvu-cover-page-shell .nvu-profile-chrome-header button svg,
+body .nvu-cover-page-shell .nvu-profile-chrome-header [data-nvu-background-brand],
+body .nvu-cover-page-shell .nvu-profile-chrome-header [data-nvu-layout-brand],
+body .nvu-cover-page-shell .nvu-profile-chrome-header .nvu-profile-wordmark { color: var(--nvu-text) !important; }
+body .nvu-cover-page-shell .nvu-admin-company-content { padding-top: var(--nvu-native-header-height, calc(44px + env(safe-area-inset-top, 0px))) !important; }
+body .nvu-cover-page-shell.nvu-desktop-shell .nvu-admin-shell-content > main > div:first-child { padding: 32px 16px 0 !important; }
+.nvu-cover-editor-overlay { position: fixed; inset: 0; z-index: 280; display: flex; justify-content: center; align-items: center; overflow-y: auto; overscroll-behavior: contain; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: rgb(0 0 0 / .62); }
+.nvu-cover-editor { width: 100%; max-width: 460px; max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); display: flex; flex-direction: column; color: var(--nvu-text, #182332); background: var(--nvu-surface, #fff); border: 1px solid var(--nvu-line, #dce4e8); border-radius: 20px; overflow: hidden; outline: none; }
+.nvu-cover-editor header { display: flex; align-items: start; justify-content: space-between; gap: 15px; padding: 20px; border-bottom: 1px solid var(--nvu-line, #dce4e8); }
+.nvu-cover-editor h2 { margin: 0; font-size: 19px; font-weight: 700; }
+.nvu-cover-editor p { color: var(--nvu-muted, #657584); font-size: 12px; line-height: 1.5; margin: 5px 0 0; }
+.nvu-cover-editor header button { display: grid; place-items: center; min-width: 36px; min-height: 36px; border-radius: 10px; }
+.nvu-cover-editor-body { padding: 20px; overflow-y: auto; }
+.nvu-cover-editor-preview { display: grid; place-items: center; width: 100%; aspect-ratio: 8 / 3; border-radius: 12px; overflow: hidden; color: var(--nvu-muted); background: var(--nvu-strip, #edf1f4); }
+.nvu-cover-editor-preview img { width: 100%; height: 100%; object-fit: cover; }
+.nvu-cover-editor-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.nvu-cover-editor-actions button, .nvu-cover-editor footer button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 9px 14px; border: 1px solid var(--nvu-line, #dce4e8); border-radius: 11px; font-size: 13px; font-weight: 600; }
+.nvu-cover-editor footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px 20px; border-top: 1px solid var(--nvu-line, #dce4e8); }
+.nvu-cover-editor .nvu-cover-save { background: var(--nvu-strip, #edf1f4); }
+.nvu-cover-editor button:disabled { opacity: .5; cursor: not-allowed; }
+.nvu-cover-editor .nvu-cover-error { color: #dc4e63; margin-bottom: 12px; }
+@media (max-width: 359px) { .nvu-cover-identity { grid-template-columns: 56px minmax(0, 1fr) auto; column-gap: 9px; } .nvu-cover-avatar { width: 56px; height: 56px; border-radius: 15px; } .nvu-cover-copy h2 { font-size: 17px; } .nvu-cover-simulator { min-width: 61px; gap: 6px; padding-inline: 8px; } .nvu-cover-edit span { display: none; } }
+@media (min-width: 768px) { .nvu-cover-image { max-height: 300px; } .nvu-cover-identity { grid-template-columns: 88px minmax(0, 1fr) auto; gap: 18px; padding: 16px 8px 10px; min-height: 112px; } .nvu-cover-avatar { width: 88px; height: 88px; margin-top: -42px; border-radius: 21px; } .nvu-cover-copy h2 { font-size: 25px; } .nvu-cover-copy p { font-size: 14px; } .nvu-cover-simulator { min-height: 34px; font-size: 14px; } }

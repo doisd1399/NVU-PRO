@@ -54,6 +54,13 @@ function digest(file) {
   return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 }
 
+function containsMarker(directory, marker) {
+  return walk(directory).some((file) => {
+    try { return fs.readFileSync(path.join(directory, file), "utf8").includes(marker); }
+    catch { return false; }
+  });
+}
+
 const distFiles = walk(dist);
 const embeddedFiles = walk(embedded);
 const capacitorGeneratedFiles = new Set(["cordova.js", "cordova_plugins.js"]);
@@ -72,6 +79,12 @@ const missing = distFiles.filter((file) => {
 const stale = comparableEmbeddedFiles.filter((file) => !distFiles.includes(file));
 const duplicateAndroidModel = embeddedFiles.includes(compressedModel)
   && embeddedFiles.includes(androidModel);
+const requiredReleaseMarkers = [
+  "TRIP_JOURNAL_LOCK_CALLBACK_NOT_RUN",
+  "TRIP_JOURNAL_LOCK_WEB_LOCK_TIMEOUT",
+];
+const missingReleaseMarkers = requiredReleaseMarkers.filter((marker) =>
+  !containsMarker(dist, marker) || !containsMarker(embedded, marker));
 function isExpectedImmutableNativeManifest(file) {
   if (file !== "nvu-build.json") return false;
   try {
@@ -100,7 +113,7 @@ const changed = distFiles.filter(
     && !isExpectedImmutableNativeManifest(file),
 );
 
-if (missing.length || stale.length || changed.length || missingCapacitorFiles.length || duplicateAndroidModel) {
+if (missing.length || stale.length || changed.length || missingCapacitorFiles.length || duplicateAndroidModel || missingReleaseMarkers.length) {
   console.error("Falha de paridade nos assets Web embarcados.");
   if (missing.length) console.error("Ausentes:", missing.join(", "));
   if (stale.length) console.error("Obsoletos:", stale.join(", "));
@@ -112,6 +125,10 @@ if (missing.length || stale.length || changed.length || missingCapacitorFiles.le
     console.error(
       "Modelo OCR duplicado no Android: execute cap sync antes de prepare:cap-assets para remover o .gz.",
     );
+  }
+  if (missingReleaseMarkers.length) {
+    console.error("Marcadores de correção ausentes no dist ou nos assets Android:", missingReleaseMarkers.join(", "));
+    console.error("Execute npm run build e npx cap sync android antes de montar o APK.");
   }
   process.exit(1);
 }

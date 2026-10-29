@@ -3,6 +3,7 @@ import {
   deriveCurrentOperationProgress,
   selectCurrentOperationJob,
 } from "../src/lib/currentOperation";
+import { filterAndSortTripHistory } from "../src/lib/tripHistoryEngine";
 
 const job = (input: Record<string, unknown>) => ({
   id: String(input.id),
@@ -47,6 +48,7 @@ assert.equal(
 const updatedOnly = job({
   id: "active-updated-only",
   assignedAt: undefined,
+  createdAt: undefined,
   updatedAt: "2026-09-12T14:00:00.000Z",
 });
 assert.equal(
@@ -79,17 +81,42 @@ const liveJob = job({
   progress: 2,
   assignedAt: "2026-09-12T10:00:00.000Z",
 });
+const confirmed = { source: "gto_auto", uploadedAt: "2026-09-12T15:00:00.000Z", serverValidatedAt: "2026-09-12T15:00:00.000Z" };
 const liveTrips = [
-  { id: "trip-1", jobId: "job-live", driverId: "driver-1", status: "completed", completedAt: "2026-09-12T11:00:00.000Z" },
-  { id: "trip-2", trabalhoId: "job-live", motoristaId: "driver-1", status: "concluida", completedAt: "2026-09-12T12:00:00.000Z" },
-  { id: "trip-3", contrato_id: "contract-1", motorista_id: "driver-1", status: "completed", completedAt: "2026-09-12T13:00:00.000Z" },
-  { id: "wrong-driver", jobId: "job-live", driverId: "driver-2", status: "completed", completedAt: "2026-09-12T14:00:00.000Z" },
-  { id: "wrong-job", contractId: "contract-2", driverId: "driver-1", status: "completed", completedAt: "2026-09-12T14:00:00.000Z" },
+  { id: "trip-1", ...confirmed, jobId: "job-live", driverId: "driver-1", companyId: "company-1", contractId: "contract-1", status: "completed", completedAt: "2026-09-12T11:00:00.000Z" },
+  { id: "trip-2", ...confirmed, jobId: "job-live", trabalhoId: "job-live", motoristaId: "driver-1", empresaId: "company-1", contratoId: "contract-1", status: "concluida", completedAt: "2026-09-12T12:00:00.000Z" },
+  // Legacy history without a physical job binding is not attached to the
+  // current operation, even when driver/company/contract/date look similar.
+  { id: "trip-3", ...confirmed, contratoId: "contract-1", motoristaId: "driver-1", companyId: "company-1", status: "completed", completedAt: "2026-09-12T13:00:00.000Z" },
+  { id: "wrong-driver", ...confirmed, jobId: "job-live", driverId: "driver-2", companyId: "company-1", contractId: "contract-1", status: "completed", completedAt: "2026-09-12T14:00:00.000Z" },
+  { id: "wrong-job", ...confirmed, jobId: "job-other", contractId: "contract-2", driverId: "driver-1", companyId: "company-1", status: "completed", completedAt: "2026-09-12T14:00:00.000Z" },
 ];
 assert.equal(
   deriveCurrentOperationProgress(liveJob, liveTrips, "driver-1"),
-  3,
-  "live historical trips must replace a stale job progress without crossing operation/driver boundaries",
+  2,
+  "only server-confirmed and explicitly operation-bound trips can define current operation progress",
+);
+assert.equal(
+  filterAndSortTripHistory(liveTrips, { embeddedJob: liveJob, driverId: "driver-1" }).some((trip) => trip.id === "trip-3"),
+  false,
+  "an unbound legacy trip must remain outside the embedded operational history",
+);
+assert.equal(
+  filterAndSortTripHistory(liveTrips, { driverId: "driver-1" }).some((trip) => trip.id === "trip-3"),
+  true,
+  "an unbound legacy trip remains visible only in generic history",
+);
+assert.equal(
+  deriveCurrentOperationProgress({ ...liveJob, progress: 4, totalDeliveries: 12,
+    operationProgressReconciled: true }, liveTrips, "driver-1"),
+  2,
+  "a server cursor must not invent a trip missing from canonical operation history",
+);
+assert.equal(
+  deriveCurrentOperationProgress({ ...liveJob, progress: 0, totalDeliveries: 12,
+    operationProgressReconciled: true }, liveTrips, "driver-1"),
+  2,
+  "a server cursor must not promote unbound legacy history into confirmed operation progress",
 );
 
 assert.equal(
@@ -105,4 +132,4 @@ assert.equal(
   "active company must constrain current operation selection",
 );
 
-console.log("current-operation-source-of-truth: PASS shared job/company selection and live progress aliases");
+console.log("current-operation-source-of-truth: PASS canonical progress, legacy history visibility and job/company selection");

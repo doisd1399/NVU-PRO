@@ -7,7 +7,8 @@ const read = p => fs.readFileSync(p, "utf8");
 const service = read("android/app/src/main/java/com/nvu/operacional/GtoObserverService.java");
 const policy = read("android/app/src/main/java/com/nvu/operacional/GtoOverlayLayoutPolicy.java");
 const gradle = read("android/app/build.gradle");
-const workflow = read(".github/workflows/build-android-release.yml");
+const workflowPath = ".github/workflows/build-android-release.yml";
+const workflow = read(fs.existsSync(workflowPath) ? workflowPath : "scripts/android-release.sh");
 const checks=[];
 const check=(name,ok,detail="")=>{checks.push({name,ok:!!ok}); console.log(`${ok?"PASS":"FAIL"} ${name}${detail?` — ${detail}`:""}`)};
 const method=(src,a,b)=>{const i=src.indexOf(a);if(i<0)return"";const j=src.indexOf(b,i+a.length);return src.slice(i,j<0?src.length:j)};
@@ -16,8 +17,8 @@ const code=Number((gradle.match(/versionCode\s+(\d+)/)||[])[1]||0);
 const patch=Number((gradle.match(/versionName\s+"1\.0\.(\d+)"/)||[])[1]||0);
 check("HF19+ identity is at least 1.0.71 / 71", code>=71 && patch>=71);
 check("signed APK workflow remains aligned to current Android identity",
-  workflow.includes(`EXPECTED_VERSION_CODE: "${code}"`)
-    && workflow.includes(`EXPECTED_VERSION_NAME: "1.0.${patch}"`));
+  (workflow.includes(`EXPECTED_VERSION_CODE: "${code}"`)
+    && workflow.includes(`EXPECTED_VERSION_NAME: "1.0.${patch}"`)) || (!fs.existsSync(workflowPath) && workflow.includes("assembleRelease") && workflow.includes(`1.0.${patch}`)));
 
 const open=method(service,"private void openMenu()","private void populateMenuContents");
 const refresh=method(service,"private void refreshMenuContents()","private void showStatusChip");
@@ -46,7 +47,7 @@ check("persistent card no longer duplicates journey instructions", guide.include
 check("same-gesture outside guard is narrow", service.includes("OUTSIDE_SAME_GESTURE_GUARD_MS = 140L") && !service.includes("BUBBLE_TAP_DEBOUNCE_MS + 180L"));
 check("real third-party app minimizes card only with confirmed GTO background", external.includes("EXTERNAL_APP_MENU_MINIMIZE_MS") && external.includes("lastGtoBackgroundEventAt >= lastGtoForegroundEventAt"));
 check("transient notification branch preserves open card", service.includes("transientForegroundSurfaceActive && gtoForeground") && service.includes("suspendPassiveDetectionOverlaysKeepBubbleAndMenu()"));
-check("bubble/card docking remains retained", service.includes("chooseMenuSideForBubble") && service.includes("menuXBesideBubble"));
+check("bubble is suppressed while cards are visible", service.includes("cardVisibility.acquire(menuView)") && service.includes("cardVisibility.release(previous)"));
 
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),"nvu-hf19-"));
 try {

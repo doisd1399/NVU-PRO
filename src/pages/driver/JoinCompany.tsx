@@ -1,3 +1,4 @@
+import { ModalSelect } from "../../components/ui/ModalSelect";
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
@@ -33,10 +34,12 @@ export default function JoinCompany() {
   const [selectedSimulatorId, setSelectedSimulatorId] = useState("");
   const [isRequestingId, setIsRequestingId] = useState<string | null>(null);
 
+  // The driver recruitment screen must not trigger the company catalog
+  // loading on initial mount. The catalog is requested only by flows that
+  // actually need company selection, avoiding unnecessary loading cycles.
   useEffect(() => {
-    if (companyCatalogLoaded || companyCatalogAttempted) return;
-    void loadCompanyCatalog();
-  }, [companyCatalogAttempted, companyCatalogLoaded, loadCompanyCatalog]);
+    return;
+  }, []);
 
   const activeSimulators = simulators.filter((s:any) => s.active !== false).sort((a:any, b:any) => a.name.localeCompare(b.name));
   const getSimulatorLabel = (company: any) =>
@@ -58,7 +61,7 @@ export default function JoinCompany() {
         <div className="max-w-md mx-auto w-full mb-8">
           <button
             onClick={() => navigate("/select-profile")}
-            className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-[#fafafa] transition-colors"
+            className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text transition-colors"
           >
             <ArrowLeft size={16} />
             Voltar
@@ -68,20 +71,20 @@ export default function JoinCompany() {
           <div className="w-24 h-24 bg-orange-50 dark:bg-orange-500/10 rounded-full flex items-center justify-center mb-6 text-orange-500">
             <UserCog size={40} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-[#fafafa] mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-nvu-text mb-2">
             Aguardando Aprovação
           </h2>
-          <p className="text-gray-500 dark:text-[#a1a1aa] mb-8">
+          <p className="text-gray-500 dark:text-nvu-muted mb-8">
             Seu convite para a empresa{" "}
-            <strong className="text-gray-900 dark:text-[#fafafa]">
+            <strong className="text-gray-900 dark:text-nvu-text">
               {company?.companyName || "Carregando..."}
             </strong>{" "}
             foi enviado. O administrador da frota precisa aprovar seu acesso.
           </p>
           <Button
             variant="outline"
-            onClick={() => cancelRequestJoinCompany(myPendingRequest.id)}
-            className="text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-[#f4f4f5]"
+            onClick={() => void cancelRequestJoinCompany(myPendingRequest.id).catch(() => {})}
+            className="text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text"
           >
             Cancelar Convite
           </Button>
@@ -96,6 +99,8 @@ export default function JoinCompany() {
     try {
       // Never hold the action behind an artificial delay.
       await requestJoinCompany(companyId);
+    } catch {
+      // The context reports the failure; keep the selected company available.
     } finally {
       setIsRequestingId(null);
     }
@@ -130,7 +135,7 @@ export default function JoinCompany() {
       <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-10">
         <button
           onClick={() => navigate("/select-profile")}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-[#fafafa] transition-colors"
+          className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text transition-colors"
         >
           <ArrowLeft size={16} />
           Voltar
@@ -143,10 +148,10 @@ export default function JoinCompany() {
           <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 dark:border-blue-500/40 rounded-2xl flex items-center justify-center mx-auto mb-5 text-blue-600 shadow-sm dark:shadow-none border border-blue-100 dark:border-blue-500/20/50">
             <Building2 size={28} strokeWidth={2} />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-[#fafafa] tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-nvu-text tracking-tight">
             Encontre sua Frota
           </h1>
-          <p className="text-[15px] text-gray-500 dark:text-[#a1a1aa] mt-2 max-w-[280px] sm:max-w-md mx-auto leading-relaxed">
+          <p className="nvu-page-description text-gray-500 dark:text-nvu-muted mt-2 max-w-[280px] sm:max-w-md mx-auto">
             Pesquise o nome da empresa ou frota e envie sua solicitação de acesso.
           </p>
         </div>
@@ -154,13 +159,13 @@ export default function JoinCompany() {
 
       {/* SIMULATOR SELECT */}
       <div className="max-w-2xl mx-auto px-4 sm:px-0 mb-4">
-        <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+        <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
           Simulador
         </label>
-        <select
+        <ModalSelect title="Selecionar simulador"
           value={selectedSimulatorId}
           onChange={(e) => setSelectedSimulatorId(e.target.value)}
-          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-14 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm appearance-none cursor-pointer"
+          className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-14 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm appearance-none cursor-pointer"
         >
           <option value="" disabled>Selecione um simulador</option>
           {activeSimulators.map((sim:any) => (
@@ -168,7 +173,7 @@ export default function JoinCompany() {
               {sim.name}
             </option>
           ))}
-        </select>
+        </ModalSelect>
       </div>
 
       {/* SEARCH INPUT */}
@@ -184,7 +189,7 @@ export default function JoinCompany() {
           disabled={!selectedSimulatorId}
           placeholder={selectedSimulatorId ? "Buscar empresa ou frota..." : "Selecione um simulador antes"}
           autoFocus
-          className="w-full pl-12 sm:pl-14 pr-4 h-14 bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-200 dark:border-[#2A2F3A] focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-[15px] font-medium text-gray-900 dark:text-[#fafafa] placeholder:text-gray-400 dark:placeholder:text-[#71717a] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full pl-12 sm:pl-14 pr-4 h-14 bg-white dark:bg-nvu-surface rounded-2xl border border-gray-200 dark:border-nvu-line focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-[15px] font-medium text-gray-900 dark:text-nvu-text placeholder:text-gray-400 dark:placeholder:text-nvu-muted shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -193,7 +198,7 @@ export default function JoinCompany() {
       {/* LIST */}
       <div className="space-y-3 max-w-2xl mx-auto px-4 sm:px-0">
         {!companyCatalogAttempted || companiesLoading ? (
-          <div className="text-center py-12 text-sm text-gray-500 dark:text-[#a1a1aa]">
+          <div className="text-center py-12 text-sm text-gray-500 dark:text-nvu-muted">
             Carregando empresas...
           </div>
         ) : !companyCatalogLoaded ? (
@@ -201,22 +206,22 @@ export default function JoinCompany() {
             Não foi possível carregar as empresas. Reabra esta página para tentar novamente.
           </div>
         ) : !selectedSimulatorId ? (
-          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#1A1F26]">
+          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface">
             <Building2 size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-[15px] font-medium text-gray-900 dark:text-[#fafafa]">
+            <p className="text-[15px] font-medium text-gray-900 dark:text-nvu-text">
               Selecione um simulador
             </p>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
+            <p className="text-sm text-gray-500 dark:text-nvu-muted mt-1">
               Escolha um simulador acima para listar as empresas disponíveis.
             </p>
           </div>
         ) : filteredCompanies.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#1A1F26]">
+          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface">
             <Search size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-[15px] font-medium text-gray-900 dark:text-[#fafafa]">
+            <p className="text-[15px] font-medium text-gray-900 dark:text-nvu-text">
               Nenhuma empresa encontrada
             </p>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
+            <p className="text-sm text-gray-500 dark:text-nvu-muted mt-1">
               Verifique a ortografia ou tente outro termo.
             </p>
           </div>
@@ -224,7 +229,7 @@ export default function JoinCompany() {
           filteredCompanies.map((company) => (
             <div
               key={company.id}
-              className="flex items-center p-3 sm:p-4 bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-100 dark:border-[#2A2F3A] hover:border-blue-200 dark:border-blue-500/30 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.05)] transition-all group"
+              className="flex items-center p-3 sm:p-4 bg-white dark:bg-nvu-surface rounded-2xl border border-gray-100 dark:border-nvu-line hover:border-blue-200 dark:border-blue-500/30 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.05)] transition-all group"
             >
               <div className="flex-1 flex items-center gap-3 sm:gap-4 min-w-0 pr-4">
                 {/* AVATAR */}
@@ -235,7 +240,7 @@ export default function JoinCompany() {
                       alt="Logo"
                       loading="lazy"
                       decoding="async"
-                      wrapperClassName="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-gray-100 dark:border-[#2A2F3A] shrink-0"
+                      wrapperClassName="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-gray-100 dark:border-nvu-line shrink-0"
                       className="object-cover"
                       referrerPolicy="no-referrer"
                       fallback={
@@ -255,11 +260,11 @@ export default function JoinCompany() {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 dark:text-[#fafafa] tracking-tight truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                  <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 dark:text-nvu-text tracking-tight truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                     {company.companyName}
                   </h3>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-3 mt-1 sm:mt-1.5">
-                    <span className="text-xs font-medium text-gray-500 dark:text-[#a1a1aa] bg-gray-50 dark:bg-[#09090b] px-2 py-0.5 rounded-md border border-gray-100 dark:border-[#2A2F3A]">
+                    <span className="text-xs font-medium text-gray-500 dark:text-nvu-muted bg-gray-50 dark:bg-nvu-page px-2 py-0.5 rounded-md border border-gray-100 dark:border-nvu-line">
                       {company.memberCount}{" "}
                       {company.memberCount === 1 ? "membro" : "membros"}
                     </span>
@@ -273,7 +278,7 @@ export default function JoinCompany() {
               <Button
                 onClick={() => handleRequest(company.id)}
                 disabled={isRequestingId === company.id}
-                className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#09090b] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
+                className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
               >
                 {isRequestingId === company.id ? (
                   <div className="flex items-center justify-center gap-2">

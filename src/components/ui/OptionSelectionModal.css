@@ -1,0 +1,68 @@
+.nvu-options-overlay {
+  --options-paper: #fff;
+  --options-text: #182332;
+  --options-muted: #788393;
+  --options-line: #e8ecf0;
+  --options-soft: #f6f9fa;
+  --options-selected: #edf9fa;
+  --options-accent: #1496a6;
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: rgb(10 21 33 / 38%);
+  backdrop-filter: blur(3px);
+}
+.dark .nvu-options-overlay {
+  --options-paper: var(--nvu-elevated);
+  --options-text: var(--nvu-text);
+  --options-muted: var(--nvu-muted);
+  --options-line: var(--nvu-line);
+  --options-soft: var(--nvu-strip);
+  --options-selected: var(--nvu-accent-soft);
+  --options-accent: var(--nvu-accent);
+  background: rgb(0 0 0 / 52%);
+}
+.nvu-options-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 400px;
+  max-height: min(76dvh, 560px);
+  min-height: 0;
+  border: 1px solid var(--options-line);
+  border-radius: 20px;
+  background: var(--options-paper);
+  color: var(--options-text);
+  box-shadow: 0 20px 72px rgb(10 21 33 / 22%);
+  outline: none;
+  overflow: hidden;
+}
+.nvu-options-header { display: flex; align-items: flex-start; gap: 12px; padding: 18px 18px 14px; flex-shrink: 0; }
+.nvu-options-header > div { flex: 1; min-width: 0; }
+.nvu-options-header h2 { font-size: 15px; font-weight: 600; line-height: 1.4; letter-spacing: -.015em; margin: 0; }
+.nvu-options-header p { font-size: 12px; line-height: 1.5; margin-top: 4px; color: var(--options-muted); }
+.nvu-options-close { display: grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; background: var(--options-soft); color: var(--options-muted); }
+.nvu-options-search { display: flex; align-items: center; gap: 9px; margin: 0 14px 10px; padding: 9px 11px; min-width: 0; flex-shrink: 0; border: 1px solid var(--options-line); border-radius: 11px; background: var(--options-soft); color: var(--options-muted); }
+.nvu-options-search input { width: 100%; min-width: 0; background: transparent; color: var(--options-text); font-size: 13px; outline: none; }
+.nvu-options-search input::placeholder { color: var(--options-muted); }
+.nvu-options-list { padding: 0 10px 10px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.nvu-options-item { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 11px 12px; margin-top: 3px; border: 1px solid transparent; border-radius: 11px; text-align: left; color: var(--options-text); transition: background-color 120ms; }
+.nvu-options-item:hover { background: var(--options-soft); }
+.nvu-options-item[aria-selected="true"] { background: var(--options-selected); border-color: color-mix(in srgb, var(--options-accent) 30%, transparent); }
+.nvu-options-item:disabled { opacity: .45; cursor: not-allowed; }
+.nvu-options-copy { min-width: 0; flex: 1; }
+.nvu-options-copy > span { display: block; font-size: 13px; font-weight: 500; line-height: 1.4; overflow-wrap: anywhere; }
+.nvu-options-copy small { display: block; font-size: 11px; color: var(--options-muted); line-height: 1.5; margin-top: 2px; }
+.nvu-options-check { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; color: var(--options-accent); }
+.nvu-options-empty { padding: 22px 12px; text-align: center; font-size: 12px; color: var(--options-muted); }
+.nvu-options-group { padding: 12px 12px 3px; color: var(--options-muted); font-size: 11px; font-weight: 600; }
+.nvu-options-dialog button:focus-visible, .nvu-options-search:focus-within { outline: 2px solid var(--options-accent); outline-offset: -2px; }
+.nvu-modal-select { min-width: 0; }
+.nvu-modal-select-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nvu-modal-select-chevron { flex-shrink: 0; color: #8591a0; }
+@media (max-height: 520px) { .nvu-options-dialog { max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); } }
+@media (prefers-reduced-motion: reduce) { .nvu-options-item { transition: none; } }

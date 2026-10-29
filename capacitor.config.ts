@@ -15,7 +15,7 @@ const selfHostedOtaEnabled =
   && Boolean(selfHostedOtaManifestUrl)
   && Boolean(selfHostedOtaPublicKey);
 const nativeChannel = String(
-  process.env.NVU_NATIVE_CHANNEL || "production-359",
+  process.env.NVU_NATIVE_CHANNEL || "production-520",
 ).trim();
 
 /**
@@ -27,7 +27,7 @@ const nativeChannel = String(
  */
 const config: CapacitorConfig = {
   appId: "com.nvu.operacional",
-  appName: "nvu",
+  appName: "NVU PRO",
   webDir: "dist",
   plugins: {
     FirebaseAuthentication: { skipNativeAuth: false, providers: ["google.com"] },

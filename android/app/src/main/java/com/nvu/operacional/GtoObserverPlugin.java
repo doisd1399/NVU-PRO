@@ -11,8 +11,6 @@ import android.provider.Settings;
 
 import java.io.File;
 
-import androidx.core.content.ContextCompat;
-
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -21,7 +19,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 @CapacitorPlugin(name = "GtoObserver")
 public class GtoObserverPlugin extends Plugin {
-    private static final String EXPECTED_WEB_RUNTIME_REVISION = "R3.34-PC-WEB-AUTH-ARCHITECTURE-MODULAR";
+    private static final String EXPECTED_WEB_RUNTIME_REVISION = "R3.37-RANKING-GAMER-THEMES";
 
     @PluginMethod
     public void getStatus(PluginCall call) {
@@ -29,14 +27,21 @@ public class GtoObserverPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void prepareOverlayFlow(PluginCall call) {
+        // Revalida o ambiente antes de enviar o usuário para permissões especiais.
+        // Evita abrir o fluxo Overlay enquanto o serviço GTO ainda não está preparado.
+        JSObject status = buildStatus();
+        status.put("overlayReady", true);
+        status.put("overlayPermission", ProModeController.hasOverlay(getContext()));
+        status.put("overlayValidationAt", ProModeController.getLastOverlayValidationAt());
+        status.put("overlayValidationReason", ProModeController.getLastOverlayValidationReason());
+        call.resolve(status);
+    }
+
+    @PluginMethod
     public void openOverlaySettings(PluginCall call) {
         try {
-            Intent intent = new Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + getContext().getPackageName())
-            );
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getContext().startActivity(intent);
+            ProModeController.openOverlaySettings(getContext());
             call.resolve(buildStatus());
         } catch (Exception ex) {
             call.reject("Não foi possível abrir a permissão de sobreposição.", ex);
@@ -63,10 +68,13 @@ public class GtoObserverPlugin extends Plugin {
 
     @PluginMethod
     public void startObserver(PluginCall call) {
+        boolean overlayPermission = ProModeController.validateOverlayAtEntry(getContext());
         JSObject status = buildStatus();
-        if (!Boolean.TRUE.equals(status.getBool("overlayPermission"))) {
+        status.put("overlayPermission", overlayPermission);
+        if (!overlayPermission) {
             status.put("started", false);
             status.put("missingPermission", "overlay");
+            status.put("action", "OPEN_OVERLAY_SETTINGS");
             call.resolve(status);
             return;
         }
@@ -77,13 +85,16 @@ public class GtoObserverPlugin extends Plugin {
             return;
         }
         try {
-            getContext().getSharedPreferences(GtoObserverService.PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .remove("startError")
-                .apply();
-            Intent intent = new Intent(getContext(), GtoObserverService.class)
-                .setAction(GtoObserverService.ACTION_START);
-            ContextCompat.startForegroundService(getContext(), intent);
+            ProModeController.StartResult startResult = ProModeController.startAfterValidation(
+                getContext(), ProModeController.Mode.GTO_OBSERVER
+            );
+            if (startResult != ProModeController.StartResult.STARTED) {
+                JSObject failed = buildStatus();
+                failed.put("started", false);
+                failed.put("startError", "O Android não aceitou a inicialização do serviço GTO.");
+                call.resolve(failed);
+                return;
+            }
             // Older/slower devices can take well over 320 ms to create a foreground
             // service after a cold start. Poll for up to ~2.2 s instead of reporting a
             // false failure while the service is actually starting.
@@ -192,7 +203,13 @@ public class GtoObserverPlugin extends Plugin {
         putStringIfPresent(editor, call, "companyName", "companyName", prefs.getString("companyName", ""));
         putStringIfPresent(editor, call, "jobId", "jobId", nextJobId);
         putStringIfPresent(editor, call, "jobStatus", "jobStatus", prefs.getString("jobStatus", ""));
-        putIntIfPresent(editor, call, "jobProgress", "jobProgress", prefs.getInt("jobProgress", 0));
+        putJobProgressPreservingLocalCompletion(
+            editor, call, prefs, nextJobId, operationContextChanged
+        );
+        int confirmedTripCount = hasField(call, "confirmedTripCount") && call.getInt("confirmedTripCount") != null
+            ? Math.max(0, call.getInt("confirmedTripCount"))
+            : operationContextChanged ? 0 : Math.max(0, prefs.getInt("confirmedTripCount", 0));
+        editor.putInt("confirmedTripCount", confirmedTripCount);
         putIntIfPresent(editor, call, "jobTotalDeliveries", "jobTotalDeliveries", prefs.getInt("jobTotalDeliveries", 0));
         putStringIfPresent(editor, call, "contractId", "contractId", nextContractId);
         putStringIfPresent(editor, call, "contractName", "contractName", prefs.getString("contractName", ""));
@@ -266,6 +283,37 @@ public class GtoObserverPlugin extends Plugin {
         else if (previous != null) editor.putString(prefKey, previous);
     }
 
+    private static void putJobProgressPreservingLocalCompletion(
+        android.content.SharedPreferences.Editor editor,
+        PluginCall call,
+        android.content.SharedPreferences prefs,
+        String nextJobId,
+        boolean operationContextChanged
+    ) {
+        int incoming = hasField(call, "jobProgress") && call.getInt("jobProgress") != null
+            ? Math.max(0, call.getInt("jobProgress"))
+            : Math.max(0, prefs.getInt("jobProgress", 0));
+        if (operationContextChanged) {
+            editor
+                .putInt("jobProgress", incoming)
+                .remove("gtoLocalOperationProgress")
+                .remove("gtoLocalOperationProgressJobId")
+                .remove("gtoLocalOperationProgressAt");
+            return;
+        }
+
+        String floorJobId = safe(prefs.getString("gtoLocalOperationProgressJobId", ""));
+        int localFloor = Math.max(0, prefs.getInt("gtoLocalOperationProgress", 0));
+        if (!floorJobId.isEmpty() && floorJobId.equals(nextJobId)) {
+            int preserved = Math.max(incoming, localFloor);
+            editor.putInt("jobProgress", preserved);
+            // A newer Web/server progress is also allowed to advance the local floor.
+            editor.putInt("gtoLocalOperationProgress", preserved);
+        } else {
+            editor.putInt("jobProgress", incoming);
+        }
+    }
+
     private static void putIntIfPresent(
         android.content.SharedPreferences.Editor editor,
         PluginCall call,
@@ -332,6 +380,9 @@ public class GtoObserverPlugin extends Plugin {
             .remove("jobStatus")
             .remove("jobProgress")
             .remove("jobTotalDeliveries")
+            .remove("gtoLocalOperationProgress")
+            .remove("gtoLocalOperationProgressJobId")
+            .remove("gtoLocalOperationProgressAt")
             .remove("contractId")
             .remove("contractName")
             .remove("operationName")
@@ -560,7 +611,9 @@ public class GtoObserverPlugin extends Plugin {
         );
 
         JSObject status = new JSObject();
-        status.put("overlayPermission", Settings.canDrawOverlays(context));
+        status.put("overlayPermission", ProModeController.hasOverlay(context));
+        status.put("overlayValidationAt", ProModeController.getLastOverlayValidationAt());
+        status.put("overlayValidationReason", ProModeController.getLastOverlayValidationReason());
         status.put("usageAccess", hasUsageStatsAccess(context));
         status.put("preciseTouchPermission", true);
         status.put("preciseTouchActive", false);
@@ -820,6 +873,7 @@ public class GtoObserverPlugin extends Plugin {
         status.put("gtoTripIntegrityError", prefs.getString("gtoTripIntegrityError", ""));
         status.put("jobStatus", prefs.getString("jobStatus", ""));
         status.put("jobProgress", prefs.getInt("jobProgress", 0));
+        status.put("confirmedTripCount", prefs.getInt("confirmedTripCount", 0));
         status.put("jobTotalDeliveries", prefs.getInt("jobTotalDeliveries", 0));
         status.put("gtoJobStatus", prefs.getString("gtoJobStatus", ""));
         status.put("gtoJobProgress", prefs.getInt("gtoJobProgress", 0));

@@ -1,6 +1,7 @@
 import {
   publishTripHistoryOptimistically,
 } from "../hooks/useTripHistory";
+import { TripRegistrationService } from "../application/trip/TripRegistrationService";
 import { publishDriverTripOptimistically } from "../hooks/useDriverTrips";
 
 type JobLike = {
@@ -15,6 +16,12 @@ type ContractLike = {
 
 type TripDocumentReference = {
   id: string;
+  offline?: boolean;
+  localId?: string;
+  data?: Record<string, unknown>;
+  syncState?: string;
+  lastError?: string;
+  tripSyncStage?: string;
 };
 
 type CompletionInput = {
@@ -24,9 +31,8 @@ type CompletionInput = {
   job?: JobLike | null;
   contract?: ContractLike | null;
   addTrip: (data: Record<string, unknown>) => Promise<TripDocumentReference>;
-  persistTripId: (docRef: TripDocumentReference) => Promise<void>;
+  persistTripId?: (docRef: TripDocumentReference) => Promise<void>;
   syncJobProgress?: (jobId: string) => Promise<number | null>;
-  finishJob?: (jobId: string) => Promise<void>;
   /** Pro-only: return after addTrip and reconcile progress off the UI path. */
   deferOperationReconciliation?: boolean;
   projectedOperationProgress?: number;
@@ -36,6 +42,7 @@ type CompletionInput = {
     totalDeliveries?: number;
     status?: string;
     closed?: boolean;
+    readyToFinalize?: boolean;
   }) => void | Promise<void>;
 };
 
@@ -46,6 +53,7 @@ type CompletionResult = {
   operationTotalDeliveries?: number;
   operationStatus?: string;
   operationClosed?: boolean;
+  operationReadyToFinalize?: boolean;
 };
 
 const IN_FLIGHT = new Map<string, Promise<CompletionResult>>();
@@ -53,7 +61,7 @@ const IN_FLIGHT = new Map<string, Promise<CompletionResult>>();
 function createIdempotencyKey(input: CompletionInput): string {
   const explicit = String(input.tripData.idempotencyKey || "").trim();
   if (explicit) return explicit;
-  const operation = String(input.tripData.operationId || input.job?.id || "no-job").trim();
+  const operation = String(input.tripData.jobId || input.job?.id || "no-job").trim();
   const driver = String(input.userId || "no-user").trim();
   const timestamp = String(input.tripData.completedAt || input.tripData.createdAt || Date.now());
   return `trip:${operation}:${driver}:${timestamp}`;
@@ -66,6 +74,7 @@ function confirmedTripPayload(
   const timestamp = new Date().toISOString();
   return {
     ...tripData,
+    ...(docRef.data || {}),
     id: docRef.id,
     tripId: docRef.id,
     createdAt: tripData.createdAt || timestamp,
@@ -77,35 +86,48 @@ function confirmedTripPayload(
 
 export function completeTripWithCoordinator(input: CompletionInput): Promise<CompletionResult> {
   const idempotencyKey = createIdempotencyKey(input);
-  const existing = IN_FLIGHT.get(idempotencyKey);
+  const flightKey = JSON.stringify([input.userId, input.companyId, input.job?.id || input.tripData.jobId || "", idempotencyKey]);
+  const existing = IN_FLIGHT.get(flightKey);
   if (existing) return existing;
 
   const execution = (async () => {
-    const docRef = await input.addTrip(input.tripData);
-    const optimisticTrip = confirmedTripPayload(input.tripData, docRef);
+    console.info("TRIP_CREATE_START", { idempotencyKey, jobId: input.job?.id, companyId: input.companyId });
+    // Normalize identity before the offline-first command performs the one
+    // authoritative transaction or persists the local pending record.
+    const canonicalTrip = TripRegistrationService.register(input.tripData as any);
+    console.info("TRIP_VALIDATION_RESULT", { tripId: canonicalTrip.tripId, driverId: input.userId, jobId: input.job?.id });
+    const docRef = await input.addTrip({
+      ...input.tripData,
+      tripId: canonicalTrip.tripId,
+      clientRequestId: canonicalTrip.clientRequestId,
+      idempotencyKey: canonicalTrip.idempotencyKey,
+      syncVersion: canonicalTrip.syncVersion,
+      source: canonicalTrip.source,
+    });
+    const isOfflineTrip = docRef.offline === true || String(docRef.id || docRef.localId || "").startsWith("local-");
+    const optimisticTrip = confirmedTripPayload(
+      isOfflineTrip
+        ? { ...input.tripData, offlineSyncStatus: "pending_sync" }
+        : input.tripData,
+      docRef,
+    );
 
     // The local store is updated only after addTrip returns the durable document
     // identity. Firestore remains the authority and later replaces this exact id.
-    publishTripHistoryOptimistically(
-      { userId: input.userId, companyId: input.companyId },
-      optimisticTrip,
-    );
-    publishDriverTripOptimistically(input.userId, optimisticTrip);
-
-    // `addTrip` already confirms the durable Firestore document and its id.
-    // The duplicated tripId field is compatibility metadata, not a prerequisite
-    // for registration; persist it off the critical path so Pro can acknowledge
-    // the trip without waiting for a second network round trip.
-    void Promise.resolve()
-      .then(() => input.persistTripId(docRef))
-      .catch((error) => {
-        console.warn("[OperationalCompletionCoordinator] tripId backfill deferred:", error);
-      });
+    for (const publish of [
+      () => publishTripHistoryOptimistically({ userId: input.userId, companyId: input.companyId }, optimisticTrip),
+      () => publishDriverTripOptimistically(input.userId, optimisticTrip),
+    ]) {
+      try { publish(); }
+      catch { console.warn("[NVU] Viagem salva; a projeção do histórico será reidratada."); }
+    }
+    console.info("TRIP_HISTORY_UPDATE", { tripId: docRef.id, offline: isOfflineTrip });
 
     let operationProgress: number | undefined;
     let operationTotalDeliveries: number | undefined;
     let operationStatus: string | undefined;
     let operationClosed = false;
+    let operationReadyToFinalize = false;
     if (input.job && input.contract && input.syncJobProgress) {
       operationTotalDeliveries = Math.max(
         0,
@@ -113,15 +135,11 @@ export function completeTripWithCoordinator(input: CompletionInput): Promise<Com
           (input.projectedOperationTotalDeliveries ?? input.contract.totalDeliveries) || 0,
         ),
       );
-      const projectedProgress = Math.max(
-        0,
-        Number(input.projectedOperationProgress ?? Number(input.job.progress || 0) + 1),
-      );
-      operationProgress = projectedProgress;
-      operationClosed = Boolean(
-        operationTotalDeliveries > 0 && projectedProgress >= operationTotalDeliveries,
-      );
-      operationStatus = operationClosed ? "completed" : "active";
+      // Projected progress is only a provisional UI hint. Definitive progress
+      // and terminal state come from the server-reconciled trip count below.
+      operationProgress = undefined;
+      operationClosed = false;
+      operationStatus = isOfflineTrip ? "pending_validation" : "reconciliation_pending";
 
       const reconcile = async () => {
         try {
@@ -129,21 +147,25 @@ export function completeTripWithCoordinator(input: CompletionInput): Promise<Com
           const actualProgress = syncedProgress === null
             ? undefined
             : Math.max(0, Number(syncedProgress));
-          const actualClosed = Boolean(
+          const actualReadyToFinalize = Boolean(
             actualProgress !== undefined
             && operationTotalDeliveries !== undefined
             && operationTotalDeliveries > 0
             && actualProgress >= operationTotalDeliveries,
           );
-          if (actualClosed && input.finishJob) {
-            await input.finishJob(input.job!.id);
+          if (actualProgress !== undefined) {
+            operationProgress = actualProgress;
+            operationStatus = actualReadyToFinalize ? "awaiting_completion" : "active";
+            operationClosed = false;
+            operationReadyToFinalize = actualReadyToFinalize;
           }
           if (input.onOperationReconciled) {
             await input.onOperationReconciled({
               progress: actualProgress,
               totalDeliveries: operationTotalDeliveries,
-              status: actualClosed ? "completed" : "active",
-              closed: actualClosed,
+              status: actualReadyToFinalize ? "awaiting_completion" : "active",
+              closed: false,
+              readyToFinalize: actualReadyToFinalize,
             });
           }
         } catch (error) {
@@ -155,7 +177,14 @@ export function completeTripWithCoordinator(input: CompletionInput): Promise<Com
         }
       };
 
-      if (input.deferOperationReconciliation) {
+      if (isOfflineTrip) {
+        // Offline trips remain visible in history, but never finalize operation
+        // progress before server validation.
+        operationProgress = undefined;
+        operationStatus = "pending_validation";
+        operationClosed = false;
+        operationReadyToFinalize = false;
+      } else if (input.deferOperationReconciliation) {
         void reconcile();
       } else {
         await reconcile();
@@ -169,13 +198,17 @@ export function completeTripWithCoordinator(input: CompletionInput): Promise<Com
       operationTotalDeliveries,
       operationStatus,
       operationClosed,
+      operationReadyToFinalize,
     };
   })();
 
-  IN_FLIGHT.set(idempotencyKey, execution);
-  void execution.finally(() => {
-    if (IN_FLIGHT.get(idempotencyKey) === execution) IN_FLIGHT.delete(idempotencyKey);
-  });
+  IN_FLIGHT.set(flightKey, execution);
+  const cleanup = () => {
+    if (IN_FLIGHT.get(flightKey) === execution) IN_FLIGHT.delete(flightKey);
+  };
+  // An ignored finally() creates a second rejected promise on submission
+  // failure, even when the caller handles the original rejection.
+  void execution.then(cleanup, cleanup);
   return execution;
 }
 

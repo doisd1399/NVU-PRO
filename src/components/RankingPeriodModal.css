@@ -1,0 +1,66 @@
+.nvu-period-overlay {
+  --period-panel: #fff; --period-soft: #edf3f6; --period-text: #172330;
+  --period-muted: #6b7d8f; --period-line: #e0e8ee; --period-accent: #087f91;
+  --period-range: #e4f3f5; --period-on-accent: #fff;
+  position: fixed; inset: 0; z-index: 12000; display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+  background: rgb(10 21 33 / 40%); font-family: "NVU Podium", system-ui, sans-serif; color-scheme: light;
+}
+.dark .nvu-period-overlay {
+  --period-panel: var(--nvu-elevated); --period-soft: var(--nvu-strip); --period-text: var(--nvu-text);
+  --period-muted: var(--nvu-muted); --period-line: var(--nvu-line); --period-accent: var(--nvu-accent);
+  --period-range: var(--nvu-accent-soft); --period-on-accent: var(--nvu-on-accent);
+  background: rgb(0 0 0 / 62%); color-scheme: dark;
+}
+.nvu-period-dialog {
+  display: flex; flex-direction: column; width: 100%; max-width: 354px; min-height: 0;
+  max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  overflow: hidden; border: 1px solid var(--period-line); border-radius: 20px;
+  background: var(--period-panel); color: var(--period-text); box-shadow: 0 18px 65px #0a152133; outline: none;
+}
+.nvu-period-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; padding: 18px 16px 12px; flex: none; }
+.nvu-period-header h2 { margin: 0; color: var(--period-text); font: 700 17px/1.3 "NVU Podium", system-ui, sans-serif; letter-spacing: -.025em; }
+.nvu-period-header p { margin: 5px 0 0; color: var(--period-muted); font-size: 11px; line-height: 1.4; }
+.nvu-period-dialog button, .nvu-period-dialog select { font-family: inherit; -webkit-tap-highlight-color: transparent; }
+.nvu-period-close { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 0; border-radius: 10px; background: var(--period-soft); color: var(--period-muted); cursor: pointer; }
+.nvu-period-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 16px; scrollbar-width: thin; }
+.nvu-period-presets { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--period-line); border-radius: 11px; background: var(--period-soft); }
+.nvu-period-presets button { min-width: 0; flex: 1; padding: 8px 4px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--period-muted); font-size: 11px; line-height: 1.3; font-weight: 500; cursor: pointer; }
+.nvu-period-presets button[aria-pressed="true"] { border-color: var(--period-line); background: var(--period-panel); color: var(--period-text); }
+.nvu-period-calendar { width: 100%; padding-top: 12px; font-size: 12px; --period-day-size: 34px; }
+.nvu-period-calendar .rdp-months { position: relative; width: 100%; }
+.nvu-period-calendar .rdp-month { width: 100%; }
+.nvu-period-calendar .rdp-month_caption { display: flex; align-items: center; height: 36px; padding-right: 70px; margin-bottom: 5px; }
+.nvu-period-calendar .rdp-dropdowns { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nvu-period-calendar .rdp-dropdown_root { position: relative; display: inline-flex; }
+.nvu-period-calendar .rdp-dropdown { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 1; color: var(--period-text); background: var(--period-panel); }
+.nvu-period-calendar .rdp-caption_label { display: inline-flex; align-items: center; gap: 3px; padding: 5px 0; color: var(--period-text); font-size: 13px; font-weight: 500; white-space: nowrap; text-transform: capitalize; }
+.nvu-period-calendar .rdp-chevron { width: 13px; height: 13px; fill: var(--period-muted); }
+.nvu-period-calendar .rdp-nav { display: flex; align-items: center; gap: 4px; position: absolute; top: 0; right: 0; height: 36px; }
+.nvu-period-calendar .rdp-button_previous, .nvu-period-calendar .rdp-button_next { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--period-line); border-radius: 9px; background: transparent; color: var(--period-muted); cursor: pointer; }
+.nvu-period-calendar .rdp-month_grid { width: 100%; table-layout: fixed; border-collapse: collapse; border-spacing: 0; }
+.nvu-period-calendar .rdp-weekday { height: 28px; padding: 0; font-size: 10px; font-weight: 500; text-align: center; color: var(--period-muted); }
+.nvu-period-calendar .rdp-day { position: relative; height: var(--period-day-size); padding: 0; text-align: center; color: var(--period-text); }
+.nvu-period-calendar .rdp-day_button { position: relative; display: grid; place-items: center; width: var(--period-day-size); height: var(--period-day-size); margin: 0 auto; padding: 0; border: 1px solid transparent; border-radius: 10px; background: transparent; color: inherit; font-size: 12px; font-weight: 500; cursor: pointer; }
+.nvu-period-calendar .rdp-outside { color: var(--period-muted); }
+.nvu-period-calendar .rdp-today:not(.rdp-selected) .rdp-day_button { border-color: var(--period-line); }
+.nvu-period-calendar .rdp-range_middle { background: var(--period-range); }
+.nvu-period-calendar .rdp-range_start { background: linear-gradient(90deg, transparent 50%, var(--period-range) 50%); }
+.nvu-period-calendar .rdp-range_end { background: linear-gradient(90deg, var(--period-range) 50%, transparent 50%); }
+.nvu-period-calendar .rdp-range_start.rdp-range_end { background: transparent; }
+.nvu-period-calendar :is(.rdp-range_start, .rdp-range_end) .rdp-day_button { background: var(--period-accent); color: var(--period-on-accent); }
+.nvu-period-calendar .rdp-hidden { visibility: hidden; }
+.nvu-period-selection { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 12px 0; padding: 9px 5px; border-radius: 9px; background: var(--period-soft); color: var(--period-muted); font-size: 10px; line-height: 1.4; font-variant-numeric: tabular-nums; }
+.nvu-period-selection svg { flex: none; }
+.nvu-period-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; padding: 12px 16px 16px; flex: none; border-top: 1px solid var(--period-line); }
+.nvu-period-actions button { min-height: 39px; padding: 9px 10px; border: 1px solid var(--period-line); border-radius: 11px; font-size: 12px; line-height: 1.3; font-weight: 500; cursor: pointer; }
+.nvu-period-cancel { background: var(--period-panel); color: var(--period-muted); }
+.nvu-period-apply { background: var(--period-text); color: var(--period-panel); border-color: transparent !important; }
+.nvu-period-apply:disabled { opacity: .4; cursor: default; }
+.nvu-period-dialog button:focus-visible, .nvu-period-calendar .rdp-dropdown_root:focus-within { outline: 2px solid var(--period-accent); outline-offset: 2px; }
+@media (hover: hover) { .nvu-period-dialog button:not(:disabled):hover { filter: brightness(.96); } .nvu-period-calendar .rdp-day:not(.rdp-range_start):not(.rdp-range_end) .rdp-day_button:hover { background: var(--period-soft); } }
+@media (max-width: 350px) { .nvu-period-header { padding-inline: 12px; } .nvu-period-body { padding-inline: 12px; } .nvu-period-actions { padding-inline: 12px; } .nvu-period-calendar { --period-day-size: 32px; } .nvu-period-selection { font-size: 9px; } }
+@media (forced-colors: active) {
+  .nvu-period-overlay { --period-panel: Canvas; --period-soft: Canvas; --period-text: CanvasText; --period-muted: CanvasText; --period-line: CanvasText; --period-accent: Highlight; --period-on-accent: HighlightText; }
+  .nvu-period-calendar .rdp-selected { outline: 1px solid Highlight; outline-offset: -2px; }
+}

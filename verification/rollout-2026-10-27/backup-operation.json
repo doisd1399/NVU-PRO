@@ -1,0 +1,23 @@
+{
+  "name": "projects/vtc-frota-log/databases/(default)/operations/ASA2MDhkNzU2NTJjMTktZjI4YS1mMjA0LTFiN2MtMWFmMjk1ZmMkGnNlbmlsZXBpcAkKMxI",
+  "metadata": {
+    "@type": "type.googleapis.com/google.firestore.admin.v1.ExportDocumentsMetadata",
+    "startTime": "2026-10-27T11:52:05.095869Z",
+    "endTime": "2026-10-27T11:53:04.925479Z",
+    "operationState": "SUCCESSFUL",
+    "progressDocuments": {
+      "estimatedWork": "20954",
+      "completedWork": "21226"
+    },
+    "progressBytes": {
+      "estimatedWork": "34877237",
+      "completedWork": "41364274"
+    },
+    "outputUriPrefix": "gs://vtc-frota-log-rollout-backups/before-rollout-2026-10-27"
+  },
+  "done": true,
+  "response": {
+    "@type": "type.googleapis.com/google.firestore.admin.v1.ExportDocumentsResponse",
+    "outputUriPrefix": "gs://vtc-frota-log-rollout-backups/before-rollout-2026-10-27"
+  }
+}

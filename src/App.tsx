@@ -1,9 +1,20 @@
+import { WorkspaceSwipeNavigation } from "./components/WorkspaceSwipeNavigation";
+import { cacheProfileCover, startProfileCoverSync } from "./services/profileCoverService";
+import { getProfileCover } from "./services/profileCoverStore";
+import { resolveProfileCover } from "./lib/profileCover";
+import { activateDisplayViewer, cacheDisplayImage, hydrateDisplayImages } from "./services/displayImageStore";
+import { preloadImage } from "./lib/imageCache";
+import { startCompanyDescriptionSync } from "./services/companyDescriptionService";
+import { WorkspaceScrollMemory } from "./components/common/WorkspaceScrollMemory";
+import { AutomaticOperationsProvider } from "./contexts/AutomaticOperationsProvider";
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Toaster } from "sonner";
+import NotificationNavigationListener from "./components/NotificationNavigationListener";
 import NotificationToastListener from "./components/NotificationToastListener";
+import OfflineSyncToastListener from "./components/OfflineSyncToastListener";
 import InitialBootOverlay from "./components/common/InitialBootOverlay";
 import RoleTransitionOverlay from "./components/common/RoleTransitionOverlay";
 import LiveUpdateStatus from "./components/common/LiveUpdateStatus";
@@ -25,6 +36,7 @@ import { membershipHasRole } from "./lib/membershipRoles";
 import { writeBatch, doc } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { getRuntimePerformanceProfile } from "./lib/runtimePerformance";
+import { isMobileWebAndroidLike } from "./lib/mobileWebRuntime";
 import { announceForegroundRoute } from "./lib/foregroundRoute";
 import { markSessionBootEvent } from "./lib/sessionBootTelemetry";
 import { markProfilePerf } from "./lib/profilePerformanceTelemetry";
@@ -113,7 +125,7 @@ const RouteLoading = ({
   return (
     <div
       data-nvu-route-loading
-      className={`${fullPage ? "min-h-screen" : "min-h-[38vh]"} relative flex items-center justify-center bg-gray-50 dark:bg-[#09090b]`}
+      className={`${fullPage ? "min-h-screen" : "min-h-[38vh]"} relative flex items-center justify-center bg-gray-50 dark:bg-nvu-page`}
       role="status"
       aria-live="polite"
     >
@@ -146,7 +158,6 @@ const LazyRoute = ({
   </Suspense>
 );
 
-const routeScrollPositions = new Map<string, number>();
 
 /**
  * Persists the last valid in-app section and restores it only after the current
@@ -180,40 +191,11 @@ const SessionRouteMemory = () => {
   return null;
 };
 
-/** Restores the exact scroll position on browser/Android Back without waiting
- * for data effects. New forward navigations start at the top. */
+/** Scope scroll offsets to the signed-in company, including route-state pages. */
 const RouteScrollMemory = () => {
-  const location = useLocation();
-  const navigationType = useNavigationType();
-  const routeKey = `${location.pathname}${location.search}`;
-  const previousRouteKeyRef = useRef(routeKey);
-
-  useEffect(() => {
-    const previousRestoration = window.history.scrollRestoration;
-    window.history.scrollRestoration = "manual";
-    return () => {
-      window.history.scrollRestoration = previousRestoration;
-    };
-  }, []);
-
-  useLayoutEffect(() => {
-    const isSameRoute = previousRouteKeyRef.current === routeKey;
-    const target = isSameRoute
-      ? window.scrollY
-      : navigationType === "POP"
-        ? routeScrollPositions.get(routeKey) ?? 0
-        : 0;
-    previousRouteKeyRef.current = routeKey;
-    // Restore scroll in the same layout commit. Waiting for a frame left the
-    // previous page's position visible after Back in mobile WebViews.
-    window.scrollTo({ top: target, behavior: "auto" });
-
-    return () => {
-      routeScrollPositions.set(routeKey, window.scrollY);
-    };
-  }, [location.key, navigationType, routeKey]);
-
-  return null;
+  const { currentUser } = useAuthSession();
+  const { activeCompanyId } = useMembershipSession();
+  return <WorkspaceScrollMemory scope={`${currentUser?.id || "guest"}:${activeCompanyId || ""}`} />;
 };
 
 const RouteWarmup = ({ pathname }: { pathname: string }) => {
@@ -260,6 +242,34 @@ const RouteWarmup = ({ pathname }: { pathname: string }) => {
   const identityImageSignature = identityImages.join("|");
 
   useLayoutEffect(() => {
+    activateDisplayViewer(currentUser?.id || "public");
+    return onAuthTeardown(() => activateDisplayViewer("public"));
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const uid = currentUser.id;
+    // Hydrate disk bytes while the driver is still filling the trip form,
+    // before History/Profile mounts. No waiting for the destination page.
+    void hydrateDisplayImages(uid);
+    identityImages.forEach(url => { void cacheDisplayImage(uid, url); });
+    const warmCover = async (scope: "driver" | "company", profileId: string, profile: unknown) => {
+      const target = { scope, profileId };
+      const cached = await getProfileCover(uid, target);
+      if (cached?.imageDataUrl) void preloadImage(cached.imageDataUrl, "high");
+      const known = resolveProfileCover(profile);
+      if (known.url) {
+        await cacheProfileCover(uid, target, known);
+        const saved = await getProfileCover(uid, target);
+        if (saved?.imageDataUrl) void preloadImage(saved.imageDataUrl, "high");
+      }
+    };
+    void warmCover("driver", uid, currentUser).catch(() => undefined);
+    if (activeCompany?.id) void warmCover("company", activeCompany.id, activeCompany).catch(() => undefined);
+  }, [currentUser?.id, (currentUser as any)?.profileCoverURL, (currentUser as any)?.profileCoverRevision,
+    activeCompany?.id, (activeCompany as any)?.profileCoverURL, (activeCompany as any)?.profileCoverRevision, identityImageSignature]);
+
+  useLayoutEffect(() => {
     if (!authInitialized || !currentUser) return;
 
     // SelectProfile remains interaction-first: preload only the two primary
@@ -271,10 +281,6 @@ const RouteWarmup = ({ pathname }: { pathname: string }) => {
     if (pathname === "/select-profile" && currentUser) {
       void preloadRoute("/admin/fleet").catch(() => undefined);
       void preloadRoute("/driver/profile").catch(() => undefined);
-    } else if (activeRole && !holdSpeculativeWarmup) {
-      void preloadRoute(
-        activeRole === "admin" ? "/admin/fleet" : "/driver/profile",
-      );
     }
   }, [
     activeRole,
@@ -369,22 +375,19 @@ const RouteWarmup = ({ pathname }: { pathname: string }) => {
   ]);
 
   useEffect(() => {
+    const nativeLocalCode = Capacitor.isNativePlatform();
     if (
       !authInitialized ||
       !sessionUiReady ||
-      !activeRole ||
-      holdSpeculativeWarmup
+      (!activeRole && !(nativeLocalCode && pathname === "/select-profile")) ||
+      (holdSpeculativeWarmup && !(nativeLocalCode && pathname === "/select-profile"))
     ) return;
 
-    void preloadRoute(
-      activeRole === "admin" ? "/admin/fleet" : "/driver/profile",
-    );
-
     const runtime = getRuntimePerformanceProfile();
-    if (!runtime.allowSecondaryRouteWarmup) return;
+    if (!runtime.allowSecondaryRouteWarmup && !nativeLocalCode) return;
 
     const warmRoutes = () => {
-      void preloadRoleRoutes(activeRole);
+      void preloadRoleRoutes(activeRole || "driver");
     };
     const idleApi = window as Window & {
       requestIdleCallback?: (
@@ -403,7 +406,7 @@ const RouteWarmup = ({ pathname }: { pathname: string }) => {
         return;
       }
       warmRoutes();
-    }, runtime.mobileViewport ? 3200 : 1400);
+    }, nativeLocalCode ? 150 : runtime.mobileViewport ? 3200 : 1400);
 
     return () => {
       window.clearTimeout(timer);
@@ -414,6 +417,7 @@ const RouteWarmup = ({ pathname }: { pathname: string }) => {
     sessionUiReady,
     activeRole,
     holdSpeculativeWarmup,
+    pathname,
   ]);
 
   return null;
@@ -454,17 +458,10 @@ const DeferredRankingWarmup = ({ pathname }: { pathname: string }) => {
       if (!cancelled) setEnabled(true);
     };
 
-    // The Android WebView must start the critical ranking warmup immediately.
-    // Delaying it by rankingWarmupDelayMs makes the route open on a skeleton
-    // even though the authenticated session and shared caches are already
-    // available. Speculative background work remains constrained inside the
-    // warmup component; only the critical trip/profile listeners start now.
-    if (Capacitor.isNativePlatform()) {
-      enable();
-      return () => {
-        cancelled = true;
-      };
-    }
+    // Code-only hot routes are warmed separately. On constrained devices the
+    // hidden ranking must not open history/profile listeners during operation
+    // entry; the ranking page owns its visible reads and persistent snapshot.
+    if (!runtime.allowRankingWarmup) { setEnabled(false); return; }
 
     const idleApi = window as Window & {
       requestIdleCallback?: (
@@ -637,21 +634,6 @@ const ProtectedRoute = ({
   return <>{children}</>;
 };
 
-function RankingShellRoute() {
-  const { currentUser } = useSessionStore();
-  const { activeRole } = useProfileSession();
-
-  if (!currentUser?.id) return <Navigate to="/login" replace />;
-  if (activeRole !== "admin" && activeRole !== "driver") {
-    return <Navigate to="/select-profile" replace />;
-  }
-
-  const ranking = <RankingGlobal />;
-  return activeRole === "admin"
-    ? <LazyRoute fullPage><AdminLayout>{ranking}</AdminLayout></LazyRoute>
-    : <LazyRoute fullPage><DriverLayout>{ranking}</DriverLayout></LazyRoute>;
-}
-
 function AppRouteContent() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -792,8 +774,11 @@ function AppRouteContent() {
       <RouteWarmup pathname={location.pathname} />
       <DeferredRankingWarmup pathname={location.pathname} />
       <NotificationToastListener />
+      <NotificationNavigationListener />
+      <OfflineSyncToastListener />
       <RoleTransitionOverlay />
       <RouteScrollMemory />
+      <WorkspaceSwipeNavigation />
       <Routes location={backgroundLocation ?? location}>
         {/* Public Routes */}
         <Route path="/" element={<LazyRoute fullPage><Portal /></LazyRoute>} />
@@ -819,7 +804,7 @@ function AppRouteContent() {
           }
         >
           <Route index element={<Navigate to="fleet" replace />} />
-          <Route path="fleet" element={<LazyRoute><AdminFleet /></LazyRoute>} />
+          <Route path="fleet" element={<AdminFleet />} />
           <Route path="operations" element={<Navigate to="fleet" replace />} />
           <Route path="assign" element={<LazyRoute><AssignJob /></LazyRoute>} />
           <Route path="add-driver" element={<LazyRoute><AddDriver /></LazyRoute>} />
@@ -827,15 +812,15 @@ function AppRouteContent() {
           <Route path="contract/:id" element={<LazyRoute><ContractDetailsPage /></LazyRoute>} />
           <Route path="contract/:id/edit" element={<LazyRoute><ManageContract /></LazyRoute>} />
           <Route path="senior" element={<LazyRoute><SeniorPanel /></LazyRoute>} />
-          <Route path="reports" element={<LazyRoute><Reports /></LazyRoute>} />
-          <Route path="history" element={<LazyRoute><TripHistory /></LazyRoute>} />
-          <Route path="news" element={<LazyRoute><NewsFeed /></LazyRoute>} />
+          <Route path="reports" element={<Reports />} />
+          <Route path="history" element={<TripHistory />} />
+          <Route path="news" element={<NewsFeed />} />
           <Route path="manual" element={<LazyRoute><Manual /></LazyRoute>} />
           <Route path="driver/:id" element={<LazyRoute><DriverProfileIsolated /></LazyRoute>} />
         </Route>
 
         {/* Driver Routes */}
-        <Route path="/ranking" element={<RankingShellRoute />} />
+        <Route path="/ranking" element={<LazyRoute fullPage><RankingGlobal /></LazyRoute>} />
         <Route
           path="/driver"
           element={
@@ -845,12 +830,12 @@ function AppRouteContent() {
           }
         >
           <Route index element={<Navigate to="profile" replace />} />
-          <Route path="profile" element={<LazyRoute><DriverProfile /></LazyRoute>} />
+          <Route path="profile" element={<DriverProfile />} />
           <Route path="join" element={<LazyRoute><JoinCompany /></LazyRoute>} />
           <Route path="trip" element={<LazyRoute><RecordTrip /></LazyRoute>} />
-          <Route path="history" element={<LazyRoute><TripHistory /></LazyRoute>} />
-          <Route path="news" element={<LazyRoute><NewsFeed /></LazyRoute>} />
-          <Route path="reports" element={<LazyRoute><Reports /></LazyRoute>} />
+          <Route path="history" element={<TripHistory />} />
+          <Route path="news" element={<NewsFeed />} />
+          <Route path="reports" element={<Reports />} />
           <Route path="manual" element={<LazyRoute><Manual /></LazyRoute>} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -862,8 +847,8 @@ function AppRouteContent() {
             element={
               <Suspense fallback={null}>
                 <div className={cn(
-                  "nvu-ranking-overlay fixed inset-0 z-[2000] overflow-y-auto overscroll-contain bg-gray-50 dark:bg-[#09090b]",
-                  Capacitor.isNativePlatform() && "nvu-native-android",
+                  "nvu-ranking-overlay fixed inset-0 z-[2000] overflow-y-auto overscroll-contain bg-gray-50 dark:bg-nvu-page",
+                  (Capacitor.isNativePlatform() || isMobileWebAndroidLike()) && "nvu-native-android",
                 )}>
                   <RankingGlobal />
                 </div>
@@ -1056,6 +1041,8 @@ const CLIENT_MIGRATIONS_ENABLED =
   String(import.meta.env.VITE_ENABLE_CLIENT_MIGRATIONS).toLowerCase() === "true";
 
 export default function App() {
+  useEffect(() => startProfileCoverSync(), []);
+  useEffect(() => startCompanyDescriptionSync(), []);
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
@@ -1113,6 +1100,7 @@ export default function App() {
         <MembershipProvider>
           <ProfileSessionProvider>
             <OperationalDataProvider>
+              <AutomaticOperationsProvider>
               <InitialBootOverlay />
               {CLIENT_MIGRATIONS_ENABLED && (
                 <>
@@ -1123,6 +1111,7 @@ export default function App() {
               <Toaster position="top-right" richColors />
               <LiveUpdateStatus />
               <AppRoutes />
+              </AutomaticOperationsProvider>
             </OperationalDataProvider>
           </ProfileSessionProvider>
         </MembershipProvider>

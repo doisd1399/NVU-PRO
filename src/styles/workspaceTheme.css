@@ -1,0 +1,88 @@
+:root { --nvu-page-description-size: 11px; --nvu-page-description-gap: 18px; }
+.nvu-page-description { font-size: var(--nvu-page-description-size); line-height: 1.4; }
+@font-face { font-family:"NVU Management"; src:url("/assets/ranking-podium/fonts/roboto-700.woff2") format("woff2"); font-weight:600 900; font-style:normal; font-display:swap; }
+/* Shared neutral palette. Semantic success, warning and medal colors stay distinct. */
+:root:root:not(.dark) {
+  --nvu-page:#f5f8fa; --nvu-surface:#ffffff; --nvu-strip:#edf2f5; --nvu-line:#dce5eb;
+  --nvu-dock:#e1eaf0; --nvu-dock-line:#cfdae3;
+  --nvu-text:#182332; --nvu-muted:#65758a; --nvu-accent:#00b9cc; --nvu-accent-soft:#e0f7fa;
+}
+/* Dark colors live in index.css so dialogs outside a workspace use the same
+   tokens. Light colors retain this approved workspace palette. */
+body .nvu-workspace-theme, body .nvu-driver-workspace, body .nvu-workspace-shell, body .nvu-ranking-page {
+  --driver-page:var(--nvu-page); --driver-paper:var(--nvu-surface); --driver-strip:var(--nvu-strip);
+  --driver-dock:var(--nvu-dock); --driver-text:var(--nvu-text); --driver-muted:var(--nvu-muted);
+  --driver-line:var(--nvu-line); --driver-accent:var(--nvu-accent);
+  color:var(--nvu-text);
+}
+body .nvu-workspace-shell, body .nvu-ranking-page, body .nvu-driver-workspace { background-color:var(--nvu-page) !important; }
+body .nvu-gamer-ranking, body .nvu-premium-podium, body .nvu-gamer-leaderboard {
+  --gamer-bg:var(--nvu-page); --gamer-panel:var(--nvu-surface); --gamer-panel-soft:var(--nvu-strip);
+  --gamer-text:var(--nvu-text); --gamer-muted:var(--nvu-muted); --gamer-border:var(--nvu-line);
+  --gamer-accent:var(--nvu-accent); --gamer-accent-bright:var(--nvu-accent);
+  --gamer-accent-soft:var(--nvu-accent-soft); --gamer-leader-bg:var(--nvu-surface);
+}
+:where(:root:not(.dark)) body :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="bg-white"],[class~="dark:bg-[#1A1F26]"],[class~="dark:bg-[#1a1f26]"]) { background-color:var(--nvu-surface) !important; }
+:where(:root:not(.dark)) body :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="bg-gray-50"],[class~="bg-slate-50"],[class~="dark:bg-[#10151c]"]) { background-color:var(--nvu-page) !important; }
+:where(:root:not(.dark)) body :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="bg-slate-100"],[class~="bg-gray-100"],[class~="dark:bg-[#2A2F3A]"]) { background-color:var(--nvu-strip) !important; }
+:where(:root:not(.dark)) body :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="border-slate-200"],[class~="border-gray-200"],[class~="border-gray-100"],[class~="border-slate-100"]) { border-color:var(--nvu-line) !important; }
+:where(:root:not(.dark)) body :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="text-slate-900"],[class~="text-gray-900"],[class~="text-slate-950"]) { color:var(--nvu-text) !important; }
+:where(:root:not(.dark)) body :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="text-slate-500"],[class~="text-gray-500"],[class~="text-slate-400"]) { color:var(--nvu-muted) !important; }
+body .nvu-wordmark {
+  display:inline-block; font-family:"NVU Management",Roboto,system-ui,sans-serif !important;
+  font-size:18px !important; line-height:1 !important; font-weight:700 !important; letter-spacing:-.025em !important;
+  color:inherit;
+}
+body .nvu-ranking-app-header { background:var(--nvu-page) !important; color:var(--nvu-text) !important; border:0 !important; }
+body .nvu-workspace-page-heading .nvu-workspace-page-title { text-align:center; padding:8px 0 4px; }
+body .nvu-workspace-page-heading h1 { text-align:center; font-size:24px; line-height:1.25; }
+body .nvu-workspace-page-heading .nvu-workspace-page-title > p { display:table; max-width:100%; margin:7px auto 0; padding:4px 10px; border:1px solid var(--nvu-line); border-radius:9px; background:var(--nvu-surface); color:var(--nvu-muted); font-size:var(--nvu-page-description-size); line-height:1.4; text-align:center; }
+body .nvu-central-company-row { width:100%; margin:12px 0 0; padding:0; min-height:38px; }
+body .nvu-central-company-name { flex:1; min-width:0; }
+body .nvu-central-simulator { position:static; align-self:center; min-height:34px; }
+.nvu-central-section-heading { padding:15px 12px 12px; }
+.nvu-central-actions .nvu-central-section-heading { padding-bottom:11px; }
+.nvu-central-summary-body { padding-top:2px; }
+.nvu-central-cache-status { padding:6px 10px; margin:0 0 8px; border-radius:8px; font-size:11px; color:var(--nvu-muted); background:var(--nvu-surface); }
+.nvu-fleet-assets-switch { display:flex; gap:4px; padding:4px; margin:4px 0 12px; border:1px solid var(--nvu-line); border-radius:12px; background:var(--nvu-strip); }
+.nvu-fleet-assets-switch button { display:flex; flex:1; justify-content:center; align-items:center; gap:8px; min-height:38px; padding:8px; border-radius:9px; color:var(--nvu-muted); font-size:13px; }
+.nvu-fleet-assets-switch button[aria-pressed="true"] { color:var(--nvu-text); background:var(--nvu-surface); }
+[data-nvu-panel-active="false"][hidden] { display:none !important; }
+.nvu-company-profile-page { padding-bottom:12px; }
+.nvu-company-profile-page .nvu-profile-stack { width:100%; padding:0 14px; }
+body .nvu-company-profile-route .nvu-admin-shell-content { padding-top:0 !important; }
+body .nvu-company-profile-route .nvu-admin-shell-content > main > div:first-child { padding:0 !important; }
+body .nvu-workspace-shell.nvu-company-profile-route .nvu-admin-header {
+  --profile-header-color:color-mix(in srgb,#fff calc((1 - var(--nvu-chrome-progress,0)) * 100%),var(--nvu-text));
+  height:calc(44px + var(--nvu-safe-top,env(safe-area-inset-top,0px))) !important;
+  padding:var(--nvu-safe-top,env(safe-area-inset-top,0px)) 16px 0 !important;
+  background:color-mix(in srgb,var(--nvu-page) calc(var(--nvu-chrome-progress,0) * 100%),transparent) !important;
+  border:0 !important; box-shadow:none !important; color:var(--profile-header-color) !important;
+}
+body .nvu-company-profile-route .nvu-admin-header :is(button,svg,[data-nvu-layout-brand],.nvu-wordmark) { color:var(--profile-header-color) !important; }
+body .nvu-company-profile-route .nvu-admin-header > div > button { background:transparent !important; }
+body .nvu-company-profile-page .nvu-profile-hero { margin-top:0 !important; }
+html, body, #root { background:var(--nvu-page) !important; }
+
+body .nvu-workspace-shell .nvu-driver-workspace .nvu-profile-stack .nvu-profile-hero { margin-top:0 !important; }
+
+body .nvu-workspace-shell.nvu-native-android:not(.nvu-company-profile-route):not(.nvu-native-profile-route) :is(.nvu-admin-header,.nvu-profile-native-header) {
+  background:var(--nvu-page) !important; color:var(--nvu-text) !important; border-color:var(--nvu-line) !important;
+}
+body .nvu-workspace-shell.nvu-native-android:not(.nvu-company-profile-route):not(.nvu-native-profile-route) :is(.nvu-admin-header,.nvu-profile-native-header) :is(button,svg,[data-nvu-layout-brand]) { color:var(--nvu-text) !important; }
+body .nvu-simulator-modal { background-color:var(--nvu-surface); color:var(--nvu-text); }
+
+body :is(.nvu-workspace-shell,.nvu-ranking-page) .nvu-driver-dock.nvu-workspace-theme {
+  background:var(--nvu-dock) !important; border:1px solid var(--nvu-dock-line); box-shadow:none;
+}
+/* The shell owns the single clearance for the fixed dock. */
+body .nvu-workspace-shell .nvu-admin-shell-content > main { min-height:0; }
+body .nvu-workspace-shell .nvu-native-main { min-height:0; }
+body .nvu-workspace-shell .nvu-central-stack { padding-bottom:12px; }
+body .nvu-workspace-shell :is(.nvu-driver-surface,.nvu-company-surface) { min-height:0; }
+body .nvu-workspace-shell .nvu-driver-page-heading[data-page="dashboard"] { text-align:center; }
+body .nvu-workspace-shell .nvu-central-jobs .nvu-central-section-toggle { padding:14px 12px 13px; align-items:center; }
+body .nvu-workspace-shell .nvu-central-jobs .nvu-central-subtitle { margin-top:5px; line-height:1.4; }
+.nvu-central-goal-feedback { display:flex; align-items:center; gap:8px 10px; margin-top:8px; }
+.nvu-central-goal-feedback > .nvu-central-goal-error { flex:1; min-width:0; margin:0; }
+.nvu-central-goal-feedback > button { flex:none; margin-left:auto; min-height:28px; padding:4px 8px; color:var(--nvu-text); border:1px solid var(--nvu-line); border-radius:7px; background:var(--nvu-surface); font-size:10px; line-height:1.3; }

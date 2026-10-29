@@ -1,20 +1,33 @@
 import { getNomeContratoHistorico } from "./utils";
-import { getJobRealTimestamp } from "./utils";
+import { indexConfirmedOperationTripDates, operationJobTimestamp } from "./operationResultSummary";
 import { isOpenJobStatus } from "./jobStatus";
+import { buildClientOperationProjection } from "../application/operation/operationProjectionSelectors";
 
 export function getDriverLevelData(driverId: string, jobs: any[], contracts: any[], historicoTrips: any[] = []) {
+    const dates = indexConfirmedOperationTripDates(historicoTrips, driverId);
+    const tripsByJob = new Map<string, any[]>();
+    for (const trip of historicoTrips) {
+        const id = String(trip.jobId || "");
+        const trips = tripsByJob.get(id) || [];
+        trips.push(trip);
+        tripsByJob.set(id, trips);
+    }
+    const contractsById = new Map(contracts.map(contract => [contract.id, contract]));
+    const countConfirmedTrips = (job: any): number =>
+        buildClientOperationProjection(job, tripsByJob.get(job.id) || [])?.confirmedTripCount ?? 0;
+
     const allCompletedJobs = jobs.filter(
         (j) => j.driverId === driverId && j.status === "completed",
     ).sort((a, b) => {
-        const tsA = getJobRealTimestamp(a, historicoTrips);
-        const tsB = getJobRealTimestamp(b, historicoTrips);
+        const tsA = operationJobTimestamp(a, dates);
+        const tsB = operationJobTimestamp(b, dates);
         
         if (tsB !== tsA) {
             return tsB - tsA;
         }
 
-        const contractA = getNomeContratoHistorico(a, contracts.find((c) => c.id === a.contractId));
-        const contractB = getNomeContratoHistorico(b, contracts.find((c) => c.id === b.contractId));
+        const contractA = getNomeContratoHistorico(a, contractsById.get(a.contractId));
+        const contractB = getNomeContratoHistorico(b, contractsById.get(b.contractId));
         return contractA.localeCompare(contractB);
     });
 
@@ -36,8 +49,8 @@ export function getDriverLevelData(driverId: string, jobs: any[], contracts: any
     const activeJob = validActiveJobs[0] || null;
 
     const totalDeliveries =
-        allCompletedJobs.reduce((acc, job) => acc + (Number(job.progress) || 0), 0) +
-        (activeJob ? (Number(activeJob.progress) || 0) : 0);
+        allCompletedJobs.reduce((acc, job) => acc + countConfirmedTrips(job), 0) +
+        (activeJob ? countConfirmedTrips(activeJob) : 0);
 
     const xp = totalDeliveries * 150 + allCompletedJobs.length * 50;
     const calculatedLevel = Math.floor(xp / 1000) + 1;

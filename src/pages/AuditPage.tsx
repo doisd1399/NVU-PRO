@@ -1,13 +1,30 @@
 import React, { useEffect, useState } from "react";
 import { useCompanyStore } from "../context/CompanyContext";
-import { useSessionStore } from "../context/AppContext";
+import { useOperationalStore, useSessionStore } from "../context/AppContext";
 import { getFilteredTrips } from "../lib/metricsEngine";
 import { normalizeTrip } from "../lib/tripNormalizer";
 import { useTripHistory } from "../hooks/useTripHistory";
+import { summarizeTripMoney } from "../lib/tripMoneySummary";
+
+function formatMoneyGroups(trips: any[]): string {
+  const groups = summarizeTripMoney(trips);
+  if (!groups.length) return "—";
+  return groups.map((group) => {
+    if (group.currencyStatus === "known" && group.currency) {
+      const value = group.value === null
+        ? "valor indisponível"
+        : new Intl.NumberFormat("pt-BR", { style: "currency", currency: group.currency }).format(group.value);
+      return `${value} ${group.currency} (${group.tripCount} viagens${group.missingValueTrips ? `, ${group.missingValueTrips} sem valor` : ""})`;
+    }
+    const status = group.currencyStatus === "conflict" ? "CONFLICT" : "UNKNOWN";
+    return `${status} (${group.tripCount} viagens)`;
+  }).join(" · ");
+}
 
 export default function AuditPage() {
   const { companies, activeCompanyId } = useCompanyStore();
   const { currentUser } = useSessionStore();
+  const { simulators = [] } = useOperationalStore();
   const { historicoTrips = [] } = useTripHistory(activeCompanyId, {
     userId: currentUser?.id,
   });
@@ -34,7 +51,8 @@ export default function AuditPage() {
         dcId,
         "Todos os simuladores",
         companies,
-        "Todos os Motoristas"
+        "Todos os Motoristas",
+        simulators
       );
 
       // Reproduzindo o getCustomRange original (sem a correção)
@@ -55,17 +73,18 @@ export default function AuditPage() {
         dcId,
         "Todos os simuladores",
         companies,
-        undefined
+        undefined,
+        simulators
       );
 
-      const tableData: Record<string, { histTrips: number; rankTrips: number; diff: number; histVal: number; rankVal: number }> = {};
+      const tableData: Record<string, { histTrips: number; rankTrips: number; diff: number; histMoneyTrips: any[]; rankMoneyTrips: any[] }> = {};
       
       for (let d = 31; d <= 31; d++) {
-        tableData[`31/05/2026`] = { histTrips: 0, rankTrips: 0, diff: 0, histVal: 0, rankVal: 0 };
+        tableData[`31/05/2026`] = { histTrips: 0, rankTrips: 0, diff: 0, histMoneyTrips: [], rankMoneyTrips: [] };
       }
       for (let d = 1; d <= 30; d++) {
         const dStr = `${d.toString().padStart(2, '0')}/06/2026`;
-        tableData[dStr] = { histTrips: 0, rankTrips: 0, diff: 0, histVal: 0, rankVal: 0 };
+        tableData[dStr] = { histTrips: 0, rankTrips: 0, diff: 0, histMoneyTrips: [], rankMoneyTrips: [] };
       }
 
       const getDateStr = (timestamp: number) => {
@@ -75,16 +94,16 @@ export default function AuditPage() {
 
       for (const t of histTrips) {
         const str = getDateStr(t.normalizedDataJob);
-        if (!tableData[str]) tableData[str] = { histTrips: 0, rankTrips: 0, diff: 0, histVal: 0, rankVal: 0 };
+        if (!tableData[str]) tableData[str] = { histTrips: 0, rankTrips: 0, diff: 0, histMoneyTrips: [], rankMoneyTrips: [] };
         tableData[str].histTrips++;
-        tableData[str].histVal += t.normalizedValor;
+        tableData[str].histMoneyTrips.push(t);
       }
 
       for (const t of rankingTrips) {
         const str = getDateStr(t.normalizedDataJob);
-        if (!tableData[str]) tableData[str] = { histTrips: 0, rankTrips: 0, diff: 0, histVal: 0, rankVal: 0 };
+        if (!tableData[str]) tableData[str] = { histTrips: 0, rankTrips: 0, diff: 0, histMoneyTrips: [], rankMoneyTrips: [] };
         tableData[str].rankTrips++;
-        tableData[str].rankVal += t.normalizedValor;
+        tableData[str].rankMoneyTrips.push(t);
       }
 
       let relatorio = `Data | Qtd Histórico | Qtd Ranking | Diferença | Valor Histórico | Valor Ranking\n`;
@@ -109,7 +128,7 @@ export default function AuditPage() {
         totalDiff += data.diff;
 
         if (data.histTrips > 0 || data.rankTrips > 0) {
-           relatorio += `${date} | ${data.histTrips} | ${data.rankTrips} | ${data.diff} | R$ ${data.histVal.toFixed(2)} | R$ ${data.rankVal.toFixed(2)}\n`;
+           relatorio += `${date} | ${data.histTrips} | ${data.rankTrips} | ${data.diff} | ${formatMoneyGroups(data.histMoneyTrips)} | ${formatMoneyGroups(data.rankMoneyTrips)}\n`;
         }
       }
 
@@ -130,10 +149,10 @@ export default function AuditPage() {
     } catch (err: any) {
       setReport("Erro na auditoria: " + err.message);
     }
-  }, [historicoTrips, companies]);
+  }, [historicoTrips, companies, simulators]);
 
   return (
-    <div className="p-8 bg-white dark:bg-black min-h-screen text-black dark:text-white">
+    <div className="p-8 bg-white dark:bg-nvu-page min-h-screen text-black dark:text-white">
       <h1 className="text-2xl font-bold mb-4">Auditoria</h1>
       <pre className="whitespace-pre-wrap font-mono text-sm">{report}</pre>
     </div>

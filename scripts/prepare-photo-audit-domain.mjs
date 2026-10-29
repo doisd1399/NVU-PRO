@@ -1,0 +1,3 @@
+import { build } from 'esbuild';
+await build({ stdin: { contents: 'export {rankingVehiclePhotoDocumentKey,vehiclePhotoDocumentKey,resolveVehiclePhotoSimulatorId,resolveVehiclePhotoOperationSimulatorId,resolveVehiclePhotoOperationSimulatorEvidence} from "./src/lib/vehiclePhotoIdentity"; export {selectCurrentOperationJob,operationAssignmentTimestamp,operationSelectionDriverId} from "./src/lib/currentOperation";', resolveDir: process.cwd(), loader: 'ts' }, outfile: 'functions/scripts/generated/photo-domain.mjs', bundle: true, platform: 'node', format: 'esm', target: 'node22' });
+console.log('Photo audit domain generated from the application identity and operation selectors.');

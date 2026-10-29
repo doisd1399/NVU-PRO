@@ -1,3 +1,4 @@
+import { CachedImage } from "../components/common/CachedImage";
 import { resolveSimulatorId } from "../lib/resolveSimulator";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -109,11 +110,8 @@ type RecruitmentFormData = {
   whatsapp: string;
   email: string;
   reason: string;
-  objective: string;
   deliveriesPerWeek: string;
   hasExperience: boolean;
-  primaryVehicle: string;
-  secondaryVehicle: string;
 };
 
 type RecruitmentIdentityLike = {
@@ -127,15 +125,12 @@ const buildRecruitmentDraft = (
   applicationPhotoURL: "",
   // Nome, WhatsApp, foto e respostas pertencem exclusivamente ao novo
   // formulário; não herdar identidade de uma inscrição anterior.
-  fullName: "",
+  fullName: identity?.displayName?.trim() || "",
   whatsapp: "",
   email: identity?.email?.trim() || "",
   reason: "",
-  objective: "",
   deliveriesPerWeek: "",
   hasExperience: false,
-  primaryVehicle: "",
-  secondaryVehicle: "",
 });
 
 const PENDING_RECRUITMENT_APPLICATION_ID_KEY =
@@ -147,7 +142,6 @@ export default function RecruitmentApply() {
   const { sessionUiReady, currentUser } = useSessionStore();
   const {
     allCompanies,
-    companiesLoading,
     companyCatalogLoaded,
     companyCatalogAttempted,
     loadCompanyCatalog,
@@ -170,8 +164,6 @@ export default function RecruitmentApply() {
     const directCompanyId = String(companyId || "").trim();
     if (!directCompanyId) {
       setDirectCompanyAttempted(true);
-      if (companyCatalogLoaded || companyCatalogAttempted) return;
-      void loadCompanyCatalog();
       return;
     }
 
@@ -215,11 +207,8 @@ export default function RecruitmentApply() {
     };
   }, [
     company?.id,
-    companyCatalogAttempted,
-    companyCatalogLoaded,
     companyId,
     loadCompanyById,
-    loadCompanyCatalog,
     selectedSimulatorId,
     simulators,
   ]);
@@ -248,6 +237,7 @@ export default function RecruitmentApply() {
   const [step, setStep] = useState(1); // 1 = info, 2 = form, 3 = success
   const [submitting, setSubmitting] = useState(false);
 
+
   const [formData, setFormData] = useState<RecruitmentFormData>(() =>
     buildRecruitmentDraft(null),
   );
@@ -255,9 +245,7 @@ export default function RecruitmentApply() {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageSelectionVersion = useRef(0);
-  const activeIdentityUid =
-    verifiedCurrentUser?.id || auth.currentUser?.uid || null;
-  const formScope = `${activeIdentityUid || ""}::${selectedCompanyId || companyId || ""}::${selectedSimulatorId || ""}`;
+  const formScope = `${selectedCompanyId || companyId || ""}`;
   const formScopeRef = useRef("");
 
   // A route can remain mounted while Firebase changes accounts or companies.
@@ -265,21 +253,14 @@ export default function RecruitmentApply() {
   useEffect(() => {
     if (formScopeRef.current === formScope) return;
     formScopeRef.current = formScope;
-    setGoogleUid(activeIdentityUid);
+    setGoogleUid(null);
     setSubmitting(false);
     setUploadingImage(false);
     setPhotoPreview(null);
     imageSelectionVersion.current += 1;
     setFormData(buildRecruitmentDraft(null));
     setStep(1);
-  }, [
-    activeIdentityUid,
-    auth.currentUser,
-    companyId,
-    formScope,
-    selectedCompanyId,
-    selectedSimulatorId,
-  ]);
+  }, [formScope]);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const input = e.currentTarget;
@@ -346,12 +327,19 @@ export default function RecruitmentApply() {
   );
 
   const hasDirectCompany = Boolean(String(companyId || "").trim());
+
+  // Only the general join page needs the public catalog. A direct company
+  // application reads that one company; neither route waits for unrelated loads.
+  useEffect(() => {
+    if (!hasDirectCompany && !companyCatalogAttempted) {
+      void loadCompanyCatalog();
+    }
+  }, [hasDirectCompany, companyCatalogAttempted, loadCompanyCatalog]);
   const directCompanyReady =
     !hasDirectCompany ||
     (directCompanyAttempted && !directCompanyLoading && Boolean(company));
   const formReady =
     !simulatorsLoading &&
-    !companiesLoading &&
     (hasDirectCompany ? directCompanyReady : companyCatalogAttempted);
 
   useEffect(() => {
@@ -374,12 +362,12 @@ export default function RecruitmentApply() {
     !company
   ) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#18181b] px-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-nvu-surface px-4 text-center">
         <Briefcase size={48} className="text-slate-300 mb-4" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
           Empresa não disponível
         </h1>
-        <p className="text-slate-500 dark:text-[#71717a] mb-6 max-w-sm">
+        <p className="text-slate-500 dark:text-nvu-muted mb-6 max-w-sm">
           Esta empresa não está disponível para novas inscrições.
         </p>
         <Button onClick={() => navigate("/")}>Voltar ao Início</Button>
@@ -390,13 +378,13 @@ export default function RecruitmentApply() {
   if (!formReady) {
     return (
       <div
-        className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-[#18181b]"
+        className="min-h-screen flex flex-col items-center justify-center gap-3 bg-slate-50 dark:bg-nvu-surface"
         role="status"
         aria-live="polite"
       >
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800 dark:border-slate-200"></div>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Carregando simuladores e empresas...
+        <p className="text-sm text-slate-500 dark:text-nvu-muted">
+          {hasDirectCompany ? "Carregando inscrição..." : "Carregando empresas disponíveis..."}
         </p>
       </div>
     );
@@ -404,14 +392,14 @@ export default function RecruitmentApply() {
 
   if (availableSimulators.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#18181b] px-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-nvu-surface px-4 text-center">
         <Gamepad2 size={48} className="text-slate-300 mb-4" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
           {simulatorsError
             ? "Falha ao carregar simuladores"
             : "Nenhum simulador disponível"}
         </h1>
-        <p className="text-slate-500 dark:text-[#71717a] mb-6 max-w-sm">
+        <p className="text-slate-500 dark:text-nvu-muted mb-6 max-w-sm">
           {simulatorsError
             ? "O Firebase não permitiu carregar a lista pública de simuladores. Verifique as regras publicadas do Firestore."
             : "Não há simuladores ativos disponíveis para novas inscrições no momento."}
@@ -423,12 +411,12 @@ export default function RecruitmentApply() {
 
   if (!hasDirectCompany && companyCatalogAttempted && !companyCatalogLoaded) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#18181b] px-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-nvu-surface px-4 text-center">
         <Briefcase size={48} className="text-slate-300 mb-4" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
           Falha ao carregar empresas
         </h1>
-        <p className="text-slate-500 dark:text-[#71717a] mb-6 max-w-sm">
+        <p className="text-slate-500 dark:text-nvu-muted mb-6 max-w-sm">
           Não foi possível carregar o catálogo público de empresas. Tente abrir
           esta página novamente.
         </p>
@@ -437,14 +425,14 @@ export default function RecruitmentApply() {
     );
   }
 
-  if (!hasDirectCompany && allCompanies.length === 0) {
+  if (!hasDirectCompany && companyCatalogLoaded && allCompanies.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-[#18181b] px-4 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-nvu-surface px-4 text-center">
         <Briefcase size={48} className="text-slate-300 mb-4" />
-        <h1 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+        <h1 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
           Nenhuma empresa encontrada
         </h1>
-        <p className="text-slate-500 dark:text-[#71717a] mb-6 max-w-sm">
+        <p className="text-slate-500 dark:text-nvu-muted mb-6 max-w-sm">
           Ainda não existem empresas cadastradas no sistema, ou houve um erro de
           permissão ao tentar carregar a lista pública de empresas.
         </p>
@@ -502,7 +490,7 @@ export default function RecruitmentApply() {
       >
         {!verifiedCurrentUser && (
           <svg
-            className="w-5 h-5 bg-white dark:bg-[#1A1F26] rounded-full p-0.5"
+            className="w-5 h-5 bg-white dark:bg-nvu-surface rounded-full p-0.5"
             viewBox="0 0 24 24"
           >
             <path
@@ -542,7 +530,7 @@ export default function RecruitmentApply() {
         alert("Você já faz parte desta empresa e não precisa enviar uma nova inscrição.");
         return;
       }
-      setFormData(buildRecruitmentDraft(null));
+      setFormData(buildRecruitmentDraft(auth.currentUser || verifiedCurrentUser));
       setGoogleUid(auth.currentUser?.uid || verifiedCurrentUser.id);
       setPhotoPreview(null);
       setStep(2);
@@ -565,7 +553,7 @@ export default function RecruitmentApply() {
         alert("Você já faz parte desta empresa e não precisa enviar uma nova inscrição.");
         return;
       }
-      setFormData(buildRecruitmentDraft(null));
+      setFormData(buildRecruitmentDraft(resultUser));
       setGoogleUid(resultUser.uid);
       setPhotoPreview(null);
       setStep(2);
@@ -703,6 +691,11 @@ export default function RecruitmentApply() {
         companyLogoURL: applicationCompanyLogoURL,
         simulatorName: applicationSimulatorName,
         ...formData,
+        // Legacy application fields remain required by the stored schema;
+        // this streamlined form does not ask these questions anymore.
+        objective: "",
+        primaryVehicle: "",
+        secondaryVehicle: "",
         userId: uid,
         email,
         applicationPhotoURL:
@@ -728,9 +721,9 @@ export default function RecruitmentApply() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex flex-col font-sans">
       <header
-        className="bg-white dark:bg-[#1A1F26] border-b border-slate-200 dark:border-[#2A2F3A] sticky top-0 z-10 transition-colors"
+        className="bg-white dark:bg-nvu-surface border-b border-slate-200 dark:border-nvu-line sticky top-0 z-10 transition-colors"
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
         <div className="max-w-5xl mx-auto px-4 sm:px-6 min-h-16 flex items-center justify-between">
@@ -745,16 +738,16 @@ export default function RecruitmentApply() {
                   navigate("/");
                 }
               }}
-              className="p-1.5 sm:p-2 flex shrink-0 items-center justify-center text-slate-500 hover:text-slate-900 dark:text-[#a1a1aa] dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-[#27272a]"
+              className="p-1.5 sm:p-2 flex shrink-0 items-center justify-center text-slate-500 hover:text-slate-900 dark:text-nvu-muted dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-nvu-strip"
               title="Voltar"
             >
               <ChevronLeft size={20} />
             </button>
             <div>
-              <h1 className="text-[15px] sm:text-[16px] font-bold text-slate-900 dark:text-[#fafafa] leading-tight tracking-tight">
+              <h1 className="text-[15px] sm:text-[16px] font-bold text-slate-900 dark:text-nvu-text leading-tight tracking-tight">
                 NVU
               </h1>
-              <p className="text-[11px] sm:text-[12px] font-medium text-slate-500 dark:text-[#a1a1aa]">
+              <p className="text-[11px] sm:text-[12px] font-medium text-slate-500 dark:text-nvu-muted">
                 Inscrição de motorista
               </p>
             </div>
@@ -762,7 +755,7 @@ export default function RecruitmentApply() {
           {step === 2 && (
             <button
               onClick={handleBack}
-              className="text-slate-500 hover:text-slate-900 dark:text-[#fafafa] flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold transition-colors bg-slate-100 dark:bg-[#27272a] hover:bg-slate-200 px-2.5 sm:px-3 py-1.5 rounded-lg shrink-0"
+              className="text-slate-500 hover:text-slate-900 dark:text-nvu-text flex items-center gap-1.5 text-[12px] sm:text-[13px] font-semibold transition-colors bg-slate-100 dark:bg-nvu-strip hover:bg-slate-200 px-2.5 sm:px-3 py-1.5 rounded-lg shrink-0"
             >
               <ChevronLeft size={14} />{" "}
               <span className="hidden sm:inline">Voltar</span>
@@ -781,18 +774,18 @@ export default function RecruitmentApply() {
                   className="text-blue-600 dark:text-blue-500"
                 />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-[#fafafa] tracking-tight mb-2">
+              <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-nvu-text tracking-tight mb-2">
                 Junte-se à Nossa Rede
               </h2>
-              <p className="text-slate-500 dark:text-[#a1a1aa] text-[15px]">
+              <p className="text-slate-500 dark:text-nvu-muted text-[15px]">
                 Selecione um simulador e a empresa para visualizar as vagas
                 disponíveis.
               </p>
             </div>
 
-            <div className="bg-white dark:bg-[#1A1F26] p-6 sm:p-7 rounded-[24px] border border-slate-200/60 dark:border-[#2A2F3A] shadow-xl shadow-slate-200/40 dark:shadow-none space-y-5">
+            <div className="bg-white dark:bg-nvu-surface p-6 sm:p-7 rounded-[24px] border border-slate-200/60 dark:border-nvu-line shadow-xl shadow-slate-200/40 dark:shadow-none space-y-5">
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-slate-700 dark:text-[#e4e4e7] ml-1">
+                <label className="text-[13px] font-semibold text-slate-700 dark:text-nvu-text-soft ml-1">
                   Simulador
                 </label>
                 <SafeSelect
@@ -813,7 +806,7 @@ export default function RecruitmentApply() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-slate-700 dark:text-[#e4e4e7] ml-1">
+                <label className="text-[13px] font-semibold text-slate-700 dark:text-nvu-text-soft ml-1">
                   Empresa
                 </label>
                 <SafeSelect
@@ -839,27 +832,27 @@ export default function RecruitmentApply() {
           <div className="flex flex-col lg:flex-row gap-6 sm:gap-8 items-start w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Left Column (Info / Progression) */}
             <div className="w-full lg:w-[320px] shrink-0 space-y-4">
-              <div className="bg-white dark:bg-[#1A1F26] rounded-2xl border border-slate-200 shadow-sm dark:shadow-none overflow-hidden pb-4">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-[#2A2F3A] bg-slate-50/50 dark:bg-[#09090b]/20">
-                  <h3 className="font-semibold text-slate-800 dark:text-[#f4f4f5] flex items-center gap-2">
+              <div className="bg-white dark:bg-nvu-surface rounded-2xl border border-slate-200 shadow-sm dark:shadow-none overflow-hidden pb-4">
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-nvu-line bg-slate-50/50 dark:bg-nvu-page/20">
+                  <h3 className="font-semibold text-slate-800 dark:text-nvu-text flex items-center gap-2">
                     <Briefcase size={16} className="text-slate-500" /> Vagas
                     Abertas
                   </h3>
                 </div>
                 <div className="px-5 pt-4">
-                  <p className="text-slate-900 dark:text-[#fafafa] font-semibold text-[15px] mb-1">
+                  <p className="text-slate-900 dark:text-nvu-text font-semibold text-[15px] mb-1">
                     Motorista
                   </p>
-                  <p className="text-slate-500 dark:text-[#a1a1aa] text-[14px] leading-relaxed">
+                  <p className="text-slate-500 dark:text-nvu-muted text-[14px] leading-relaxed">
                     Faça parte da operação logística de {company.companyName}.
                     Buscamos motoristas dedicados para nossas rotas.
                   </p>
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#1A1F26] rounded-2xl border border-slate-200 shadow-sm dark:shadow-none overflow-hidden pb-4">
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-[#2A2F3A] bg-slate-50/50 dark:bg-[#09090b]/20">
-                  <h3 className="font-semibold text-slate-800 dark:text-[#f4f4f5] flex items-center gap-2">
+              <div className="bg-white dark:bg-nvu-surface rounded-2xl border border-slate-200 shadow-sm dark:shadow-none overflow-hidden pb-4">
+                <div className="px-5 py-4 border-b border-slate-100 dark:border-nvu-line bg-slate-50/50 dark:bg-nvu-page/20">
+                  <h3 className="font-semibold text-slate-800 dark:text-nvu-text flex items-center gap-2">
                     <Navigation2 size={16} className="text-slate-500" /> Como
                     Funciona
                   </h3>
@@ -868,32 +861,32 @@ export default function RecruitmentApply() {
                   <div className="flex flex-col gap-4">
                     <div className="flex items-start gap-4">
                       <div
-                        className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.1)] ${step >= 1 ? "bg-blue-500" : "bg-slate-200 dark:bg-[#3f3f46]"}`}
+                        className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.1)] ${step >= 1 ? "bg-blue-500" : "bg-slate-200 dark:bg-nvu-strip"}`}
                       />
                       <p
-                        className={`text-[14px] font-medium leading-none ${step >= 1 ? "text-slate-900 dark:text-[#fafafa]" : "text-slate-500 dark:text-[#a1a1aa]"}`}
+                        className={`text-[14px] font-medium leading-none ${step >= 1 ? "text-slate-900 dark:text-nvu-text" : "text-slate-500 dark:text-nvu-muted"}`}
                       >
                         Escolher Empresa
                       </p>
                     </div>
-                    <div className="w-[2px] h-4 bg-slate-100 dark:bg-[#2A2F3A] ml-1.5 -my-2" />
+                    <div className="w-[2px] h-4 bg-slate-100 dark:bg-nvu-strip ml-1.5 -my-2" />
                     <div className="flex items-start gap-4">
                       <div
-                        className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.1)] ${step >= 2 ? "bg-blue-500" : "bg-slate-200 dark:bg-[#3f3f46]"}`}
+                        className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.1)] ${step >= 2 ? "bg-blue-500" : "bg-slate-200 dark:bg-nvu-strip"}`}
                       />
                       <p
-                        className={`text-[14px] font-medium leading-none ${step >= 2 ? "text-slate-900 dark:text-[#fafafa]" : "text-slate-500 dark:text-[#a1a1aa]"}`}
+                        className={`text-[14px] font-medium leading-none ${step >= 2 ? "text-slate-900 dark:text-nvu-text" : "text-slate-500 dark:text-nvu-muted"}`}
                       >
                         Preencher Perfil
                       </p>
                     </div>
-                    <div className="w-[2px] h-4 bg-slate-100 dark:bg-[#2A2F3A] ml-1.5 -my-2" />
+                    <div className="w-[2px] h-4 bg-slate-100 dark:bg-nvu-strip ml-1.5 -my-2" />
                     <div className="flex items-start gap-4">
                       <div
-                        className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.1)] ${step >= 3 ? "bg-blue-500" : "bg-slate-200 dark:bg-[#3f3f46]"}`}
+                        className={`mt-1 flex-shrink-0 w-3 h-3 rounded-full shadow-[0_0_0_4px_rgba(59,130,246,0.1)] ${step >= 3 ? "bg-blue-500" : "bg-slate-200 dark:bg-nvu-strip"}`}
                       />
                       <p
-                        className={`text-[14px] font-medium leading-none ${step >= 3 ? "text-slate-900 dark:text-[#fafafa]" : "text-slate-500 dark:text-[#a1a1aa]"}`}
+                        className={`text-[14px] font-medium leading-none ${step >= 3 ? "text-slate-900 dark:text-nvu-text" : "text-slate-500 dark:text-nvu-muted"}`}
                       >
                         Aguardar RH
                       </p>
@@ -910,23 +903,23 @@ export default function RecruitmentApply() {
                   {company ? (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                       {!hasSettings ? (
-                        <div className="bg-white dark:bg-[#1A1F26] p-8 sm:p-12 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none text-center flex flex-col items-center">
-                          <div className="w-16 h-16 bg-slate-50 dark:bg-[#18181b] border border-slate-100 dark:border-[#2A2F3A]/50 rounded-2xl mb-6 flex items-center justify-center">
+                        <div className="bg-white dark:bg-nvu-surface p-8 sm:p-12 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none text-center flex flex-col items-center">
+                          <div className="w-16 h-16 bg-slate-50 dark:bg-nvu-surface border border-slate-100 dark:border-nvu-line/50 rounded-2xl mb-6 flex items-center justify-center">
                             <FileText
                               size={28}
-                              className="text-slate-400 dark:text-[#71717a]"
+                              className="text-slate-400 dark:text-nvu-muted"
                             />
                           </div>
-                          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-[#fafafa] mb-3 tracking-tight">
+                          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-nvu-text mb-3 tracking-tight">
                             Candidatura Online
                           </h2>
-                          <p className="text-slate-500 dark:text-[#71717a] mb-8 max-w-sm text-[15px] leading-relaxed">
+                          <p className="text-slate-500 dark:text-nvu-muted mb-8 max-w-sm text-[15px] leading-relaxed">
                             A empresa não possui informações preenchidas. Inicie
                             seu processo conectando sua conta.
                           </p>
 
-                          <div className="w-full max-w-sm p-4 sm:p-5 border border-slate-200 dark:border-[#2A2F3A] rounded-xl bg-slate-50 dark:bg-[#18181b] mb-8 text-left space-y-3">
-                            <div className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-[#e4e4e7]">
+                          <div className="w-full max-w-sm p-4 sm:p-5 border border-slate-200 dark:border-nvu-line rounded-xl bg-slate-50 dark:bg-nvu-surface mb-8 text-left space-y-3">
+                            <div className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-nvu-text-soft">
                               <CheckCircle2
                                 size={16}
                                 className="text-emerald-500 shrink-0"
@@ -935,7 +928,7 @@ export default function RecruitmentApply() {
                                 Criação de perfil automático
                               </span>
                             </div>
-                            <div className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-[#e4e4e7]">
+                            <div className="flex items-center gap-3 text-sm font-medium text-slate-700 dark:text-nvu-text-soft">
                               <CheckCircle2
                                 size={16}
                                 className="text-emerald-500 shrink-0"
@@ -953,8 +946,8 @@ export default function RecruitmentApply() {
                       ) : (
                         <div className="space-y-4 sm:space-y-6">
                           {recruitmentSettings.about && (
-                            <div className="bg-white dark:bg-[#1A1F26] p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
-                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-[#fafafa] mb-4 flex items-center gap-2">
+                            <div className="bg-white dark:bg-nvu-surface p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
+                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-nvu-text mb-4 flex items-center gap-2">
                                 <Info size={18} className="text-slate-400" />{" "}
                                 Sobre a Empresa
                               </h2>
@@ -964,8 +957,8 @@ export default function RecruitmentApply() {
                             </div>
                           )}
                           {recruitmentSettings.rules && (
-                            <div className="bg-white dark:bg-[#1A1F26] p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
-                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-[#fafafa] mb-4 flex items-center gap-2">
+                            <div className="bg-white dark:bg-nvu-surface p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
+                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-nvu-text mb-4 flex items-center gap-2">
                                 <CheckCircle2
                                   size={18}
                                   className="text-slate-400"
@@ -978,8 +971,8 @@ export default function RecruitmentApply() {
                             </div>
                           )}
                           {recruitmentSettings.howItWorks && (
-                            <div className="bg-white dark:bg-[#1A1F26] p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
-                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-[#fafafa] mb-4 flex items-center gap-2">
+                            <div className="bg-white dark:bg-nvu-surface p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
+                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-nvu-text mb-4 flex items-center gap-2">
                                 <Navigation2
                                   size={18}
                                   className="text-slate-400"
@@ -994,8 +987,8 @@ export default function RecruitmentApply() {
                             </div>
                           )}
                           {recruitmentSettings.benefits && (
-                            <div className="bg-white dark:bg-[#1A1F26] p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
-                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-[#fafafa] mb-4 flex items-center gap-2">
+                            <div className="bg-white dark:bg-nvu-surface p-6 sm:p-7 rounded-2xl border border-slate-200 shadow-sm dark:shadow-none">
+                              <h2 className="text-[16px] font-bold text-slate-900 dark:text-nvu-text mb-4 flex items-center gap-2">
                                 <Star size={18} className="text-slate-400" />{" "}
                                 Benefícios
                               </h2>
@@ -1018,12 +1011,12 @@ export default function RecruitmentApply() {
               )}
 
               {step === 2 && (
-                <div className="bg-white dark:bg-[#1A1F26] p-6 sm:p-8 rounded-[24px] border border-slate-200/60 dark:border-[#2A2F3A] shadow-xl shadow-slate-200/40 dark:shadow-none animate-in fade-in slide-in-from-bottom-2 duration-500">
-                  <div className="mb-6 border-b border-slate-100 dark:border-[#2A2F3A]/50 pb-4">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] tracking-tight">
+                <div className="bg-white dark:bg-nvu-surface p-6 sm:p-8 rounded-[24px] border border-slate-200/60 dark:border-nvu-line shadow-xl shadow-slate-200/40 dark:shadow-none animate-in fade-in slide-in-from-bottom-2 duration-500">
+                  <div className="mb-6 border-b border-slate-100 dark:border-nvu-line/50 pb-4">
+                    <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text tracking-tight">
                       Complete seu perfil
                     </h2>
-                    <p className="text-[14px] text-slate-500 dark:text-[#a1a1aa] mt-1">
+                    <p className="text-[14px] text-slate-500 dark:text-nvu-muted mt-1">
                       Quase lá. Preencha as informações abaixo.
                     </p>
                   </div>
@@ -1032,14 +1025,14 @@ export default function RecruitmentApply() {
                     {/* Profiling Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div className="space-y-3 sm:col-span-2">
-                        <label className="text-[15px] font-semibold text-slate-800 dark:text-[#fafafa]">
+                        <label className="text-[15px] font-semibold text-slate-800 dark:text-nvu-text">
                           Identificação
                         </label>
-                        <div className="flex flex-col sm:flex-row gap-4 bg-slate-50/50 dark:bg-[#09090b]/50 p-4 rounded-2xl border border-slate-200 dark:border-[#2A2F3A]/60 w-full overflow-hidden">
+                        <div className="flex flex-col sm:flex-row gap-4 bg-slate-50/50 dark:bg-nvu-page/50 p-4 rounded-2xl border border-slate-200 dark:border-nvu-line/60 w-full overflow-hidden">
                           <div className="relative group shrink-0 pt-0.5">
                             {photoPreview ? (
-                              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-[#2A2F3A] shadow-sm relative">
-                                <img
+                              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-nvu-line shadow-sm relative">
+                                <CachedImage
                                   src={photoPreview}
                                   alt="Preview"
                                   className="w-full h-full object-cover"
@@ -1058,10 +1051,10 @@ export default function RecruitmentApply() {
                                 </div>
                               </div>
                             ) : (
-                              <label className="w-16 h-16 rounded-full bg-slate-100 dark:bg-[#2A2F3A] border border-dashed border-slate-300 dark:border-[#3f3f46] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-[#3f3f46] transition-colors">
+                              <label className="w-16 h-16 rounded-full bg-slate-100 dark:bg-nvu-strip border border-dashed border-slate-300 dark:border-nvu-line flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-nvu-strip transition-colors">
                                 <ImageIcon
                                   size={20}
-                                  className="text-slate-400 dark:text-[#71717a]"
+                                  className="text-slate-400 dark:text-nvu-muted"
                                 />
                                 <input
                                   type="file"
@@ -1084,8 +1077,8 @@ export default function RecruitmentApply() {
                                     fullName: e.target.value,
                                   })
                                 }
-                                className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
-                                placeholder="Nome Completo"
+                                className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
+                                placeholder="Nome do motorista"
                               />
                               <input
                                 required
@@ -1098,7 +1091,7 @@ export default function RecruitmentApply() {
                                     email: e.target.value,
                                   })
                                 }
-                                className="w-full bg-slate-50 dark:bg-[#09090b]/50 border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-[#a1a1aa] cursor-not-allowed shadow-none"
+                                className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-nvu-muted cursor-not-allowed shadow-none"
                                 title="E-mail vinculado do Google"
                               />
                             </div>
@@ -1120,7 +1113,7 @@ export default function RecruitmentApply() {
                       </div>
 
                       <div className="space-y-1.5 pt-2">
-                        <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
+                        <label className="text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft ml-1">
                           WhatsApp
                         </label>
                         <input
@@ -1134,40 +1127,21 @@ export default function RecruitmentApply() {
                               whatsapp: e.target.value,
                             })
                           }
-                          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
+                          className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
                           placeholder="(11) 90000-0000"
                         />
                       </div>
 
-                      <div className="space-y-1.5 pt-2">
-                        <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
-                          Objetivo Logístico
-                        </label>
-                        <input
-                          required
-                          type="text"
-                          value={formData.objective}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              objective: e.target.value,
-                            })
-                          }
-                          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
-                          placeholder="Ex: Simulação séria, diversão..."
-                        />
-                      </div>
-
-                      <div className="space-y-4 sm:col-span-2 pt-4 border-t border-slate-100 dark:border-[#2A2F3A]/50">
-                        <label className="text-[15px] font-semibold text-slate-800 dark:text-[#fafafa]">
+                      <div className="space-y-4 sm:col-span-2 pt-4 border-t border-slate-100 dark:border-nvu-line/50">
+                        <label className="text-[15px] font-semibold text-slate-800 dark:text-nvu-text">
                           Desempenho e Frota
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
+                            <label className="text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft ml-1">
                               Experiência?
                             </label>
-                            <div className="flex bg-slate-100 dark:bg-[#27272a]/50 p-1.5 rounded-xl h-12">
+                            <div className="flex bg-slate-100 dark:bg-nvu-strip/50 p-1.5 rounded-xl h-12">
                               <label className="flex-1 relative cursor-pointer">
                                 <input
                                   type="radio"
@@ -1182,7 +1156,7 @@ export default function RecruitmentApply() {
                                   className="sr-only"
                                 />
                                 <div
-                                  className={`text-[14px] h-full flex items-center justify-center font-medium rounded-lg transition-all ${formData.hasExperience === true ? "bg-white dark:bg-[#1A1F26] shadow-sm text-slate-900 dark:text-[#fafafa]" : "text-slate-500 hover:text-slate-700 dark:text-[#e4e4e7]"}`}
+                                  className={`text-[14px] h-full flex items-center justify-center font-medium rounded-lg transition-all ${formData.hasExperience === true ? "bg-white dark:bg-nvu-surface shadow-sm text-slate-900 dark:text-nvu-text" : "text-slate-500 hover:text-slate-700 dark:text-nvu-text-soft"}`}
                                 >
                                   Sim, tenho
                                 </div>
@@ -1201,7 +1175,7 @@ export default function RecruitmentApply() {
                                   className="sr-only"
                                 />
                                 <div
-                                  className={`text-[14px] h-full flex items-center justify-center font-medium rounded-lg transition-all ${formData.hasExperience === false ? "bg-white dark:bg-[#1A1F26] shadow-sm text-slate-900 dark:text-[#fafafa]" : "text-slate-500 hover:text-slate-700 dark:text-[#e4e4e7]"}`}
+                                  className={`text-[14px] h-full flex items-center justify-center font-medium rounded-lg transition-all ${formData.hasExperience === false ? "bg-white dark:bg-nvu-surface shadow-sm text-slate-900 dark:text-nvu-text" : "text-slate-500 hover:text-slate-700 dark:text-nvu-text-soft"}`}
                                 >
                                   Não, 1ª vez
                                 </div>
@@ -1210,7 +1184,7 @@ export default function RecruitmentApply() {
                           </div>
 
                           <div className="space-y-1.5">
-                            <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
+                            <label className="text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft ml-1">
                               Meta viagens/semana
                             </label>
                             <input
@@ -1225,54 +1199,15 @@ export default function RecruitmentApply() {
                                   deliveriesPerWeek: e.target.value,
                                 })
                               }
-                              className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
+                              className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
                               placeholder="Ex: 5"
                             />
                           </div>
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 pt-2">
-                        <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
-                          Veículo Principal
-                        </label>
-                        <input
-                          required
-                          type="text"
-                          value={formData.primaryVehicle}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              primaryVehicle: e.target.value,
-                            })
-                          }
-                          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
-                          placeholder="Ex: Scania R..."
-                        />
-                      </div>
-                      <div className="space-y-1.5 pt-2">
-                        <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
-                          Veículo Secundário{" "}
-                          <span className="font-normal text-slate-400 dark:text-[#71717a] opacity-80">
-                            (opic.)
-                          </span>
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.secondaryVehicle}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              secondaryVehicle: e.target.value,
-                            })
-                          }
-                          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
-                          placeholder="Ex: Volvo FH..."
-                        />
-                      </div>
-
-                      <div className="space-y-1.5 sm:col-span-2 pt-4 border-t border-slate-100 dark:border-[#2A2F3A]/50">
-                        <label className="text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] ml-1">
+                      <div className="space-y-1.5 sm:col-span-2 pt-4 border-t border-slate-100 dark:border-nvu-line/50">
+                        <label className="text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft ml-1">
                           Motivo da Inscrição
                         </label>
                         <textarea
@@ -1281,14 +1216,14 @@ export default function RecruitmentApply() {
                           onChange={(e) =>
                             setFormData({ ...formData, reason: e.target.value })
                           }
-                          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 py-3 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm min-h-[100px] resize-none"
+                          className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 py-3 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm min-h-[100px] resize-none"
                           placeholder="Conte um pouco sobre sua vontade de ingressar à equipe..."
                         />
                       </div>
                     </div>
 
-                    <div className="pt-6 border-t border-slate-100 dark:border-[#2A2F3A]/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
-                      <p className="text-[13px] text-slate-500 dark:text-[#a1a1aa] font-medium sm:max-w-xs text-center sm:text-left leading-snug">
+                    <div className="pt-6 border-t border-slate-100 dark:border-nvu-line/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                      <p className="text-[13px] text-slate-500 dark:text-nvu-muted font-medium sm:max-w-xs text-center sm:text-left leading-snug">
                         Sua conta será ativada automaticamente após aprovação.
                       </p>
                       <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -1296,7 +1231,7 @@ export default function RecruitmentApply() {
                           type="button"
                           onClick={() => setStep(1)}
                           variant="outline"
-                          className="w-full sm:w-auto px-6 h-12 rounded-xl text-[15px] font-semibold border-slate-200 dark:border-[#2A2F3A]"
+                          className="w-full sm:w-auto px-6 h-12 rounded-xl text-[15px] font-semibold border-slate-200 dark:border-nvu-line"
                         >
                           Cancelar
                         </Button>
@@ -1318,17 +1253,17 @@ export default function RecruitmentApply() {
               )}
 
               {step === 3 && (
-                <div className="bg-white dark:bg-[#1A1F26] p-8 sm:p-12 rounded-[24px] border border-slate-200/60 dark:border-[#2A2F3A] shadow-xl shadow-slate-200/40 dark:shadow-none text-center flex flex-col items-center animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="bg-white dark:bg-nvu-surface p-8 sm:p-12 rounded-[24px] border border-slate-200/60 dark:border-nvu-line shadow-xl shadow-slate-200/40 dark:shadow-none text-center flex flex-col items-center animate-in fade-in slide-in-from-bottom-2 duration-500">
                   <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-100 dark:border-emerald-500/20">
                     <CheckCircle2 size={32} className="text-emerald-500" />
                   </div>
-                  <h2 className="text-2xl font-bold text-slate-900 dark:text-[#fafafa] mb-3 tracking-tight">
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-nvu-text mb-3 tracking-tight">
                     Candidatura Concluída
                   </h2>
-                  <p className="text-slate-500 dark:text-[#a1a1aa] max-w-sm mb-8 text-[15px] leading-relaxed">
+                  <p className="text-slate-500 dark:text-nvu-muted max-w-sm mb-8 text-[15px] leading-relaxed">
                     Seu perfil foi registrado no banco de dados e aguarda
                     análise da administração da{" "}
-                    <span className="font-semibold text-slate-700 dark:text-[#e4e4e7]">
+                    <span className="font-semibold text-slate-700 dark:text-nvu-text-soft">
                       {company.companyName}
                     </span>
                     .
@@ -1345,7 +1280,7 @@ export default function RecruitmentApply() {
                   <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                     <Button
                       onClick={() => window.location.reload()}
-                      className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] text-slate-700 dark:text-[#e4e4e7] hover:bg-slate-50 dark:hover:bg-[#2A2F3A]/50 px-8 h-12 rounded-xl text-[15px] font-bold w-full sm:w-auto transition-colors"
+                      className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-strip/50 px-8 h-12 rounded-xl text-[15px] font-bold w-full sm:w-auto transition-colors"
                     >
                       Nova Inscrição
                     </Button>

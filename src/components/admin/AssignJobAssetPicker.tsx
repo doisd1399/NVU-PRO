@@ -1,15 +1,10 @@
-import React, { useMemo, useState } from "react";
-import {
-  BriefcaseBusiness,
-  ChevronDown,
-  ChevronUp,
-  Folder,
-  FolderOpen,
-  Search,
-  Truck,
-  Users,
-  X,
-} from "lucide-react";
+import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ClipboardList, CalendarDays, ChevronDown, ChevronUp, Folder, FolderOpen, KeyRound, Package, Search, Truck, Users, X } from "lucide-react";
+import { useOptionalAutomaticOperations } from "../../contexts/AutomaticOperationsProvider";
+import { orderOperationalContracts, orderOperationalFolders } from "../../lib/operationalQueueOrder";
+import { registerOptionModal } from "../../lib/optionModalStack";
+import "./AssignmentWorkspace.css";
 
 type PickerKind = "contract" | "vehicle";
 
@@ -21,6 +16,7 @@ type PickerContract = {
   mode?: string;
   trailerId?: string | null;
   sequenceId?: string | null;
+  sequenceOrder?: number | null;
 };
 
 type PickerSequence = {
@@ -56,46 +52,93 @@ type Props = {
 };
 
 const normalizeText = (value: unknown) =>
-  String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase();
+  String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
 export function AssignJobAssetPicker({
-  kind,
-  open,
-  selectedId,
-  contracts = [],
-  sequences = [],
-  vehicles = [],
-  trailers = [],
-  vehicleUsageById,
-  onClose,
-  onSelect,
+  kind, open, selectedId, contracts = [], sequences = [], vehicles = [], trailers = [],
+  vehicleUsageById, onClose, onSelect,
 }: Props) {
+  const automatic = useOptionalAutomaticOperations();
+  const id = useId();
   const [search, setSearch] = useState("");
+  const [draftId, setDraftId] = useState(selectedId);
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  const [headerOffset, setHeaderOffset] = useState<number>();
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
-  const title = kind === "contract" ? "Selecionar operação" : "Selecionar veículo";
-  const selectedName = kind === "contract"
-    ? contracts.find((contract) => contract.id === selectedId)?.name
-    : vehicles.find((vehicle) => vehicle.id === selectedId)?.name;
-  const subtitle = selectedName
-    ? `Selecionado para editar: ${selectedName}. Toque em outro card para substituir.`
-    : kind === "contract"
-      ? "Escolha uma operação organizada pelas mesmas pastas de Operações."
-      : "Escolha um veículo organizado pelas mesmas pastas da Frota.";
+  const title = kind === "contract" ? "Escolher operação" : "Escolher veículo";
+  const subtitle = kind === "contract"
+    ? "Selecione a operação que será encaminhada."
+    : "Escolha o veículo para este trabalho.";
+  const draftItem = kind === "contract"
+    ? contracts.find((contract) => contract.id === draftId)
+    : vehicles.find((vehicle) => vehicle.id === draftId);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const header = document.querySelector<HTMLElement>(".nvu-admin-header");
+    const measure = () => setHeaderOffset(header ? Math.max(0, header.getBoundingClientRect().bottom) : undefined);
+    measure();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    if (header) observer?.observe(header);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setDraftId(selectedId);
+    setSearch("");
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const modal = registerOptionModal(() => closeRef.current());
+    // Focus the dialog, never the search field: opening a list must not open the keyboard.
+    const frame = requestAnimationFrame(() => dialogRef.current?.focus({ preventScroll: true }));
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!modal.isTop()) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeRef.current();
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const controls = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), [tabindex="0"]'));
+      const first = controls[0], last = controls.at(-1);
+      if (!first || !last) { event.preventDefault(); dialogRef.current.focus(); return; }
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    const keepFocus = (event: FocusEvent) => {
+      if (modal.isTop() && dialogRef.current && !dialogRef.current.contains(event.target as Node)) {
+        dialogRef.current.focus({ preventScroll: true });
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("focusin", keepFocus);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("focusin", keepFocus);
+      modal.dispose();
+      // Restoring an editable control would reopen the keyboard after closing the picker.
+      if (previousFocus?.isConnected && !previousFocus.matches("input, textarea, [contenteditable]")) {
+        previousFocus.focus({ preventScroll: true });
+      }
+    };
+  }, [open, kind, selectedId]);
 
   const filteredContracts = useMemo(() => {
     const query = normalizeText(search);
-    return [...contracts]
-      .filter((contract) => !query || normalizeText(contract.name).includes(query))
-      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }));
-  }, [contracts, search]);
+    return orderOperationalContracts(contracts.filter((contract) => !query || normalizeText(contract.name).includes(query)),automatic?.settings);
+  }, [contracts, search, automatic?.settings]);
 
   const contractGroups = useMemo(() => {
     if (kind !== "contract") return [];
-    const operationSequences = sequences.filter((sequence) => (sequence.scope || "operations") === "operations");
+    const operationSequences = orderOperationalFolders(sequences.filter((sequence) => (sequence.scope || "operations") === "operations"),automatic?.settings);
     const groups = operationSequences
       .map((sequence) => ({
         id: sequence.id,
@@ -108,7 +151,7 @@ export function AssignJobAssetPicker({
       groups.push({ id: "none", name: "Sem pasta", contracts: withoutFolder });
     }
     return groups;
-  }, [filteredContracts, kind, sequences]);
+  }, [filteredContracts, kind, sequences, automatic?.settings]);
 
   const filteredVehicles = useMemo(() => {
     const query = normalizeText(search);
@@ -140,143 +183,135 @@ export function AssignJobAssetPicker({
 
   if (!open) return null;
 
-  const selectAndClose = (id: string) => {
-    onSelect(id);
-    setSearch("");
+  const toggleFolder = (folderId: string) => {
+    setCollapsedFolders((current) => ({ ...current, [folderId]: !current[folderId] }));
+  };
+  const confirmSelection = () => {
+    if (!draftItem) return;
+    onSelect(draftItem.id);
     onClose();
   };
-
-  const toggleFolder = (id: string) => {
-    setCollapsedFolders((current) => ({ ...current, [id]: !current[id] }));
-  };
+  const radio = <span className="nvu-assignment-radio" aria-hidden="true"><span /></span>;
 
   const renderContractCard = (contract: PickerContract) => {
     const trailer = trailers.find((item) => item.id === contract.trailerId);
-    const selected = selectedId === contract.id;
+    const selected = draftId === contract.id;
     return (
-      <button
-        type="button"
-        key={contract.id}
-        onClick={() => selectAndClose(contract.id)}
-        className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:bg-[#1A1F26] ${selected ? "border-blue-500 ring-2 ring-blue-500/15 dark:border-blue-400" : "border-gray-200 dark:border-[#2A2F3A]"}`}
-      >
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-            <BriefcaseBusiness size={19} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="line-clamp-2 text-[15px] font-bold text-gray-900 dark:text-white">{contract.name}</h3>
-            <p className="mt-1 flex items-center gap-1.5 truncate text-[13px] font-medium text-gray-500 dark:text-[#a1a1aa]">
-              <Truck size={14} className="shrink-0 text-gray-400" />
-              {trailer?.name || "Qualquer reboque"}
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-gray-50 p-3 text-[12px] dark:bg-[#121212]">
-          <span className="font-semibold text-gray-900 dark:text-white">{contract.totalDeliveries ?? 0} entregas</span>
-          <span className="font-semibold text-gray-900 dark:text-white">{contract.deadlineDays ?? 0} dias</span>
-        </div>
+      <button type="button" role="radio" aria-checked={selected} aria-label={contract.name}
+        key={contract.id} data-value={contract.id} onClick={() => setDraftId(contract.id)}
+        className={"nvu-assignment-choice nvu-assignment-contract-choice" + (selected ? " is-selected" : "")}>
+        <span className="nvu-assignment-choice-symbol"><ClipboardList size={23} strokeWidth={1.65} /></span>
+        <span className="nvu-assignment-choice-copy">
+          <strong>{contract.name}</strong>
+          <span className="nvu-assignment-choice-description"><Truck size={14} strokeWidth={1.7} />{trailer?.name || "Qualquer reboque"}</span>
+          <span className="nvu-assignment-choice-meta">
+            <span><Package size={16} strokeWidth={1.7} />{contract.totalDeliveries ?? 0} entregas</span>
+            <span><CalendarDays size={16} strokeWidth={1.7} />{contract.deadlineDays ?? 0} dias</span>
+          </span>
+        </span>
+        {radio}
       </button>
     );
   };
 
-  return (
-    <div
-      className="fixed inset-0 z-[1500] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[24px] bg-white shadow-2xl dark:bg-[#1A1F26] sm:rounded-[24px]"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="assign-job-picker-title"
-      >
-        <header className="flex items-start justify-between gap-4 border-b border-gray-100 p-4 sm:p-5 dark:border-[#2A2F3A]">
-          <div className="min-w-0">
-            <h2 id="assign-job-picker-title" className="text-[18px] font-bold text-gray-900 dark:text-white">{title}</h2>
-            <p className="mt-1 text-[13px] text-gray-500 dark:text-[#a1a1aa]">{subtitle}</p>
-            <div className={`mt-3 inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold ${selectedName ? "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" : "bg-gray-100 text-gray-600 dark:bg-[#2A2F3A] dark:text-[#d4d4d8]"}`}>
-              {selectedName ? `${kind === "contract" ? "Operação" : "Veículo"}: ${selectedName}` : `Nenhum ${kind === "contract" ? "operação" : "veículo"} selecionado`}
-            </div>
-          </div>
-          <button type="button" onClick={onClose} className="shrink-0 rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-[#2A2F3A] dark:hover:text-white" aria-label="Fechar seleção">
-            <X size={20} />
-          </button>
+  return createPortal(
+    <div className="nvu-assignment-theme nvu-assign-picker-overlay"
+      style={headerOffset == null ? undefined : { "--assignment-header-offset": headerOffset + "px" } as React.CSSProperties}
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section ref={dialogRef} className="nvu-assignment-panel nvu-assign-picker-dialog"
+        role="dialog" aria-modal="true" aria-labelledby={id + "-title"} aria-describedby={id + "-description"} tabIndex={-1}>
+        <header className="nvu-assignment-heading nvu-assign-picker-heading">
+          <button type="button" onClick={onClose} className="nvu-assignment-close" aria-label="Fechar seleção"><X size={23} strokeWidth={1.7} /></button>
+          <span className="nvu-assignment-hero" aria-hidden="true">
+            {kind === "contract" ? <ClipboardList size={28} strokeWidth={1.65} /> : <KeyRound size={28} strokeWidth={1.65} />}
+          </span>
+          <h2 id={id + "-title"}>{title}</h2>
+          <p id={id + "-description"} className="nvu-assignment-description-pill">{subtitle}</p>
         </header>
 
-        <div className="border-b border-gray-100 p-4 dark:border-[#2A2F3A]">
-          <label className="relative block">
-            <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input autoFocus value={search} onChange={(event) => setSearch(event.target.value)} placeholder={kind === "contract" ? "Buscar operação..." : "Buscar veículo..."} className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 pl-10 pr-3 text-[14px] text-gray-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 dark:border-[#2A2F3A] dark:bg-[#121212] dark:text-white" />
+        <div className="nvu-assign-picker-search-area">
+          <label className="nvu-assign-picker-search">
+            <Search size={20} strokeWidth={1.7} aria-hidden="true" />
+            <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
+              placeholder={kind === "contract" ? "Buscar operação..." : "Buscar veículo..."}
+              aria-label={kind === "contract" ? "Buscar operação" : "Buscar veículo"}
+              autoComplete="off" spellCheck={false} enterKeyHint="search"
+              onKeyDown={(event) => {
+                if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  dialogRef.current?.querySelector<HTMLElement>('[role="radio"]')?.focus();
+                }
+              }} />
           </label>
+          <p className="nvu-assign-picker-selection" role="status">
+            {kind === "contract"
+              ? (draftItem ? "1 operação selecionada" : "Nenhuma operação selecionada")
+              : (draftItem ? "1 veículo selecionado" : "Nenhum veículo selecionado")}
+          </p>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          {kind === "contract" ? (
-            <div className="space-y-5">
-              {contractGroups.map((group) => {
-                const collapsed = Boolean(collapsedFolders[group.id]);
-                return (
-                  <section key={group.id} aria-labelledby={`assign-folder-${group.id}`}>
-                    <button type="button" onClick={() => toggleFolder(group.id)} className="mb-3 flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#121212]">
-                      <span className="flex min-w-0 items-center gap-3">
-                        {collapsed ? <Folder size={18} className="shrink-0 text-blue-600 dark:text-blue-400" /> : <FolderOpen size={18} className="shrink-0 text-blue-600 dark:text-blue-400" />}
-                        <span id={`assign-folder-${group.id}`} className="truncate text-[15px] font-bold text-gray-900 dark:text-white">{group.name}</span>
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-[#2A2F3A] dark:text-[#d4d4d8]">{group.contracts.length}</span>
+        <div className="nvu-assign-picker-list" role="radiogroup" aria-label={title} onKeyDown={(event) => {
+          if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || !(event.target as HTMLElement).matches('[role="radio"]')) return;
+          const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+          if (!items.length) return;
+          event.preventDefault();
+          const index = items.indexOf(event.target as HTMLButtonElement);
+          const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+          const next = items[nextIndex];
+          setDraftId(next.dataset.value || "");
+          next.focus();
+        }}>
+          {kind === "contract" ? contractGroups.map((group) => {
+            const collapsed = Boolean(collapsedFolders[group.id]);
+            return <section key={group.id} className="nvu-assignment-folder">
+              <button type="button" onClick={() => toggleFolder(group.id)} className="nvu-assignment-folder-heading"
+                aria-expanded={!collapsed} aria-controls={id + "-folder-" + group.id}>
+                {collapsed ? <Folder size={23} strokeWidth={1.7} /> : <FolderOpen size={23} strokeWidth={1.7} />}
+                <strong>{group.name}</strong><span className="nvu-assignment-folder-count">{group.contracts.length}</span>
+                {collapsed ? <ChevronDown size={19} /> : <ChevronUp size={19} />}
+              </button>
+              {!collapsed && <div id={id + "-folder-" + group.id} className="nvu-assignment-folder-cards">{group.contracts.map(renderContractCard)}</div>}
+            </section>;
+          }) : vehicleGroups.map((group) => {
+            const collapsed = Boolean(collapsedFolders[group.id]);
+            return <section key={group.id} className="nvu-assignment-folder">
+              <button type="button" onClick={() => toggleFolder(group.id)} className="nvu-assignment-folder-heading"
+                aria-expanded={!collapsed} aria-controls={id + "-folder-" + group.id}>
+                {collapsed ? <Folder size={23} strokeWidth={1.7} /> : <FolderOpen size={23} strokeWidth={1.7} />}
+                <strong>{group.name}</strong><span className="nvu-assignment-folder-count">{group.vehicles.length}</span>
+                {collapsed ? <ChevronDown size={19} /> : <ChevronUp size={19} />}
+              </button>
+              {!collapsed && <div id={id + "-folder-" + group.id} className="nvu-assignment-folder-cards">
+                {group.vehicles.map((vehicle) => {
+                  const selected = draftId === vehicle.id;
+                  const usageCount = vehicleUsageById?.get(vehicle.id);
+                  return <button type="button" key={vehicle.id} role="radio" aria-checked={selected} aria-label={vehicle.name}
+                    data-value={vehicle.id} onClick={() => setDraftId(vehicle.id)}
+                    className={"nvu-assignment-choice" + (selected ? " is-selected" : "")}>
+                    <span className="nvu-assignment-choice-symbol"><KeyRound size={24} strokeWidth={1.65} /></span>
+                    <span className="nvu-assignment-choice-copy">
+                      <strong>{vehicle.name}</strong>
+                      <span className="nvu-assignment-choice-description"><Users size={14} strokeWidth={1.7} />
+                        {usageCount == null ? "Vínculos em consulta" : usageCount === 0 ? "Sem motoristas vinculados" : "Em uso por " + usageCount + " motorista" + (usageCount === 1 ? "" : "s")}
                       </span>
-                      {collapsed ? <ChevronDown size={17} className="shrink-0 text-gray-400" /> : <ChevronUp size={17} className="shrink-0 text-gray-400" />}
-                    </button>
-                    {!collapsed && <div className="grid grid-cols-1 gap-3 border-l-2 border-gray-100 pl-3 dark:border-[#2A2F3A] md:grid-cols-2 md:pl-4">{group.contracts.map(renderContractCard)}</div>}
-                  </section>
-                );
-              })}
-              {contractGroups.length === 0 && <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-[14px] text-gray-500 dark:border-[#2A2F3A] dark:text-[#a1a1aa]">Nenhuma operação encontrada.</div>}
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {vehicleGroups.map((group) => {
-                const collapsed = Boolean(collapsedFolders[group.id]);
-                return (
-                  <section key={group.id} aria-labelledby={`assign-vehicle-folder-${group.id}`}>
-                    <button type="button" onClick={() => toggleFolder(group.id)} className="mb-3 flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#121212]">
-                      <span className="flex min-w-0 items-center gap-3">
-                        {collapsed ? <Folder size={18} className="shrink-0 text-green-600 dark:text-green-400" /> : <FolderOpen size={18} className="shrink-0 text-green-600 dark:text-green-400" />}
-                        <span id={`assign-vehicle-folder-${group.id}`} className="truncate text-[15px] font-bold text-gray-900 dark:text-white">{group.name}</span>
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-[#2A2F3A] dark:text-[#d4d4d8]">{group.vehicles.length}</span>
-                      </span>
-                      {collapsed ? <ChevronDown size={17} className="shrink-0 text-gray-400" /> : <ChevronUp size={17} className="shrink-0 text-gray-400" />}
-                    </button>
-                    {!collapsed && (
-                      <div className="grid grid-cols-1 gap-3 border-l-2 border-gray-100 pl-3 dark:border-[#2A2F3A] md:grid-cols-2 md:pl-4">
-                        {group.vehicles.map((vehicle) => {
-                          const selected = selectedId === vehicle.id;
-                          const usageCount = vehicleUsageById?.get(vehicle.id);
-                          return (
-                            <button type="button" key={vehicle.id} onClick={() => selectAndClose(vehicle.id)} className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-300 hover:shadow-md dark:bg-[#1A1F26] ${selected ? "border-green-500 ring-2 ring-green-500/15 dark:border-green-400" : "border-gray-200 dark:border-[#2A2F3A]"}`}>
-                              <div className="flex items-start gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-gray-600 dark:bg-[#121212] dark:text-[#d4d4d8]"><Truck size={20} /></div>
-                                <div className="min-w-0 flex-1">
-                                  <h3 className="line-clamp-2 text-[15px] font-bold text-gray-900 dark:text-white">{vehicle.name}</h3>
-                                  <p className="mt-1 flex items-center gap-1.5 text-[12px] text-gray-500 dark:text-[#a1a1aa]"><Users size={13} />Em uso por {usageCount == null ? "—" : usageCount} motorista{usageCount !== 1 ? "s" : ""}</p>
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
-              {vehicleGroups.length === 0 && <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-[14px] text-gray-500 dark:border-[#2A2F3A] dark:text-[#a1a1aa]">Nenhum veículo encontrado.</div>}
-            </div>
-          )}
+                    </span>
+                    {radio}
+                  </button>;
+                })}
+              </div>}
+            </section>;
+          })}
+          {(kind === "contract" ? !contractGroups.length : !vehicleGroups.length) &&
+            <p role="status" className="nvu-assignment-empty">{kind === "contract" ? "Nenhuma operação encontrada." : "Nenhum veículo encontrado."}</p>}
         </div>
+        <footer className="nvu-assignment-picker-footer">
+          <button type="button" className="nvu-assignment-button nvu-assignment-picker-cancel" onClick={onClose}>Cancelar</button>
+          <button type="button" className="nvu-assignment-button nvu-assignment-primary" disabled={!draftItem} onClick={confirmSelection}>
+            {kind === "contract" ? "Usar operação" : "Usar veículo"}
+          </button>
+        </footer>
       </section>
-    </div>
+    </div>, document.body,
   );
 }
 

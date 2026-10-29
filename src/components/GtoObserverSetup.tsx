@@ -10,6 +10,7 @@ import {
   isNativeAndroid,
 } from "../lib/gtoObserver";
 import { useGtoCanonicalState } from "../hooks/useGtoCanonicalState";
+import { explainOverlayPermissionBeforeSettings } from "../services/overlayPermissionGuide";
 
 const stateLabel = (state?: string) => {
   switch (state) {
@@ -116,7 +117,7 @@ export default function GtoObserverSetup({
 
   if (!pluginAvailable) {
     return (
-      <div className="bg-white dark:bg-[#121213] border border-amber-200 dark:border-amber-500/30 sm:rounded-2xl rounded-xl p-3 sm:p-4">
+      <div className="bg-white dark:bg-nvu-surface border border-amber-200 dark:border-amber-500/30 sm:rounded-2xl rounded-xl p-3 sm:p-4">
         <div className="flex items-start gap-3">
           <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
             <Truck size={18} />
@@ -139,10 +140,6 @@ export default function GtoObserverSetup({
     setBusy(true);
     try {
       const current = await GtoObserver.getStatus();
-      if (!current.overlayPermission) {
-        await GtoObserver.openOverlaySettings();
-        return;
-      }
       if (!current.usageAccess) {
         await GtoObserver.openUsageAccessSettings();
         return;
@@ -154,7 +151,12 @@ export default function GtoObserverSetup({
 
       await GtoObserver.setContext(context);
       const result = await GtoObserver.startObserver();
-      if (result.started) {
+      if (result.missingPermission === "overlay") {
+        explainOverlayPermissionBeforeSettings();
+        await GtoObserver.openOverlaySettings();
+      } else if (result.missingPermission === "usage") {
+        await GtoObserver.openUsageAccessSettings();
+      } else if (result.started) {
         toast.success("Botão NVU ativado. Abra o simulador para iniciar a automação.");
       } else {
         toast.error(result.startError || "O serviço GTO não confirmou a inicialização.");
@@ -274,7 +276,7 @@ export default function GtoObserverSetup({
   );
 
   return (
-    <div className="bg-white dark:bg-[#121213] border border-slate-200 dark:border-slate-800 sm:rounded-2xl rounded-xl p-3 sm:p-4 shadow-[0_2px_12px_rgba(0,0,0,0.025)]">
+    <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line sm:rounded-2xl rounded-xl p-3 sm:p-4 shadow-[0_2px_12px_rgba(0,0,0,0.025)]">
       <div className="flex items-start gap-3">
         <div className="w-9 h-9 rounded-xl bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 flex items-center justify-center shrink-0">
           <Truck size={18} />
@@ -285,7 +287,7 @@ export default function GtoObserverSetup({
               <h3 className="text-[13px] sm:text-[14px] font-bold text-slate-900 dark:text-white">
                 Automação GTO
               </h3>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-nvu-muted mt-0.5">
                 Frete, rota, conclusão e envio acompanhados automaticamente pelo botão NVU fixo.
               </p>
             </div>
@@ -293,7 +295,7 @@ export default function GtoObserverSetup({
               className={`shrink-0 text-[9px] sm:text-[10px] px-2 py-1 rounded-full font-semibold ${
                 status?.running && status?.observerHealthy !== false
                   ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"
-                  : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                  : "bg-slate-100 text-slate-600 dark:bg-nvu-surface dark:text-nvu-text-soft"
               }`}
             >
               {status?.running ? (status.observerHealthy === false ? "Instável" : "Ativo") : "Inativo"}
@@ -301,19 +303,19 @@ export default function GtoObserverSetup({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-1.5 mt-3 text-[10px] sm:text-[11px]">
-            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-nvu-text-soft">
               <ShieldCheck size={12} />
               Sobreposição: {status?.overlayPermission ? "ok" : "pendente"}
             </div>
-            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-nvu-text-soft">
               <Eye size={12} />
               Detecção GTO: {status?.usageAccess ? "ok" : "pendente"}
             </div>
-            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-nvu-text-soft">
               <ShieldCheck size={12} />
               Toque preciso: {status?.preciseTouchPermission ? "ok" : "pendente"}
             </div>
-            <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-1.5 text-slate-600 dark:text-nvu-text-soft">
               <Eye size={12} />
               Leitura da tela: {status?.screenAnalysisPaused
                 ? "pausada fora do GTO"
@@ -324,7 +326,7 @@ export default function GtoObserverSetup({
           </div>
 
           {status?.running && (
-            <div className="mt-2 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800 px-2.5 py-2 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-300 space-y-0.5">
+            <div className="mt-2 rounded-lg bg-slate-50 dark:bg-nvu-page/60 border border-slate-100 dark:border-nvu-line px-2.5 py-2 text-[10px] sm:text-[11px] text-slate-600 dark:text-nvu-text-soft space-y-0.5">
               <div className="font-medium text-cyan-700 dark:text-cyan-300">
                 Fluxo: 1. escolher frete → 2. realizar rota → 3. receber no GTO → 4. envio automático
               </div>
@@ -562,7 +564,7 @@ export default function GtoObserverSetup({
                 type="button"
                 disabled={busy}
                 onClick={stop}
-                className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[11px] sm:text-[12px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60"
+                className="h-9 px-3 rounded-lg border border-slate-200 dark:border-nvu-line text-slate-700 dark:text-nvu-text text-[11px] sm:text-[12px] font-semibold flex items-center justify-center gap-1.5 disabled:opacity-60"
               >
                 <Square size={12} />
                 Desativar

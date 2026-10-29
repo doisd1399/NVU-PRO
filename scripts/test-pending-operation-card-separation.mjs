@@ -28,12 +28,13 @@ assert.match(dashboardCard, /TRABALHO ATIVO/);
 assert.doesNotMatch(dashboardCard, /PENDENTE/);
 
 assert.match(profile, /isRunningJobStatus\(\s*String\(cachedOperationSnapshot\.job\.status \|\| ""\)/);
-assert.match(profile, /isRunningJobStatus\(displayActiveJob\.status\)/);
-const profileCard = profile.match(/\/\* Active Job Section \*\/[\s\S]*?\{activeOperationCardJob \? \(/)?.[0] || "";
-assert.ok(profileCard, "Profile must gate the active card with activeOperationCardJob");
-assert.doesNotMatch(profileCard, /PENDENTE/);
+assert.equal((profile.match(/<Dashboard\b/g) || []).length, 1,
+  "Profile must use the same canonical current-operation component in both views");
+assert.match(profile, /operationCardOnly=\{activeTab === "operations"\}/);
+assert.match(dashboard, /selectCurrentOperationJob\(jobs, currentUser\?\.id, activeCompanyId\)/);
 
-assert.match(appContext, /isRunningJobStatus\(job\.status\)/);
+assert.match(appContext, /selectCurrentOperationJob\(cachedScope\.jobs \|\| \[\], uid, targetCompanyId\)/,
+  "initial cache must use the same scoped running-operation selector as the live dashboard");
 assert.match(proAvailability, /status === "pending"/);
 assert.match(proAvailability, /canLaunch: false/);
 

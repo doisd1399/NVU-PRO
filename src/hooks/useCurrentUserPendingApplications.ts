@@ -8,7 +8,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import type { RecruitmentApplication } from "../context/AppContext";
 
 const MAX_PENDING_PER_IDENTITY = 20;
@@ -47,7 +47,7 @@ const loadPendingCompanySnapshot = (companyId: string) => {
   const existingPromise = pendingCompanySnapshotPromises.get(companyId);
   if (existingPromise) return existingPromise;
 
-  const promise = getDoc(doc(db, "frotas", companyId))
+  const promise = getDoc(doc(db, "public_companies", companyId))
     .then((snapshot) => {
       if (!snapshot.exists()) {
         pendingCompanySnapshotCache.set(companyId, null);
@@ -126,7 +126,7 @@ const buildPendingApplicationsCacheKey = (
   email?: string | null,
 ) => {
   const normalizedUserId = String(userId || "").trim();
-  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const normalizedEmail = auth.currentUser?.emailVerified ? String(email || "").trim().toLowerCase() : "";
   return `${normalizedUserId}::${normalizedEmail}`;
 };
 
@@ -169,7 +169,7 @@ export function useCurrentUserPendingApplications(
 
   useEffect(() => {
     const normalizedUserId = String(userId || "").trim();
-    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedEmail = auth.currentUser?.emailVerified ? String(email || "").trim().toLowerCase() : "";
 
     if (!normalizedUserId && !normalizedEmail) {
       setApplications([]);

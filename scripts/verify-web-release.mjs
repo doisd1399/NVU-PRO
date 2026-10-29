@@ -1,3 +1,4 @@
+import { computeSourceFingerprint } from "./source-fingerprint.mjs";
 import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -17,6 +18,7 @@ const expectedOtaEnabled =
   ).trim().toLowerCase() === "true";
 
 const requiredFiles = [
+  ["vendor/browser-image-compression.js", 50_000],
   ["nvu-build.json", 50],
   ["tessdata/eng.traineddata.gz", 1_000_000],
   ["tesseract/worker.min.js", 50_000],
@@ -54,9 +56,15 @@ if (manifest.version !== packageJson.version) {
     `[NVU WEB RELEASE] versão divergente: manifesto=${manifest.version}, package=${packageJson.version}.`,
   );
 }
-if (manifest.source !== "nvu-web" || !manifest.buildId || !manifest.generatedAt) {
+if (manifest.source !== "nvu-web" || !manifest.buildId || !manifest.generatedAt ||
+    !/^[a-f0-9]{64}$/.test(manifest.sourceSha256 || "")) {
   throw new Error("[NVU WEB RELEASE] manifesto nvu-build.json incompleto.");
 }
+const sourceSha256 = await computeSourceFingerprint(root);
+if (manifest.sourceSha256 !== sourceSha256) {
+  throw new Error(`[NVU WEB RELEASE] fonte e manifesto divergentes: esperado ${sourceSha256}; encontrado ${manifest.sourceSha256}. Recompile o projeto.`);
+}
+
 if (manifest.runtimeRevision !== packageJson.gtoWebRuntimeRevision) {
   throw new Error(
     `[NVU WEB RELEASE] revisão divergente: manifesto=${manifest.runtimeRevision}, package=${packageJson.gtoWebRuntimeRevision}.`,

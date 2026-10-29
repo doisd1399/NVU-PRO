@@ -13,7 +13,7 @@ const checks = [
   ["CompanyTab grava resolução bem-sucedida", /if \(company\) setResolvedCompany\(company\)/],
   ["CompanyTab não fica preso quando a resolução conclui", /companyResolution\.status === "failed"/],
   ["CompanyContext deduplica a Promise por empresa", /companyDocumentLoadsRef\.current\.get\(companyId\)/],
-  ["CompanyContext mantém fallback getDoc", /return getDoc\(companyRef\)/],
+  ["CompanyContext mantém fallback da identidade pública", /return getDoc\(doc\(db, "public_companies", companyId\)\)/],
   ["SeniorPanel prepara a empresa antes da navegação", /primeCompanyProfile\(company\)[\s\S]*?setActiveCompanyId\(companyId\)/],
   ["AppContext preserva a empresa inspecionada pelo Sênior", /normalizedCompanyId[\s\S]*?seniorInspectionCompanyId[\s\S]*?isSeniorAuthenticated[\s\S]*?normalizedCompanyId === seniorInspectionCompanyId[\s\S]*?return;/],
   ["AppContext não exige membership operacional para inspeção Sênior", /empresa inspecionada pelo Painel Sênior é um escopo de leitura[\s\S]*?não existir em[\s\S]*?memberships/],

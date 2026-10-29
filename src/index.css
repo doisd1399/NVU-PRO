@@ -19,13 +19,78 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Shared operational palette. The activity workspace and the entry/news
+ * surfaces use these tokens so their dark themes cannot drift apart. */
+@theme inline {
+  --color-nvu-page: var(--nvu-page);
+  --color-nvu-surface: var(--nvu-surface);
+  --color-nvu-strip: var(--nvu-strip);
+  --color-nvu-line: var(--nvu-line);
+  --color-nvu-text: var(--nvu-text);
+  --color-nvu-muted: var(--nvu-muted);
+  --color-nvu-text-soft: var(--nvu-text-soft);
+  --color-nvu-elevated: var(--nvu-elevated);
+  --color-nvu-control-line: var(--nvu-control-line);
+  --color-nvu-track: var(--nvu-track);
+  --color-nvu-info: var(--nvu-info);
+  --color-nvu-info-soft: var(--nvu-info-soft);
+  --color-nvu-warning: var(--nvu-warning);
+  --color-nvu-warning-soft: var(--nvu-warning-soft);
+  --color-nvu-danger: var(--nvu-danger);
+  --color-nvu-danger-soft: var(--nvu-danger-soft);
+  --color-nvu-accent: var(--nvu-accent);
+  --color-nvu-accent-soft: var(--nvu-accent-soft);
+  --color-nvu-on-accent: var(--nvu-on-accent);
+}
+
+:root {
+  --nvu-page: #f7f9fa;
+  --nvu-surface: #fff;
+  --nvu-strip: #edf1f4;
+  --nvu-line: #e8ecf0;
+  --nvu-text: #182332;
+  --nvu-muted: #788393;
+  --nvu-accent: #20a9b8;
+  --nvu-accent-soft: #edf9fa;
+  --nvu-on-accent: #10151c;
+  --nvu-operation-warning: #b8660d;
+  color-scheme: light;
+}
+
+:root.dark {
+  /* Single dark palette, including portaled dialogs and lazy-loaded pages. */
+  --nvu-page: #101a20;
+  --nvu-surface: #1a252d;
+  --nvu-strip: #23353e;
+  --nvu-elevated: #24343f;
+  --nvu-line: #405562;
+  --nvu-control-line: #6d8595;
+  --nvu-track: #344c59;
+  --nvu-dock: #23353e;
+  --nvu-dock-line: #526c7b;
+  --nvu-text: #f3f7f9;
+  --nvu-text-soft: #ced8e0;
+  --nvu-muted: #b3c0cb;
+  --nvu-accent: #24cfde;
+  --nvu-accent-soft: #153c45;
+  --nvu-on-accent: #101a20;
+  --nvu-info: #7fc2ff;
+  --nvu-info-soft: #1c354d;
+  --nvu-warning: #ffc16b;
+  --nvu-operation-warning: #ff8800;
+  --nvu-warning-soft: #3b2e1f;
+  --nvu-danger: #ff8fa8;
+  --nvu-danger-soft: #422530;
+  color-scheme: dark;
+}
+
 
 html,
 body,
 #root {
   min-height: 100%;
   min-height: 100dvh;
-  background: #f9fafb;
+  background: var(--nvu-page);
 }
 
 .dark html,
@@ -34,7 +99,7 @@ body,
 html.dark,
 html.dark body,
 html.dark #root {
-  background: #09090b;
+  background: var(--nvu-page);
 }
 
 #root {
@@ -68,12 +133,8 @@ html.nvu-role-transition-active [data-nvu-background-brand] {
   visibility: hidden !important;
 }
 
-/* On the first cold route load, the shell header can mount before its lazy
- * content. Keep the centered NVU + progress bar as the single visible brand
- * until that content is ready; visibility preserves the header layout. */
-html.nvu-route-loading-active [data-nvu-layout-brand] {
-  visibility: hidden !important;
-}
+/* Keep the persistent header visible while a lazy destination loads.
+ * Hiding its brand on every cold chunk looked like a profile/theme flash. */
 
 /* Route changes are committed synchronously. Disabling the browser's default
  * root snapshot cross-fade prevents the white/gray flash seen in Android and
@@ -86,7 +147,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-[#09090b] dark:text-[#fafafa] antialiased text-[15px];
+    @apply bg-gray-50 text-gray-900 dark:bg-[#10151c] dark:text-[#fafafa] antialiased text-[15px];
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -220,7 +281,23 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .nvu-native-android .nvu-native-sidebar {
+  top: 0;
+  bottom: 0;
+  height: 100dvh;
+  padding-top: var(--nvu-native-header-height);
   box-sizing: border-box;
+  width: min(16rem, 86vw);
+  display: flex;
+  transform: translateX(-100%);
+  z-index: 60;
+}
+
+.nvu-native-android .nvu-native-sidebar-open {
+  transform: translateX(0);
+}
+
+.nvu-native-android .nvu-native-sidebar-closed {
+  transform: translateX(-100%);
 }
 
 .nvu-native-android .nvu-native-main {
@@ -286,35 +363,80 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   background: color-mix(in srgb, #07131e 22%, transparent);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 180ms ease-out, visibility 180ms ease-out;
+}
+
+.nvu-native-android.nvu-native-profile-route:has(.nvu-native-sidebar-open) .nvu-native-menu-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .nvu-native-android .nvu-native-sidebar {
+  top: calc(var(--nvu-native-header-height) + 0.5rem);
+  bottom: auto;
+  left: 0.75rem;
+  right: 0.75rem;
+  width: auto;
+  height: clamp(30dvh, 36dvh, 40dvh);
+  max-height: calc(100dvh - var(--nvu-native-header-height) - 1rem);
+  min-height: 15rem;
+  padding-top: 0;
   border: 1px solid color-mix(in srgb, #ffffff 34%, transparent);
+  border-radius: 1.35rem;
   background: color-mix(in srgb, #ffffff 68%, transparent);
   box-shadow: 0 18px 48px rgba(7, 23, 37, 0.22), 0 4px 14px rgba(7, 23, 37, 0.10);
   backdrop-filter: blur(12px) saturate(125%);
   -webkit-backdrop-filter: blur(12px) saturate(125%);
+  overflow: hidden;
+  display: flex !important;
+  transform: translateY(-0.75rem) scale(0.985);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform-origin: top center;
+  transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 180ms ease-out;
+}
+
+.nvu-native-android .nvu-native-sidebar-open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 
 .nvu-native-android .nvu-native-sidebar > div:first-child {
   flex: 0 0 auto;
+  padding: 0.65rem 0.75rem;
   border-bottom-color: color-mix(in srgb, #64748b 16%, transparent);
   background: transparent;
 }
 
 .nvu-native-android .nvu-native-sidebar > nav {
+  min-height: 0;
+  padding: 0.5rem 0.75rem;
   gap: 0.15rem;
+}
+
+.nvu-native-android .nvu-native-sidebar > nav a {
+  padding-top: 0.48rem;
+  padding-bottom: 0.48rem;
+  border-radius: 0.8rem;
 }
 
 .nvu-native-android .nvu-native-sidebar > div:last-child {
   flex: 0 0 auto;
+  padding: 0.55rem 0.75rem 0.65rem;
   border-top-color: color-mix(in srgb, #64748b 16%, transparent);
   background: transparent;
 }
 
 .dark .nvu-native-android .nvu-native-sidebar {
-  border-color: rgba(255, 255, 255, 0.14);
-  background: color-mix(in srgb, #121a24 74%, transparent);
+  border-color: var(--nvu-line);
+  background: var(--nvu-elevated);
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42), 0 4px 14px rgba(0, 0, 0, 0.24);
 }
 
@@ -322,9 +444,26 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   background: rgba(0, 0, 0, 0.26);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .nvu-native-android .nvu-native-sidebar,
+  .nvu-native-android.nvu-native-profile-route .nvu-native-menu-overlay {
+    transition: none;
+  }
+}
+
 @media (min-width: 640px) {
   .nvu-native-android .nvu-native-sidebar {
+    left: 1rem;
+    right: 1rem;
+    max-width: 32rem;
     margin-inline: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .nvu-native-android .nvu-native-sidebar,
+  .nvu-native-android.nvu-native-profile-route .nvu-native-menu-overlay {
+    display: none !important;
   }
 }
 
@@ -353,13 +492,13 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-native-profile-content {
-  background-color: #09090b;
+  background-color: var(--nvu-page);
   background-image: linear-gradient(
     180deg,
     #08131f 0,
     #08131f calc(300px + var(--nvu-safe-top)),
-    #09090b calc(300px + var(--nvu-safe-top)),
-    #09090b 100%
+    var(--nvu-page) calc(300px + var(--nvu-safe-top)),
+    var(--nvu-page) 100%
   );
 }
 
@@ -412,15 +551,27 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 /* HF253: more legible glass card. It still adapts to the active theme but no
  * longer lets the Profile photo compete with the page buttons. */
 .nvu-native-android .nvu-native-sidebar {
+  height: min(62dvh, calc(100dvh - var(--nvu-native-header-height) - 1rem));
+  min-height: 31rem;
+  max-height: calc(100dvh - var(--nvu-native-header-height) - 1rem);
   background: rgba(248, 250, 252, 0.92);
   border-color: rgba(148, 163, 184, 0.34);
   box-shadow: 0 22px 54px rgba(15, 23, 42, 0.22), 0 6px 18px rgba(15, 23, 42, 0.12);
   backdrop-filter: blur(9px) saturate(120%);
   -webkit-backdrop-filter: blur(9px) saturate(120%);
+  transform: translateY(-1.25rem) scale(0.985);
+  transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 180ms ease-out;
+}
+
+.nvu-native-android .nvu-native-sidebar-open {
+  transform: translateY(0) scale(1);
 }
 
 .nvu-native-android .nvu-native-sidebar > nav {
   flex: 0 0 auto;
+  overflow: visible;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
   gap: 0.28rem;
 }
 
@@ -441,23 +592,29 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-native-android .nvu-native-sidebar {
-  background: rgba(15, 23, 35, 0.94);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: var(--nvu-elevated);
+  border-color: var(--nvu-line);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.44), 0 6px 18px rgba(0, 0, 0, 0.26);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-item {
-  border-color: rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.075);
-  color: #e2e8f0;
+  border-color: var(--nvu-line);
+  background: var(--nvu-strip);
+  color: var(--nvu-text);
   box-shadow: none;
 }
 
 .dark .nvu-native-android .nvu-profile-menu-item:hover,
 .dark .nvu-native-android .nvu-profile-menu-item:focus-visible {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(19, 201, 180, 0.36);
-  color: #fff;
+  background: var(--nvu-accent-soft);
+  border-color: var(--nvu-line);
+  color: var(--nvu-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nvu-native-android .nvu-native-sidebar {
+    transition: none;
+  }
 }
 
 
@@ -472,7 +629,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-native-profile-content {
-  background-color: #09090b;
+  background-color: var(--nvu-page);
 }
 
 .nvu-native-android.nvu-native-profile-route .nvu-profile-stack {
@@ -528,11 +685,38 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
  * settings/logout footer. The menu remains one floating panel, never a side
  * drawer, and all motion uses transform/opacity on the vertical axis only. */
 .nvu-native-android .nvu-native-sidebar {
+  top: calc(var(--nvu-native-header-height) + 0.6rem);
+  bottom: auto;
+  height: min(78dvh, calc(100dvh - var(--nvu-native-header-height) - 1.1rem));
+  min-height: min(34rem, calc(100dvh - var(--nvu-native-header-height) - 1.1rem));
+  max-height: calc(100dvh - var(--nvu-native-header-height) - 1.1rem);
+  padding: 0.85rem;
+  border-radius: 1.5rem;
   background: rgba(248, 250, 252, 0.965);
   border-color: rgba(148, 163, 184, 0.30);
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24), 0 8px 20px rgba(15, 23, 42, 0.10);
   backdrop-filter: blur(10px) saturate(125%);
   -webkit-backdrop-filter: blur(10px) saturate(125%);
+  overflow: hidden;
+  transform: translateY(-1.5rem) scale(0.985);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 180ms ease-out;
+}
+
+.nvu-native-android .nvu-native-sidebar-open {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.nvu-native-android .nvu-native-sidebar-closed {
+  transform: translateY(-1.5rem) scale(0.985);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .nvu-native-android .nvu-profile-menu-intro {
@@ -624,6 +808,11 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   background: rgba(255, 255, 255, 0.58);
   color: #334155;
   box-shadow: 0 2px 7px rgba(15, 23, 42, 0.045);
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+
+.nvu-native-android .nvu-profile-menu-item:active {
+  transform: scale(0.975);
 }
 
 .nvu-native-android .nvu-profile-menu-item:hover,
@@ -654,6 +843,11 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   border-radius: 0.85rem;
   background: rgba(255, 255, 255, 0.48);
   color: #475569;
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+.nvu-native-android .nvu-profile-menu-footer > button:active {
+  transform: scale(0.975);
 }
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-native-profile-content {
@@ -661,74 +855,89 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
     180deg,
     #08131f 0,
     #08131f calc(300px + var(--nvu-safe-top)),
-    #09090b calc(300px + var(--nvu-safe-top)),
-    #09090b 100%
+    var(--nvu-page) calc(300px + var(--nvu-safe-top)),
+    var(--nvu-page) 100%
   );
 }
 
 .dark .nvu-native-android .nvu-native-sidebar {
-  background: rgba(15, 23, 35, 0.97);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--nvu-elevated);
+  border-color: var(--nvu-line);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48), 0 8px 20px rgba(0, 0, 0, 0.26);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-intro {
-  border-bottom-color: rgba(255, 255, 255, 0.12);
+  border-bottom-color: var(--nvu-line);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-eyebrow,
 .dark .nvu-native-android .nvu-profile-menu-section-label {
-  color: #94a3b8;
+  color: var(--nvu-muted);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-title {
-  color: #f8fafc;
+  color: var(--nvu-text);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-description {
-  color: #94a3b8;
+  color: var(--nvu-muted);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-intro-icon {
-  border-color: rgba(19, 201, 180, 0.34);
+  border-color: var(--nvu-line);
   background: rgba(19, 201, 180, 0.12);
   color: #5eead4;
 }
 
 .dark .nvu-native-android .nvu-profile-menu-account,
 .dark .nvu-native-android .nvu-profile-menu-footer > div {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.075);
+  border-color: var(--nvu-line);
+  background: var(--nvu-surface);
   box-shadow: none;
 }
 
 .dark .nvu-native-android .nvu-profile-menu-item {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.09);
-  color: #e2e8f0;
+  border-color: var(--nvu-line);
+  background: var(--nvu-strip);
+  color: var(--nvu-text);
   box-shadow: none;
 }
 
 .dark .nvu-native-android .nvu-profile-menu-item:hover,
 .dark .nvu-native-android .nvu-profile-menu-item:focus-visible {
-  border-color: rgba(19, 201, 180, 0.38);
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  border-color: var(--nvu-line);
+  background: var(--nvu-accent-soft);
+  color: var(--nvu-accent);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-footer {
-  border-top-color: rgba(255, 255, 255, 0.12);
+  border-top-color: var(--nvu-line);
 }
 
 .dark .nvu-native-android .nvu-profile-menu-footer > button {
-  border-color: rgba(255, 255, 255, 0.10);
+  border-color: var(--nvu-line);
   background: rgba(255, 255, 255, 0.075);
-  color: #cbd5e1;
+  color: var(--nvu-text-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nvu-native-android .nvu-native-sidebar,
+  .nvu-native-android .nvu-profile-menu-item,
+  .nvu-native-android .nvu-profile-menu-footer > button {
+    transition: none;
+  }
 }
 
 
 /* HF255: compact profile menu states. The account card owns the profile
  * actions while expanded; the primary navigation returns when it is collapsed. */
+.nvu-native-android .nvu-native-sidebar {
+  height: min(59dvh, calc(100dvh - var(--nvu-native-header-height) - 1rem));
+  min-height: min(25rem, calc(100dvh - var(--nvu-native-header-height) - 1rem));
+  max-height: calc(100dvh - var(--nvu-native-header-height) - 1rem);
+  padding: 0.72rem;
+  border-radius: 1.28rem;
+}
 
 .nvu-native-android .nvu-profile-menu-intro {
   padding: 0.12rem 0.18rem 0.52rem;
@@ -772,6 +981,12 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   background: rgba(255, 255, 255, 0.58);
   color: #334155;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+  transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+
+.nvu-native-android .nvu-profile-menu-item:active,
+.nvu-native-android .nvu-profile-menu-action:active {
+  transform: scale(0.975);
 }
 
 .nvu-native-android .nvu-profile-menu-action {
@@ -864,9 +1079,9 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
 .dark .nvu-native-android .nvu-profile-menu-item,
 .dark .nvu-native-android .nvu-profile-menu-action {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.085);
-  color: #e2e8f0;
+  border-color: var(--nvu-line);
+  background: var(--nvu-strip);
+  color: var(--nvu-text);
   box-shadow: none;
 }
 
@@ -878,14 +1093,14 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 .dark .nvu-native-android .nvu-profile-menu-action.is-selected,
 .dark .nvu-native-android .nvu-profile-menu-action:hover,
 .dark .nvu-native-android .nvu-profile-menu-action:focus-visible {
-  border-color: rgba(19, 201, 180, 0.38);
-  background: rgba(19, 201, 180, 0.12);
-  color: #99f6e4;
+  border-color: var(--nvu-line);
+  background: var(--nvu-accent-soft);
+  color: var(--nvu-accent);
 }
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-profile-submenu-back {
   border-color: rgba(255, 255, 255, 0.12);
-  color: #cbd5e1;
+  color: var(--nvu-text-soft);
 }
 
 
@@ -922,11 +1137,45 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
 @media (max-width: 1023px), (pointer: coarse) {
   .nvu-admin-shell .nvu-admin-sidebar {
+    top: calc(var(--nvu-native-header-height, 0px) + 0.6rem);
+    bottom: auto;
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    max-height: calc(100dvh - var(--nvu-native-header-height, 0px) - 1.1rem);
+    padding: 0.72rem;
+    overflow: hidden;
     border: 1px solid rgba(148, 163, 184, 0.30);
+    border-radius: 1.28rem;
     background: rgba(248, 250, 252, 0.965);
     box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24), 0 8px 20px rgba(15, 23, 42, 0.10);
     backdrop-filter: blur(10px) saturate(125%);
     -webkit-backdrop-filter: blur(10px) saturate(125%);
+    display: flex !important;
+    transform: translateY(-1.5rem) scale(0.985);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform-origin: top center;
+    transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 180ms ease-out;
+  }
+
+  .nvu-admin-shell .nvu-admin-sidebar.flex,
+  .nvu-admin-shell .nvu-admin-sidebar.nvu-native-sidebar-open {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .nvu-admin-shell .nvu-admin-sidebar.-translate-x-full,
+  .nvu-admin-shell .nvu-admin-sidebar.nvu-native-sidebar-closed {
+    transform: translateY(-1.5rem) scale(0.985);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
   }
 
   .nvu-admin-menu-intro {
@@ -1041,6 +1290,12 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
     line-height: 1.2;
     text-align: left;
     box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+    transition: transform 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+  }
+
+  .nvu-admin-menu-item:active,
+  .nvu-admin-menu-action:active {
+    transform: scale(0.975);
   }
 
   .nvu-admin-menu-item.is-active,
@@ -1148,41 +1403,41 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-admin-shell .nvu-admin-sidebar {
-  background: rgba(15, 23, 35, 0.97);
-  border-color: rgba(255, 255, 255, 0.14);
+  background: var(--nvu-elevated);
+  border-color: var(--nvu-line);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48), 0 8px 20px rgba(0, 0, 0, 0.26);
 }
 
 .dark .nvu-admin-menu-intro {
-  border-bottom-color: rgba(255, 255, 255, 0.12);
+  border-bottom-color: var(--nvu-line);
 }
 
-.dark .nvu-admin-menu-title { color: #f8fafc; }
+.dark .nvu-admin-menu-title { color: var(--nvu-text); }
 .dark .nvu-admin-menu-description,
 .dark .nvu-admin-menu-eyebrow,
 .dark .nvu-admin-menu-section-label,
 .dark .nvu-admin-action-caption,
 .dark .nvu-admin-submenu-heading,
-.dark .nvu-admin-group-title { color: #94a3b8; }
+.dark .nvu-admin-group-title { color: var(--nvu-muted); }
 
 .dark .nvu-admin-menu-intro-icon {
-  border-color: rgba(96, 165, 250, 0.30);
+  border-color: var(--nvu-line);
   background: rgba(96, 165, 250, 0.12);
   color: #93c5fd;
 }
 
 .dark .nvu-admin-menu-account,
 .dark .nvu-admin-menu-footer > div {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.075) !important;
+  border-color: var(--nvu-line);
+  background: var(--nvu-surface) !important;
   box-shadow: none;
 }
 
 .dark .nvu-admin-menu-item,
 .dark .nvu-admin-menu-action {
-  border-color: rgba(255, 255, 255, 0.11);
-  background: rgba(255, 255, 255, 0.085);
-  color: #e2e8f0;
+  border-color: var(--nvu-line);
+  background: var(--nvu-strip);
+  color: var(--nvu-text);
   box-shadow: none;
 }
 
@@ -1192,9 +1447,9 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 .dark .nvu-admin-menu-action.is-selected,
 .dark .nvu-admin-menu-action:hover,
 .dark .nvu-admin-menu-action:focus-visible {
-  border-color: rgba(96, 165, 250, 0.38);
-  background: rgba(96, 165, 250, 0.14);
-  color: #bfdbfe;
+  border-color: var(--nvu-line);
+  background: var(--nvu-accent-soft);
+  color: var(--nvu-accent);
 }
 
 .dark .nvu-admin-role-group {
@@ -1204,19 +1459,27 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
 .dark .nvu-admin-submenu-back {
   border-color: rgba(255, 255, 255, 0.12);
-  color: #cbd5e1;
+  color: var(--nvu-text-soft);
 }
 
 .dark .nvu-admin-menu-footer > button:not(.nvu-admin-logout-button) {
-  border-color: rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.075);
-  color: #cbd5e1;
+  border-color: var(--nvu-line);
+  background: var(--nvu-danger-soft);
+  color: var(--nvu-danger);
 }
 
 .dark .nvu-admin-logout-button {
-  border-color: rgba(251, 113, 133, 0.24);
-  background: rgba(251, 113, 133, 0.12);
-  color: #fda4af;
+  border-color: var(--nvu-line);
+  background: var(--nvu-danger-soft);
+  color: var(--nvu-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nvu-admin-shell .nvu-admin-sidebar,
+  .nvu-admin-menu-item,
+  .nvu-admin-menu-action {
+    transition: none;
+  }
 }
 
 
@@ -1279,22 +1542,22 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-admin-shell .nvu-admin-sidebar {
-  background: rgba(15, 23, 35, 0.94);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: var(--nvu-elevated);
+  border-color: var(--nvu-line);
   box-shadow: 0 22px 54px rgba(0, 0, 0, 0.44), 0 6px 18px rgba(0, 0, 0, 0.26);
 }
 
 .dark .nvu-admin-shell .nvu-admin-menu-intro-icon {
-  border-color: rgba(19, 201, 180, 0.34);
+  border-color: var(--nvu-line);
   background: rgba(19, 201, 180, 0.12);
   color: #5eead4;
 }
 
 .dark .nvu-admin-shell .nvu-admin-menu-item,
 .dark .nvu-admin-shell .nvu-admin-menu-action {
-  border-color: rgba(255, 255, 255, 0.10);
-  background: rgba(255, 255, 255, 0.075);
-  color: #e2e8f0;
+  border-color: var(--nvu-line);
+  background: var(--nvu-strip);
+  color: var(--nvu-text);
   box-shadow: none;
 }
 
@@ -1304,16 +1567,16 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 .dark .nvu-admin-shell .nvu-admin-menu-action.is-selected,
 .dark .nvu-admin-shell .nvu-admin-menu-action:hover,
 .dark .nvu-admin-shell .nvu-admin-menu-action:focus-visible {
-  border-color: rgba(19, 201, 180, 0.38);
-  background: rgba(19, 201, 180, 0.12);
-  color: #99f6e4;
+  border-color: var(--nvu-line);
+  background: var(--nvu-accent-soft);
+  color: var(--nvu-accent);
 }
 
 .dark .nvu-profile-logout-button,
 .dark .nvu-admin-logout-button {
-  border-color: rgba(251, 113, 133, 0.24);
-  background: rgba(251, 113, 133, 0.12);
-  color: #fda4af;
+  border-color: var(--nvu-line);
+  background: var(--nvu-danger-soft);
+  color: var(--nvu-danger);
 }
 
 
@@ -1431,7 +1694,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-company-page {
-  background: #09090b;
+  background: var(--nvu-page);
 }
 
 /* Ranking is rendered in a top-level overlay, not inside either layout shell. */
@@ -1462,21 +1725,45 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 .dark .nvu-native-android.nvu-ranking-overlay,
 .dark .nvu-native-android.nvu-ranking-overlay .nvu-ranking-page,
 .dark .nvu-native-android.nvu-ranking-overlay .nvu-ranking-header {
-  background: #09090b !important;
+  background: var(--nvu-page) !important;
 }
 
 .dark .nvu-native-android.nvu-ranking-overlay .nvu-ranking-header {
   border-bottom-color: transparent !important;
-  color: #f8fafc;
+  color: var(--nvu-text);
 }
 
 .dark .nvu-native-android.nvu-ranking-overlay .nvu-ranking-header button,
 .dark .nvu-native-android.nvu-ranking-overlay .nvu-ranking-header button svg {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
 }
 
 
 /* HF262: compact centered mobile menus; fixed horizontal placement, vertical-only motion. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .nvu-native-android .nvu-native-sidebar,
+  .nvu-native-android .nvu-admin-shell .nvu-admin-sidebar {
+    left: 50% !important;
+    right: auto !important;
+    width: min(21rem, calc(75vw - 2.25rem)) !important;
+    max-width: 21rem !important;
+    margin-left: 0 !important;
+    transform: translate(-50%, -1.5rem) scale(0.985);
+    transform-origin: top center;
+  }
+
+  .nvu-native-android .nvu-native-sidebar-open,
+  .nvu-native-android .nvu-admin-shell .nvu-admin-sidebar.nvu-native-sidebar-open,
+  .nvu-native-android .nvu-admin-shell .nvu-admin-sidebar.flex {
+    transform: translate(-50%, 0) scale(1);
+  }
+
+  .nvu-native-android .nvu-native-sidebar-closed,
+  .nvu-native-android .nvu-admin-shell .nvu-admin-sidebar.nvu-native-sidebar-closed,
+  .nvu-native-android .nvu-admin-shell .nvu-admin-sidebar.-translate-x-full {
+    transform: translate(-50%, -1.5rem) scale(0.985);
+  }
+}
 
 /* HF262: non-profile administrative pages follow the active theme instead of
    inheriting the dark Hero chrome. The corporate Hero remains dark by route. */
@@ -1494,16 +1781,16 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-native-android:not(.nvu-native-admin-company-route) .nvu-admin-header {
-  background: #09090b !important;
-  border-bottom-color: #2a2f3a !important;
-  color: #f8fafc !important;
+  background: var(--nvu-page) !important;
+  border-bottom-color: var(--nvu-strip) !important;
+  color: var(--nvu-text) !important;
 }
 
 .dark .nvu-native-android:not(.nvu-native-admin-company-route) .nvu-admin-header button,
 .dark .nvu-native-android:not(.nvu-native-admin-company-route) .nvu-admin-header button svg,
 .dark .nvu-native-android:not(.nvu-native-admin-company-route) .nvu-admin-header [data-nvu-background-brand],
 .dark .nvu-native-android:not(.nvu-native-admin-company-route) .nvu-admin-header [data-nvu-layout-brand] {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
 }
 
 
@@ -1591,8 +1878,8 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 }
 
 .dark .nvu-native-android .nvu-ranking-app-header {
-  background: #09090b !important;
-  border-bottom-color: #2a2f3a !important;
+  background: var(--nvu-page) !important;
+  border-bottom-color: var(--nvu-strip) !important;
 }
 
 
@@ -1631,7 +1918,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-profile-chrome-header,
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header {
-  background-color: rgba(9, 9, 11, var(--nvu-chrome-progress)) !important;
+  background-color: color-mix(in srgb, var(--nvu-page) calc(var(--nvu-chrome-progress) * 100%), transparent) !important;
   background-image: linear-gradient(
     180deg,
     rgba(8, 19, 31, calc((1 - var(--nvu-chrome-progress)) * 0.22)),
@@ -1639,7 +1926,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
     transparent 100%
   ) !important;
   border-bottom-color: rgba(63, 63, 70, calc(var(--nvu-chrome-progress) * 0.78)) !important;
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
 }
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-profile-chrome-header button,
@@ -1650,7 +1937,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header button svg,
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header [data-nvu-background-brand],
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header [data-nvu-layout-brand] {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
 }
 
 /* The company menu uses the Driver menu's exact profile tokens; admin aliases
@@ -1658,7 +1945,10 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 @media (max-width: 1023px), (pointer: coarse) {
   .nvu-native-android.nvu-native-admin-company-route .nvu-admin-sidebar,
   .nvu-native-android .nvu-native-sidebar {
+    width: min(21rem, calc(75vw - 2.25rem)) !important;
+    max-width: 21rem !important;
     border: 1px solid rgba(148, 163, 184, 0.20) !important;
+    border-radius: 1.15rem !important;
     background: rgba(248, 250, 252, 0.94) !important;
     box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18) !important;
     backdrop-filter: blur(14px) saturate(1.08);
@@ -1667,8 +1957,8 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
   .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-sidebar,
   .dark .nvu-native-android .nvu-native-sidebar {
-    border-color: rgba(255, 255, 255, 0.12) !important;
-    background: rgba(9, 9, 11, 0.92) !important;
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-elevated) !important;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.36) !important;
   }
 
@@ -1690,6 +1980,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
     border-radius: 0.82rem !important;
     background: rgba(255, 255, 255, 0.72) !important;
     color: #334155 !important;
+    transition: background-color 160ms ease-out, border-color 160ms ease-out, color 160ms ease-out, transform 160ms ease-out;
   }
 
   .nvu-native-android.nvu-native-admin-company-route .nvu-admin-menu-item.is-active,
@@ -1709,9 +2000,9 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-menu-action,
   .dark .nvu-native-android .nvu-profile-menu-item,
   .dark .nvu-native-android .nvu-profile-menu-action {
-    border-color: rgba(255, 255, 255, 0.11) !important;
-    background: rgba(255, 255, 255, 0.085) !important;
-    color: #e2e8f0 !important;
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-strip) !important;
+    color: var(--nvu-text) !important;
   }
 
   .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-menu-item.is-active,
@@ -1720,9 +2011,9 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-menu-action.is-selected,
   .dark .nvu-native-android .nvu-profile-menu-item.is-active,
   .dark .nvu-native-android .nvu-profile-menu-action.is-selected {
-    border-color: rgba(19, 201, 180, 0.38) !important;
-    background: rgba(19, 201, 180, 0.13) !important;
-    color: #7de3d5 !important;
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-accent-soft) !important;
+    color: var(--nvu-accent) !important;
   }
 }
 
@@ -1748,6 +2039,30 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
   .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-menu-overlay {
     background: linear-gradient(180deg, rgba(0, 0, 0, 0.68), rgba(0, 0, 0, 0.52)) !important;
   }
+
+  .nvu-native-android .nvu-native-sidebar,
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-sidebar {
+    left: 50% !important;
+    right: auto !important;
+    top: calc(var(--nvu-safe-top) + 4.4rem) !important;
+    bottom: auto !important;
+    width: min(21rem, calc(75vw - 2.25rem)) !important;
+    max-width: 21rem !important;
+    max-height: calc(100dvh - var(--nvu-safe-top) - 5.2rem) !important;
+    z-index: 70 !important;
+    transform: translate(-50%, -1.5rem) scale(0.985) !important;
+    transform-origin: top center !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar.nvu-native-sidebar-open,
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-sidebar.flex {
+    transform: translate(-50%, 0) scale(1) !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar.nvu-native-sidebar-closed,
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-sidebar.-translate-x-full {
+    transform: translate(-50%, -1.5rem) scale(0.985) !important;
+  }
 }
 
 
@@ -1760,7 +2075,7 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
 .dark .nvu-native-android.nvu-native-profile-route .nvu-profile-chrome-header .nvu-profile-wordmark,
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header .nvu-profile-wordmark {
-  color: color-mix(in srgb, #f8fafc calc((1 - var(--nvu-chrome-progress, 0)) * 100%), #e2e8f0 calc(var(--nvu-chrome-progress, 0) * 100%)) !important;
+  color: color-mix(in srgb, var(--nvu-text) calc((1 - var(--nvu-chrome-progress, 0)) * 100%), var(--nvu-text-soft) calc(var(--nvu-chrome-progress, 0) * 100%)) !important;
 }
 
 .nvu-native-android .nvu-profile-logout-button,
@@ -1783,9 +2098,9 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 .dark .nvu-native-android .nvu-driver-logout-button,
 .dark .nvu-native-android .nvu-driver-logout-button,
 .dark .nvu-native-android .nvu-admin-logout-button {
-  border-color: rgba(251, 113, 133, 0.30) !important;
-  background: rgba(225, 29, 72, 0.18) !important;
-  color: #fda4af !important;
+  border-color: var(--nvu-line) !important;
+  background: var(--nvu-danger-soft) !important;
+  color: var(--nvu-danger) !important;
 }
 
 @media (max-width: 1023px), (pointer: coarse) {
@@ -1800,15 +2115,36 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 
   .nvu-native-android .nvu-native-sidebar,
   .nvu-native-android .nvu-admin-sidebar {
+    left: 50% !important;
+    right: auto !important;
+    top: calc(var(--nvu-safe-top) + 4.4rem) !important;
+    bottom: auto !important;
+    width: min(21rem, calc(75vw - 2.25rem)) !important;
+    max-width: 21rem !important;
+    max-height: calc(100dvh - var(--nvu-safe-top) - 5.2rem) !important;
+    z-index: 70 !important;
     border: 1px solid rgba(148, 163, 184, 0.20) !important;
+    border-radius: 1.15rem !important;
     background: rgba(248, 250, 252, 0.94) !important;
     box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18) !important;
+    transform: translate(-50%, -1.5rem) scale(0.985) !important;
+    transform-origin: top center !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar.nvu-native-sidebar-open,
+  .nvu-native-android .nvu-admin-sidebar:not(.-translate-x-full) {
+    transform: translate(-50%, 0) scale(1) !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar.nvu-native-sidebar-closed,
+  .nvu-native-android .nvu-admin-sidebar.-translate-x-full {
+    transform: translate(-50%, -1.5rem) scale(0.985) !important;
   }
 
   .dark .nvu-native-android .nvu-native-sidebar,
   .dark .nvu-native-android .nvu-admin-sidebar {
-    border-color: rgba(255, 255, 255, 0.12) !important;
-    background: rgba(9, 9, 11, 0.92) !important;
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-elevated) !important;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.36) !important;
   }
 }
@@ -1820,6 +2156,11 @@ html.nvu-route-loading-active [data-nvu-layout-brand] {
 body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-native-menu-overlay,
 body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
   z-index: 2100 !important;
+}
+
+body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-native-sidebar,
+body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-sidebar {
+  z-index: 2200 !important;
 }
 
 
@@ -1862,7 +2203,7 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 
 .dark .nvu-native-android .nvu-profile-native-header:not([data-nvu-hero-chrome="active"]) .nvu-profile-wordmark,
 .dark .nvu-native-android .nvu-admin-header:not([data-nvu-hero-chrome="active"]) [data-nvu-layout-brand] {
-  color: #fafafa !important;
+  color: var(--nvu-text) !important;
 }
 
 /* NVU Pro v1.2 final: notification contrast and portal-safe modal offsets. */
@@ -1874,7 +2215,7 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 
 .dark .nvu-native-android .nvu-notification-trigger,
 .dark .nvu-native-android .nvu-notification-trigger svg {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
   stroke: currentColor !important;
 }
 
@@ -1890,7 +2231,7 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 .dark .nvu-native-android.nvu-native-profile-route .nvu-profile-chrome-header .nvu-notification-trigger svg,
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header .nvu-notification-trigger,
 .dark .nvu-native-android.nvu-native-admin-company-route .nvu-profile-chrome-header .nvu-notification-trigger svg {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
   stroke: currentColor !important;
 }
 
@@ -1908,7 +2249,7 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 .dark .nvu-native-android .nvu-profile-chrome-header .nvu-notification-trigger svg,
 .dark .nvu-native-android .nvu-profile-chrome-header .nvu-profile-wordmark,
 .dark .nvu-native-android .nvu-profile-chrome-header [data-nvu-layout-brand] {
-  color: #f8fafc !important;
+  color: var(--nvu-text) !important;
   stroke: currentColor !important;
 }
 
@@ -1951,7 +2292,7 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 }
 
 .dark .nvu-notification-card-icon {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
   stroke: currentColor !important;
 }
 
@@ -1961,7 +2302,7 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 }
 
 .dark .nvu-native-android .nvu-notification-card-icon {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
   stroke: currentColor !important;
 }
 
@@ -1978,11 +2319,250 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 
 .dark [data-nvu-notification-card-icon],
 .dark [data-nvu-notification-card-icon] * {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
   stroke: #e2e8f0 !important;
   fill: none !important;
   opacity: 1 !important;
   visibility: visible !important;
+}
+
+/* Desktop-only presentation layer. Mobile web keeps the APK shell above. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell {
+    min-height: 100vh;
+    background: #f1f5f9;
+  }
+
+  .dark .nvu-desktop-shell { background: var(--nvu-page); }
+
+  .nvu-desktop-shell .nvu-native-main {
+    width: min(100% - 3rem, 1080px);
+    max-width: 1080px;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .nvu-desktop-shell .nvu-native-content {
+    width: min(100%, 980px);
+    max-width: 980px;
+    margin-inline: auto;
+    padding: 1.75rem 0 3rem !important;
+    overflow: visible;
+  }
+
+  .nvu-desktop-shell .nvu-admin-company-page,
+  .nvu-desktop-shell .nvu-profile-stack {
+    width: min(100%, 960px) !important;
+    max-width: 960px !important;
+    margin-inline: auto !important;
+  }
+
+  .nvu-desktop-shell .nvu-admin-company-page > div:first-child {
+    width: 100% !important;
+    max-width: 960px !important;
+    margin-inline: auto !important;
+    padding-inline: 0 !important;
+    gap: 1.25rem !important;
+  }
+
+  /* Desktop menu button and outside-click veil mirror the Android interaction. */
+  .nvu-desktop-shell .nvu-native-menu-button,
+  .nvu-desktop-shell .nvu-admin-menu-button {
+    display: inline-flex !important;
+  }
+
+  .nvu-desktop-shell .nvu-native-menu-overlay {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(15, 23, 42, 0.18);
+    opacity: 1;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  .dark .nvu-desktop-shell .nvu-native-menu-overlay {
+    background: rgba(0, 0, 0, 0.38);
+  }
+
+  /* Larger floating menu, centered below the header rather than entering from
+     the left edge. The closed state is invisible and non-interactive. */
+  .nvu-desktop-shell .nvu-floating-menu-card {
+    top: 4.25rem;
+    bottom: auto;
+    left: 50%;
+    width: 24rem;
+    max-height: calc(100vh - 5.5rem);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 1.5rem;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18), 0 5px 18px rgba(15, 23, 42, 0.08);
+    overflow: hidden;
+    transform-origin: top center;
+    transition: none;
+  }
+
+  .nvu-desktop-shell .nvu-floating-menu-card.nvu-native-sidebar-closed {
+    display: flex !important;
+    transform: translate(-50%, -0.75rem) scale(0.94);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .nvu-desktop-shell .nvu-floating-menu-card.nvu-native-sidebar-open {
+    display: flex !important;
+    transform: translate(-50%, 0) scale(1);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    z-index: 60;
+  }
+
+  /* Keep the desktop selector card aligned like the Android profile menu. */
+  .nvu-desktop-shell .nvu-profile-role-group,
+  .nvu-desktop-shell .nvu-profile-company-switch-list {
+    width: 100%;
+  }
+
+  .nvu-desktop-shell .nvu-profile-role-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .nvu-desktop-shell .nvu-profile-role-group .nvu-profile-action-caption {
+    margin: 0 0 0.15rem;
+    padding-inline: 0.25rem;
+  }
+
+  .nvu-desktop-shell .nvu-profile-profile-actions .nvu-profile-menu-action,
+  .nvu-desktop-shell .nvu-profile-company-options .nvu-profile-menu-action {
+    width: 100%;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    box-sizing: border-box;
+  }
+
+  .dark .nvu-desktop-shell .nvu-floating-menu-card {
+    border-color: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 26px 72px rgba(0, 0, 0, 0.46), 0 6px 20px rgba(0, 0, 0, 0.22);
+  }
+
+  /* Light NVU desktop chrome uses the same dark icon contrast as Android's
+     settled header; dark theme remains light. */
+  .nvu-desktop-shell .nvu-admin-header,
+  .nvu-desktop-shell .nvu-native-header {
+    color: #0f172a;
+  }
+
+  .nvu-desktop-shell .nvu-admin-header button,
+  .nvu-desktop-shell .nvu-admin-header button svg,
+  .nvu-desktop-shell .nvu-native-header button,
+  .nvu-desktop-shell .nvu-native-header button svg,
+  .nvu-desktop-shell .nvu-admin-header [data-nvu-layout-brand],
+  .nvu-desktop-shell .nvu-native-header [data-nvu-layout-brand] {
+    color: #0f172a !important;
+    stroke: currentColor;
+  }
+
+  .dark .nvu-desktop-shell .nvu-admin-header,
+  .dark .nvu-desktop-shell .nvu-native-header {
+    color: var(--nvu-text);
+  }
+
+  .dark .nvu-desktop-shell .nvu-admin-header button,
+  .dark .nvu-desktop-shell .nvu-admin-header button svg,
+  .dark .nvu-desktop-shell .nvu-native-header button,
+  .dark .nvu-desktop-shell .nvu-native-header button svg,
+  .dark .nvu-desktop-shell .nvu-admin-header [data-nvu-layout-brand],
+  .dark .nvu-desktop-shell .nvu-native-header [data-nvu-layout-brand] {
+    color: var(--nvu-text) !important;
+    stroke: currentColor;
+  }
+
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-intro { padding: 1.2rem 1.25rem 1rem; }
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-account { padding: 0.9rem; }
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-account > div {
+    min-height: 3.8rem;
+    padding: 0.8rem 0.9rem;
+  }
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-nav,
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-profile-actions {
+    gap: 0.55rem;
+    padding: 0 1rem 1rem;
+  }
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-action,
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-nav a {
+    min-height: 3.25rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 0.9rem;
+    font-size: 0.95rem;
+  }
+  .nvu-desktop-shell .nvu-floating-menu-card .nvu-profile-menu-section-label {
+    padding-inline: 1rem;
+    margin-top: 0.9rem;
+  }
+
+  /* Rectangular hero: image/logo left, identity and selector at bottom-right. */
+  .nvu-desktop-shell .nvu-profile-hero,
+  .nvu-desktop-shell .nvu-admin-company-hero {
+    width: 100% !important;
+    max-width: 1120px !important;
+    height: 248px !important;
+    min-height: 248px !important;
+    margin: 0 auto 1.25rem !important;
+    border-radius: 1.5rem !important;
+    background: #0e1d29;
+    box-shadow: 0 18px 45px rgba(7, 23, 37, 0.18);
+  }
+
+  .dark .nvu-desktop-shell .nvu-profile-hero,
+  .dark .nvu-desktop-shell .nvu-admin-company-hero {
+    background: #111827;
+    box-shadow: 0 20px 52px rgba(0, 0, 0, 0.34);
+  }
+
+  .nvu-desktop-shell .nvu-profile-hero > div:first-child,
+  .nvu-desktop-shell .nvu-admin-company-hero > div:first-child {
+    width: 38%;
+    right: auto;
+    border-radius: 1.5rem 0 0 1.5rem !important;
+  }
+
+  .nvu-desktop-shell .nvu-profile-hero > div:nth-child(2),
+  .nvu-desktop-shell .nvu-admin-company-hero > div:nth-child(2) {
+    padding: 1.5rem 2rem !important;
+    padding-left: calc(38% + 2rem) !important;
+  }
+
+  .nvu-desktop-shell .nvu-profile-hero > div:nth-child(2) > div,
+  .nvu-desktop-shell .nvu-admin-company-hero > div:nth-child(2) > div {
+    align-items: flex-end;
+    gap: 1.5rem;
+  }
+
+  .nvu-desktop-shell .nvu-profile-hero > div:nth-child(2) > div > div:first-child,
+  .nvu-desktop-shell .nvu-admin-company-hero > div:nth-child(2) > div > div:first-child {
+    align-items: flex-end;
+  }
+
+  .nvu-desktop-shell .nvu-profile-hero h2,
+  .nvu-desktop-shell .nvu-admin-company-hero h2 { font-size: 1.35rem; }
+
+  .nvu-desktop-shell .nvu-profile-company-bar {
+    width: min(100%, 960px) !important;
+    margin-inline: auto !important;
+  }
+
+  .nvu-desktop-shell .nvu-profile-company-bar button { min-height: 3.5rem; }
+}
+
+@media (min-width: 821px) and (max-width: 1180px) {
+  .nvu-desktop-shell .nvu-native-content { padding-inline: 1.25rem !important; }
 }
 
 .nvu-native-android [data-nvu-notification-card-icon],
@@ -1994,9 +2574,103 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
 
 .dark .nvu-native-android [data-nvu-notification-card-icon],
 .dark .nvu-native-android [data-nvu-notification-card-icon] * {
-  color: #e2e8f0 !important;
+  color: var(--nvu-text-soft) !important;
   stroke: #e2e8f0 !important;
   fill: none !important;
+}
+
+/* Final desktop menu contract: one shared Android-derived structure for both
+   profiles, with no clipping and no entry/exit animation. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell .nvu-native-menu-button,
+  .nvu-desktop-shell .nvu-admin-menu-button {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    color: #0f172a !important;
+  }
+
+  .dark .nvu-desktop-shell .nvu-native-menu-button,
+  .dark .nvu-desktop-shell .nvu-admin-menu-button {
+    color: var(--nvu-text) !important;
+  }
+
+  .nvu-desktop-shell .nvu-native-menu-overlay {
+    display: block !important;
+    z-index: 55 !important;
+    pointer-events: auto;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] {
+    width: 24rem !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: calc(100vh - 5.5rem) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    transform-origin: top center !important;
+    transition: none !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-native-sidebar-closed {
+    display: flex !important;
+    transform: translate(-50%, -0.5rem) scale(0.98) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-native-sidebar-open {
+    display: flex !important;
+    transform: translate(-50%, 0) scale(1) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+    z-index: 60 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-profile-actions,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-admin-menu-nav {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer {
+    flex: 0 0 auto !important;
+    margin-top: 0 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-role-group,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-company-options {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.45rem !important;
+    width: 100% !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-role-group > button,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-profile-actions > button,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-company-options > button {
+    width: 100% !important;
+    min-height: 3rem !important;
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    box-sizing: border-box !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-role-group > button > span,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-profile-actions > button > span,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-company-options > button > span {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
 }
 
 /* RecordTrip/menu contract: native Android always uses the same centered profile
@@ -2012,97 +2686,679 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-menu-overlay {
   }
 
   .nvu-native-android .nvu-native-sidebar {
+    top: calc(var(--nvu-native-header-height) + 0.6rem) !important;
+    bottom: auto !important;
+    left: 50% !important;
+    right: auto !important;
+    width: min(88vw, 26rem) !important;
+    height: min(78dvh, calc(100dvh - var(--nvu-native-header-height) - 1.1rem)) !important;
+    min-height: min(30rem, calc(100dvh - var(--nvu-native-header-height) - 1.1rem)) !important;
+    max-height: calc(100dvh - var(--nvu-native-header-height) - 1.1rem) !important;
+    margin: 0 !important;
     border-right: 1px solid rgba(148, 163, 184, 0.30) !important;
+    border-radius: 1.5rem !important;
+    overflow: hidden !important;
+    transform: translate(-50%, -1.5rem) scale(0.985) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transition: transform 260ms cubic-bezier(0.23, 1, 0.32, 1), opacity 180ms ease-out, visibility 180ms ease-out !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar.nvu-native-sidebar-open,
+  .nvu-native-android .nvu-native-sidebar[class~="translate-x-0"] {
+    display: flex !important;
+    transform: translate(-50%, 0) scale(1) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar.nvu-native-sidebar-closed,
+  .nvu-native-android .nvu-native-sidebar[class~="-translate-x-full"] {
+    display: flex !important;
+    transform: translate(-50%, -1.5rem) scale(0.985) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
   }
 
   .dark .nvu-native-android .nvu-native-sidebar {
-    border-right-color: rgba(255, 255, 255, 0.14) !important;
+    border-right-color: var(--nvu-line) !important;
   }
 }
 
 /* NVU Pro v1.2: compact unified profile menus and app-owned status-bar theme. */
 @media (max-width: 1023px), (pointer: coarse) {
+  .nvu-native-android .nvu-native-sidebar,
+  .nvu-native-android .nvu-admin-sidebar {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - var(--nvu-native-header-height) - 1.1rem) !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
 
   .nvu-native-android .nvu-native-sidebar .nvu-profile-menu-nav,
   .nvu-native-android .nvu-admin-sidebar .nvu-profile-menu-nav,
   .nvu-native-android .nvu-admin-sidebar .nvu-admin-menu-nav {
     flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   .nvu-native-android .nvu-native-sidebar .nvu-profile-menu-footer,
   .nvu-native-android .nvu-admin-sidebar .nvu-profile-menu-footer,
   .nvu-native-android .nvu-admin-sidebar .nvu-admin-menu-footer {
     flex: 0 0 auto !important;
+    margin-top: 0 !important;
   }
 }
 
-/* Critical Print-route menu contract: explicit state markers win over Tailwind
-   utility order in Android WebView and keep one centered GlobalMenu everywhere. */
+/* Critical Android menu contract recovered from the R6 functional bundle.
+   Native menus use one centered, fixed-size card and explicit visibility states;
+   no drawer/zoom transition is allowed to fight the WebView layout. */
 @media (max-width: 1023px), (pointer: coarse) {
-  .nvu-native-android [data-nvu-unified-profile-menu] {
+  .nvu-native-android .nvu-native-sidebar {
     border-right: 1px solid rgba(148, 163, 184, 0.30) !important;
   }
 
+  .dark .nvu-native-android .nvu-native-sidebar {
+    border-right-color: var(--nvu-line) !important;
+  }
+
+  .nvu-native-android .nvu-native-sidebar .nvu-profile-menu-nav,
+  .nvu-native-android .nvu-admin-sidebar .nvu-profile-menu-nav,
+  .nvu-native-android .nvu-admin-sidebar .nvu-admin-menu-nav,
+  .nvu-native-android .nvu-native-sidebar .nvu-profile-menu-footer,
+  .nvu-native-android .nvu-admin-sidebar .nvu-profile-menu-footer,
+  .nvu-native-android .nvu-admin-sidebar .nvu-admin-menu-footer {
+    flex: none !important;
+  }
+
   .nvu-native-android [data-nvu-menu-overlay="true"] {
+    z-index: 60 !important;
+    pointer-events: auto !important;
     display: block !important;
     position: fixed !important;
     inset: 0 !important;
-    z-index: 49 !important;
     background: rgba(15, 23, 42, 0.42) !important;
   }
-}
-/* NVU PRO Android menu contract: one shared container, binary visibility, no motion. */
-@media (max-width: 1023px), (pointer: coarse) {
+
   .nvu-native-android [data-nvu-unified-profile-menu] {
-    position: fixed !important;
     top: calc(var(--nvu-native-header-height) + 0.6rem) !important;
-    right: auto !important;
     bottom: auto !important;
     left: 50% !important;
+    right: auto !important;
     width: min(88vw, 26rem) !important;
     max-width: 26rem !important;
     height: auto !important;
     min-height: 0 !important;
     max-height: calc(100dvh - var(--nvu-native-header-height) - 1.1rem) !important;
-    margin: 0 !important;
-    padding: 0.72rem !important;
     box-sizing: border-box !important;
-    overflow-x: hidden !important;
-    overflow-y: auto !important;
-    border: 1px solid rgba(148, 163, 184, 0.20) !important;
-    border-radius: 1.28rem !important;
     z-index: 70 !important;
-    display: none !important;
-    transform: translateX(-50%) !important;
     opacity: 1 !important;
     visibility: visible !important;
     pointer-events: none !important;
+    border: 1px solid rgba(148, 163, 184, 0.20) !important;
+    border-radius: 1.28rem !important;
+    margin: 0 !important;
+    padding: 0.72rem !important;
+    display: none !important;
+    position: fixed !important;
+    overflow: hidden auto !important;
+    transform: translate(-50%) !important;
+    transition: none !important;
   }
 
   .nvu-native-android [data-nvu-unified-profile-menu][data-nvu-menu-open="true"] {
-    display: flex !important;
     pointer-events: auto !important;
+    display: flex !important;
   }
 
   .nvu-native-android [data-nvu-unified-profile-menu][data-nvu-menu-open="false"] {
-    display: none !important;
     pointer-events: none !important;
-  }
-
-  .nvu-native-android [data-nvu-menu-overlay="true"] {
-    display: block !important;
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 60 !important;
-    pointer-events: auto !important;
+    display: none !important;
   }
 
   .dark .nvu-native-android [data-nvu-unified-profile-menu] {
-    border-color: rgba(255, 255, 255, 0.12) !important;
+    border-color: var(--nvu-line) !important;
   }
 }
+
 @media (max-width: 420px), (pointer: coarse) and (max-height: 760px) {
   .nvu-native-android [data-nvu-unified-profile-menu] {
     max-height: calc(100dvh - var(--nvu-native-header-height) - 0.85rem) !important;
   }
+}
+
+
+/* Desktop parity: reuse the Android menu card system without changing the
+   shared JSX, adapting only placement and viewport constraints. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action {
+    min-height: 2.35rem !important;
+    padding: 0.46rem 0.68rem !important;
+    border: 1px solid rgba(148, 163, 184, 0.20) !important;
+    border-radius: 0.78rem !important;
+    font-size: 0.78rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    background: rgba(255, 255, 255, 0.58) !important;
+    color: #334155 !important;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action.is-selected,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action:hover,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action:focus-visible,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item:hover,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item:focus-visible {
+    border-color: rgba(12, 180, 159, 0.34) !important;
+    background: rgba(12, 180, 159, 0.10) !important;
+    color: #0f766e !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-role-group {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.28rem !important;
+    padding: 0.42rem !important;
+    border: 1px solid rgba(148, 163, 184, 0.18) !important;
+    border-radius: 0.88rem !important;
+    background: rgba(255, 255, 255, 0.34) !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-action-caption,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-submenu-heading {
+    margin: 0 !important;
+    padding: 0.08rem 0.16rem 0.12rem !important;
+    color: #64748b !important;
+    font-size: 0.61rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.11em !important;
+    line-height: 1.2 !important;
+    text-transform: uppercase;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-company-options {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.28rem !important;
+    max-height: 12rem;
+    overflow-y: auto !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action {
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-strip) !important;
+    color: var(--nvu-text) !important;
+    box-shadow: none !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-role-group {
+    border-color: var(--nvu-line) !important;
+    background: rgba(255, 255, 255, 0.045) !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action.is-selected,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action:hover,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action:focus-visible {
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-accent-soft) !important;
+    color: var(--nvu-accent) !important;
+  }
+
+  /* Driver profile wordmark: dark in the light NVU theme, light in dark mode. */
+  .nvu-desktop-shell .nvu-profile-native-header .nvu-profile-wordmark {
+    color: #0f172a !important;
+  }
+
+  .dark .nvu-desktop-shell .nvu-profile-native-header .nvu-profile-wordmark {
+    color: var(--nvu-text) !important;
+  }
+}
+
+
+/* Desktop uses the Android GlobalMenu hierarchy and tokens. Only the floating
+   placement is desktop-specific; visual identity remains shared. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] {
+    padding: 0.72rem !important;
+    border-radius: 1.28rem !important;
+    background: rgba(248, 250, 252, 0.965) !important;
+    border-color: rgba(148, 163, 184, 0.30) !important;
+    box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24), 0 8px 20px rgba(15, 23, 42, 0.10) !important;
+    backdrop-filter: blur(10px) saturate(125%);
+    -webkit-backdrop-filter: blur(10px) saturate(125%);
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
+    padding: 0.12rem 0.18rem 0.52rem !important;
+    border-bottom: 1px solid rgba(100, 116, 139, 0.16) !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-eyebrow,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-section-label {
+    color: #64748b !important;
+    font-size: 0.62rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.14em !important;
+    line-height: 1.2 !important;
+    text-transform: uppercase !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-title {
+    margin: 0.22rem 0 0 !important;
+    color: #0f172a !important;
+    font-size: 0.96rem !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1.2 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-description {
+    margin: 0.16rem 0 0 !important;
+    color: #64748b !important;
+    font-size: 0.68rem !important;
+    line-height: 1.35 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro-icon {
+    width: 2.1rem !important;
+    height: 2.1rem !important;
+    flex: 0 0 auto !important;
+    border: 1px solid rgba(12, 180, 159, 0.25) !important;
+    border-radius: 0.8rem !important;
+    background: rgba(12, 180, 159, 0.11) !important;
+    color: #0f9f90 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account {
+    margin-top: 0.48rem !important;
+    padding: 0.42rem !important;
+    border: 1px solid rgba(148, 163, 184, 0.22) !important;
+    border-radius: 1rem !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account > div {
+    min-height: 3.35rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account > div:last-child {
+    border-radius: 0.75rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-section-label {
+    margin: 0.58rem 0.16rem 0.28rem !important;
+    color: #94a3b8 !important;
+    letter-spacing: 0.12em !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer {
+    gap: 0.34rem !important;
+    margin-top: 0.48rem !important;
+    padding: 0.5rem 0 0 !important;
+    border-top-color: rgba(100, 116, 139, 0.16) !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > div {
+    margin: 0 !important;
+    padding: 0.44rem 0.55rem !important;
+    border-color: rgba(148, 163, 184, 0.20) !important;
+    border-radius: 0.82rem !important;
+    background: rgba(255, 255, 255, 0.72) !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > button {
+    min-height: 2.2rem !important;
+    padding-block: 0.42rem !important;
+    border: 1px solid rgba(148, 163, 184, 0.18) !important;
+    border-radius: 0.76rem !important;
+    background: rgba(255, 255, 255, 0.48) !important;
+    color: #475569 !important;
+    font-size: 0.78rem !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] {
+    background: var(--nvu-elevated) !important;
+    border-color: var(--nvu-line) !important;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.48), 0 8px 20px rgba(0, 0, 0, 0.26) !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro {
+    border-bottom-color: var(--nvu-line) !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-title {
+    color: var(--nvu-text) !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-description,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-eyebrow,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-section-label {
+    color: var(--nvu-muted) !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > div {
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-surface) !important;
+    box-shadow: none !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer {
+    border-top-color: var(--nvu-line) !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > button {
+    border-color: var(--nvu-line) !important;
+    background: rgba(255, 255, 255, 0.075) !important;
+    color: var(--nvu-text-soft) !important;
+  }
+}
+
+
+/* Desktop rendering fix: preserve the GlobalMenu DOM and stabilize each
+   icon/text/indicator row without changing the Android rules. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    column-gap: 0.65rem !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    white-space: nowrap;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action > span,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item > span,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > button > span {
+    display: inline-flex !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    gap: 0.65rem !important;
+    overflow: hidden !important;
+    white-space: nowrap;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action > span > svg,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item > span > svg,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action > svg,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item > svg,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer > button > svg {
+    flex: 0 0 auto !important;
+    width: 1.05rem !important;
+    height: 1.05rem !important;
+    display: block !important;
+    vertical-align: middle !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action > span > span,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item > span > span {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action > svg:last-child,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item > svg:last-child {
+    margin-left: auto !important;
+    flex: 0 0 auto !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account > div:last-child {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    min-width: 0 !important;
+    gap: 0.65rem !important;
+    overflow: hidden !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account > div:last-child > div:first-child {
+    display: flex !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account img,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account [role="img"] {
+    flex: 0 0 auto !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account p {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account > div:last-child > svg {
+    flex: 0 0 auto !important;
+    display: block !important;
+    width: 1rem !important;
+    height: 1rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro-icon svg,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro-icon > svg {
+    display: block !important;
+    flex: 0 0 auto !important;
+    width: 1.05rem !important;
+    height: 1.05rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-submenu-heading {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-submenu-heading > span {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-submenu-back {
+    display: grid !important;
+    flex: 0 0 auto !important;
+    place-items: center !important;
+  }
+}
+
+
+/* Desktop GlobalMenu structural contract. The same menu surface is used by
+   Company and Driver; profile-specific selectors are intentionally excluded
+   from this desktop layer so one DOM/CSS system owns the layout. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] {
+    display: flex !important;
+    flex-direction: column !important;
+    box-sizing: border-box !important;
+    gap: 0 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro-copy {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro-icon {
+    display: grid !important;
+    flex: 0 0 auto !important;
+    place-items: center !important;
+    align-self: flex-start !important;
+    margin: 0 !important;
+    transform: none !important;
+    position: static !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Tailwind space-y utilities previously added margins on top of the
+     explicit flex gaps, producing unequal/stacked spacing between cards. */
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav > :not([hidden]) ~ :not([hidden]),
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav .space-y-1 > :not([hidden]) ~ :not([hidden]),
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav .space-y-2 > :not([hidden]) ~ :not([hidden]),
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0 !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.28rem !important;
+    box-sizing: border-box !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav > div {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.28rem !important;
+    box-sizing: border-box !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav > div > .space-y-1,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav > div > .space-y-2 {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.28rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-action,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-item {
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    transform: none;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-account,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-section-label,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer {
+    flex: 0 0 auto !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro + .nvu-profile-menu-account {
+    margin-top: 0.48rem !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-footer {
+    margin-top: auto !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-logout-button,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-admin-logout-button {
+    border: 1px solid rgba(225, 29, 72, 0.34) !important;
+    background: rgba(225, 29, 72, 0.12) !important;
+    color: #be123c !important;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-logout-button:hover,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-logout-button:focus-visible,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-admin-logout-button:hover,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-admin-logout-button:focus-visible {
+    border-color: rgba(190, 18, 60, 0.48) !important;
+    background: rgba(225, 29, 72, 0.18) !important;
+    color: #9f1239 !important;
+  }
+
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-logout-button,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-admin-logout-button {
+    border-color: var(--nvu-line) !important;
+    background: var(--nvu-danger-soft) !important;
+    color: var(--nvu-danger) !important;
+  }
+}
+
+/* Shared Android geometry: same company reference for every profile. */
+@media (max-width: 1023px), (pointer: coarse) {
+  .nvu-native-android [data-nvu-unified-profile-menu][data-nvu-menu-open] {
+    width: min(21rem, calc(75vw - 2.25rem)) !important;
+    max-width: 21rem !important;
+    top: calc(var(--nvu-safe-top) + 4.4rem) !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - var(--nvu-safe-top) - 5.2rem) !important;
+    padding: .8rem !important;
+    border-radius: 1.15rem !important;
+  }
+  .nvu-native-android [data-nvu-unified-profile-menu] .nvu-profile-menu-nav {
+    gap: .38rem !important;
+    padding: 0 !important;
+  }
+  .nvu-native-android [data-nvu-unified-profile-menu] .nvu-profile-menu-nav > * + *,
+  .nvu-native-android [data-nvu-unified-profile-menu] .nvu-profile-menu-nav .space-y-1 > * + * {
+    margin-top: 0 !important;
+  }
+  .nvu-native-android [data-nvu-unified-profile-menu] .nvu-profile-menu-nav .space-y-1 {
+    display: flex; flex-direction: column; gap: .38rem;
+  }
+}
+/* Central de Gestão R4: isolate the compact mobile dashboard from legacy photo-hero chrome. */
+@media (max-width: 767px) {
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header {
+    background: #f8fafc !important; color: #0f172a !important;
+    border-bottom: 0 !important;
+  }
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header button,
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header button svg,
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header [data-nvu-layout-brand] { color: #0f172a !important; }
+  .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header { background: var(--nvu-page) !important; color: var(--nvu-text) !important; }
+  .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header button,
+  .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header button svg,
+  .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header [data-nvu-layout-brand] { color: var(--nvu-text) !important; }
+  body .nvu-native-android.nvu-native-admin-company-route .nvu-admin-company-page > .nvu-company-stack,
+  body .nvu-workspace-shell .nvu-admin-company-page.nvu-company-workspace > .nvu-company-stack {
+    padding-top: calc(var(--nvu-native-header-height, 64px) + 12px) !important;
+    gap: 12px !important;
+  }
+  .nvu-central-gestao-intro { padding-bottom: 6px; }
+}
+
+/* R5: Company workspace begins below the shared native header, not below a second offset. */
+@media (max-width: 767px) {
+  body .nvu-native-android.nvu-native-admin-company-route .nvu-admin-company-page > .nvu-company-stack,
+  body .nvu-workspace-shell .nvu-admin-company-page.nvu-company-workspace > .nvu-company-stack {
+    padding-top: 12px !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-company-page { min-height: 0 !important; }
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header { background: #f8fafc !important; color: #0f172a !important; }
+  .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header { background: var(--nvu-page) !important; color: var(--nvu-text) !important; }
+}
+
+/* R6: use a single dock clearance, and let the content end naturally. */
+@media (max-width: 767px) {
+  .nvu-admin-company-page .nvu-company-stack { min-height: 0 !important; }
+  .nvu-admin-company-page .nvu-central-gestao-intro { margin-top: 0 !important; }
+  .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header,
+  .nvu-workspace-shell .nvu-admin-header { background-color: #f8fafc !important; }
+  .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header,
+  .dark .nvu-workspace-shell .nvu-admin-header { background-color: var(--nvu-page) !important; }
 }

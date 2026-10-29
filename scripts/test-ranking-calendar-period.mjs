@@ -7,6 +7,7 @@ import {
   isRankingPeriodClosed,
 } from "../src/lib/rankingPeriods.ts";
 import { normalizeDate } from "../src/lib/metricsEngine.ts";
+import { resolvePerformanceInterval } from "../src/lib/performancePeriods.ts";
 
 const lateAugustInSaoPaulo = new Date("2026-09-01T01:16:10.000Z");
 const augustRange = getRankingUtcMonthlyRange(lateAugustInSaoPaulo);
@@ -51,6 +52,14 @@ assert.equal(
   "2026-08-01T03:00:00.000Z",
   "Datas de viagem sem horário devem respeitar a meia-noite de São Paulo",
 );
+
+const customDay = resolvePerformanceInterval(
+  "Personalizado",
+  { from: new Date(2026, 7, 15), to: new Date(2026, 7, 15) },
+  new Date("2026-08-15T12:00:00.000Z"),
+);
+assert.equal(customDay.start.toISOString(), "2026-08-15T03:00:00.000Z");
+assert.equal(customDay.end.toISOString(), "2026-08-16T02:59:59.999Z");
 
 const rankingGlobalSource = fs.readFileSync(
   new URL("../src/pages/RankingGlobal.tsx", import.meta.url),

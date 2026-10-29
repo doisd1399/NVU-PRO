@@ -1,6 +1,10 @@
+import { readPrivateUser } from "../../../services/privateUserProfiles";
+import { CachedImage } from "../../../components/common/CachedImage";
+import { ModalPortal } from "../../../components/ui/ModalPortal";
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTripHistory } from "../../../hooks/useTripHistory";
+import { HistoryReadCoverageNotice } from "../../../components/common/HistoryReadCoverageNotice";
 import { useOperationalStore, useSessionStore } from "../../../context/AppContext";
 import { useCompanyStore } from "../../../context/CompanyContext";
 import { Button } from "../../../components/ui/Button";
@@ -40,19 +44,25 @@ import {
 } from "../../../lib/simulatorOptions";
 import { uploadService } from "../../../services/uploadService";
 import { db } from "../../../lib/firebase";
+import type { DriverProfileView } from "../../../components/driver/DriverProfileSummary";
+import type { RankingAggregatePeriodType } from "../../../lib/rankingAggregates";
+import { canManageCompanyProfile } from "../../../lib/companyProfileDescription";
 
 function CompanyTab({
   isEditingProp,
   setIsEditingProp,
   isViewingProp,
   setIsViewingProp,
+  profileView = "summary",
 }: {
   isEditingProp?: boolean;
   setIsEditingProp?: (val: boolean) => void;
   isViewingProp?: boolean;
   setIsViewingProp?: (val: boolean) => void;
+  profileView?: DriverProfileView;
 } = {}) {
-  const { currentUser } = useSessionStore();
+  const { currentUser, seniorCompanyId } = useSessionStore();
+  const [profilePeriod, setProfilePeriod] = useState<RankingAggregatePeriodType>("mes");
   const {
     companies,
     allCompanies,
@@ -158,6 +168,10 @@ function CompanyTab({
   const {
     historicoTrips = [],
     loading: companyTripsLoading,
+    coverage: companyHistoryCoverage,
+    error: companyHistoryError,
+    readCoverage: companyHistoryReadCoverage,
+    historyReady: companyHistoryReady,
   } = useTripHistory(activeCompanyId, {
     enabled: Boolean(activeCompanyId),
     userId: currentUser?.id,
@@ -196,54 +210,32 @@ function CompanyTab({
     };
   }, [companyCatalogAttempted, companyCatalogLoaded, loadCompanyCatalog]);
 
+  const emailLookupRef = useRef<{ key: string; readAt: number; promise: Promise<string> } | null>(null);
   useEffect(() => {
-    let cancelled = false;
-
-    setResolvedCompanyEmail("");
     if (!activeCompany || companyDirectEmail) return;
-
+    let cancelled = false;
     const ownerId = String(activeCompany.ownerId || activeCompany.userId || "").trim();
     const sourceRegistrationId = String(activeCompany.sourceRegistrationId || "").trim();
-
-    const resolveCompanyEmail = async () => {
-      try {
-        if (ownerId) {
-          const ownerSnapshot = await getDoc(doc(db, "users", ownerId));
-          const ownerEmail = String(ownerSnapshot.data()?.email || "").trim();
-          if (!cancelled && ownerEmail) {
-            setResolvedCompanyEmail(ownerEmail);
-            return;
+    const key = [currentUser?.id, activeCompany.id, ownerId, sourceRegistrationId].join(":");
+    if (!emailLookupRef.current || emailLookupRef.current.key !== key || Date.now() - emailLookupRef.current.readAt > 120_000) {
+      if (emailLookupRef.current?.key !== key) setResolvedCompanyEmail("");
+      const promise = (async () => {
+        try {
+          if (ownerId) {
+            const email = String((await readPrivateUser(ownerId, activeCompany.id)).data()?.email || "").trim();
+            if (email) return email;
           }
+          if (sourceRegistrationId) return String((await getDoc(doc(db, "recruitment_applications", sourceRegistrationId))).data()?.email || "").trim();
+        } catch (error) {
+          console.warn("[NVU Company] Falha ao resolver email da empresa:", error);
         }
-
-        if (sourceRegistrationId) {
-          const registrationSnapshot = await getDoc(
-            doc(db, "recruitment_applications", sourceRegistrationId),
-          );
-          const registrationEmail = String(
-            registrationSnapshot.data()?.email || "",
-          ).trim();
-          if (!cancelled && registrationEmail) {
-            setResolvedCompanyEmail(registrationEmail);
-          }
-        }
-      } catch (error) {
-        console.warn("[NVU Company] Falha ao resolver email da empresa:", error);
-      }
-    };
-
-    void resolveCompanyEmail();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    activeCompany?.id,
-    activeCompany?.ownerId,
-    activeCompany?.sourceRegistrationId,
-    activeCompany?.userId,
-    companyDirectEmail,
-  ]);
+        return "";
+      })();
+      emailLookupRef.current = { key, readAt: Date.now(), promise };
+    }
+    void emailLookupRef.current.promise.then(email => { if (!cancelled) setResolvedCompanyEmail(email); });
+    return () => { cancelled = true; };
+  }, [activeCompany?.id, activeCompany?.ownerId, activeCompany?.sourceRegistrationId, activeCompany?.userId, companyDirectEmail, currentUser?.id]);
   
   const isEditing =
     isEditingProp !== undefined ? isEditingProp : internalIsEditing;
@@ -324,15 +316,24 @@ function CompanyTab({
     [simulatorOptions],
   );
 
+  const logoCompanyRef = useRef(activeCompany?.id);
   React.useEffect(() => {
+    if (logoCompanyRef.current === activeCompany?.id) return;
+    logoCompanyRef.current = activeCompany?.id;
     setPendingLogoFile(null);
     setLogoPreviewUrl(null);
     setLogoUploadProgress(0);
     setSaveError(null);
   }, [activeCompany?.id]);
 
+  const formSourceRef = useRef({ companyId: "", signature: "" });
   React.useEffect(() => {
     if (activeCompany) {
+      const signature = JSON.stringify([activeCompany.companyName, activeCompany.simulatorId, activeCompany.simulatorName, activeCompany.ownerName, activeCompany.whatsapp, activeCompany.logoUrl, activeCompanySimulatorOption]);
+      const changedCompany = formSourceRef.current.companyId !== activeCompany.id;
+      if (!changedCompany && (isEditing || formSourceRef.current.signature === signature)) return;
+      const hadCompany = Boolean(formSourceRef.current.companyId);
+      formSourceRef.current = { companyId: activeCompany.id, signature };
       setFormData({
         companyName: activeCompany.companyName,
         simulatorId:
@@ -349,7 +350,7 @@ function CompanyTab({
         logoUrl: activeCompany.logoUrl || "",
       });
       setIsAddingNew(false);
-      setIsEditing(false);
+      if (changedCompany && hadCompany) setIsEditing(false);
     } else {
       const hasAnyCompany =
         activeCompanyId ||
@@ -365,6 +366,7 @@ function CompanyTab({
     activeCompanySimulatorOption,
     currentUser,
     memberships,
+    isEditing,
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -388,6 +390,7 @@ function CompanyTab({
           companyId: activeCompany?.id || `draft-${currentUser.id}`,
           userId: currentUser.id,
           folder: "company-logos",
+          storageScope: isAddingNew || !activeCompany?.id ? "company-logo-draft" : "default",
           compressionMaxSizeMB: 0.4,
           maxWidthOrHeight: 800,
           // storage.rules accepts image objects smaller than 500,000 bytes.
@@ -555,8 +558,8 @@ function CompanyTab({
   if (isEditing || isAddingNew) {
     return (
       <div className="nvu-company-profile-view space-y-4">
-        <div className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[20px] shadow-sm p-5 mt-4">
-        <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-[#2A2F3A] pb-4">
+        <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[20px] shadow-sm p-5 mt-4">
+        <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-nvu-line pb-4">
           <h3 className="text-[17px] font-bold text-slate-900 dark:text-white tracking-tight">
             {isEditing ? "Editar Empresa" : "Nova Empresa"}
           </h3>
@@ -589,19 +592,19 @@ function CompanyTab({
             {isAddingNew && (
               <>
                 <div>
-                  <label className="block text-[14px] font-medium text-slate-700 dark:text-[#a1a1aa] mb-1.5 ml-1">
+                  <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">
                     Nome da Empresa
                   </label>
                   <input
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleChange}
-                    className="w-full bg-slate-50 dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
+                    className="w-full bg-slate-50 dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-slate-700 dark:text-[#a1a1aa] mb-1.5 ml-1">
+                  <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">
                     Simulador Padrão
                   </label>
                   <SafeSelect
@@ -625,19 +628,19 @@ function CompanyTab({
               </>
             )}
             <div>
-              <label className="block text-[14px] font-medium text-slate-700 dark:text-[#a1a1aa] mb-1.5 ml-1">
+              <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">
                 Proprietário (Responsável)
               </label>
               <input
                 name="ownerName"
                 value={formData.ownerName}
                 onChange={handleChange}
-                className="w-full bg-slate-50 dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
+                className="w-full bg-slate-50 dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
                 required
               />
             </div>
             <div>
-              <label className="block text-[14px] font-medium text-slate-700 dark:text-[#a1a1aa] mb-1.5 ml-1">
+              <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">
                 WhatsApp
               </label>
               <input
@@ -645,16 +648,16 @@ function CompanyTab({
                 value={formData.whatsapp}
                 onChange={handleChange}
                 placeholder="(00) 00000-0000"
-                className="w-full bg-slate-50 dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
+                className="w-full bg-slate-50 dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
               />
             </div>
             <div>
-              <label className="block text-[14px] font-medium text-slate-700 dark:text-[#a1a1aa] mb-1.5 ml-1">
+              <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">
                 Logo da Empresa
               </label>
               <div className="flex items-center gap-4">
                 <div
-                  className={`w-16 h-16 rounded-xl bg-slate-100 dark:bg-[#2A2F3A] border border-slate-200 dark:border-[#3A3F4A] overflow-hidden flex flex-col items-center justify-center relative group shrink-0 ${
+                  className={`w-16 h-16 rounded-xl bg-slate-100 dark:bg-nvu-strip border border-slate-200 dark:border-nvu-line overflow-hidden flex flex-col items-center justify-center relative group shrink-0 ${
                     isProcessingLogo || isSaving
                       ? "cursor-wait opacity-70"
                       : "cursor-pointer"
@@ -666,7 +669,7 @@ function CompanyTab({
                   }}
                 >
                   {logoPreviewUrl || formData.logoUrl ? (
-                    <img
+                    <CachedImage
                       src={logoPreviewUrl || formData.logoUrl}
                       alt="Logo"
                       className="w-full h-full object-cover"
@@ -682,14 +685,14 @@ function CompanyTab({
                   </div>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[13px] text-slate-500 dark:text-slate-400">
+                  <span className="text-[13px] text-slate-500 dark:text-nvu-muted">
                     {isProcessingLogo
                       ? "Processando a imagem..."
                       : pendingLogoFile
                         ? "Nova logo pronta para salvar"
                         : "Clique para enviar uma imagem"}
                   </span>
-                  <span className="text-[12px] text-slate-400 dark:text-slate-500">
+                  <span className="text-[12px] text-slate-400 dark:text-nvu-muted">
                     JPG, PNG ou WEBP • máximo de 10 MB
                   </span>
                 </div>
@@ -712,7 +715,7 @@ function CompanyTab({
               )}
             </div>
           </div>
-          <div className="flex items-center justify-between pt-6 mt-4 border-t border-slate-100 dark:border-[#2A2F3A]">
+          <div className="flex items-center justify-between pt-6 mt-4 border-t border-slate-100 dark:border-nvu-line">
             {activeCompany && isEditing ? (
               <button
                 type="button"
@@ -735,7 +738,7 @@ function CompanyTab({
                   setIsAddingNew(false);
                 }}
                 disabled={isSaving}
-                className="text-slate-500 dark:text-slate-400 font-semibold px-4 py-2 hover:bg-slate-100 dark:hover:bg-[#2A2F3A] rounded-xl transition-colors"
+                className="text-slate-500 dark:text-nvu-muted font-semibold px-4 py-2 hover:bg-slate-100 dark:hover:bg-nvu-strip rounded-xl transition-colors"
               >
                 Cancelar
               </button>
@@ -744,8 +747,9 @@ function CompanyTab({
         </form>
 
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white dark:bg-[#1A1F26] rounded-3xl p-6 max-w-sm w-full shadow-2xl relative">
+          <ModalPortal label="Excluir frota" onClose={() => setShowDeleteConfirm(false)} busy={isDeleting}><div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="nvu-viewport-modal-card flex flex-col overflow-hidden bg-white dark:bg-nvu-surface rounded-3xl max-w-sm w-full shadow-2xl relative">
+              <div className="nvu-modal-body p-6">
               <div className="flex justify-center mb-5">
                 <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/10 rounded-full flex items-center justify-center text-rose-600 dark:text-rose-400">
                   <AlertTriangle size={28} />
@@ -754,14 +758,15 @@ function CompanyTab({
               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center tracking-tight">
                 Excluir Empresa
               </h3>
-              <p className="text-slate-600 dark:text-slate-400 text-[14px] text-center mb-8 leading-relaxed">
+              <p className="text-slate-600 dark:text-nvu-muted text-[14px] text-center mb-8 leading-relaxed">
                 Tem certeza que deseja excluir{" "}
-                <b>{activeCompany?.companyName}</b>? Esta ação removerá tudo.
+                <b>{activeCompany?.companyName}</b>? A empresa será arquivada e os vínculos serão removidos. O histórico será preservado. Encerre as operações em aberto antes de continuar.
               </p>
-              <div className="flex gap-3">
+              </div>
+              <div className="flex gap-3 px-6 pb-6">
                 <Button
                   variant="outline"
-                  className="flex-1 font-semibold border-slate-200 dark:border-[#2A2F3A] text-slate-700 dark:text-slate-300 h-12 rounded-xl"
+                  className="flex-1 font-semibold border-slate-200 dark:border-nvu-line text-slate-700 dark:text-nvu-text-soft h-12 rounded-xl"
                   onClick={() => setShowDeleteConfirm(false)}
                   disabled={isDeleting}
                 >
@@ -776,7 +781,7 @@ function CompanyTab({
                 </Button>
               </div>
             </div>
-          </div>
+          </div></ModalPortal>
         )}
         </div>
       </div>
@@ -808,7 +813,7 @@ function CompanyTab({
           <div className="mx-auto mb-3 h-1 w-24 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-500/10">
             <div className="h-full w-1/3 rounded-full bg-blue-500 motion-safe:animate-[nvu-progress_900ms_ease-in-out_infinite]" />
           </div>
-          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-semibold text-slate-500 dark:text-nvu-muted">
             Sincronizando empresa
           </p>
         </div>
@@ -824,10 +829,10 @@ function CompanyTab({
             size={24}
             className="mx-auto mb-2 text-amber-600 dark:text-amber-400"
           />
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+          <p className="text-sm font-semibold text-slate-800 dark:text-nvu-text">
             Não foi possível sincronizar esta empresa.
           </p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1 text-xs text-slate-500 dark:text-nvu-muted">
             O painel não ficará preso. Tente novamente para refazer a leitura.
           </p>
           <Button
@@ -849,46 +854,46 @@ function CompanyTab({
       {/* Info Card Modal */}
       {isViewing && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-[#1A1F26] rounded-3xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 fade-in duration-200">
+          <div className="bg-white dark:bg-nvu-surface rounded-3xl p-6 max-w-md w-full shadow-2xl relative animate-in zoom-in-95 fade-in duration-200">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight ml-1">
                 Informações da Empresa
               </h3>
               <button
                 onClick={() => setIsViewing(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-[#2A2F3A] text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-nvu-strip text-slate-500 hover:text-slate-700 dark:text-nvu-muted dark:hover:text-nvu-text transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
             <div className="space-y-0 text-[14px]">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2A2F3A] py-3.5">
-                <span className="text-slate-500 dark:text-slate-400 px-1">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-nvu-line py-3.5">
+                <span className="text-slate-500 dark:text-nvu-muted px-1">
                   Nome da Empresa
                 </span>
                 <span className="font-semibold text-slate-900 dark:text-white text-right ml-4">
                   {activeCompany.companyName || "-"}
                 </span>
               </div>
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2A2F3A] py-3.5">
-                <span className="text-slate-500 dark:text-slate-400 px-1">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-nvu-line py-3.5">
+                <span className="text-slate-500 dark:text-nvu-muted px-1">
                   Proprietário
                 </span>
                 <span className="font-semibold text-slate-900 dark:text-white text-right break-all ml-4">
                   {activeCompany.ownerName || "-"}
                 </span>
               </div>
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2A2F3A] py-3.5">
-                <span className="text-slate-500 dark:text-slate-400 px-1">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-nvu-line py-3.5">
+                <span className="text-slate-500 dark:text-nvu-muted px-1">
                   Email
                 </span>
                 <span className="font-semibold text-slate-900 dark:text-white text-right break-all ml-4">
                   {companyInfoEmail}
                 </span>
               </div>
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#2A2F3A] py-3.5">
-                <span className="text-slate-500 dark:text-slate-400 px-1">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-nvu-line py-3.5">
+                <span className="text-slate-500 dark:text-nvu-muted px-1">
                   WhatsApp
                 </span>
                 <span className="font-semibold text-slate-900 dark:text-white text-right ml-4">
@@ -896,7 +901,7 @@ function CompanyTab({
                 </span>
               </div>
               <div className="flex items-center justify-between py-3.5 pb-1">
-                <span className="text-slate-500 dark:text-slate-400 px-1">
+                <span className="text-slate-500 dark:text-nvu-muted px-1">
                   Simulador Padrão
                 </span>
                 <span className="font-semibold text-slate-900 dark:text-white text-right ml-4">
@@ -920,7 +925,11 @@ function CompanyTab({
         document.body
       )}
 
+      <HistoryReadCoverageNotice coverage={companyHistoryCoverage} hasError={Boolean(companyHistoryError)} error={companyHistoryError} readCoverage={companyHistoryReadCoverage} backgroundRefresh={companyHistoryReady} />
       <CompanyPerformanceCard
+          profilePresentation={{ kind: "company", view: profileView, periodType: profilePeriod, onPeriodChange: setProfilePeriod,
+            onScopeChange: () => undefined, viewerId: currentUser?.id || "", company: activeCompany,
+            canEdit: canManageCompanyProfile(currentUser?.id || "", activeCompany, memberships, seniorCompanyId) }}
           historicoTrips={historicoTrips}
           companyId={activeCompanyId!}
           allCompanies={allCompanies}

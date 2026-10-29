@@ -1,4 +1,5 @@
 import { getRuntimePerformanceProfile } from "./runtimePerformance";
+import { Capacitor } from "@capacitor/core";
 
 import { markProfilePerf } from "./profilePerformanceTelemetry";
 
@@ -28,6 +29,7 @@ const routeLoaders: Record<string, Loader[]> = {
     () => import("../pages/admin/Fleet"),
     () => import("../pages/admin/fleet/OperationsTab"),
   ],
+  "/admin/history": [() => import("../pages/driver/TripHistory")],
   "/admin/reports": [() => import("../pages/admin/Reports")],
   "/admin/news": [() => import("../pages/NewsFeed")],
   "/admin/manual": [() => import("../pages/Manual")],
@@ -168,12 +170,15 @@ export function preloadFleetPanel(panel: string): Promise<void> {
 
 export function preloadRoleRoutes(role: "admin" | "driver"): Promise<void> {
   const runtime = getRuntimePerformanceProfile();
-  if (!runtime.allowSecondaryRouteWarmup) return Promise.resolve();
+  const localBundle = Capacitor.isNativePlatform();
+  if (!runtime.allowSecondaryRouteWarmup && !localBundle) return Promise.resolve();
 
   const desktopPaths =
     role === "admin"
       ? [
           "/admin/fleet",
+          "/admin/history",
+          "/admin/reports",
           "/ranking",
           "/admin/news",
           "/admin/assign",
@@ -185,19 +190,22 @@ export function preloadRoleRoutes(role: "admin" | "driver"): Promise<void> {
           "/driver/trip",
         ];
 
-  // On mobile, preloading every secondary workspace chunk can block the active
-  // page while Vite/React parses those modules. Keep only the most likely two
-  // destinations and use one lane; pointer/focus preloads still warm any route
-  // the user actually approaches.
-  const paths = runtime.mobileViewport
+  // Native assets are local. Warm only the current role's dock destinations,
+  // one module per idle slice, without mounting pages or fetching their data.
+  // Mobile web keeps the smaller speculative network budget.
+  const paths = localBundle ? desktopPaths : runtime.mobileViewport
     ? desktopPaths.filter((path) => path.includes("ranking") || path.includes("news"))
     : desktopPaths;
-  const workerCount = runtime.mobileViewport ? 1 : 2;
+  const workerCount = localBundle || runtime.mobileViewport ? 1 : 2;
 
   let cursor = 0;
   const worker = async () => {
     while (cursor < paths.length) {
       const path = paths[cursor++];
+      if (localBundle && typeof window !== "undefined") await new Promise<void>(resolve => {
+        if ("requestIdleCallback" in window) window.requestIdleCallback(() => resolve(), { timeout: 4000 });
+        else setTimeout(resolve, 50);
+      });
       try {
         await preloadRoute(path);
       } catch {

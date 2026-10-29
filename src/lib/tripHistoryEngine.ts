@@ -2,8 +2,11 @@ import {
   getMonthlyRange,
   getTodayRange,
   getWeeklyRange,
+  safeSingleCurrencyRevenue,
 } from "./metricsEngine";
 import { normalizeTrip, NormalizedTrip } from "./tripNormalizer";
+import { summarizeTripMoney } from "./tripMoneySummary";
+import { isPendingHistoryTrip } from "./pendingHistoryTrips";
 import {
   getCanonicalTripDriverId,
   getCanonicalTripDriverName,
@@ -18,20 +21,13 @@ export type TripHistoryPeriodPreset =
   | "data";
 
 export interface TripHistoryFilterInput {
+  includePending?: boolean;
   periodPreset?: TripHistoryPeriodPreset | string;
   customStartDate?: string;
   customEndDate?: string;
   driverId?: string;
   driverName?: string;
   embeddedJob?: any;
-}
-
-function safeTimestamp(value: unknown): number {
-  if (value instanceof Date) return value.getTime();
-  if ((value as any)?.toDate) return (value as any).toDate().getTime();
-  if ((value as any)?.seconds) return Number((value as any).seconds) * 1000;
-  const parsed = new Date((value as any) || 0).getTime();
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function resolveRange(input: TripHistoryFilterInput): {
@@ -66,25 +62,21 @@ function resolveRange(input: TripHistoryFilterInput): {
   return {};
 }
 
-function belongsToEmbeddedJob(trip: NormalizedTrip, embeddedJob: any): boolean {
+export function belongsToEmbeddedJob(trip: NormalizedTrip, embeddedJob: any): boolean {
   if (!embeddedJob) return true;
 
-  if ((trip as any).jobId && (trip as any).jobId === embeddedJob.id) {
-    return true;
-  }
-
-  const tripContractId =
-    trip.contratoId || (trip as any).contractId || (trip as any).contrato_id;
-  if (tripContractId !== embeddedJob.contractId) return false;
-  if (getCanonicalTripDriverId(trip) !== embeddedJob.driverId) return false;
-
-  const tripTime = trip.metricDate.getTime();
-  const assignedAt = safeTimestamp(embeddedJob.assignedAt);
-  const completedAt = embeddedJob.completedAt
-    ? safeTimestamp(embeddedJob.completedAt)
-    : Date.now() + 86_400_000;
-
-  return tripTime >= assignedAt && tripTime <= completedAt;
+  const tripJobId = String((trip as any).jobId || (trip as any).trabalhoId || "").trim();
+  const embeddedJobId = String(embeddedJob.id || "").trim();
+  // A row without a physical job binding is legacy-unbound. It may remain in
+  // general history, but it is never auto-attached to the current execution.
+  if (!tripJobId || !embeddedJobId || tripJobId !== embeddedJobId) return false;
+  const tripDriverId = getCanonicalTripDriverId(trip);
+  if (tripDriverId !== String(embeddedJob.driverId || embeddedJob.motoristaId || "").trim()) return false;
+  const tripCompanyId = String((trip as any).companyId || trip.empresaId || "").trim();
+  const jobCompanyId = String(embeddedJob.companyId || embeddedJob.empresaId || "").trim();
+  if (tripCompanyId !== jobCompanyId) return false;
+  const tripContractId = String(trip.contratoId || (trip as any).contractId || (trip as any).contrato_id || "").trim();
+  return tripContractId === String(embeddedJob.contractId || embeddedJob.contratoId || "").trim();
 }
 
 /**
@@ -104,7 +96,7 @@ export function filterAndSortTripHistory(
   return trips
     .map((trip) => normalizeTrip(trip))
     .filter((trip) => {
-      if (!trip.isValid) return false;
+      if (!trip.isValid && !(input.includePending && isPendingHistoryTrip(trip))) return false;
       if (!belongsToEmbeddedJob(trip, input.embeddedJob)) return false;
 
       if (
@@ -130,12 +122,12 @@ export function filterAndSortTripHistory(
 }
 
 export function summarizeTripHistory(trips: NormalizedTrip[]) {
+  const confirmed = trips.filter(trip => trip.isValid);
+  const moneyGroups = summarizeTripMoney(confirmed);
   return {
-    totalViagens: trips.length,
-    faturamentoTotal: trips.reduce(
-      (total, trip) => total + trip.normalizedValor,
-      0,
-    ),
+    totalViagens: confirmed.length,
+    faturamentoTotal: safeSingleCurrencyRevenue(moneyGroups),
+    moneyGroups,
   };
 }
 

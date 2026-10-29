@@ -1,0 +1,23 @@
+import assert from "node:assert/strict";
+import { parseWorldTripValue } from "../src/services/worldTripOcrService";
+import { __toe3OcrTestUtils } from "../src/services/toe3TripOcrService";
+import { __scsOcrTestUtils } from "../src/services/scsTripOcrService";
+import { validateProReceiptEvidence } from "../src/services/pro-universal/proReceiptAdapters";
+
+const base = "Resultados\nGanhos da Viagem: R$ 2.500,00\nDanos a Carga: 0%\nBônus Video ADS: 0\nTotal: R$ 2.500,00";
+assert.equal(parseWorldTripValue(base, "WTDS"), "2.500,00");
+assert.equal(parseWorldTripValue(base, "WBDS"), "2.500,00");
+assert.equal(parseWorldTripValue(base.replace("Bônus Video ADS: 0", "Bônus Video ADS: 500"), "WTDS"), null);
+assert.equal(parseWorldTripValue(base.replace("Danos a Carga:", "Pontos:"), "WBDS"), null);
+assert.equal(parseWorldTripValue(base.replace("Total: R$ 2.500,00", "Total: R$ 3.000,00"), "WTDS"), null);
+assert.equal(parseWorldTripValue("Resultados\nGanhos da Viagem: $ 4156,73\nDanos a Carga: 0%\nBônus Video ADS: 0", "WTDS"), "4.156,73");
+assert.equal(parseWorldTripValue("Resultados\nTotal: EXP:\nGanhos da Viagem:\nDanos a Carga: 0%\nEstacionamento Correto: 0\nBônus Video ADS: 0 0\n$ 4156,73\n415", "WTDS"), "4.156,73");
+assert.equal(parseWorldTripValue("Resultados\nTotal: EXP:\nGanhos da Viagem:\nDanos a Carga: 0%\nBônus Video ADS: 0\nR$ 4156,73\n415", "WBDS"), "4.156,73");
+assert.equal(parseWorldTripValue("Resultados\nTotal: EXP:\nGanhos da Viagem:\nDanos a Carga: 0%\nBônus Video ADS: 500\n$ 4156,73\n415", "WTDS"), null);
+assert.equal(parseWorldTripValue("Resultados\nTotal: EXP:\nGanhos da Viagem:\nDanos a Carga: 0%\nBônus Video ADS: 0\n$ 4156,73\n$ 5000,00", "WTDS"), null);
+assert.equal(validateProReceiptEvidence("toe-3", "Renda total: € 4.156,73\nDistância: 2621 km\nTempo gasto: 1h 20min").evidence.amountCents, 415673);
+assert.equal(__toe3OcrTestUtils.parsePositiveInteger("2 621", 1_000_000_000), 2621);
+assert.equal(__toe3OcrTestUtils.formatCurrencyInput(2621), "2.621,00");
+assert.equal(__scsOcrTestUtils.extractValueFromText("$ 12,345"), "12.345,00");
+assert.equal(__scsOcrTestUtils.extractValueFromText("€ 12.345"), "12.345,00");
+console.log("print-earnings-ocr: PASS WTDS, WBDS, TOE 3, ATS and ETS 2 amount parsing");

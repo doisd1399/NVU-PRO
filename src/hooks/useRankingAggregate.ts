@@ -1,178 +1,89 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  buildRankingAggregateDocumentId,
-  rankingAggregateTimestampMs,
-  RANKING_AGGREGATE_RECONCILE_AFTER_MS,
-  RankingAggregateDocument,
-  RankingAggregatePeriodType,
-} from "../lib/rankingAggregates";
-import {
-  ensureRankingAggregate,
-  listenRankingAggregate,
-  readCachedRankingAggregate,
-} from "../repositories/RankingAggregateRepository";
+import { periodFromKey } from "../../functions/src/rankingCalendar";
+import { buildRankingAggregateDocumentId, rankingAggregateTimestampMs, RANKING_AGGREGATE_RECONCILE_AFTER_MS,
+  type RankingAggregateDocument, type RankingAggregatePeriodType } from "../lib/rankingAggregates";
+import { ensureRankingAggregate, invalidateRankingAggregateCaches, listenRankingAggregate,
+  readCachedRankingAggregate, readRankingAggregateFromServer } from "../repositories/RankingAggregateRepository";
+import { onCanonicalTripUpdated } from "../lib/CanonicalTripUpdateEvent";
 
-type RankingAggregateState = {
-  key: string;
-  aggregate: RankingAggregateDocument | null;
-  status: "idle" | "loading" | "ready" | "unavailable";
-  error: unknown | null;
-};
+type RankingAggregateState = { key: string; aggregate: RankingAggregateDocument | null;
+  status: "idle" | "loading" | "ready" | "unavailable" | "missing"; error: unknown | null;
+  stale: boolean; refreshing: boolean; refreshError?: unknown };
+const LOAD_TIMEOUT_MS = 12_000;
+const IDLE_STATE: RankingAggregateState = { key: "", aggregate: null, status: "idle", error: null, stale: false, refreshing: false };
 
-const MISSING_AGGREGATE_FALLBACK_MS = 12_000;
-
-const IDLE_STATE: RankingAggregateState = {
-  key: "",
-  aggregate: null,
-  status: "idle",
-  error: null,
-};
-
-export function useRankingAggregate(options: {
-  simulatorId?: string;
-  periodType?: RankingAggregatePeriodType;
-  periodKey?: string;
-  enabled?: boolean;
-}) {
-  const enabled = options.enabled === true;
-  const simulatorId = String(options.simulatorId || "").trim();
-  const periodType = options.periodType;
-  const periodKey = String(options.periodKey || "").trim();
-  const requestKey = useMemo(
-    () =>
-      enabled && simulatorId && periodType && periodKey
-        ? buildRankingAggregateDocumentId(simulatorId, periodKey)
-        : "",
-    [enabled, periodKey, periodType, simulatorId],
-  );
-
-  const [state, setState] = useState<RankingAggregateState>(() =>
-    requestKey
-      ? (() => {
-          const cached = readCachedRankingAggregate(simulatorId, periodKey);
-          return cached
-            ? { key: requestKey, aggregate: cached, status: "ready", error: null }
-            : { key: requestKey, aggregate: null, status: "loading", error: null };
-        })()
-      : IDLE_STATE,
-  );
-
+export function useRankingAggregate(options: { simulatorId?: string; periodType?: RankingAggregatePeriodType;
+  periodKey?: string; enabled?: boolean; refreshOnRead?: boolean }) {
+  const simulatorId = String(options.simulatorId || "").trim(), periodKey = String(options.periodKey || "").trim();
+  const periodType = options.periodType, refreshOnRead = options.refreshOnRead === true;
+  const requestKey = useMemo(() => options.enabled === true && simulatorId && periodType && periodKey
+    ? buildRankingAggregateDocumentId(simulatorId, periodKey) : "", [options.enabled, simulatorId, periodType, periodKey]);
+  const initial = (): RankingAggregateState => {
+    if (!requestKey) return IDLE_STATE;
+    const aggregate = readCachedRankingAggregate(simulatorId, periodKey);
+    return { key: requestKey, aggregate, status: aggregate ? "ready" : "loading", error: null, stale: Boolean(aggregate), refreshing: true };
+  };
+  const [state, setState] = useState<RankingAggregateState>(initial);
+  const [epoch, setEpoch] = useState(0);
+  useEffect(() => onCanonicalTripUpdated(() => { invalidateRankingAggregateCaches(); setEpoch(value => value + 1); }), []);
   useEffect(() => {
-    if (!requestKey || !periodType) {
-      setState(IDLE_STATE);
-      return;
-    }
-
-    let active = true;
-    const cachedAggregate = readCachedRankingAggregate(simulatorId, periodKey);
-    let aggregateReceived = Boolean(cachedAggregate);
-    let ensureStarted = false;
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const clearFallbackTimer = () => {
-      if (fallbackTimer) clearTimeout(fallbackTimer);
-      fallbackTimer = null;
+    if (!requestKey || !periodType) { setState(IDLE_STATE); return; }
+    let active = true, stopped = false, inFlight = false, pollAttempt = 0;
+    let last = state.key === requestKey ? state.aggregate : null;
+    last ||= readCachedRankingAggregate(simulatorId, periodKey);
+    let poll: ReturnType<typeof setTimeout> | null = null;
+    const startedAt = Date.now();
+    const period = periodFromKey(periodType, periodKey);
+    const outsideRepairWindow = Boolean(period && period.start.getTime() < startedAt - 70 * 86400000);
+    const publish = (aggregate: RankingAggregateDocument, stale: boolean) => {
+      if (!active) return;
+      last = aggregate;
+      setState({ key: requestKey, aggregate, status: "ready", error: null, stale, refreshing: stale && !stopped });
     };
-
-    const markUnavailable = (error: unknown = null) => {
-      if (!active || aggregateReceived) return;
-      clearFallbackTimer();
-      setState({ key: requestKey, aggregate: null, status: "unavailable", error });
+    const fail = (error: unknown) => {
+      if (!active) return;
+      stopped = true;
+      if (poll) clearTimeout(poll);
+      setState({ key: requestKey, aggregate: last, status: last ? "ready" : "unavailable",
+        error: last ? null : error, stale: Boolean(last), refreshing: false, refreshError: error });
     };
-
-    const requestEnsure = () => {
-      if (ensureStarted) return;
-      ensureStarted = true;
-      fallbackTimer = setTimeout(
-        () => markUnavailable(new Error("Tempo limite ao consolidar ranking.")),
-        MISSING_AGGREGATE_FALLBACK_MS,
-      );
-
-      void ensureRankingAggregate(simulatorId, periodType, periodKey)
-        .then((result) => {
-          if (!active || aggregateReceived) return;
-          if (result.status === "ready" || result.status === "rebuilt") {
-            // The callable commits before returning. Give the Firestore
-            // listener a short window to deliver that committed document.
-            clearFallbackTimer();
-            fallbackTimer = setTimeout(() => markUnavailable(), 2_500);
-          }
-        })
-        .catch((error) => markUnavailable(error));
-    };
-
-    setState(
-      cachedAggregate
-        ? {
-            key: requestKey,
-            aggregate: cachedAggregate,
-            status: "ready",
-            error: null,
-          }
-        : { key: requestKey, aggregate: null, status: "loading", error: null },
-    );
-
-    if (cachedAggregate) {
-      const lastReconciledAt = rankingAggregateTimestampMs(
-        cachedAggregate.lastReconciledAt,
-      );
-      if (
-        !lastReconciledAt ||
-        Date.now() - lastReconciledAt > RANKING_AGGREGATE_RECONCILE_AFTER_MS
-      ) {
-        void ensureRankingAggregate(simulatorId, periodType, periodKey).catch(
-          () => undefined,
-        );
+    // This deadline starts at mount, before any SDK callback. It also bounds a silent listener.
+    const deadline = setTimeout(() => fail(new Error("Tempo limite ao carregar a classificação.")), LOAD_TIMEOUT_MS);
+    const requestEnsure = async () => {
+      if (!active || stopped || inFlight) return;
+      if (outsideRepairWindow) {
+        stopped = true;
+        clearTimeout(deadline);
+        if (last) publish(last, true);
+        else setState({ key: requestKey, aggregate: null, status: "missing", error: null, stale: false, refreshing: false });
+        return;
       }
-    }
-    const unsubscribe = listenRankingAggregate(
-      simulatorId,
-      periodType,
-      periodKey,
-      (aggregate) => {
-        if (!active) return;
-        if (!aggregate) {
-          requestEnsure();
-          return;
-        }
-
-        aggregateReceived = true;
-        clearFallbackTimer();
-        setState({ key: requestKey, aggregate, status: "ready", error: null });
-
-        const lastReconciledAt = rankingAggregateTimestampMs(
-          aggregate.lastReconciledAt,
-        );
-        if (
-          !lastReconciledAt ||
-          Date.now() - lastReconciledAt >
-            RANKING_AGGREGATE_RECONCILE_AFTER_MS
-        ) {
-          // A stale aggregate remains immediately usable. Reconciliation runs
-          // in the background and never blocks or clears the visible ranking.
-          void ensureRankingAggregate(simulatorId, periodType, periodKey).catch(
-            () => undefined,
-          );
-        }
-      },
-      (error) => markUnavailable(error),
-    );
-
-    return () => {
-      active = false;
-      clearFallbackTimer();
+      inFlight = true;
       try {
-        unsubscribe();
-      } catch {
-        // Listener cleanup is best-effort during rapid filter changes.
-      }
+        const result = await ensureRankingAggregate(simulatorId, periodType, periodKey);
+        if (!active) return;
+        if (result.status === "ready" || result.status === "rebuilt") {
+          const confirmed = await readRankingAggregateFromServer(simulatorId, periodKey);
+          if (confirmed) { stopped = true; clearTimeout(deadline); if (poll) clearTimeout(poll); publish(confirmed, false); return; }
+        }
+        if (!stopped) poll = setTimeout(() => { void requestEnsure(); }, Math.min(4_000, 1000 * 2 ** pollAttempt++));
+      } catch (error) { fail(error); }
+      finally { inFlight = false; }
     };
-  }, [periodKey, periodType, requestKey, simulatorId]);
-
+    setState({ key: requestKey, aggregate: last, status: last ? "ready" : "loading", error: null, stale: Boolean(last), refreshing: true });
+    const unsubscribe = listenRankingAggregate(simulatorId, periodType, periodKey, aggregate => {
+      if (!active) return;
+      if (!aggregate) { void requestEnsure(); return; }
+      const reconciled = rankingAggregateTimestampMs(aggregate.lastReconciledAt);
+      const stale = (refreshOnRead && reconciled <= startedAt) || !reconciled || Date.now() - reconciled > RANKING_AGGREGATE_RECONCILE_AFTER_MS;
+      publish(aggregate, stale);
+      if (stale) void requestEnsure();
+      else { stopped = true; clearTimeout(deadline); if (poll) clearTimeout(poll); }
+    }, fail);
+    // An open period must refresh even when the SDK stays silent and a previous snapshot exists.
+    if (last && refreshOnRead) void requestEnsure();
+    return () => { active = false; stopped = true; clearTimeout(deadline); if (poll) clearTimeout(poll); unsubscribe(); };
+  }, [requestKey, simulatorId, periodType, periodKey, refreshOnRead, epoch]);
   if (!requestKey) return IDLE_STATE;
-  if (state.key === requestKey) return state;
-  const cached = readCachedRankingAggregate(simulatorId, periodKey);
-  return cached
-    ? { key: requestKey, aggregate: cached, status: "ready", error: null }
-    : { key: requestKey, aggregate: null, status: "loading", error: null };
+  return state.key === requestKey ? state : initial();
 }

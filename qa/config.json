@@ -1,0 +1,215 @@
+{
+  "schema": 1,
+  "projectId": "demo-nvu-v36-4-staging",
+  "profiles": {
+    "quick": [
+      "harness",
+      "types",
+      "functions",
+      "contracts",
+      "queue",
+      "supervisor",
+      "images",
+      "teams",
+      "profile-team-audit",
+      "diagnostics",
+      "notifications",
+      "push-client",
+      "legacy-regressions"
+    ],
+    "web": [
+      "harness",
+      "types",
+      "functions",
+      "web-build",
+      "contracts",
+      "queue",
+      "supervisor",
+      "images",
+      "teams",
+      "profile-team-audit",
+      "diagnostics",
+      "notifications",
+      "push-client",
+      "legacy-regressions",
+      "native-policies",
+      "emulators"
+    ],
+    "release": [
+      "harness",
+      "types",
+      "functions",
+      "web-build",
+      "contracts",
+      "queue",
+      "supervisor",
+      "images",
+      "teams",
+      "profile-team-audit",
+      "diagnostics",
+      "notifications",
+      "push-client",
+      "legacy-regressions",
+      "native-policies",
+      "emulators",
+      "android-device"
+    ]
+  },
+  "steps": {
+    "types": {
+      "label": "Tipos e compilação do aplicativo",
+      "kind": "static",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "timeoutMs": 120000
+    },
+    "functions": {
+      "label": "Compilação do servidor",
+      "kind": "build",
+      "args": [
+        "functions/node_modules/typescript/bin/tsc",
+        "--project",
+        "functions/tsconfig.json"
+      ],
+      "timeoutMs": 120000
+    },
+    "web-build": {
+      "label": "Build Web atual",
+      "kind": "build",
+      "command": "npm",
+      "args": [
+        "run",
+        "build"
+      ],
+      "timeoutMs": 180000
+    },
+    "contracts": {
+      "label": "Upload, confirmação, identidade e autorização",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-performance-520.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "queue": {
+      "label": "Fila, falhas, reconexão e preservação das viagens",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-trip-recovery-520.mts"
+      ],
+      "timeoutMs": 90000
+    },
+    "supervisor": {
+      "label": "Envio sem bloqueio por operações antigas",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-sync-supervisor-520.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "images": {
+      "label": "Imagens persistentes, reabertura e isolamento",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-images-520.mts"
+      ],
+      "timeoutMs": 120000
+    },
+    "teams": {
+      "label": "Telas de aprovação e remoção",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-teams-ui-519.mts"
+      ],
+      "timeoutMs": 90000
+    },
+    "diagnostics": {
+      "label": "Diagnóstico somente após falha",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-print-diagnostic-ui-519.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "native-policies": {
+      "label": "Políticas reais de OCR e valores do Android/JVM",
+      "kind": "native-jvm",
+      "args": [
+        "scripts/qa/native-policies.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "emulators": {
+      "label": "Firebase local: ciclo operacional, regras, telas e upload",
+      "kind": "integration",
+      "args": [
+        "scripts/qa/emulators.mjs"
+      ],
+      "timeoutMs": 720000
+    },
+    "android-device": {
+      "label": "APK isolado: instalação, abertura offline e reinício do processo",
+      "kind": "android-instrumented",
+      "args": [
+        "scripts/qa/android-device.mjs"
+      ],
+      "timeoutMs": 900000
+    },
+    "harness": {
+      "label": "Bloqueio de liberação e execução dos testes",
+      "kind": "qa-self-test",
+      "args": [
+        "--test",
+        "scripts/qa/self-test.mjs"
+      ],
+      "timeoutMs": 30000
+    },
+    "notifications": {
+      "label": "Notificações reais: hidratação, popup e isolamento de sessão",
+      "kind": "react-controlled",
+      "args": [
+        "qa/tests/notifications.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "push-client": {
+      "label": "Registro push: falhas, permissões, concorrência e recuperação",
+      "kind": "controlled",
+      "args": [
+        "qa/tests/push-client.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "legacy-regressions": {
+      "label": "Regressões de armazenamento e concorrência entre operações",
+      "kind": "controlled",
+      "args": [
+        "scripts/qa/legacy-regressions.mjs"
+      ],
+      "timeoutMs": 90000
+    },
+    "profile-team-audit": {
+      "label": "Regressões de equipe, histórico, identidade e reconexão de imagens",
+      "kind": "react-controlled",
+      "args": [
+        "scripts/audit/profile-team-regressions.mjs"
+      ],
+      "timeoutMs": 60000
+    }
+  },
+  "auditBlockersFile": "qa/audit-blockers.json"
+}

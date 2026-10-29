@@ -6,6 +6,10 @@ const selectProfile = fs.readFileSync(
   new URL("../src/pages/SelectProfile.tsx", import.meta.url),
   "utf8",
 );
+const statusController = fs.readFileSync(
+  new URL("../src/components/common/NvuStatusBarController.tsx", import.meta.url),
+  "utf8",
+);
 const mainActivity = fs.readFileSync(
   new URL(
     "../android/app/src/main/java/com/nvu/operacional/MainActivity.java",
@@ -16,10 +20,10 @@ const mainActivity = fs.readFileSync(
 
 assert.match(app, /Capacitor\.isNativePlatform\(\)/);
 assert.match(app, /initialSessionSelectorRedirectRef/);
-assert.match(app, /initialPathnameRef/);
+assert.match(app, /profileIndex\.status === "resolving"/);
 assert.match(
   app,
-  /initialPathname !== "\/"\s*&&\s*initialPathname !== "\/login"/,
+  /location\.pathname !== "\/"\s*&&\s*location\.pathname !== "\/login"/,
 );
 assert.ok(
   app.includes('Capacitor.isNativePlatform()') &&
@@ -33,7 +37,7 @@ assert.ok(
 assert.match(app, /pathname === "\/select-profile"/);
 assert.match(
   app,
-  /preloadRoute\(\s*activeRole === "admin" \? "\/admin\/fleet" : "\/driver\/profile"/s,
+  /profileIndex\.profiles\.length === 1[\s\S]*?profileIndex\.profiles\[0\]\.destination/,
 );
 assert.match(selectProfile, /resolveProfileSessionGate/);
 assert.match(
@@ -42,14 +46,15 @@ assert.match(
 );
 assert.match(selectProfile, /profileGateState === "diagnostic"/);
 assert.match(selectProfile, /const commitProfileNavigation = useCallback/);
-assert.match(selectProfile, /useLayoutEffect\(\(\) => \{[\s\S]*SystemBarsStyle\.Light/);
-assert.match(selectProfile, /SystemBarsStyle\.Dark/);
-assert.match(selectProfile, /SystemBarType\.StatusBar/);
+assert.match(statusController, /useLayoutEffect\(\(\) => \{/);
+assert.match(statusController, /SystemBarsStyle\.Light/);
+assert.match(statusController, /SystemBarsStyle\.Dark/);
+assert.match(statusController, /SystemBarType\.StatusBar/);
 assert.match(selectProfile, /void switchRole\(profile\.role, profile\.companyId\)/);
 assert.match(mainActivity, /extends BridgeActivity/);
 assert.match(mainActivity, /onResume\(\)/);
 
 console.log("native-session-selector-startup: PASS 10 checks");
 console.log(
-  "Android com sessão visual persistida abre o seletor; ações protegidas continuam sob sessionReady.",
+  "Uma identidade retorna ao perfil ativo; múltiplos perfis abrem o seletor sob sessionReady.",
 );

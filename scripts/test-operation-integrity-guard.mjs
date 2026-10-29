@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { needsProjectionRearm } from "../src/lib/projectionRecoveryPolicy.ts";
+
+assert.equal(needsProjectionRearm({ projectionStatus: "NOT_GRANTED" }), true, "NOT_GRANTED must rearm consent");
+assert.equal(needsProjectionRearm({ projectionStatus: "DENIED" }), true, "DENIED must rearm consent");
+assert.equal(needsProjectionRearm({ projectionStatus: "REAUTH_REQUIRED_AFTER_RESTART" }), true, "restart must rearm consent");
+assert.equal(needsProjectionRearm({ projectionStatus: "NOT_GRANTED", projectionPermissionInFlight: true }), false, "in-flight consent must not duplicate");
+assert.equal(needsProjectionRearm({ projectionStatus: "ACTIVE", projectionActive: true }), false, "active projection must not rearm");
+
+const launcher = fs.readFileSync(new URL("../src/services/gtoWorkLauncher.ts", import.meta.url), "utf8");
+const service = fs.readFileSync(new URL("../src/application/trip/CanonicalTripOperationService.ts", import.meta.url), "utf8");
+const reconcile = fs.readFileSync(new URL("../functions/src/reconcileOperationTrips.ts", import.meta.url), "utf8");
+const notice = fs.readFileSync(new URL("../src/components/PendingProOperationNotice.tsx", import.meta.url), "utf8");
+const recovery = fs.readFileSync(new URL("../src/hooks/useMissingOperationTrip.ts", import.meta.url), "utf8");
+assert.match(launcher, /requestScreenCapture/);
+assert.match(launcher, /needsProjectionRearm/);
+assert.match(service, /trabalhoId/);
+assert.match(service, /canonical-server-trips/);
+assert.match(reconcile, /progressMismatch/);
+assert.doesNotMatch(reconcile, /rebuiltStatus/);
+assert.match(reconcile, /canCompleteLifecycle/);
+const gtoWriter = fs.readFileSync(new URL("../functions/src/gtoTrips.ts", import.meta.url), "utf8");
+assert.match(gtoWriter, /reconcileOperationTripsCore/);
+assert.doesNotMatch(gtoWriter, /currentStatus === "awaiting_completion"\s*&&\s*progress < totalDeliveries/);
+assert.match(reconcile, /confirmed-history/);
+assert.match(notice, /recoveryStatus === "conflict"/);
+assert.doesNotMatch(notice, /serverProgress !== visibleHistoryCount/);
+assert.match(recovery, /status: accepted \? "repaired" : "stale"/);
+assert.match(recovery, /confirmedCount: data\.confirmedCount/);
+console.log("OPERATION_INTEGRITY_GUARD_PASS cases A-F contracts and projection rearm");

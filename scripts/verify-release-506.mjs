@@ -1,0 +1,16 @@
+import fs from 'node:fs';import {spawnSync} from 'node:child_process';import {createHash} from 'node:crypto';
+const hash=()=>createHash('sha256').update(fs.readFileSync('reports/source-manifest-506.json')).digest('hex');
+const report={release:'1.0.506',webVersion:'2.3.184',sourceManifestSHA256:hash(),productionAccess:false,signedApkBuilt:false,androidEmulatorExecuted:false,steps:[],status:'RUNNING'};
+const root='reports/release-506';fs.mkdirSync(root+'/validation-logs',{recursive:true});const save=()=>fs.writeFileSync(root+'/verification.json',JSON.stringify(report,null,2)+'\n');
+function run(name,args,command=process.execPath){const log=root+'/validation-logs/'+String(report.steps.length+1).padStart(2,'0')+'.log',fd=fs.openSync(log,'w');console.log('VALIDATE',name);const start=Date.now(),result=spawnSync(command,args,{env:process.env,stdio:['ignore',fd,fd],timeout:900000});fs.closeSync(fd);report.steps.push({name,exitCode:result.status??1,signal:result.signal,error:result.error?.message,seconds:Math.round((Date.now()-start)/1000),log});save();if(result.error||result.status!==0){report.status='FAIL';save();console.error(fs.readFileSync(log,'utf8').slice(-16000));process.exit(result.status||1)}console.log('PASS',name);}
+run('Source provenance',['scripts/verify-source-506.py'],'python3');
+run('Web TypeScript',['node_modules/typescript/bin/tsc','--noEmit']);run('Functions TypeScript',['functions/node_modules/typescript/bin/tsc','-p','functions/tsconfig.json']);
+run('Failure propagation in actual app actions',['scripts/test-action-failures-506.mjs']);run('Membership client authentication and response handling',['scripts/test-membership-client-506.mjs']);
+run('Domain, lifecycle, rendering, news, roles and navigation audit',['scripts/test-domain-audit-506.mjs']);
+for(const file of ['test-trip-recovery-505.ts','test-trip-queue-recovery.ts','test-offline-database-storage.mjs','test-offline-sync-job-order.mjs','test-canonical-property-fuzz.ts','test-pro-rejection-recovery.mts'])run(file,['--import','./scripts/guard-loopback-network.mjs','--import','tsx','scripts/'+file]);
+run('Administrative failure and durable recovery',['scripts/test-admin-recovery-505.cjs']);run('Native OTA isolation',['scripts/test-native-ota-immutable.mjs']);run('Actual browser persistence and reload recovery',['scripts/test-trip-browser-505.mjs']);
+run('Firestore, Storage, Auth, membership, company bootstrap/archive and financial authorization',['scripts/run-audit-emulators-506.mjs']);run('Required server exports',['--import','./scripts/guard-loopback-network.mjs','scripts/verify-deployment-506.cjs']);run('App surface inventory',['scripts/audit-app-surface-506.mjs']);
+run('Production web build',['run','build'],process.platform==='win32'?'npm.cmd':'npm');run('Browser audit: dialogs, profiles, fleet, management, operations, ranking and navigation',['scripts/test-ui-audit-506.mjs']);
+run('Copy, normalize and verify tested web assets in Android',['scripts/prepare-android-bundle-506.mjs']);run('Source remains identical after all checks',['scripts/verify-source-506.py'],'python3');
+if(hash()!==report.sourceManifestSHA256){report.status='FAIL';save();throw Error('MANIFEST_CHANGED_DURING_TESTS')}
+report.status='PASS';save();console.log('RELEASE_506_VERIFICATION_PASS',report.steps.length);

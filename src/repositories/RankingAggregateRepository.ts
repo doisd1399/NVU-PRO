@@ -1,8 +1,9 @@
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
 import { db, functions } from "../lib/firebase";
 import {
   buildRankingAggregateDocumentId,
+  RANKING_AGGREGATE_COMPATIBLE_SCHEMA_VERSIONS,
   parseRankingAggregateDocument,
   RANKING_AGGREGATES_COLLECTION,
   RankingAggregateDocument,
@@ -26,10 +27,33 @@ const aggregateWarmRequests = new Map<
   string,
   Promise<RankingAggregateDocument | null>
 >();
-const AGGREGATE_CACHE_TTL_MS = 10 * 60 * 1000;
+
+export function invalidateRankingAggregateCaches(): void {
+  aggregateCache.clear();
+}
 
 function aggregateDocumentId(simulatorId: string, periodKey: string) {
   return buildRankingAggregateDocumentId(simulatorId, periodKey);
+}
+
+function aggregateDocumentIds(simulatorId: string, periodKey: string) {
+  return RANKING_AGGREGATE_COMPATIBLE_SCHEMA_VERSIONS.map((version) =>
+    buildRankingAggregateDocumentId(simulatorId, periodKey, version),
+  );
+}
+
+function matchesRequest(
+  aggregate: RankingAggregateDocument | null,
+  simulatorId: string,
+  periodType: RankingAggregatePeriodType,
+  periodKey: string,
+) {
+  return Boolean(
+    aggregate &&
+      aggregate.simulatorId === simulatorId &&
+      aggregate.periodType === periodType &&
+      aggregate.periodKey === periodKey,
+  );
 }
 
 export function readCachedRankingAggregate(
@@ -38,12 +62,15 @@ export function readCachedRankingAggregate(
 ): RankingAggregateDocument | null {
   const key = aggregateDocumentId(simulatorId, periodKey);
   const cached = aggregateCache.get(key);
-  if (!cached) return null;
-  if (Date.now() - cached.cachedAt > AGGREGATE_CACHE_TTL_MS) {
-    aggregateCache.delete(key);
-    return null;
-  }
-  return cached.aggregate;
+  if (cached) return cached.aggregate;
+  try {
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(`nvu.ranking.aggregate.v501.${key}`) : null;
+    const saved = raw ? JSON.parse(raw) : null;
+    const aggregate = saved ? parseRankingAggregateDocument(saved.aggregate) : null;
+    if (!aggregate || aggregate.simulatorId !== simulatorId || aggregate.periodKey !== periodKey) return null;
+    aggregateCache.set(key, { aggregate, cachedAt: saved.cachedAt || 0 });
+    return aggregate;
+  } catch { return null; }
 }
 
 function writeCachedRankingAggregate(
@@ -51,10 +78,42 @@ function writeCachedRankingAggregate(
   periodKey: string,
   aggregate: RankingAggregateDocument,
 ) {
-  aggregateCache.set(aggregateDocumentId(simulatorId, periodKey), {
-    aggregate,
-    cachedAt: Date.now(),
-  });
+  const key = aggregateDocumentId(simulatorId, periodKey), cachedAt = Date.now();
+  aggregateCache.set(key, { aggregate, cachedAt });
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(`nvu.ranking.aggregate.v501.${key}`, JSON.stringify({ aggregate, cachedAt }));
+      const keys = Object.keys(localStorage).filter(value => value.startsWith("nvu.ranking.aggregate.v501."));
+      if (keys.length > 24) {
+        keys.sort((a, b) => Number(JSON.parse(localStorage.getItem(a) || "{}").cachedAt || 0) - Number(JSON.parse(localStorage.getItem(b) || "{}").cachedAt || 0));
+        keys.slice(0, keys.length - 24).forEach(value => localStorage.removeItem(value));
+      }
+    }
+  } catch { /* A full confirmed memory snapshot remains usable when persistence is full. */ }
+}
+
+/** Confirm the committed document after reconciliation, without a device-cache fallback. */
+export async function readRankingAggregateFromServer(
+  simulatorId: string,
+  periodKey: string,
+) {
+  let lastError: unknown;
+  for (const documentId of aggregateDocumentIds(simulatorId, periodKey)) {
+    try {
+      const snapshot = await getDocFromServer(
+        doc(db, RANKING_AGGREGATES_COLLECTION, documentId),
+      );
+      if (!snapshot.exists()) continue;
+      const aggregate = parseRankingAggregateDocument(snapshot.data());
+      if (!aggregate || aggregate.simulatorId !== simulatorId || aggregate.periodKey !== periodKey) continue;
+      writeCachedRankingAggregate(simulatorId, periodKey, aggregate!);
+      return aggregate;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (lastError) throw lastError;
+  return null;
 }
 
 /**
@@ -73,20 +132,17 @@ export function warmRankingAggregate(
   const existing = aggregateWarmRequests.get(requestKey);
   if (existing) return existing;
 
-  const request = getDoc(
-    doc(
-      db,
-      RANKING_AGGREGATES_COLLECTION,
-      aggregateDocumentId(simulatorId, periodKey),
-    ),
-  )
-    .then((snapshot) => {
-      if (!snapshot.exists()) return null;
+  const request = (async () => {
+    for (const documentId of aggregateDocumentIds(simulatorId, periodKey)) {
+      const snapshot = await getDoc(doc(db, RANKING_AGGREGATES_COLLECTION, documentId));
+      if (!snapshot.exists()) continue;
       const aggregate = parseRankingAggregateDocument(snapshot.data());
-      if (!aggregate) return null;
-      writeCachedRankingAggregate(simulatorId, periodKey, aggregate);
+      if (!matchesRequest(aggregate, simulatorId, periodType, periodKey)) continue;
+      writeCachedRankingAggregate(simulatorId, periodKey, aggregate!);
       return aggregate;
-    })
+    }
+    return null;
+  })()
     .finally(() => {
       aggregateWarmRequests.delete(requestKey);
     });
@@ -105,24 +161,42 @@ export function listenRankingAggregate(
   const cached = readCachedRankingAggregate(simulatorId, periodKey);
   if (cached) onNext(cached);
 
-  const documentId = buildRankingAggregateDocumentId(simulatorId, periodKey);
-  return onSnapshot(
-    doc(db, RANKING_AGGREGATES_COLLECTION, documentId),
-    (snapshot) => {
-      if (!snapshot.exists()) {
-        onNext(null);
-        return;
-      }
-      const aggregate = parseRankingAggregateDocument(snapshot.data());
-      if (!aggregate) {
-        onNext(null);
-        return;
-      }
-      writeCachedRankingAggregate(simulatorId, periodKey, aggregate);
+  const documentIds = aggregateDocumentIds(simulatorId, periodKey);
+  const snapshots = new Map<string, { ready: boolean; aggregate: RankingAggregateDocument | null }>();
+  const errors = new Map<string, unknown>();
+  const publish = () => {
+    for (const documentId of documentIds) {
+      const aggregate = snapshots.get(documentId)?.aggregate || null;
+      if (!matchesRequest(aggregate, simulatorId, periodType, periodKey)) continue;
+      writeCachedRankingAggregate(simulatorId, periodKey, aggregate!);
       onNext(aggregate);
-    },
-    onError,
+      return;
+    }
+    if (documentIds.every((id) => snapshots.get(id)?.ready)) {
+      const error = documentIds.map((id) => errors.get(id)).find(Boolean);
+      if (error) onError?.(error);
+      else onNext(null);
+    }
+  };
+  const unsubscribers = documentIds.map((documentId) =>
+    onSnapshot(
+      doc(db, RANKING_AGGREGATES_COLLECTION, documentId),
+      (snapshot) => {
+        const aggregate = snapshot.exists()
+          ? parseRankingAggregateDocument(snapshot.data())
+          : null;
+        snapshots.set(documentId, { ready: true, aggregate });
+        errors.delete(documentId);
+        publish();
+      },
+      (error) => {
+        snapshots.set(documentId, { ready: true, aggregate: null });
+        errors.set(documentId, error);
+        publish();
+      },
+    ),
   );
+  return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
 }
 
 export function ensureRankingAggregate(
@@ -141,7 +215,7 @@ export function ensureRankingAggregate(
       periodKey: string;
     },
     EnsureRankingAggregateResult
-  >(functions, "ensureRankingAggregates");
+  >(functions, "ensureRankingAggregates", { timeout: 20_000 });
 
   const request = callable({ simulatorId, periodType, periodKey })
     .then((result) => result.data)

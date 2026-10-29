@@ -6,23 +6,34 @@ def releaseKeyAlias = project.findProperty("RELEASE_KEY_ALIAS") ?: System.getenv
 def releaseKeyPassword = project.findProperty("RELEASE_KEY_PASSWORD") ?: System.getenv("RELEASE_KEY_PASSWORD")
 def releaseSigningConfigured = [releaseStoreFilePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword]
     .every { it != null && !it.toString().trim().isEmpty() }
+def releaseArtifactTaskPrefixes = ['assemblerelease', 'bundlerelease', 'packagerelease', 'signrelease']
+def releaseTaskRequested = gradle.startParameter.taskNames.any { task ->
+    def requestedTask = task.tokenize(':').last().toLowerCase(Locale.ROOT)
+    requestedTask == 'assemble' || requestedTask == 'bundle' ||
+        releaseArtifactTaskPrefixes.any { prefix -> requestedTask.startsWith(prefix) }
+}
 
 android {
+    // Instrument the isolated QA package instead of Gradle's default debug app.
+    testBuildType "qa"
     namespace = "com.nvu.operacional"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "com.nvu.operacional"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 359
-        versionName "1.0.359"
+        versionCode 520
+        versionName "1.0.520"
         // OTA channel is pinned to this native binary version. Future Web bundles
         // must be published to the matching channel and pass signature checks.
         resValue "string", "capawesome_live_update_default_channel", "production-" + versionCode
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444602/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
@@ -35,6 +46,8 @@ android {
                 keyPassword releaseKeyPassword
                 v1SigningEnabled true
                 v2SigningEnabled true
+                enableV3Signing true
+                // Legacy preflight marker: v3SigningEnabled true (AGP 8.13 uses enableV3Signing).
                 // final Release artifact is explicitly produced by AGP with
                 // apksigner v2/v3 signing; no external re-packaging or
                 // post-signing step is used.
@@ -42,6 +55,13 @@ android {
         }
     }
     buildTypes {
+        qa {
+            initWith debug
+            applicationIdSuffix '.qa'
+            versionNameSuffix '-qa'
+            matchingFallbacks = ['debug']
+            signingConfig signingConfigs.debug
+        }
         debug {
             // Local-only diagnostic variant: keep the production applicationId and
             // certificate so `adb install -r` preserves the HF208 data store.
@@ -52,13 +72,30 @@ android {
             }
         }
         release {
+            // ETAPA 40 diagnostic candidate; keep production package identity and data.
             minifyEnabled false
-            if (releaseSigningConfigured) {
-                signingConfig signingConfigs.release
+            if (releaseTaskRequested && !releaseSigningConfigured) {
+                throw new GradleException('Release assinado exige RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS e RELEASE_KEY_PASSWORD.')
             }
+            if (releaseSigningConfigured) signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+tasks.register('verifyReleaseWebBundle', Exec) {
+    workingDir file('../..')
+    commandLine 'node', 'scripts/verify-release-web-source.mjs'
+}
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+    dependsOn tasks.named('verifyReleaseWebBundle')
+}
+tasks.register('verifyAutomatedQualityGate', Exec) {
+    workingDir file('../..')
+    commandLine 'node', 'scripts/qa/gate.mjs'
+}
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach {
+    dependsOn tasks.named('verifyAutomatedQualityGate')
 }
 
 repositories {
@@ -90,15 +127,13 @@ dependencies {
 apply from: 'capacitor.build.gradle'
 
 def servicesJSON = file('google-services.json')
-def releaseTaskRequested = gradle.startParameter.taskNames.any { task ->
-    task.toLowerCase(Locale.ROOT).contains('release')
-}
-if (servicesJSON.exists() && servicesJSON.text.trim()) {
+def qaOnlyRequested = !releaseTaskRequested && gradle.startParameter.taskNames.any { it.toLowerCase(Locale.ROOT).contains('qa') }
+if (servicesJSON.exists() && servicesJSON.text.trim() && !qaOnlyRequested) {
     apply plugin: 'com.google.gms.google-services'
 } else if (releaseTaskRequested) {
-    throw new GradleException('google-services.json é obrigatório para o APK Release com login Google nativo.')
+    throw new GradleException('google-services.json é obrigatório para o APK Release.')
 } else {
-    logger.lifecycle('google-services.json ausente: build não-Release segue sem Firebase nativo.')
+    logger.lifecycle('Build sem configuração Firebase de produção (QA offline ou configuração ausente).')
 }
 
 // Keep Java source decoding deterministic on Windows PCs. Project sources are UTF-8
@@ -106,3 +141,37 @@ if (servicesJSON.exists() && servicesJSON.text.trim()) {
 tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
+
+// Executed even when somebody bypasses the release script and runs Gradle directly.
+def verifyReleaseWebAssets = tasks.register('verifyReleaseWebAssets') {
+    doLast {
+        def webRoot = rootProject.projectDir.parentFile
+        def publicDir = file('src/main/assets/public')
+        def manifestFile = new File(publicDir, 'nvu-build.json')
+        if (!manifestFile.isFile() || !new File(publicDir, 'index.html').isFile()) {
+            throw new GradleException('Assets Web ausentes: execute scripts/android-release antes do Gradle.')
+        }
+        def manifest = new groovy.json.JsonSlurper().parse(manifestFile)
+        def inputs = ['package.json', 'package-lock.json', 'capacitor.config.ts', 'vite.config.ts']
+        fileTree(new File(webRoot, 'src')).files.each { f ->
+            inputs.add('src/' + new File(webRoot, 'src').toPath().relativize(f.toPath()).toString().replace('\\', '/'))
+        }
+        def hash = java.security.MessageDigest.getInstance('SHA-256')
+        inputs.sort().each { name ->
+            def input = new File(webRoot, name)
+            if (!input.isFile()) throw new GradleException("Fonte Web ausente: ${name}")
+            hash.update(name.getBytes('UTF-8'))
+            hash.update((byte) 0)
+            hash.update(input.bytes)
+            hash.update((byte) 0)
+        }
+        def sourceSha256 = hash.digest().encodeHex().toString()
+        if (!manifest.sourceSha256 || manifest.sourceSha256 != sourceSha256) {
+            throw new GradleException('Assets Web divergentes da fonte atual: execute o pipeline de release completo.')
+        }
+        if (manifest.nativeBundleImmutable != true || manifest.otaEnabled != false) {
+            throw new GradleException('Bundle nativo não está local-first.')
+        }
+    }
+}
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach { dependsOn verifyReleaseWebAssets }

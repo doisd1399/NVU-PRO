@@ -1,3 +1,5 @@
+import { fitHistoryCacheBudget } from "./boundedHistoryCache";
+
 export type TripHistoryCacheScope = {
   userId: string;
   companyId: string;
@@ -8,6 +10,8 @@ export type TripHistoryCacheRecord<T = any> = {
   scope: string;
   cachedAt: number;
   trips: T[];
+  /** True only when the full scoped server read finished, including an empty result. */
+  complete?: boolean;
 };
 
 const CACHE_VERSION = 2 as const;
@@ -72,6 +76,7 @@ export function readTripHistoryCache<T = any>(
       scope: scopeKey,
       cachedAt: parsed.cachedAt,
       trips: parsed.trips.slice(0, MAX_TRIPS) as T[],
+      complete: parsed.complete === true && parsed.trips.length <= MAX_TRIPS,
     };
   } catch {
     try {
@@ -87,6 +92,7 @@ export function writeTripHistoryCache<T = any>(
   scope: TripHistoryCacheScope,
   trips: T[],
   getSortTime?: (trip: T) => number,
+  options: { complete?: boolean } = {},
 ): void {
   const scopeKey = buildTripHistoryCacheScope(scope);
   const targetStorage = storage();
@@ -100,11 +106,13 @@ export function writeTripHistoryCache<T = any>(
         return getSortTime(right as T) - getSortTime(left as T);
       })
       .slice(0, MAX_TRIPS);
+    const fitted = fitHistoryCacheBudget(safeTrips);
     const record: TripHistoryCacheRecord<T> = {
       version: CACHE_VERSION,
       scope: scopeKey,
       cachedAt: Date.now(),
-      trips: safeTrips,
+      trips: fitted,
+      complete: options.complete === true && fitted.length === trips.length,
     };
     targetStorage.setItem(cacheKey(scopeKey), JSON.stringify(record));
   } catch {
@@ -153,3 +161,16 @@ export const tripHistoryCacheContract = {
   prefix: CACHE_PREFIX,
   maxTrips: MAX_TRIPS,
 } as const;
+
+export function clearAllTripHistoryCache(): void {
+  const targetStorage = storage();
+  if (!targetStorage) return;
+  try {
+    for (let index = targetStorage.length - 1; index >= 0; index -= 1) {
+      const key = targetStorage.key(index);
+      if (key?.startsWith(CACHE_PREFIX)) targetStorage.removeItem(key);
+    }
+  } catch {
+    // Best-effort cleanup.
+  }
+}

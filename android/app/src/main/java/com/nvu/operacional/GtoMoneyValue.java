@@ -9,11 +9,11 @@ import java.util.regex.Pattern;
 /* JADX INFO: loaded from: classes2.dex */
 final class GtoMoneyValue {
     private static final long MAX_CENTS = 10000000000L;
-    private static final long MIN_CENTS = 10000;
+    private static final long MIN_CENTS = 1;
     private static final Pattern TOKEN = Pattern.compile("-?\\d[\\d.,]*");
 
     static boolean isPlausibleCents(long j) {
-        return j >= 10000 && j <= 10000000000L;
+        return j >= MIN_CENTS && j <= MAX_CENTS;
     }
 
     private GtoMoneyValue() {

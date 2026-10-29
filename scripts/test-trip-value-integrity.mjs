@@ -23,8 +23,8 @@ const checks = [
     /setValorDetectadoAutomaticamente\(true\)/,
   ],
   [
-    "RecordTrip impede edição do valor OCR",
-    /readOnly=\{valorDetectadoAutomaticamente\}/,
+    "RecordTrip impede edição do ganho no Print GTO",
+    /isGtoPrintMode \? \([\s\S]{0,150}<output/,
   ],
   [
     "RecordTrip registra a origem do valor no lançamento",
@@ -68,19 +68,19 @@ const checks = [
   ],
   [
     "GTO Print marca crop numérico como fonte autoritativa",
-    /promoteValue\(candidate, "numeric-crop"\)/,
+    /selectValidatedValueCandidate\(numericCandidates\)/,
   ],
   [
     "GTO Print rejeita conflito do OCR amplo",
-    /conflicting value ignored[\s\S]{0,260}candidateSource/,
+    /contextualVotes[\s\S]{0,700}crops\.size < 2/,
   ],
   [
-    "Pro nativo exige dois centavos explícitos",
-    /decimal\.length\(\) != 2/,
+    "Pro nativo usa o mesmo parser de centavos confirmado pelo OCR",
+    /GtoResultOcrConsensusPolicy\.parseAmountCents\(raw\)/,
   ],
   [
-    "Pro nativo rejeita valor sem separador",
-    /separator < 1 \|\| separator >= cleaned\.length\(\) - 1/,
+    "Pro nativo mantém verificação da faixa de centavos",
+    /cents == null \|\| cents > Integer\.MAX_VALUE/,
   ],
 ];
 

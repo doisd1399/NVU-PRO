@@ -1,3 +1,4 @@
+import { ModalSelect } from "../../components/ui/ModalSelect";
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useActivityStore, useOperationalStore, useSessionStore } from "../../context/AppContext";
@@ -26,6 +27,7 @@ import { differenceInDays, format } from "date-fns";
 import { cn, getJobRealTimestamp } from "../../lib/utils";
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
 import { useTripHistory } from "../../hooks/useTripHistory";
+import { buildClientOperationProjection } from "../../application/operation/operationProjectionSelectors";
 
 type StatusFilter = "all" | "ongoing" | "active" | "delayed" | "completed";
 
@@ -155,7 +157,7 @@ export default function Operations() {
     return {
       text: "Não Iniciado",
       color: "bg-gray-400",
-      bg: "bg-gray-50 dark:bg-[#1A1F26]",
+      bg: "bg-gray-50 dark:bg-nvu-surface",
       icon: Clock,
     };
   }, []);
@@ -180,6 +182,8 @@ export default function Operations() {
           ? undefined
           : trailersMap.get(job.trailerId);
         const company = companiesMap.get(job.companyId);
+        const operationProjection = buildClientOperationProjection(job, historicoTrips);
+        const confirmedProgress = operationProjection?.confirmedTripCount ?? 0;
 
         const statusDetails = getJobStatusDetails(job, contract);
         const daysLeft = differenceInDays(new Date(job.deadlineDate), new Date());
@@ -194,10 +198,12 @@ export default function Operations() {
           company,
           statusDetails,
           daysLeft,
+          operationProjection,
+          confirmedProgress,
         };
       })
       .filter((j) => j.contract && j.driver);
-  }, [jobs, contracts, users, vehicles, trailers, simulators, companies, getJobStatusDetails]);
+  }, [jobs, contracts, users, vehicles, trailers, simulators, companies, historicoTrips, getJobStatusDetails]);
 
   // Filtragem
   const filteredJobs = activeJobsList.filter((job) => {
@@ -251,10 +257,10 @@ export default function Operations() {
       {/* Cabeçalho */}
       <div className="flex flex-row items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-[#fafafa] tracking-tight">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-nvu-text tracking-tight">
             Operações
           </h1>
-          <p className="text-[13px] text-gray-500 dark:text-[#a1a1aa] mt-0.5 font-medium">
+          <p className="nvu-page-description text-gray-500 dark:text-nvu-muted mt-1">
             Gestão de trabalhos e designações.
           </p>
         </div>
@@ -279,21 +285,21 @@ export default function Operations() {
             placeholder="Pesquisar..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-lg pl-9 pr-4 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-300 dark:focus:border-slate-600 shadow-sm dark:shadow-none transition-all"
+            className="w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-lg pl-9 pr-4 py-2 text-[13px] font-medium focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-300 dark:focus:border-nvu-line shadow-sm dark:shadow-none transition-all"
           />
         </div>
         <div className="relative whitespace-nowrap">
-          <select
+          <ModalSelect title="Status das operações"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            className="appearance-none w-full sm:w-auto bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-lg pl-4 pr-10 py-2 text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-300 dark:focus:border-slate-600 shadow-sm dark:shadow-none cursor-pointer hover:bg-gray-50 dark:hover:bg-[#3f3f46] transition-colors"
+            className="appearance-none w-full sm:w-auto bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-lg pl-4 pr-10 py-2 text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft focus:outline-none focus:ring-2 focus:ring-gray-900/5 focus:border-gray-300 dark:focus:border-nvu-line shadow-sm dark:shadow-none cursor-pointer hover:bg-gray-50 dark:hover:bg-nvu-strip transition-colors"
           >
             <option value="all">Todos os Status</option>
             <option value="ongoing">Abertos</option>
             <option value="active">Em andamento</option>
             <option value="delayed">Atrasados</option>
             <option value="completed">Concluídos</option>
-          </select>
+          </ModalSelect>
           <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none text-gray-400">
             <ChevronDown size={14} />
           </div>
@@ -303,21 +309,21 @@ export default function Operations() {
       {/* Grid Content */}
       <div className="flex-1">
         {filteredJobs.length === 0 ? (
-          <div className="bg-white dark:bg-[#1A1F26]/50 border border-gray-200 dark:border-[#2A2F3A]/60 rounded-3xl p-10 text-center flex flex-col items-center justify-center min-h-[300px]">
-            <div className="w-16 h-16 bg-white dark:bg-[#1A1F26] rounded-2xl flex items-center justify-center text-gray-300 mb-4 border border-gray-100 dark:border-[#2A2F3A] shadow-sm dark:shadow-none">
+          <div className="bg-white dark:bg-nvu-surface/50 border border-gray-200 dark:border-nvu-line/60 rounded-3xl p-10 text-center flex flex-col items-center justify-center min-h-[300px]">
+            <div className="w-16 h-16 bg-white dark:bg-nvu-surface rounded-2xl flex items-center justify-center text-gray-300 mb-4 border border-gray-100 dark:border-nvu-line shadow-sm dark:shadow-none">
               <Search size={24} />
             </div>
-            <h3 className="text-[15px] font-bold text-gray-900 dark:text-[#fafafa]">
+            <h3 className="text-[15px] font-bold text-gray-900 dark:text-nvu-text">
               Nenhuma operação encontrada
             </h3>
-            <p className="text-[13px] text-gray-500 dark:text-[#a1a1aa] mt-1 max-w-sm mb-6">
+            <p className="text-[13px] text-gray-500 dark:text-nvu-muted mt-1 max-w-sm mb-6">
               Ajuste os filtros de busca ou inicie uma nova operação com seus
               motoristas.
             </p>
             <Button
               onClick={() => navigate("/admin/assign")}
               variant="outline"
-              className="h-10 text-sm font-semibold rounded-xl px-5 border-gray-200 dark:border-[#2A2F3A]"
+              className="h-10 text-sm font-semibold rounded-xl px-5 border-gray-200 dark:border-nvu-line"
             >
               Iniciar Operação
             </Button>
@@ -328,11 +334,11 @@ export default function Operations() {
               const isSelected = selectedJobId === job.id;
               const progressPct =
                 Math.round(
-                  (job.progress / Math.max(1, job.contract!.totalDeliveries)) *
+                  (job.confirmedProgress / Math.max(1, job.contract!.totalDeliveries)) *
                     100,
                 ) || 0;
               const deliveriesLeft =
-                job.contract!.totalDeliveries - job.progress;
+                Math.max(0, job.contract!.totalDeliveries - job.confirmedProgress);
               const isOverdue = job.daysLeft < 0;
               const effectiveTrailerId = job.trailerlessSimulator
                 ? ""
@@ -345,10 +351,10 @@ export default function Operations() {
                 <div
                   key={job.id}
                   className={cn(
-                    "relative flex flex-col border rounded-[24px] transition-all overflow-hidden bg-white dark:bg-[#1A1F26]",
+                    "relative flex flex-col border rounded-[24px] transition-all overflow-hidden bg-white dark:bg-nvu-surface",
                     isSelected
                       ? "border-blue-500 shadow-md dark:shadow-none ring-1 ring-blue-500/20"
-                      : "border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md dark:shadow-none",
+                      : "border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none hover:border-gray-300 dark:hover:border-nvu-line hover:shadow-md dark:shadow-none",
                   )}
                 >
                   <button
@@ -357,11 +363,11 @@ export default function Operations() {
                   >
                     <div className="flex justify-between items-start gap-4 pr-6 relative w-full">
                       <div className="flex-1 min-w-0 pr-4">
-                        <h3 className="font-semibold text-gray-900 dark:text-[#fafafa] text-[15px] sm:text-[16px] truncate tracking-tight mb-1">
+                        <h3 className="font-semibold text-gray-900 dark:text-nvu-text text-[15px] sm:text-[16px] truncate tracking-tight mb-1">
                           {job.driver!.name}
                         </h3>
-                        <div className="flex flex-col gap-1 text-[12px] text-gray-500 dark:text-[#a1a1aa] mt-1 mb-2 sm:mb-0">
-                          <span className="font-medium text-gray-800 dark:text-[#d4d4d8] truncate">
+                        <div className="flex flex-col gap-1 text-[12px] text-gray-500 dark:text-nvu-muted mt-1 mb-2 sm:mb-0">
+                          <span className="font-medium text-gray-800 dark:text-nvu-text-soft truncate">
                             {job.contract!.name}
                           </span>
                           {job.vehicle ? (
@@ -405,7 +411,7 @@ export default function Operations() {
                       <div className="shrink-0 flex flex-col items-end gap-2">
                         {/* Status de On e Off */}
                         <div
-                          className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-lg px-2 py-1 cursor-default"
+                          className="flex items-center gap-1.5 bg-gray-50 dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-lg px-2 py-1 cursor-default"
                           title={job.driver!.isOnline ? "Online" : "Offline"}
                         >
                           <span
@@ -413,7 +419,7 @@ export default function Operations() {
                               "text-[10px] font-bold tracking-tight uppercase",
                               job.driver!.isOnline
                                 ? "text-green-600"
-                                : "text-gray-500 dark:text-[#a1a1aa]",
+                                : "text-gray-500 dark:text-nvu-muted",
                             )}
                           >
                             {job.driver!.isOnline ? "On" : "Off"}
@@ -429,7 +435,7 @@ export default function Operations() {
                             >
                               <div
                                 className={cn(
-                                  "absolute top-[2px] transition-all bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-full h-[10px] w-[10px]",
+                                  "absolute top-[2px] transition-all bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-full h-[10px] w-[10px]",
                                   job.driver!.isOnline
                                     ? "left-[12px] border-white"
                                     : "left-[2px]",
@@ -450,13 +456,13 @@ export default function Operations() {
 
                     <div className="flex flex-col gap-3 w-full">
                       {/* Card progress */}
-                      <div className="w-full shrink-0 border border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#1A1F26] rounded-2xl p-4 flex flex-col gap-3">
+                      <div className="w-full shrink-0 border border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface rounded-2xl p-4 flex flex-col gap-3">
                         <div className="flex justify-between items-start">
                           <div className="flex flex-col items-start leading-tight">
                             <span className="text-[15px] text-blue-600 dark:text-blue-400 font-medium tracking-tight mb-0.5">
-                              {job.progress}/{job.contract!.totalDeliveries}
+                              {job.confirmedProgress}/{job.contract!.totalDeliveries}
                             </span>
-                            <span className="text-[12px] text-gray-500 dark:text-[#a1a1aa]">
+                            <span className="text-[12px] text-gray-500 dark:text-nvu-muted">
                               (Entregas)
                             </span>
                           </div>
@@ -464,14 +470,14 @@ export default function Operations() {
                             <span className="text-[15px] text-blue-600 dark:text-blue-400 font-medium tracking-tight mb-0.5">
                               {deliveriesLeft}
                             </span>
-                            <span className="text-[12px] text-gray-500 dark:text-[#a1a1aa]">
+                            <span className="text-[12px] text-gray-500 dark:text-nvu-muted">
                               faltam
                             </span>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <div className="flex-1 bg-gray-200 dark:bg-white/10/70 dark:bg-[#27272a] rounded-full h-[5px] overflow-hidden">
+                          <div className="flex-1 bg-gray-200 dark:bg-white/10/70 dark:bg-nvu-strip rounded-full h-[5px] overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500 bg-[#00D1FF] shadow-[0_0_10px_rgba(0,209,255,0.4)]"
                               style={{ width: `${Math.max(3, progressPct)}%` }}
@@ -493,7 +499,7 @@ export default function Operations() {
                             "font-medium flex items-center gap-1.5 text-[12px]",
                             isOverdue && job.status === "active"
                               ? "text-red-600 font-bold"
-                              : "text-gray-900 dark:text-[#fafafa]",
+                              : "text-gray-900 dark:text-nvu-text",
                           )}
                         >
                           <Clock
@@ -510,10 +516,10 @@ export default function Operations() {
                     </div>
                   </button>
                   {isSelected && (
-                    <div className="border-t border-gray-100 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#1A1F26] p-3 sm:p-4 flex flex-col gap-3">
+                    <div className="border-t border-gray-100 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface p-3 sm:p-4 flex flex-col gap-3">
                       {/* Contract Card Match */}
                       <div
-                        className="bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-200 dark:border-[#2A2F3A]/80 shadow-sm dark:shadow-none relative px-4 py-3 sm:p-4 hover:border-gray-300 dark:hover:border-[#52525b] transition-colors cursor-pointer group"
+                        className="bg-white dark:bg-nvu-surface rounded-2xl border border-gray-200 dark:border-nvu-line/80 shadow-sm dark:shadow-none relative px-4 py-3 sm:p-4 hover:border-gray-300 dark:hover:border-nvu-line transition-colors cursor-pointer group"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/admin/contract/${job.contract!.id}`);
@@ -521,16 +527,16 @@ export default function Operations() {
                       >
                         <div className="flex justify-between items-start mb-2">
                           <div className="pr-8">
-                            <h3 className="font-bold text-gray-900 dark:text-[#fafafa] text-[14px] sm:text-[15px] leading-tight mb-1 line-clamp-2">
+                            <h3 className="font-bold text-gray-900 dark:text-nvu-text text-[14px] sm:text-[15px] leading-tight mb-1 line-clamp-2">
                               {job.contract!.name}
                             </h3>
-                            <p className="text-[12px] font-medium text-gray-500 dark:text-[#a1a1aa] truncate flex items-center gap-1.5">
+                            <p className="text-[12px] font-medium text-gray-500 dark:text-nvu-muted truncate flex items-center gap-1.5">
                               <Truck size={12} className="text-gray-400" />
                               {job.trailer ? job.trailer.name : "Qualquer reboque"}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-900 dark:text-[#fafafa] bg-gray-50 dark:bg-[#1A1F26]/80 p-2 rounded-lg border border-gray-100 dark:border-[#2A2F3A]">
+                        <div className="flex items-center gap-2 text-[12px] font-semibold text-gray-900 dark:text-nvu-text bg-gray-50 dark:bg-nvu-surface/80 p-2 rounded-lg border border-gray-100 dark:border-nvu-line">
                           <span>{job.contract!.totalDeliveries} entregas</span>
                           <span className="text-gray-300 dark:text-gray-600">•</span>
                           <span>{job.contract!.deadlineDays} dias</span>
@@ -543,7 +549,7 @@ export default function Operations() {
                             e.stopPropagation();
                             navigate(`/admin/driver/${job.driverId}`, { state: { returnUrl: location.pathname, companyId: job.companyId } });
                           }}
-                          className="flex-1 h-9 text-[12px] font-semibold text-gray-700 dark:text-[#d4d4d8] bg-white dark:bg-[#1A1F26] hover:bg-gray-50 dark:hover:bg-[#3f3f46] border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none rounded-xl"
+                          className="flex-1 h-9 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft bg-white dark:bg-nvu-surface hover:bg-gray-50 dark:hover:bg-nvu-strip border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none rounded-xl"
                         >
                           <User size={14} className="mr-1.5" /> Perfil
                         </Button>
@@ -551,7 +557,7 @@ export default function Operations() {
                         {job.status !== "completed" &&
                           job.status !== "cancelled" && (
                             <Button
-                            className="flex-1 h-9 px-4 text-[12px] font-semibold text-red-600 bg-white dark:bg-[#1A1F26] hover:bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 border border-red-200 shadow-sm dark:shadow-none rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 h-9 px-4 text-[12px] font-semibold text-red-600 bg-white dark:bg-nvu-surface hover:bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 border border-red-200 shadow-sm dark:shadow-none rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={cancelingJobId === job.id}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -573,7 +579,7 @@ export default function Operations() {
                       {(job.status === "completed" ||
                         job.status === "cancelled") && (
                         <Button
-                          className="flex-1 h-9 px-4 text-[12px] font-semibold text-red-600 bg-white dark:bg-[#1A1F26] hover:bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 border border-red-200 shadow-sm dark:shadow-none rounded-xl flex items-center gap-1.5 text-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="flex-1 h-9 px-4 text-[12px] font-semibold text-red-600 bg-white dark:bg-nvu-surface hover:bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 border border-red-200 shadow-sm dark:shadow-none rounded-xl flex items-center gap-1.5 text-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={deletingJobId === job.id}
                           onClick={(e) => {
                             e.stopPropagation();

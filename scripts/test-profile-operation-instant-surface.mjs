@@ -9,6 +9,7 @@ const profile = read("src/pages/driver/Profile.tsx");
 const dashboard = read("src/pages/driver/Dashboard.tsx");
 const performance = read("src/components/DriverPerformanceCard.tsx");
 const rangeHook = read("src/hooks/useTripsRealtime.ts");
+const rankingSource = read("src/hooks/useProfileRanking.ts");
 const snapshot = read("src/lib/activeOperationSnapshot.ts");
 
 assert.doesNotMatch(selectProfile, /pendingProfileIntentRef/);
@@ -21,8 +22,10 @@ assert.doesNotMatch(selectProfile, /if \(!sessionReady\) \{/);
 assert.match(profile, /readActiveOperationSnapshot/);
 assert.match(profile, /writeActiveOperationSnapshot/);
 assert.match(profile, /displayActiveJob/);
-assert.match(profile, /const activeOperationCardJob =/);
-assert.match(profile, /\{activeOperationCardJob \? \(/);
+assert.equal((profile.match(/<Dashboard\b/g) || []).length, 1);
+assert.match(profile, /operationCardOnly=\{activeTab === "operations"\}/);
+assert.match(profile, /tripHistoryOverride=\{driverTripState\.trips\}/);
+assert.match(profile, /vehiclePhotoOverride=\{vehiclePhoto\}/);
 assert.doesNotMatch(profile, /\{displayActiveJob \? \(/);
 assert.doesNotMatch(profile, /\{activeJob && activeContract \? \(/);
 assert.match(profile, /activeOperationTotalDeliveries/);
@@ -31,9 +34,10 @@ assert.match(dashboard, /selectCurrentOperationJob\(jobs, currentUser\?\.id, act
 assert.match(dashboard, /deriveCurrentOperationProgress\(/);
 assert.match(dashboard, /jobProgress: currentOperationProgress/);
 
-assert.match(performance, /hasVisibleDriverHistory/);
-assert.match(performance, /rawGlobalTripsLoading/);
-assert.match(performance, /cacheScope: tripsCacheScope/);
+assert.match(performance, /ownTrips=\{ownTrips\}/);
+assert.match(performance, /ownTripsLoading=\{driverTripsLoading\}/);
+assert.match(rankingSource, /companyIds: query.companyId/);
+assert.match(rankingSource, /tripState.serverConfirmed/);
 assert.doesNotMatch(profile, /globalTripsLoading=\{\s*!companyCatalogLoaded \|\| companiesLoading \? true : undefined\s*\}/);
 
 assert.match(rangeHook, /PERSISTED_RANGE_CACHE_PREFIX/);

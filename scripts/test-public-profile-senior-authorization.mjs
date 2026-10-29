@@ -9,11 +9,27 @@ const app = read("src/App.tsx");
 const publicProfile = read("src/pages/PublicProfile.tsx");
 const senior = read("src/pages/admin/SeniorPanel.tsx");
 const rules = read("firestore.rules");
+const driverWorkspaceCss = read("src/components/driver/DriverWorkspace.css");
 
 assert.match(
   profile,
-  /<div className="w-full flex flex-col gap-3 sm:gap-4 pb-8">/,
-  "perfil do motorista deve usar o container de largura total do hero de referência",
+  /className="nvu-driver-workspace w-full flex flex-col gap-3 sm:gap-4"/,
+  "perfil do motorista deve usar o workspace de largura total do hero aprovado",
+);
+assert.match(
+  driverWorkspaceCss,
+  /\.nvu-driver-dock\s*\{[^}]*bottom:\s*calc\(10px\s*\+\s*env\(safe-area-inset-bottom,\s*0px\)\)/,
+  "dock fixo deve respeitar a área segura Android",
+);
+assert.match(
+  driverWorkspaceCss,
+  /\.nvu-workspace-dock-space\s*\{\s*height:\s*var\(--nvu-workspace-dock-clearance,/,
+  "workspace deve reservar o spacer dedicado do dock e da área segura Android",
+);
+assert.match(
+  driverWorkspaceCss,
+  /width: calc\(100% \+ 2 \* var\(--driver-gutter\)\) !important; margin-inline: calc\(-1 \* var\(--driver-gutter\)\) !important;/,
+  "hero deve manter bleed full-width além dos gutters do workspace",
 );
 assert.doesNotMatch(
   profile,
@@ -45,7 +61,8 @@ assert.match(
   "rotas do motorista devem manter guard de role",
 );
 assert.doesNotMatch(publicProfile, /collection\(db, "users"\)|collection\(db, "companyMembers"\)/, "perfil público não pode carregar coleções privadas");
-assert.match(publicProfile, /doc\(db, "frotas",/, "perfil público deve ler apenas identidade de empresa pública");
+assert.match(publicProfile, /doc\(db, "public_companies",/, "perfil público deve ler apenas a projeção pública da empresa");
+assert.doesNotMatch(publicProfile, /doc\(db, "frotas",/, "perfil público não deve consultar o documento privado");
 assert.match(publicProfile, /collection\(db, "historico_viagens"\)/, "perfil público deve usar histórico já público");
 assert.match(senior, /getCountFromServer/, "Senior deve usar contagem agregada no fallback");
 assert.doesNotMatch(senior, /getDocs\(collection\(db, "frotas"\)\)/, "Senior não pode baixar toda a coleção para contar empresas");

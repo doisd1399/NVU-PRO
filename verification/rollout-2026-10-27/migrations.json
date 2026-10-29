@@ -1,0 +1,11 @@
+{
+  "projectId": "vtc-frota-log",
+  "completedAt": "2026-10-27T12:08:46.908Z",
+  "usersScanned": 265,
+  "profileOperations": 265,
+  "notificationsScanned": 2930,
+  "datesWritten": 19,
+  "unresolved": 0,
+  "sourceUsersUnmodified": true,
+  "transport": "Firestore REST transactions; canonical publicUserProfile implementation"
+}

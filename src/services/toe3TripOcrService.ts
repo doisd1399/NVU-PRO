@@ -1,3 +1,5 @@
+import { validateProReceiptEvidence } from "./pro-universal/proReceiptAdapters";
+
 const LOCAL_TESSDATA_PATH = "/tessdata";
 const REFERENCE_ASPECT_RATIO = 20 / 9;
 
@@ -453,6 +455,14 @@ const formatCurrencyInput = (integerAmount: number): string =>
     maximumFractionDigits: 2,
   });
 
+const parseToe3ReceiptText = (rawText: string): string | null => {
+  const result = validateProReceiptEvidence("toe-3", rawText);
+  const amount = result.validation.amount;
+  return amount !== null && amount > 0
+    ? amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : null;
+};
+
 export async function extractToe3TripData(
   file: File,
 ): Promise<Toe3TripOcrResult | null> {
@@ -520,7 +530,32 @@ export async function extractToe3TripData(
 
     const distanceKm = parsePositiveInteger(distanceText, 100_000);
     const valueAmount = parsePositiveInteger(valueText, 1_000_000_000);
-    const value = valueAmount ? formatCurrencyInput(valueAmount) : null;
+    let value = valueAmount ? formatCurrencyInput(valueAmount) : null;
+
+    // Some TOE 3 builds move the bright value cell when the device uses a
+    // different safe area. Keep the precise crop first, then OCR the complete
+    // result screen and select only the value tied to “Renda total/Ganhos”.
+    if (!value) {
+      const fullCanvas = document.createElement("canvas");
+      const scale = Math.min(1, 2000 / Math.max(decoded.width, decoded.height));
+      fullCanvas.width = Math.max(1, Math.round(decoded.width * scale));
+      fullCanvas.height = Math.max(1, Math.round(decoded.height * scale));
+      const fullContext = fullCanvas.getContext("2d", { willReadFrequently: true });
+      if (fullContext) {
+        fullContext.drawImage(decoded.source, 0, 0, fullCanvas.width, fullCanvas.height);
+        const tesseractModule: any = await import("tesseract.js");
+        const Tesseract: any = tesseractModule.default || tesseractModule;
+        const PSM = Tesseract.PSM || tesseractModule.PSM || {};
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SPARSE_TEXT ?? "11",
+          tessedit_char_whitelist: "0123456789.,:€EURRENDA TOTALGANHOSDISTANCIAKM",
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+        });
+        const fullText = (await worker.recognize(fullCanvas))?.data?.text || "";
+        value = parseToe3ReceiptText(fullText);
+      }
+    }
 
     console.log("[NVU TOE3 OCR] text", {
       distance: distanceText.replace(/\s+/g, " ").trim(),

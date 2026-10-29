@@ -230,15 +230,15 @@ export function FleetAssetFolderManager<T extends FolderAsset>({
       </div>
 
       {assets.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-12 text-center dark:border-[#2A2F3A] dark:bg-[#1A1F26]">
-          <p className="mx-auto max-w-sm text-gray-500 dark:text-[#a1a1aa]">{emptyMessage}</p>
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-white py-12 text-center dark:border-nvu-line dark:bg-nvu-surface">
+          <p className="mx-auto max-w-sm text-gray-500 dark:text-nvu-muted">{emptyMessage}</p>
         </div>
       ) : (
         groups.map((group) => {
           const collapsed = Boolean(collapsedFolders[group.id]);
           return (
             <section key={group.id} className="space-y-2">
-              <div className="relative flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 dark:border-[#2A2F3A] dark:bg-[#1A1F26]">
+              <div className="relative flex items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 dark:border-nvu-line dark:bg-nvu-surface">
                 <button
                   type="button"
                   onClick={() => setCollapsedFolders((current) => ({ ...current, [group.id]: !current[group.id] }))}
@@ -247,7 +247,7 @@ export function FleetAssetFolderManager<T extends FolderAsset>({
                 >
                   {collapsed ? <Folder size={17} className="shrink-0 text-blue-600" /> : <FolderOpen size={17} className="shrink-0 text-blue-600" />}
                   <span className="truncate text-sm font-bold text-gray-900 dark:text-white">{group.name}</span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-[#2A2F3A] dark:text-[#d4d4d8]">{group.assets.length}</span>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-nvu-strip dark:text-nvu-text-soft">{group.assets.length}</span>
                   {collapsed ? <ChevronDown size={16} className="ml-auto shrink-0 text-gray-400" /> : <ChevronUp size={16} className="ml-auto shrink-0 text-gray-400" />}
                 </button>
                 {group.id !== "none" && (
@@ -255,7 +255,7 @@ export function FleetAssetFolderManager<T extends FolderAsset>({
                     <button
                       type="button"
                       onClick={() => setOpenFolderMenuId((current) => current === group.id ? null : group.id)}
-                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-[#2A2F3A] dark:hover:text-white"
+                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-nvu-strip dark:hover:text-white"
                       aria-label={`Gerenciar pasta ${group.name}`}
                     >
                       <MoreVertical size={17} />
@@ -289,15 +289,15 @@ export function FleetAssetFolderManager<T extends FolderAsset>({
 
       {openFolderMenuId && (
         <div className="fixed inset-0 z-[1850] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpenFolderMenuId(null); }}>
-          <Card className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-[#1A1F26]" role="dialog" aria-modal="true">
+          <Card className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-nvu-surface" role="dialog" aria-modal="true">
             <CardContent className="p-5">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Pasta de {assetLabel.toLowerCase()}</p>
                   <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{activeSequences.find((sequence) => sequence.id === openFolderMenuId)?.name}</h2>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-[#a1a1aa]">Escolha o que deseja editar nesta pasta administrativa.</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-nvu-muted">Escolha o que deseja editar nesta pasta administrativa.</p>
                 </div>
-                <button type="button" onClick={() => setOpenFolderMenuId(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2A2F3A]" aria-label="Fechar ações da pasta"><X size={18} /></button>
+                <button type="button" onClick={() => setOpenFolderMenuId(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-nvu-strip" aria-label="Fechar ações da pasta"><X size={18} /></button>
               </div>
               <div className="grid grid-cols-1 gap-2">
                 <Button type="button" onClick={() => openEditFolder(openFolderMenuId)} className="justify-start gap-2 bg-blue-600 text-white hover:bg-blue-700"><Pencil size={15} />Editar pasta</Button>
@@ -310,24 +310,24 @@ export function FleetAssetFolderManager<T extends FolderAsset>({
 
       {folderModalOpen && (
         <div className="fixed inset-0 z-[1800] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]">
-          <Card className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-[#1A1F26]">
+          <Card className="max-h-[88vh] w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-nvu-surface">
             <CardContent className="max-h-[88vh] overflow-y-auto p-5 sm:p-6">
               <div className="mb-5 flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-blue-600">Gerenciamento administrativo</p>
                   <h2 className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{editFolderId ? "Editar pasta" : "Criar pasta"}</h2>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-[#a1a1aa]">Esta pasta organiza somente {assetLabel.toLowerCase()}.</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-nvu-muted">Esta pasta organiza somente {assetLabel.toLowerCase()}.</p>
                 </div>
-                <button type="button" onClick={resetFolderForm} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2A2F3A]" aria-label="Fechar formulário de pasta"><X size={18} /></button>
+                <button type="button" onClick={resetFolderForm} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-nvu-strip" aria-label="Fechar formulário de pasta"><X size={18} /></button>
               </div>
               <form onSubmit={(event) => void saveFolder(event)} className="space-y-4">
-                <label className="block text-sm font-semibold text-gray-700 dark:text-[#d4d4d8]">Nome da pasta<input value={folderName} onChange={(event) => setFolderName(event.target.value)} autoFocus required className="mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-[#2A2F3A] dark:bg-[#121212] dark:text-white" /></label>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-[#d4d4d8]">Descrição <span className="font-normal text-gray-400">(opcional)</span><textarea value={folderDescription} onChange={(event) => setFolderDescription(event.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-[#2A2F3A] dark:bg-[#121212] dark:text-white" /></label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-nvu-text-soft">Nome da pasta<input value={folderName} onChange={(event) => setFolderName(event.target.value)} autoFocus required className="mt-1.5 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-surface dark:text-white" /></label>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-nvu-text-soft">Descrição <span className="font-normal text-gray-400">(opcional)</span><textarea value={folderDescription} onChange={(event) => setFolderDescription(event.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-surface dark:text-white" /></label>
                 <div>
-                  <p className="mb-2 text-sm font-semibold text-gray-700 dark:text-[#d4d4d8]">{assetLabel} na pasta</p>
-                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-[#2A2F3A]">
+                  <p className="mb-2 text-sm font-semibold text-gray-700 dark:text-nvu-text-soft">{assetLabel} na pasta</p>
+                  <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-nvu-line">
                     {assets.map((asset) => (
-                      <label key={asset.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-[#d4d4d8]">
+                      <label key={asset.id} className="flex cursor-pointer items-center gap-2 text-sm text-gray-700 dark:text-nvu-text-soft">
                         <input type="checkbox" checked={selectedAssetIds.includes(asset.id)} onChange={(event) => setSelectedAssetIds((current) => event.target.checked ? [...current, asset.id] : current.filter((id) => id !== asset.id))} />
                         <span className="truncate">{asset.name}</span>
                       </label>
@@ -346,15 +346,15 @@ export function FleetAssetFolderManager<T extends FolderAsset>({
 
       {selectedAsset && renderAssetDetails && (
         <div className="fixed inset-0 z-[1850] flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedAsset(null); }}>
-          <Card className="w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-[#1A1F26]" role="dialog" aria-modal="true">
+          <Card className="w-full max-w-md rounded-2xl bg-white shadow-2xl dark:bg-nvu-surface" role="dialog" aria-modal="true">
             <CardContent className="p-5 sm:p-6">
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Detalhes do {assetSingularLabel.toLowerCase()}</p>
                   <h2 className="mt-1 truncate text-lg font-bold text-gray-900 dark:text-white">{selectedAsset.name}</h2>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-[#a1a1aa]">Motoristas com operação atual vinculada a este recurso.</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-nvu-muted">Motoristas com operação atual vinculada a este recurso.</p>
                 </div>
-                <button type="button" onClick={() => setSelectedAsset(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2A2F3A]" aria-label="Fechar detalhes"><X size={18} /></button>
+                <button type="button" onClick={() => setSelectedAsset(null)} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-nvu-strip" aria-label="Fechar detalhes"><X size={18} /></button>
               </div>
               {renderAssetDetails(selectedAsset)}
               <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-3 dark:border-blue-500/20 dark:bg-blue-500/10">

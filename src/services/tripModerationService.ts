@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../lib/firebase";
 import { buildNotificationPayload } from "./notificationService";
+import { canonicalTripCommandService } from "../application/trip/CanonicalTripCommandService";
 import {
   DRIVER_SUSPENSION_DURATION_OPTIONS,
   DRIVER_SUSPENSION_REASON_OPTIONS,
@@ -31,6 +32,9 @@ export interface TripDeletionInput {
   tripNumber: string;
   tripDateLabel: string;
   tripValue: number;
+  tripCurrency?: string;
+  tripCurrencyStatus?: "known" | "unknown" | "missing" | "conflict";
+  tripCurrencySource?: string;
   reasons: string[];
   suspension?: SuspensionInput | null;
 }
@@ -231,6 +235,11 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
     tripValue: Number.isFinite(Number(rawInput.tripValue))
       ? Number(rawInput.tripValue)
       : 0,
+    tripCurrency: /^[A-Z]{3}$/.test(String(rawInput.tripCurrency || "").trim().toUpperCase())
+      ? String(rawInput.tripCurrency).trim().toUpperCase()
+      : undefined,
+    tripCurrencyStatus: rawInput.tripCurrencyStatus,
+    tripCurrencySource: rawInput.tripCurrencySource,
     reasons: normalizeReasons(
       rawInput.reasons,
       TRIP_DELETION_REASON_OPTIONS,
@@ -247,6 +256,7 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
   };
 
   const tripRef = doc(db, "historico_viagens", input.tripId);
+  const slotRef = doc(db, "trip_operation_slots", input.tripId);
   const auditRef = doc(collection(db, "trip_deletion_audits"));
   const notificationRef = doc(
     db,
@@ -254,10 +264,9 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
     safeDocumentId(`${input.driverId}_trip_deleted_${input.tripId}`),
   );
   const reasonsText = input.reasons.join(", ");
-  const valueLabel = new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(input.tripValue);
+  const valueLabel = input.tripCurrencyStatus === "known" && input.tripCurrency
+    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: input.tripCurrency }).format(input.tripValue)
+    : `${input.tripValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${input.tripCurrencyStatus === "conflict" ? "moeda conflitante" : "moeda não confirmada"})`;
   const deletionNotification = buildNotificationPayload({
     userId: input.driverId,
     companyId: input.companyId,
@@ -270,6 +279,9 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
       tripNumber: input.tripNumber,
       tripDate: input.tripDateLabel,
       tripValue: input.tripValue,
+      tripCurrency: input.tripCurrency || null,
+      tripCurrencyStatus: input.tripCurrencyStatus || "missing",
+      tripCurrencySource: input.tripCurrencySource || null,
       reasons: input.reasons,
     },
     dedupeKey: `TRIP_DELETED_${input.tripId}`,
@@ -296,23 +308,69 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
     : null;
   const userRef = input.suspension ? doc(db, "users", input.driverId) : null;
 
+  let tripBeforeDelete: DocumentData | undefined;
   await runTransaction(db, async (transaction) => {
     const tripSnapshot = await transaction.get(tripRef);
+    const slotSnapshot = await transaction.get(slotRef);
+    const jobId = String(tripSnapshot.data()?.jobId || "").trim();
+    const jobRef = jobId ? doc(db, "trabalhos", jobId) : null;
+    const jobSnapshot = jobRef ? await transaction.get(jobRef) : null;
     const userSnapshot = userRef ? await transaction.get(userRef) : null;
 
     if (!tripSnapshot.exists()) {
       throw new Error("A viagem já foi excluída ou não está mais disponível.");
     }
+    tripBeforeDelete = { id: tripSnapshot.id, ...tripSnapshot.data() };
     assertTripMatchesModeration(
       tripSnapshot.data(),
       input.driverId,
       input.companyId,
     );
+    if (tripSnapshot.data().deleted === true || tripSnapshot.data().status === "DELETED") {
+      throw new Error("Esta viagem já foi excluída. Atualize o histórico.");
+    }
+    const slotExists = slotSnapshot.exists();
+    const activeSlot = slotExists && slotSnapshot.data().deleted !== true;
+    if (slotExists && slotSnapshot.data().deleted === true) {
+      throw new Error("O slot da operação já está excluído, mas a viagem permanece ativa. Solicite reconciliação.");
+    }
+    const job = jobSnapshot?.exists() ? jobSnapshot.data() : null;
+    const tripData = tripSnapshot.data();
+    const operationBindingValid = Boolean(jobRef && job) &&
+      String(tripData.jobId || "").trim() === jobId &&
+      String(job?.driverId || job?.motoristaId || "").trim() === input.driverId &&
+      String(tripData.companyId || tripData.empresaId || "").trim() === String(job?.companyId || job?.empresaId || "").trim() &&
+      String(tripData.contractId || tripData.contratoId || "").trim() === String(job?.contractId || job?.contratoId || "").trim();
+    if (jobRef && job && !operationBindingValid) {
+      throw new Error("O vínculo da viagem com a operação está inconsistente. Atualize e solicite uma reconciliação.");
+    }
+    if (activeSlot) {
+      const slot = slotSnapshot.data();
+      if (!jobRef || !job ||
+          String(slot.tripId || "") !== input.tripId ||
+          String(slot.jobId || "") !== jobId ||
+          String(slot.driverId || "") !== input.driverId ||
+          !operationBindingValid) {
+        throw new Error("O vínculo da viagem com a operação está inconsistente. Atualize e solicite uma reconciliação.");
+      }
+    }
     if (userRef && (!userSnapshot || !userSnapshot.exists())) {
       throw new Error("Cadastro do motorista não encontrado para aplicar a suspensão.");
     }
 
-    transaction.delete(tripRef);
+    transaction.update(tripRef, {
+      deleted: true,
+      status: "DELETED",
+      deletedAt: serverTimestamp(),
+      deletedBy: actorUserId,
+      updatedAt: serverTimestamp(),
+      serverUpdatedAt: serverTimestamp(),
+      clientUpdatedAt: new Date().toISOString(),
+      syncVersion: Math.max(1, Number(tripSnapshot.data()?.syncVersion || 0) + 1),
+    });
+    if (activeSlot && jobRef && jobSnapshot?.exists()) {
+      transaction.update(slotRef, { deleted: true, deletedAt: serverTimestamp() });
+    }
     transaction.set(notificationRef, deletionNotification);
     transaction.set(auditRef, {
       tripId: input.tripId,
@@ -324,6 +382,8 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
       reasons: input.reasons,
       createdAt: serverTimestamp(),
       actorUserId,
+      projectionRepairRequested: Boolean(jobRef && job),
+      projectionRepairReason: "TRIP_DELETED_CANONICAL_HISTORY_WINS",
       schemaVersion: 1,
     });
 
@@ -352,6 +412,12 @@ export async function deleteTripWithModeration(rawInput: TripDeletionInput) {
       });
     }
   });
+
+  await canonicalTripCommandService.markTripDeleted(
+    input.tripId,
+    true,
+    tripBeforeDelete as Partial<DocumentData>,
+  );
 
   return {
     suspensionEndsAt: suspensionWrite?.endsAt.toDate() || null,

@@ -31,7 +31,7 @@ const checks = [
   ["Completed status uses a success icon and auto-hides", /Check/.test(component) && /COMPLETED_VISIBLE_MS/.test(component)],
   ["Status survives events before React mount", /latestLiveUpdateStatus/.test(statusContract) && /getLatestLiveUpdateStatus/.test(component)],
   ["Status listener closes the paint/effect race", /useLayoutEffect/.test(component) && /applyStatus\(getLatestLiveUpdateStatus\(\)\)/.test(component)],
-  ["Bootstrap mounts before starting OTA", /createRoot\(rootElement\)\.render/.test(main) && /requestAnimationFrame[\s\S]{0,120}startOtaManager/.test(main)],
+  ["Bootstrap mounts before starting OTA", /const root = createRoot\(rootElement\)/.test(main) && /root\.render\([\s\S]{0,200}window\.requestAnimationFrame\(\(\) => startOtaManager\(\)\)/.test(main)],
   ["Recovery does not start a competing OTA", !/checkSelfHostedLiveUpdate/.test(recovery)],
   ["App does not start a competing OTA", !/checkSelfHostedLiveUpdate/.test(app)],
   ["UI does not start a competing OTA", !/checkSelfHostedLiveUpdate/.test(component)],

@@ -1,3 +1,4 @@
+import { selectCanonicalOperationTrips } from "../../lib/currentOperation";
 import { resolveDriverPhoto } from '../../lib/resolveDriverPhoto';
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -9,8 +10,9 @@ import { OperationProgressBar } from "../../components/common/OperationProgressB
 import { DriverPerformanceCard } from "../../components/DriverPerformanceCard";
 import { cn, getJobRealTimestamp, getNomeContratoHistorico } from "../../lib/utils";
 import { getDriverLevelData } from "../../lib/levelUtils";
-import { getFilteredTrips } from "../../lib/metricsEngine";
 import { normalizeTrip } from "../../lib/tripNormalizer";
+import { getFilteredTrips } from "../../lib/metricsEngine";
+import { buildClientOperationProjection } from "../../application/operation/operationProjectionSelectors";
 import {
   resolveRegisteredSimulatorId,
   resolveSimulatorDisplayLabel,
@@ -55,6 +57,9 @@ import {
   Clock,
 } from "lucide-react";
 import { useTripHistory } from "../../hooks/useTripHistory";
+import { HistoryReadCoverageNotice } from "../../components/common/HistoryReadCoverageNotice";
+import { HistoryMoneySummary } from "../../components/common/HistoryMoneySummary";
+import { summarizeTripMoney } from "../../lib/tripMoneySummary";
 import { useDriverTrips } from "../../hooks/useDriverTrips";
 import {
   getTripCompanyId,
@@ -154,7 +159,7 @@ export default function DriverProfileIsolated() {
     fallbackActiveCompanyId: activeCompanyId,
   });
 
-  const { historicoTrips = [] } = useTripHistory(viewedCompanyId, {
+  const { historicoTrips = [], coverage: viewedHistoryCoverage, error: viewedHistoryError, readCoverage: viewedHistoryReadCoverage } = useTripHistory(viewedCompanyId, {
     enabled: Boolean(viewedCompanyId),
     userId: currentUser?.id,
   });
@@ -211,26 +216,26 @@ export default function DriverProfileIsolated() {
   const renderPageSelector = () => (
     <div className="w-full flex flex-col gap-2 sm:gap-3 z-20">
       <div className="w-full flex flex-row items-stretch justify-between gap-2 sm:gap-4">
-        <div className="flex bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-lg sm:rounded-[12px] shadow-sm min-w-0 flex-1 h-9 sm:h-[56px] overflow-hidden">
+        <div className="flex bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-lg sm:rounded-[12px] shadow-sm min-w-0 flex-1 h-9 sm:h-[56px] overflow-hidden">
           <button
             onClick={handleBack}
-            className="w-11 sm:w-14 h-full hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors flex items-center justify-center shrink-0 border-r border-slate-200 dark:border-[#2A2F3A]"
+            className="w-11 sm:w-14 h-full hover:bg-slate-50 dark:hover:bg-nvu-strip transition-colors flex items-center justify-center shrink-0 border-r border-slate-200 dark:border-nvu-line"
           >
             <ArrowLeft
               size={16}
-              className="text-slate-600 dark:text-slate-400"
+              className="text-slate-600 dark:text-nvu-muted"
             />
           </button>
 
           <button
             onClick={() => setIsPageSelectorOpen(!isPageSelectorOpen)}
-            className="flex-1 h-full hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors flex items-center justify-center gap-1.5 sm:gap-[12px] px-2 sm:px-4 active:scale-[0.99]"
+            className="flex-1 h-full hover:bg-slate-50 dark:hover:bg-nvu-strip transition-colors flex items-center justify-center gap-1.5 sm:gap-[12px] px-2 sm:px-4 active:scale-[0.99]"
           >
             <ActiveIcon
               size={14}
-              className="text-slate-600 dark:text-slate-400 shrink-0 sm:!w-[20px] sm:!h-[20px]"
+              className="text-slate-600 dark:text-nvu-muted shrink-0 sm:!w-[20px] sm:!h-[20px]"
             />
-            <span className="text-[11px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-none sm:leading-none">
+            <span className="text-[11px] sm:text-[16px] font-semibold text-slate-800 dark:text-nvu-text truncate leading-none sm:leading-none">
               {activePageDetails.label}
             </span>
             <ChevronDown
@@ -245,7 +250,7 @@ export default function DriverProfileIsolated() {
       </div>
 
       {isPageSelectorOpen && (
-        <div className="w-full bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-lg shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2">
+        <div className="w-full bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-lg shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2">
           {pageOptions.map((opt) => {
             const Icon = opt.icon;
             return (
@@ -263,8 +268,8 @@ export default function DriverProfileIsolated() {
                   );
                 }}
                 className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 border-b border-slate-100 dark:border-[#2A2F3A] last:border-0 hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors text-left",
-                  activeTab === opt.id ? "bg-slate-50 dark:bg-[#2A2F3A]" : "",
+                  "w-full flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 border-b border-slate-100 dark:border-nvu-line last:border-0 hover:bg-slate-50 dark:hover:bg-nvu-strip transition-colors text-left",
+                  activeTab === opt.id ? "bg-slate-50 dark:bg-nvu-strip" : "",
                 )}
               >
                 <Icon
@@ -280,7 +285,7 @@ export default function DriverProfileIsolated() {
                     "text-[13px] sm:text-[14px] font-semibold",
                     activeTab === opt.id
                       ? "text-blue-700 dark:text-[#0cb49f]"
-                      : "text-slate-600 dark:text-slate-300",
+                      : "text-slate-600 dark:text-nvu-text-soft",
                   )}
                 >
                   {opt.label}
@@ -363,37 +368,10 @@ export default function DriverProfileIsolated() {
   const currentLevelXp = levelData.currentLevelXp;
   const xpProgress = levelData.xpProgress;
 
-  const normalizedAllTrips = useMemo(() => historicoTrips.map((t: any) => normalizeTrip(t)), [historicoTrips]);
-
-  const activeJobProgress = useMemo(() => {
-    const persistedProgress = Math.max(0, Number(activeJob?.progress) || 0);
-    if (!activeJob) return persistedProgress;
-
-    const assignedTime = activeJob.assignedAt
-      ? new Date(activeJob.assignedAt).getTime()
-      : activeJob.createdAt
-        ? new Date(activeJob.createdAt).getTime()
-        : 0;
-    const completedTime = activeJob.completedAt
-      ? new Date(activeJob.completedAt).getTime()
-      : Number.POSITIVE_INFINITY;
-
-    const liveProgress = normalizedAllTrips.filter((trip: any) => {
-      if (!trip.isValid) return false;
-      if (trip.jobId && trip.jobId === activeJob.id) return true;
-
-      const tripContractId = trip.contractId || trip.contratoId;
-      const tripDriverId =
-        trip.driverId || trip.motoristaId || trip.motorista_id || trip.userId;
-      if (tripContractId !== activeJob.contractId) return false;
-      if (tripDriverId !== driverId) return false;
-
-      const tripTime = trip.metricDate.getTime();
-      return tripTime >= assignedTime && tripTime <= completedTime;
-    }).length;
-
-    return Math.max(persistedProgress, liveProgress);
-  }, [activeJob, driverId, normalizedAllTrips]);
+  const activeJobProgress = useMemo(
+    () => buildClientOperationProjection(activeJob, historicoTrips)?.confirmedTripCount ?? 0,
+    [activeJob, historicoTrips],
+  );
 
   const registeredSimulatorId = resolveRegisteredSimulatorId(
     resolvedCompany as any,
@@ -407,22 +385,6 @@ export default function DriverProfileIsolated() {
       ) || "Simulador registrado"
     : "Simulador não vinculado";
   
-  const filteredDriverTrips = useMemo(() => {
-    return getFilteredTrips(normalizedAllTrips, undefined, undefined, undefined, undefined, companies, driverId);
-  }, [normalizedAllTrips, driverId, companies]);
-
-  const totalGanhos = filteredDriverTrips.reduce((acc, t) => acc + t.normalizedValor, 0);
-  const totalViagens = filteredDriverTrips.length;
-
-
-  const formatCurrency = (val?: number) => {
-    if (val === undefined || val === null || isNaN(val)) return "-";
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(val);
-  };
-
   const isDriverActive = driver.status === "active";
 
   const onAssignJob = () => {
@@ -441,10 +403,10 @@ export default function DriverProfileIsolated() {
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-3 sm:gap-4 w-full pb-8">
-      <div className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[14px] sm:rounded-[16px] flex flex-col shadow-sm relative z-30 w-full box-border">
+      <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[14px] sm:rounded-[16px] flex flex-col shadow-sm relative z-30 w-full box-border">
         <div className="p-3 sm:p-4 flex items-start sm:items-center justify-between gap-3 w-full">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-900 dark:bg-[#2A2F3A] rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-slate-200 dark:border-[#3A3F4A] shadow-sm relative">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 bg-slate-900 dark:bg-nvu-strip rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-slate-200 dark:border-nvu-line shadow-sm relative">
               {resolveDriverPhoto(driver) ? (
                 <StableImage
                   src={resolveDriverPhoto(driver)}
@@ -456,7 +418,7 @@ export default function DriverProfileIsolated() {
                   className="object-cover"
                   referrerPolicy="no-referrer"
                   fallback={
-                    <span className="h-full w-full bg-slate-900 dark:bg-[#2A2F3A] flex items-center justify-center text-base sm:text-lg font-bold text-white tracking-tighter">
+                    <span className="h-full w-full bg-slate-900 dark:bg-nvu-strip flex items-center justify-center text-base sm:text-lg font-bold text-white tracking-tighter">
                       {driver.name.substring(0, 2).toUpperCase()}
                     </span>
                   }
@@ -473,7 +435,7 @@ export default function DriverProfileIsolated() {
                   {driver.name}
                 </h2>
               </div>
-              <p className="text-[9px] sm:text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-1 whitespace-nowrap">
+              <p className="text-[9px] sm:text-[11px] text-slate-500 dark:text-nvu-muted font-medium leading-none mt-1 whitespace-nowrap">
                 {driver.roles?.includes("admin")
                   ? "Administrador"
                   : "Motorista Parceiro"}
@@ -481,18 +443,18 @@ export default function DriverProfileIsolated() {
             </div>
           </div>
 
-          <div className="flex items-center pl-3 sm:pl-4 border-l border-slate-200 dark:border-[#2A2F3A] shrink-0 w-auto">
+          <div className="flex items-center pl-3 sm:pl-4 border-l border-slate-200 dark:border-nvu-line shrink-0 w-auto">
             <div className="flex flex-col w-auto min-w-0 justify-center">
-              <span className="text-[8px] sm:text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mb-0.5 px-0.5 whitespace-nowrap">
+              <span className="text-[8px] sm:text-[9px] text-slate-500 dark:text-nvu-muted font-bold uppercase tracking-wider mb-0.5 px-0.5 whitespace-nowrap">
                 Simulador
               </span>
-              <div className="flex items-center justify-between gap-1.5 bg-slate-50 dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] shadow-sm rounded-md px-1.5 py-1 w-auto">
+              <div className="flex items-center justify-between gap-1.5 bg-slate-50 dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line shadow-sm rounded-md px-1.5 py-1 w-auto">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Truck
                     size={10}
-                    className="text-slate-500 dark:text-slate-400 shrink-0"
+                    className="text-slate-500 dark:text-nvu-muted shrink-0"
                   />
-                  <span className="text-[9px] sm:text-[10px] font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                  <span className="text-[9px] sm:text-[10px] font-semibold text-slate-800 dark:text-nvu-text whitespace-nowrap">
                     {resolvedSimulatorLabel}
                   </span>
                 </div>
@@ -507,6 +469,7 @@ export default function DriverProfileIsolated() {
       <div className="space-y-3 sm:space-y-4">
         {visitedTabs.has("profile") && (
           <div className={cn(activeTab !== "profile" && "hidden")}>
+            <HistoryReadCoverageNotice coverage={viewedHistoryCoverage} hasError={Boolean(viewedHistoryError)} error={viewedHistoryError} readCoverage={viewedHistoryReadCoverage} />
             <div className="space-y-3 sm:space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
             {viewedCompanyId ? (
               <DriverPerformanceCard
@@ -535,14 +498,14 @@ export default function DriverProfileIsolated() {
             <div className="space-y-6">
             {/* Active Job Section */}
             <div>
-              <h3 className="text-[15px] font-bold text-gray-900 dark:text-[#fafafa] mb-3 px-1">
+              <h3 className="text-[15px] font-bold text-gray-900 dark:text-nvu-text mb-3 px-1">
                 Operação Ativa
               </h3>
               {activeJob && activeContract ? (
-                <div className="order-3 flex flex-col bg-white dark:bg-[#1A1F26] rounded-2xl sm:rounded-[24px] shadow-sm dark:shadow-none border border-gray-200 dark:border-[#2A2F3A] overflow-hidden mb-3 sm:mb-4">
+                <div className="order-3 flex flex-col bg-white dark:bg-nvu-surface rounded-2xl sm:rounded-[24px] shadow-sm dark:shadow-none border border-gray-200 dark:border-nvu-line overflow-hidden mb-3 sm:mb-4">
                   {/* Header */}
                   <div
-                    className="relative overflow-hidden bg-[#1f242d] dark:bg-[#151921] p-3 sm:p-4 w-full cursor-pointer hover:bg-[#252b36] transition-colors"
+                    className="relative overflow-hidden bg-[#1f242d] dark:bg-nvu-page p-3 sm:p-4 w-full cursor-pointer hover:bg-[#252b36] transition-colors"
                     onClick={() => onViewJob(activeJob.id)}
                   >
                     {/* Subtle glow effect */}
@@ -581,12 +544,12 @@ export default function DriverProfileIsolated() {
                   <div className="p-3 pb-2 sm:p-4 sm:pb-3 flex flex-col gap-2.5">
                     {/* Buttons Row (Vehicles and Trailer) */}
                     <div className="flex flex-col gap-1.5">
-                      <button className="flex items-center justify-between border border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1f242d] rounded-[10px] py-1.5 px-3 text-left group shadow-sm dark:shadow-none cursor-default">
+                      <button className="flex items-center justify-between border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-strip rounded-[10px] py-1.5 px-3 text-left group shadow-sm dark:shadow-none cursor-default">
                         <div className="flex flex-col w-full justify-center">
                           <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-0.5">
                             Veículo
                           </span>
-                          <span className="text-[11px] sm:text-[12px] font-bold text-slate-800 dark:text-[#fafafa] leading-tight break-words">
+                          <span className="text-[11px] sm:text-[12px] font-bold text-slate-800 dark:text-nvu-text leading-tight break-words">
                             {activeVehicle?.name || "Nenhum"}
                           </span>
                         </div>
@@ -597,12 +560,12 @@ export default function DriverProfileIsolated() {
                       </button>
 
                       {!trailerlessSimulator && (
-                        <button className="flex items-center justify-between border border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1f242d] rounded-[10px] py-1.5 px-3 text-left group shadow-sm dark:shadow-none cursor-default">
+                        <button className="flex items-center justify-between border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-strip rounded-[10px] py-1.5 px-3 text-left group shadow-sm dark:shadow-none cursor-default">
                           <div className="flex flex-col w-full justify-center">
                             <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-0.5">
                               Reboque
                             </span>
-                            <span className="text-[11px] sm:text-[12px] font-bold text-slate-800 dark:text-[#fafafa] leading-tight break-words">
+                            <span className="text-[11px] sm:text-[12px] font-bold text-slate-800 dark:text-nvu-text leading-tight break-words">
                               {activeTrailer?.name || "Nenhum"}
                             </span>
                           </div>
@@ -615,34 +578,34 @@ export default function DriverProfileIsolated() {
                     </div>
 
                     {/* Metrics */}
-                    <div className="border border-gray-100 dark:border-[#2A2F3A] bg-gray-50/50 dark:bg-[#1f242d] rounded-[8px] flex items-center shadow-sm dark:shadow-none mt-0.5">
+                    <div className="border border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-strip rounded-[8px] flex items-center shadow-sm dark:shadow-none mt-0.5">
                       <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-gray-100 leading-none tracking-tight mb-0.5">
+                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-nvu-text leading-none tracking-tight mb-0.5">
                           {activeJobProgress}/{activeContract.totalDeliveries}
                         </span>
-                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
+                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-nvu-muted uppercase tracking-wider font-semibold">
                           Entregas
                         </span>
                       </div>
 
-                      <div className="w-px h-6 bg-gray-200/60 dark:bg-[#2A2F3A] shrink-0"></div>
+                      <div className="w-px h-6 bg-gray-200/60 dark:bg-nvu-line shrink-0"></div>
 
                       <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-gray-100 leading-none tracking-tight mb-0.5">
+                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-nvu-text leading-none tracking-tight mb-0.5">
                           {Math.max(
                             0,
                             activeContract.totalDeliveries - activeJobProgress,
                           )}
                         </span>
-                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
+                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-nvu-muted uppercase tracking-wider font-semibold">
                           Faltam
                         </span>
                       </div>
 
-                      <div className="w-px h-6 bg-gray-200/60 dark:bg-[#2A2F3A] shrink-0"></div>
+                      <div className="w-px h-6 bg-gray-200/60 dark:bg-nvu-line shrink-0"></div>
 
                       <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-gray-100 leading-none tracking-tight mb-0.5">
+                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-nvu-text leading-none tracking-tight mb-0.5">
                           {activeContract.totalDeliveries > 0
                             ? Math.round(
                                 (activeJobProgress /
@@ -652,7 +615,7 @@ export default function DriverProfileIsolated() {
                             : 0}
                           %
                         </span>
-                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
+                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-nvu-muted uppercase tracking-wider font-semibold">
                           Concluído
                         </span>
                       </div>
@@ -672,26 +635,26 @@ export default function DriverProfileIsolated() {
                         }
                         replayKey={`${location.key}:${driverId ?? "driver"}:${activeJob.id}`}
                       />
-                      <p className="text-[8px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500 text-center">
+                      <p className="text-[8px] uppercase tracking-wider font-semibold text-gray-400 dark:text-nvu-muted text-center">
                         Progresso da operação
                       </p>
                     </div>
                   </div>
 
                   {/* Footer - Limit/Time */}
-                  <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1A1F26] px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 w-full overflow-hidden">
+                  <div className="flex items-center justify-between border-t border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 w-full overflow-hidden">
                     <div className="flex flex-1 items-center gap-2 min-w-0 pr-1">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-gray-50 dark:bg-[#2A2F3A] flex flex-shrink-0 items-center justify-center border border-gray-100 dark:border-transparent">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-gray-50 dark:bg-nvu-strip flex flex-shrink-0 items-center justify-center border border-gray-100 dark:border-transparent">
                         <CalendarDays
                           size={12}
-                          className="text-gray-600 dark:text-gray-400"
+                          className="text-gray-600 dark:text-nvu-muted"
                         />
                       </div>
                       <div className="flex flex-col min-w-0 overflow-hidden text-left">
                         <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">
                           Prazo limite
                         </span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 dark:text-gray-200 whitespace-nowrap overflow-visible leading-none">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 dark:text-nvu-text whitespace-nowrap overflow-visible leading-none">
                           {activeJob.dueAt || activeJob.deadlineDate
                             ? new Date(
                                 activeJob.dueAt || activeJob.deadlineDate,
@@ -701,20 +664,20 @@ export default function DriverProfileIsolated() {
                       </div>
                     </div>
 
-                    <div className="w-px h-5 bg-gray-100 dark:bg-[#2A2F3A] shrink-0 mx-1"></div>
+                    <div className="w-px h-5 bg-gray-100 dark:bg-nvu-line shrink-0 mx-1"></div>
 
                     <div className="flex flex-1 items-center justify-end gap-2 min-w-0 pl-1 text-right">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-gray-50 dark:bg-[#2A2F3A] flex flex-shrink-0 items-center justify-center order-1 border border-gray-100 dark:border-transparent">
+                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-gray-50 dark:bg-nvu-strip flex flex-shrink-0 items-center justify-center order-1 border border-gray-100 dark:border-transparent">
                         <Clock
                           size={12}
-                          className="text-gray-600 dark:text-gray-400"
+                          className="text-gray-600 dark:text-nvu-muted"
                         />
                       </div>
                       <div className="flex flex-col min-w-0 overflow-hidden order-0">
                         <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">
                           Tempo restante
                         </span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 dark:text-gray-200 whitespace-nowrap overflow-visible leading-none truncate">
+                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 dark:text-nvu-text whitespace-nowrap overflow-visible leading-none truncate">
                           {(() => {
                             const deadline = activeJob.dueAt || activeJob.deadlineDate;
                             if (!deadline) return "Não definido";
@@ -737,8 +700,8 @@ export default function DriverProfileIsolated() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white dark:bg-[#1A1F26] border border-gray-100 dark:border-[#2A2F3A] border-dashed rounded-[20px] p-8 text-center shadow-sm dark:shadow-none">
-                  <p className="text-[15px] text-gray-500 dark:text-[#a1a1aa] font-medium">
+                <div className="bg-white dark:bg-nvu-surface border border-gray-100 dark:border-nvu-line border-dashed rounded-[20px] p-8 text-center shadow-sm dark:shadow-none">
+                  <p className="text-[15px] text-gray-500 dark:text-nvu-muted font-medium">
                     Nenhuma operação em andamento
                   </p>
                 </div>
@@ -747,7 +710,7 @@ export default function DriverProfileIsolated() {
 
             {/* Job History */}
             <div>
-              <h3 className="text-[15px] font-bold text-gray-900 dark:text-[#fafafa] mb-3 px-1">
+              <h3 className="text-[15px] font-bold text-gray-900 dark:text-nvu-text mb-3 px-1">
                 Histórico
               </h3>
               {pastJobs.length > 0 ? (
@@ -756,6 +719,8 @@ export default function DriverProfileIsolated() {
                     const contract = contracts.find(
                       (c) => c.id === job.contractId,
                     );
+                    const jobProjection = buildClientOperationProjection(job, historicoTrips);
+                    const confirmedJobProgress = jobProjection?.confirmedTripCount ?? 0;
                     const jobTrailerlessSimulator = isTrailerlessSimulator(
                       contract || resolvedCompany,
                       simulators as unknown[],
@@ -789,29 +754,17 @@ export default function DriverProfileIsolated() {
                     );
                     const isExpanded = expandedJobId === job.id;
 
-                    const jobTrips = normalizedAllTrips.filter((trip) => {
-                      if (!trip.isValid) return false;
-                      if (trip.jobId && trip.jobId === job.id) return true;
-                      if (trip.contratoId !== job.contractId) return false;
-                      if (trip.motoristaId !== driverId) return false;
-
-                      const tripTime = trip.metricDate.getTime();
-                      const assignedTime = rawAssignedAt
-                        ? rawAssignedAt.getTime()
-                        : 0;
-                      const completedTime = rawCompletedAt
-                        ? rawCompletedAt.getTime()
-                        : Date.now() + 86400000;
-
-                      return (
-                        tripTime >= assignedTime && tripTime <= completedTime
-                      );
-                    });
-
-                    const totalGanhos = jobTrips.reduce(
-                      (acc, trip) => acc + trip.normalizedValor,
-                      0,
+                    const jobTrips = getFilteredTrips(
+                      selectCanonicalOperationTrips(job, historicoTrips, String(driverId || job.driverId || "")).map(normalizeTrip),
+                      undefined,
+                      undefined,
+                      undefined,
+                      undefined,
+                      allCompanies,
+                      undefined,
+                      simulators,
                     );
+                    const jobMoneyGroups = summarizeTripMoney(jobTrips);
 
                     let tempoExecucao = "-";
                     let tempoRestanteOuAtraso = "-";
@@ -867,10 +820,10 @@ export default function DriverProfileIsolated() {
                       <div
                         key={job.id}
                         className={cn(
-                          "bg-white dark:bg-[#1A1F26] border rounded-2xl transition-all shadow-sm dark:shadow-none overflow-hidden",
+                          "bg-white dark:bg-nvu-surface border rounded-2xl transition-all shadow-sm dark:shadow-none overflow-hidden",
                           isExpanded
-                            ? "border-gray-300 dark:border-gray-600 ring-1 ring-gray-200 dark:ring-gray-700 block"
-                            : "border-gray-100 dark:border-[#2A2F3A] hover:border-gray-200 dark:hover:border-gray-700",
+                            ? "border-gray-300 dark:border-nvu-line ring-1 ring-gray-200 dark:ring-gray-700 block"
+                            : "border-gray-100 dark:border-nvu-line hover:border-gray-200 dark:hover:border-nvu-line",
                         )}
                       >
                         <button
@@ -907,7 +860,7 @@ export default function DriverProfileIsolated() {
 
                               {/* Name and Badge */}
                               <div className="flex items-center gap-2.5 min-w-0">
-                                <h4 className="text-[15px] sm:text-[16px] font-semibold text-gray-900 dark:text-[#fafafa] truncate">
+                                <h4 className="text-[15px] sm:text-[16px] font-semibold text-gray-900 dark:text-nvu-text truncate">
                                   {getNomeContratoHistorico(job, contract)}
                                 </h4>
                                 <span
@@ -924,7 +877,7 @@ export default function DriverProfileIsolated() {
                                 </span>
                               </div>
                             </div>
-                            <div className="text-gray-400 dark:text-gray-500 shrink-0 ml-2">
+                            <div className="text-gray-400 dark:text-nvu-muted shrink-0 ml-2">
                               {isExpanded ? (
                                 <ChevronUp size={18} />
                               ) : (
@@ -934,45 +887,45 @@ export default function DriverProfileIsolated() {
                           </div>
 
                           {/* Divider */}
-                          <div className="h-px w-full bg-gray-100 dark:bg-gray-800/60 my-2.5"></div>
+                          <div className="h-px w-full bg-gray-100 dark:bg-nvu-line my-2.5"></div>
 
                           {/* Info row */}
                           <div className="flex items-center justify-start w-full gap-x-2 sm:gap-x-4 gap-y-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Package
                                 size={13}
-                                className="text-gray-500 dark:text-gray-400 shrink-0"
+                                className="text-gray-500 dark:text-nvu-muted shrink-0"
                               />
-                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                                {job.progress}{" "}
-                                {job.progress === 1 ? "viagem" : "viagens"}
+                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-nvu-text-soft whitespace-nowrap">
+                                {confirmedJobProgress}{" "}
+                                {confirmedJobProgress === 1 ? "viagem" : "viagens"}
                               </span>
                             </div>
 
                             {!jobTrailerlessSimulator && (
                               <>
-                                <div className="w-px h-3.5 bg-gray-200 dark:bg-gray-700/60 shrink-0"></div>
+                                <div className="w-px h-3.5 bg-gray-200 dark:bg-nvu-line shrink-0"></div>
 
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <Truck
                                     size={13}
-                                    className="text-gray-500 dark:text-gray-400 shrink-0"
+                                    className="text-gray-500 dark:text-nvu-muted shrink-0"
                                   />
-                                  <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                  <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-nvu-text-soft whitespace-nowrap">
                                     {trailer?.name || "Nenhum"}
                                   </span>
                                 </div>
 
-                                <div className="w-px h-3.5 bg-gray-200 dark:bg-gray-700/60 shrink-0"></div>
+                                <div className="w-px h-3.5 bg-gray-200 dark:bg-nvu-line shrink-0"></div>
                               </>
                             )}
 
                             <div className="flex items-center gap-1.5 shrink-0 pr-1">
                               <Car
                                 size={13}
-                                className="text-gray-500 dark:text-gray-400 shrink-0"
+                                className="text-gray-500 dark:text-nvu-muted shrink-0"
                               />
-                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-nvu-text-soft whitespace-nowrap">
                                 {vehicle?.name || "Nenhum"}
                               </span>
                             </div>
@@ -981,7 +934,7 @@ export default function DriverProfileIsolated() {
 
                         {isExpanded && (
                           <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="bg-gray-50 dark:bg-[#202024] rounded-xl border border-gray-100 dark:border-gray-800/60 p-2.5 mb-3 space-y-2">
+                            <div className="bg-gray-50 dark:bg-nvu-strip rounded-xl border border-gray-100 dark:border-nvu-line/60 p-2.5 mb-3 space-y-2">
                               {/* Total de Ganhos */}
                               <div className="flex items-center gap-2">
                                 <Banknote
@@ -990,12 +943,12 @@ export default function DriverProfileIsolated() {
                                   strokeWidth={2.5}
                                 />
                                 <div className="flex items-center gap-2 min-w-0 w-full">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted shrink-0">
                                     Total de ganhos:
                                   </span>
-                                  <span className="text-[11.5px] font-semibold text-green-600 dark:text-green-400 truncate">
-                                    {formatCurrency(totalGanhos)}
-                                  </span>
+                                  <div className="text-[11.5px] font-semibold min-w-0 break-words">
+                                    <HistoryMoneySummary groups={jobMoneyGroups} />
+                                  </div>
                                 </div>
                               </div>
 
@@ -1003,14 +956,14 @@ export default function DriverProfileIsolated() {
                               <div className="flex items-center gap-2">
                                 <CalendarDays
                                   size={11}
-                                  className="text-gray-400 dark:text-gray-500 shrink-0"
+                                  className="text-gray-400 dark:text-nvu-muted shrink-0"
                                   strokeWidth={2.5}
                                 />
                                 <div className="flex items-center gap-2 min-w-0 w-full">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted shrink-0">
                                     Prazo total:
                                   </span>
-                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-[#fafafa] truncate">
+                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-nvu-text truncate">
                                     {prazoTotal}
                                   </span>
                                 </div>
@@ -1020,14 +973,14 @@ export default function DriverProfileIsolated() {
                               <div className="flex items-center gap-2">
                                 <Clock
                                   size={11}
-                                  className="text-gray-400 dark:text-gray-500 shrink-0"
+                                  className="text-gray-400 dark:text-nvu-muted shrink-0"
                                   strokeWidth={2.5}
                                 />
                                 <div className="flex items-center gap-2 min-w-0 w-full">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted shrink-0">
                                     Execução:
                                   </span>
-                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-[#fafafa] truncate">
+                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-nvu-text truncate">
                                     {tempoExecucao}
                                   </span>
                                 </div>
@@ -1041,7 +994,7 @@ export default function DriverProfileIsolated() {
                                     "shrink-0",
                                     isAtrasado
                                       ? "text-red-500 dark:text-red-400"
-                                      : "text-gray-400 dark:text-gray-500",
+                                      : "text-gray-400 dark:text-nvu-muted",
                                   )}
                                   strokeWidth={2.5}
                                 />
@@ -1051,7 +1004,7 @@ export default function DriverProfileIsolated() {
                                       "text-[10px] font-medium shrink-0",
                                       isAtrasado
                                         ? "text-red-600/80 dark:text-red-400/80"
-                                        : "text-gray-500 dark:text-gray-400",
+                                        : "text-gray-500 dark:text-nvu-muted",
                                     )}
                                   >
                                     {isAtrasado ? "Atraso:" : "Tempo restante:"}
@@ -1061,7 +1014,7 @@ export default function DriverProfileIsolated() {
                                       "text-[11.5px] font-semibold truncate",
                                       isAtrasado
                                         ? "text-red-600 dark:text-red-400"
-                                        : "text-gray-900 dark:text-[#fafafa]",
+                                        : "text-gray-900 dark:text-nvu-text",
                                     )}
                                   >
                                     {tempoRestanteOuAtraso}
@@ -1119,7 +1072,7 @@ export default function DriverProfileIsolated() {
                               </div>
                             </div>
 
-                            <div className="pt-2 border-t border-gray-100 dark:border-gray-800/60">
+                            <div className="pt-2 border-t border-gray-100 dark:border-nvu-line/60">
                               <button
                                 className="w-full h-8 px-4 text-[11px] font-semibold text-red-600 bg-red-50 dark:bg-red-500/10 dark:border-red-500/20 hover:bg-red-100 dark:bg-red-500/20 border-none shadow-none rounded-lg flex items-center justify-center gap-1.5 transition-colors"
                                 onClick={(e) => {
@@ -1138,8 +1091,8 @@ export default function DriverProfileIsolated() {
                   })}
                 </div>
               ) : (
-                <div className="bg-white dark:bg-[#1A1F26] border border-gray-100 dark:border-[#2A2F3A] rounded-[20px] p-8 text-center shadow-sm dark:shadow-none border-dashed">
-                  <p className="text-[14px] text-gray-500 dark:text-[#a1a1aa] font-medium">
+                <div className="bg-white dark:bg-nvu-surface border border-gray-100 dark:border-nvu-line rounded-[20px] p-8 text-center shadow-sm dark:shadow-none border-dashed">
+                  <p className="text-[14px] text-gray-500 dark:text-nvu-muted font-medium">
                     Nenhum histórico disponível
                   </p>
                 </div>
@@ -1165,6 +1118,7 @@ export default function DriverProfileIsolated() {
         {visitedTabs.has("reports") && (
           <div className={cn(activeTab !== "reports" && "hidden")}>
             <Reports
+            companyId={viewedCompanyId || undefined}
             hideHeader={true}
             defaultDriverId={driver.id}
             isInsideAdminTab={true}
@@ -1175,21 +1129,21 @@ export default function DriverProfileIsolated() {
 
       {jobToDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1F26] rounded-2xl shadow-xl w-full max-w-[320px] p-6 flex flex-col items-center text-center">
+          <div className="bg-white dark:bg-nvu-surface rounded-2xl shadow-xl w-full max-w-[320px] p-6 flex flex-col items-center text-center">
             <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 text-red-600 rounded-full flex items-center justify-center mb-4">
               <Trash2 size={24} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-[#fafafa] mb-2">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-nvu-text mb-2">
               Excluir do Histórico?
             </h3>
-            <p className="text-[13px] text-gray-500 dark:text-[#a1a1aa] mb-6">
+            <p className="text-[13px] text-gray-500 dark:text-nvu-muted mb-6">
               Esta ação removerá o contrato do histórico do motorista. Não
               afetará as estatísticas globais, apenas este registro.
             </p>
             <div className="flex items-center gap-3 w-full">
               <Button
                 variant="outline"
-                className="flex-1 h-10 border-gray-200 dark:border-[#2A2F3A] hover:bg-gray-50 dark:hover:bg-[#3f3f46] text-gray-700 dark:text-[#d4d4d8] font-semibold text-[13px]"
+                className="flex-1 h-10 border-gray-200 dark:border-nvu-line hover:bg-gray-50 dark:hover:bg-nvu-strip text-gray-700 dark:text-nvu-text-soft font-semibold text-[13px]"
                 onClick={() => setJobToDelete(null)}
               >
                 Cancelar

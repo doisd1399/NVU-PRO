@@ -16,17 +16,18 @@ const checks = [
   ],
   [
     "GTO analysis runs both landscape and portrait value crops",
-    /const valueCrops = \[[\s\S]{0,320}landscape-modal[\s\S]{0,320}portrait-screen[\s\S]{0,240}for \(const valueCrop of valueCrops\)/.test(
-      service,
-    ),
+    service.includes('name: "landscape-modal"') &&
+      service.includes('name: "portrait-screen"') &&
+      service.includes('for (const valueCrop of valueCrops)'),
   ],
   [
     "numeric value pass runs before broad diagnostic OCR",
     service.indexOf("const valueCrops =") < service.indexOf("const resultCanvas ="),
   ],
   [
-    "numeric value can be promoted before the analysis Promise settles",
-    /onValueDetected\?\.\(candidate\)/.test(service) &&
+    "only a validated consensus value is published before the analysis Promise settles",
+    /onValueDetected\?\.\(value\)/.test(service) &&
+      !/onValueDetected\?\.\(candidate\)/.test(service) &&
       /onValueDetected: \(detectedValue\)/.test(
         fs.readFileSync(path.join(root, "src/pages/driver/RecordTrip.tsx"), "utf8"),
       ),

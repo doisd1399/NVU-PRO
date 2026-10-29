@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTrip, NormalizedTrip } from "../lib/tripNormalizer";
-import { TripsRepository } from "../repositories/TripsRepository";
+import { CanonicalTripQueryService } from "../application/trip/CanonicalTripQueryService";
+import type { CanonicalTripReadScope } from "../application/trip/CanonicalTripRealtimeFirebaseAdapter";
 import { auth } from "../lib/firebase";
-import {
-  isAuthTeardownActive,
-  onAuthTeardown,
-} from "../lib/authLifecycle";
+import { filterTombstonedTrips } from "../lib/tripTombstones";
+import { onCanonicalTripUpdated } from "../lib/CanonicalTripUpdateEvent";
+import { isAuthTeardownActive, onAuthTeardown } from "../lib/authLifecycle";
 
 type TripsRealtimeState = {
   trips: NormalizedTrip[];
   loading: boolean;
   refreshing: boolean;
   error: unknown | null;
+  serverConfirmed: boolean;
 };
 
 export type TripsRealtimeOptions = {
@@ -20,6 +21,9 @@ export type TripsRealtimeOptions = {
   enabled?: boolean;
   keepPreviousData?: boolean;
   cacheScope?: string;
+  driverId?: string;
+  companyId?: string;
+  companyIds?: string[];
 };
 
 type TripsCacheEntry = {
@@ -33,6 +37,7 @@ type TripsCacheEntry = {
   retryTimer: ReturnType<typeof setTimeout> | null;
   retryAttempt: number;
   generation: number;
+  readScope: CanonicalTripReadScope;
 };
 
 const LISTENER_RELEASE_DELAY_MS = 120_000;
@@ -46,6 +51,7 @@ const EMPTY_STATE: TripsRealtimeState = {
   loading: false,
   refreshing: false,
   error: null,
+  serverConfirmed: false,
 };
 
 function toValidDate(value: Date | undefined, fallback: Date) {
@@ -89,14 +95,16 @@ function readPersistedRangeTrips(cacheKey: string): NormalizedTrip[] {
       window.localStorage.removeItem(persistedRangeCacheKey(cacheKey));
       return [];
     }
-    return parsed.trips
-      .map((trip) => {
-        const metricDate = new Date(String(trip.metricDate || ""));
-        return Number.isNaN(metricDate.getTime())
-          ? null
-          : ({ ...trip, metricDate } as unknown as NormalizedTrip);
-      })
-      .filter((trip): trip is NormalizedTrip => Boolean(trip));
+    return filterTombstonedTrips(
+      parsed.trips
+        .map((trip) => {
+          const metricDate = new Date(String(trip.metricDate || ""));
+          return Number.isNaN(metricDate.getTime())
+            ? null
+            : ({ ...trip, metricDate } as unknown as NormalizedTrip);
+        })
+        .filter((trip): trip is NormalizedTrip => Boolean(trip)),
+    );
   } catch {
     return [];
   }
@@ -157,6 +165,19 @@ function ensureTeardownListener() {
   if (teardownListenerAttached || typeof window === "undefined") return;
   teardownListenerAttached = true;
 
+  // Canonical edits/deletions invalidate only the disposable range projection.
+  // Keep the live listener running; its next snapshot restores the current view.
+  onCanonicalTripUpdated(() => {
+    clearPersistedRangeTrips();
+    rangeCache.forEach((entry) => {
+      entry.state = {
+        ...entry.state,
+        trips: filterTombstonedTrips(entry.state.trips),
+      };
+      notify(entry);
+    });
+  });
+
   onAuthTeardown(() => {
     rangeCache.forEach((entry) => {
       stopEntry(entry);
@@ -189,10 +210,11 @@ function openEntry(entry: TripsCacheEntry) {
     loading: entry.state.trips.length === 0,
     refreshing: entry.state.trips.length > 0,
     error: null,
+    serverConfirmed: false,
   };
   notify(entry);
 
-  entry.unsubscribe = TripsRepository.listenTripsByDateRange(
+  entry.unsubscribe = CanonicalTripQueryService.listenTripsByDateRange(
     entry.startDate,
     entry.endDate,
     (trips) => {
@@ -200,14 +222,18 @@ function openEntry(entry: TripsCacheEntry) {
         isAuthTeardownActive() ||
         entry.generation !== generation ||
         rangeCache.get(entry.key) !== entry
-      ) return;
+      )
+        return;
       entry.retryAttempt = 0;
-      const normalizedTrips = trips.map(normalizeTrip);
+      const normalizedTrips = filterTombstonedTrips(
+        trips.map((trip) => normalizeTrip(trip as any)),
+      );
       entry.state = {
         trips: normalizedTrips,
         loading: false,
         refreshing: false,
         error: null,
+        serverConfirmed: entry.state.serverConfirmed,
       };
       writePersistedRangeTrips(entry.key, normalizedTrips);
       notify(entry);
@@ -217,7 +243,8 @@ function openEntry(entry: TripsCacheEntry) {
         isAuthTeardownActive() ||
         entry.generation !== generation ||
         rangeCache.get(entry.key) !== entry
-      ) return;
+      )
+        return;
       console.warn("Erro ao carregar viagens do período:", error);
 
       try {
@@ -231,6 +258,7 @@ function openEntry(entry: TripsCacheEntry) {
         loading: entry.state.trips.length === 0,
         refreshing: false,
         error,
+        serverConfirmed: false,
       };
       notify(entry);
 
@@ -250,6 +278,22 @@ function openEntry(entry: TripsCacheEntry) {
         }, delay);
       }
     },
+    entry.readScope,
+    (confirmed) => {
+      if (
+        isAuthTeardownActive() ||
+        entry.generation !== generation ||
+        rangeCache.get(entry.key) !== entry
+      )
+        return;
+      entry.state = {
+        ...entry.state,
+        loading: false,
+        refreshing: false,
+        serverConfirmed: confirmed,
+      };
+      notify(entry);
+    },
   );
 }
 
@@ -258,9 +302,17 @@ function ensureEntry(
   endDate: Date,
   sessionScope = getAuthenticatedSessionScope(),
   cacheScope = "global",
+  readScope: CanonicalTripReadScope = {
+    driverId: sessionScope === "anonymous" ? "" : sessionScope,
+  },
 ): TripsCacheEntry {
   ensureTeardownListener();
-  const key = buildTripsRangeCacheKey(startDate, endDate, sessionScope, cacheScope);
+  const key = buildTripsRangeCacheKey(
+    startDate,
+    endDate,
+    sessionScope,
+    cacheScope,
+  );
   const existing = rangeCache.get(key);
   if (existing) {
     if (existing.releaseTimer) {
@@ -281,6 +333,7 @@ function ensureEntry(
         loading: persistedTrips.length === 0,
         refreshing: persistedTrips.length > 0,
         error: null,
+        serverConfirmed: false,
       };
     })(),
     subscribers: new Set(),
@@ -289,6 +342,7 @@ function ensureEntry(
     retryTimer: null,
     retryAttempt: 0,
     generation: 0,
+    readScope,
   };
   rangeCache.set(key, entry);
   return entry;
@@ -343,6 +397,31 @@ export function useTripsRealtime(options: TripsRealtimeOptions = {}) {
   const enabled = options.enabled !== false;
   const keepPreviousData = options.keepPreviousData !== false;
   const cacheScope = options.cacheScope || "global";
+  const requestedCompanyIds = Array.from(
+    new Set(
+      (options.companyIds || [])
+        .map((id) => String(id || "").trim())
+        .filter(Boolean),
+    ),
+  ).sort();
+  const requestedScopeKey = [
+    String(options.driverId || "").trim(),
+    String(options.companyId || "").trim(),
+    requestedCompanyIds.join(","),
+  ].join("|");
+  const readScope = useMemo<CanonicalTripReadScope>(
+    () => ({
+      driverId:
+        String(options.driverId || "").trim() ||
+        (options.companyId || requestedCompanyIds.length
+          ? undefined
+          : auth.currentUser?.uid || ""),
+      companyId: String(options.companyId || "").trim() || undefined,
+      companyIds: requestedCompanyIds,
+    }),
+    [requestedScopeKey],
+  );
+  const scopedCacheScope = `${cacheScope}|${requestedScopeKey}`;
   const startMs = toValidDate(options.startDate, new Date(0)).getTime();
   const endMs = toValidDate(options.endDate, new Date()).getTime();
 
@@ -355,26 +434,36 @@ export function useTripsRealtime(options: TripsRealtimeOptions = {}) {
     return {
       startDate,
       endDate,
-      key: buildTripsRangeCacheKey(startDate, endDate, sessionScope, cacheScope),
+      key: buildTripsRangeCacheKey(
+        startDate,
+        endDate,
+        sessionScope,
+        scopedCacheScope,
+      ),
     };
-  }, [cacheScope, endMs, sessionScope, startMs]);
+  }, [endMs, scopedCacheScope, sessionScope, startMs]);
 
   const visibleSessionScopeRef = useRef(sessionScope);
+  const visibleRangeKeyRef = useRef(normalizedRange.key);
   const [visibleState, setVisibleState] = useState<TripsRealtimeState>(() => {
     if (!enabled) return EMPTY_STATE;
     const cached = rangeCache.get(normalizedRange.key);
-    return cached?.state || {
-      trips: [],
-      loading: true,
-      refreshing: false,
-      error: null,
-    };
+    return (
+      cached?.state || {
+        trips: [],
+        loading: true,
+        refreshing: false,
+        error: null,
+        serverConfirmed: false,
+      }
+    );
   });
 
   useEffect(() => {
     const canKeepPreviousSessionData =
       visibleSessionScopeRef.current === sessionScope;
     visibleSessionScopeRef.current = sessionScope;
+    visibleRangeKeyRef.current = normalizedRange.key;
 
     if (!enabled || isAuthTeardownActive()) {
       setVisibleState(EMPTY_STATE);
@@ -385,7 +474,8 @@ export function useTripsRealtime(options: TripsRealtimeOptions = {}) {
       normalizedRange.startDate,
       normalizedRange.endDate,
       sessionScope,
-      cacheScope,
+      scopedCacheScope,
+      readScope,
     );
 
     const updateState = () => {
@@ -402,6 +492,7 @@ export function useTripsRealtime(options: TripsRealtimeOptions = {}) {
             loading: false,
             refreshing: true,
             error: nextState.error,
+            serverConfirmed: false,
           };
         }
         return nextState;
@@ -416,7 +507,25 @@ export function useTripsRealtime(options: TripsRealtimeOptions = {}) {
       entry.subscribers.delete(updateState);
       if (entry.subscribers.size === 0) scheduleRelease(entry);
     };
-  }, [cacheScope, enabled, keepPreviousData, normalizedRange.key, sessionScope]);
+  }, [
+    enabled,
+    keepPreviousData,
+    normalizedRange.key,
+    readScope,
+    scopedCacheScope,
+    sessionScope,
+  ]);
 
+  // An effect has not hydrated the new scope yet. Never confirm old-company
+  // rows as the new ranking, even when a previous snapshot is kept for paint.
+  if (!enabled) return EMPTY_STATE;
+  if (visibleRangeKeyRef.current !== normalizedRange.key) {
+    return {
+      ...visibleState,
+      loading: !keepPreviousData || visibleState.trips.length === 0,
+      refreshing: true,
+      serverConfirmed: false,
+    };
+  }
   return visibleState;
 }

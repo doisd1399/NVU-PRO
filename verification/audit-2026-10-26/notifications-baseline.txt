@@ -1,0 +1,20 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+false !== true
+
+    at file:///workspace/scratch/3c140f4d5013/nvu-ci/qa/tests/notifications.mjs:89:44
+    at async scenario (file:///workspace/scratch/3c140f4d5013/nvu-ci/qa/tests/notifications.mjs:83:9)
+    at async file:///workspace/scratch/3c140f4d5013/nvu-ci/qa/tests/notifications.mjs:88:3 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.22.1

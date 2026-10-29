@@ -1,3 +1,6 @@
+import { RetainedWorkspaceOutlet } from "../components/common/RetainedWorkspaceOutlet";
+import { NvuWordmark } from "../components/common/NvuWordmark";
+import { resolveNewsSessionSimulator } from "../lib/newsSimulator";
 import { resolveDriverPhoto } from '../lib/resolveDriverPhoto';
 import React, { useState } from "react";
 import { Outlet, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -9,7 +12,6 @@ import { useNotificationStore } from "../context/NotificationsContext";
 import { useCompanyStore } from "../context/CompanyContext";
 import {
   Package,
-  LayoutDashboard,
   LogOut,
   User as UserIcon,
   Settings,
@@ -21,25 +23,30 @@ import {
   ChevronLeft,
   Check,
   ClipboardList,
-  Trophy,
-  Newspaper,
-  Activity,
-  BookOpen,
 } from "lucide-react";
 import { useTheme } from "../hooks/useTheme";
+import { WorkspaceProfileCover } from "../components/common/WorkspaceProfileCover";
+import { isProfileCoverPage } from "../lib/profileCover";
+import { useLandscapeWorkspace } from "../hooks/useLandscapeWorkspace";
+import { useProfileChrome } from "../hooks/useProfileChrome";
 import { isNativeAndroid } from "../lib/gtoObserver";
+import { isMobileWebAndroidLike } from "../lib/mobileWebRuntime";
 import { cn } from "../lib/utils";
 import {
   deriveCurrentOperationProgress,
+  selectCanonicalOperationTrips,
   selectCurrentOperationJob,
 } from "../lib/currentOperation";
 import { useDriverTrips } from "../hooks/useDriverTrips";
+import { OperationRecoveryContext, useMissingOperationTrip } from "../hooks/useMissingOperationTrip";
 import { SimpleAutomationCompletionBridge } from "../components/SimpleAutomationCompletionBridge";
 import { auth } from "../lib/firebase";
 import { CompactProfileEditorModal } from "../components/CompactProfileEditorModal";
 import { StableImage } from "../components/common/StableImage";
 import { NotificationCenter } from "../components/NotificationCenter";
+import { DRIVER_MENU_ITEMS } from "../components/workspaceMenuItems";
 import { GlobalMenu } from "../components/GlobalMenu";
+import { WorkspaceDock } from "../components/WorkspaceDock";
 import { preloadRoute } from "../lib/routePreload";
 import {
   commitRoleVisualTransition,
@@ -56,17 +63,26 @@ import {
   warmRegisteredRankingPhotos,
 } from "../lib/rankingPhotoWarmup";
 
-export default function DriverLayout({ children }: { children?: React.ReactNode }) {
+export default function DriverLayout() {
   const { currentUser, switchRole, activeRole, logOutApp } = useSessionStore();
   const { companies, activeCompanyId, setActiveCompanyId, memberships } = useCompanyStore();
   const { notifications, markNotificationAsRead } = useNotificationStore();
-  const { jobs, contracts, vehicles, trailers, finishJob, simulators } = useOperationalStore();
+  const { jobs, contracts, vehicles, trailers, simulators } = useOperationalStore();
   const driverTripState = useDriverTrips(currentUser?.id ?? null);
   const navigate = useNavigate();
   const location = useLocation();
   const isNewsRoute = location.pathname.includes("/driver/news");
-  const isDriverProfileRoute = location.pathname.startsWith("/driver/profile");
-  const nativeAndroid = isNativeAndroid();
+  const landscapeWorkspace = useLandscapeWorkspace();
+  const isCoverTabRoute = isProfileCoverPage(location.pathname, location.state);
+  // Horizontal "Painel do motorista": the work tab shares the solid header and
+  // cover of the other profile tabs. Portrait keeps the photo hero.
+  const isLandscapeDashboard = landscapeWorkspace && location.pathname === "/driver/profile" && !isCoverTabRoute;
+  const isCoverPage = isCoverTabRoute || isLandscapeDashboard;
+  const isDriverHeroRoute = location.pathname.startsWith("/driver/profile") && !isCoverPage;
+  const isLegacyCoverPage = isCoverPage && location.pathname !== "/driver/profile";
+  // Match the APK shell on mobile browsers without pretending that browser
+  // APIs can provide native Android permissions or plugins.
+  const nativeAndroid = isNativeAndroid() || isMobileWebAndroidLike();
   const { theme, toggleTheme } = useTheme();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -74,7 +90,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
   const [isHeaderEditRevealed, setIsHeaderEditRevealed] = React.useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const [showCompanySwitch, setShowCompanySwitch] = React.useState(false);
-  const [profileChromeProgress, setProfileChromeProgress] = React.useState(0);
+  const { headerRef, heroChromeActive } = useProfileChrome(isDriverHeroRoute);
 
   const warmRankingAssets = React.useCallback(() => {
     beginRankingWarmupSession(currentUser?.id || "");
@@ -85,28 +101,10 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
   }, [currentUser?.id]);
 
   const warmNewsFeed = React.useCallback(() => {
-    const newsUser = currentUser as any;
-    const activeCompany = companies.find((company) => company.id === activeCompanyId) ||
-      companies.find((company) => company.id === currentUser?.companyId);
-    const simulatorId = activeCompany?.simulatorId || activeCompany?.simuladorId ||
-      newsUser?.simulatorId || newsUser?.simuladorId;
-    const simulatorDocument = simulators.find((simulator) => simulator.id === simulatorId);
+    const selected = resolveNewsSessionSimulator({ activeCompanyId, currentUser, companies, simulators });
     return import("../pages/NewsFeed").then(({ warmNvuNewsFirstPage }) => warmNvuNewsFirstPage({
       userId: currentUser?.id,
-      simulatorValues: [
-        activeCompany?.simulatorName,
-        activeCompany?.simuladorNome,
-        activeCompany?.simulator,
-        simulatorDocument?.name,
-        newsUser?.simulatorName,
-        newsUser?.simuladorNome,
-        newsUser?.simulator,
-        simulatorDocument?.id,
-        activeCompany?.simulatorId,
-        activeCompany?.simuladorId,
-        newsUser?.simulatorId,
-        newsUser?.simuladorId,
-      ],
+      simulatorValues: [selected.key, ...selected.aliases],
     })).catch((error) => {
       console.warn("[NVU NEWS] Pré-carregamento da página indisponível:", error);
     });
@@ -119,30 +117,12 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  React.useEffect(() => {
-    const handleOpenNotification = (event: Event) => {
-      const notification = (event as CustomEvent).detail as { type?: string; tipo?: string };
-      const type = notification?.type ?? notification?.tipo;
-      if (type === "NEW_OPERATION") {
-        navigate("/driver");
-      } else {
-        navigate("/driver/profile");
-      }
-    };
-    window.addEventListener("nvu-notification-open", handleOpenNotification);
-    return () => window.removeEventListener("nvu-notification-open", handleOpenNotification);
-  }, [navigate]);
+
 
   React.useEffect(() => {
-    const handleToggleShellMenu = () => setIsMobileMenuOpen((open) => !open);
-    window.addEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
-    // Legacy event kept as an alias with toggle semantics; no caller can force
-    // the menu open and accidentally trap the second tap in the open state.
-    window.addEventListener("nvu-open-shell-menu", handleToggleShellMenu);
-    return () => {
-      window.removeEventListener("nvu-toggle-shell-menu", handleToggleShellMenu);
-      window.removeEventListener("nvu-open-shell-menu", handleToggleShellMenu);
-    };
+    const handleOpenShellMenu = () => setIsMobileMenuOpen(true);
+    window.addEventListener("nvu-open-shell-menu", handleOpenShellMenu);
+    return () => window.removeEventListener("nvu-open-shell-menu", handleOpenShellMenu);
   }, []);
 
   const currentActiveCompany = React.useMemo(() => {
@@ -162,6 +142,18 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
   const driverOperationProgress = React.useMemo(
     () => deriveCurrentOperationProgress(driverOperation, driverTripState.trips, currentUser?.id),
     [currentUser?.id, driverOperation, driverTripState.trips],
+  );
+  const driverOperationTrips = React.useMemo(
+    () => driverOperation ? selectCanonicalOperationTrips(driverOperation, driverTripState.trips, String(currentUser?.id || driverOperation.driverId || "")) : [],
+    [driverOperation, driverTripState.trips],
+  );
+  const visibleOperationTripIds = React.useMemo(
+    () => driverOperationTrips.map((trip) =>
+      String(trip.canonicalTripId || trip.tripId || trip.id || "")),
+    [driverOperationTrips],
+  );
+  const operationRecovery = useMissingOperationTrip(
+    driverOperation, currentUser?.id, visibleOperationTripIds, driverTripState.historyReady,
   );
 
   const driverContract = React.useMemo(
@@ -249,37 +241,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
   }, [location.pathname]);
 
   React.useEffect(() => {
-    if (!isDriverProfileRoute) {
-      setProfileChromeProgress(0);
-      return;
-    }
-
-    let frame = 0;
-    const updateChrome = () => {
-      frame = 0;
-      const hero = document.querySelector<HTMLElement>(".nvu-profile-hero");
-      if (!hero) return;
-      const heroBottom = hero.getBoundingClientRect().bottom;
-      const progress = Math.max(0, Math.min(1, (168 - heroBottom) / 120));
-      setProfileChromeProgress((current) => Math.abs(current - progress) < 0.015 ? current : progress);
-    };
-    const onScroll = () => {
-      if (!frame) frame = window.requestAnimationFrame(updateChrome);
-    };
-    updateChrome();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => {
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [isDriverProfileRoute]);
-
-  const heroChromeActive = isDriverProfileRoute && profileChromeProgress < 0.55;
-
-  React.useEffect(() => {
-    if (!isDriverProfileRoute) {
+    if (!isDriverHeroRoute) {
       setIsHeaderEditRevealed(false);
       return;
     }
@@ -298,18 +260,13 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
       window.removeEventListener("nvu-profile-banner-tapped", revealFromBanner);
       document.removeEventListener("pointerdown", hideOutside, true);
     };
-  }, [isDriverProfileRoute]);
+  }, [isDriverHeroRoute]);
 
   React.useEffect(() => {
     if (!isMobileMenuOpen) return;
-    void preloadRoute("/driver/profile");
-    void preloadRoute("/ranking");
-    void preloadRoute("/driver/news");
-    if (!isNewsRoute) void warmNewsFeed();
-    void preloadRoute("/driver/reports");
-    void preloadRoute("/driver/history");
-  }, [isMobileMenuOpen, isNewsRoute, warmNewsFeed]);
-
+    // Warm the profile switch, not every heavy secondary page at menu-open.
+    void preloadRoute("/admin/fleet").catch(() => undefined);
+  }, [isMobileMenuOpen]);
 
   // Secondary route chunks and news data are loaded only after an explicit
   // menu/navigation intent. Mounting the authenticated shell must not compete
@@ -351,8 +308,16 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
   const pendingCount = unreadNotifications.length;
 
   const handleSwitchRole = (newRole: "admin" | "driver") => {
+    setIsMobileMenuOpen(false);
     setIsProfileMenuOpen(false);
-    if (activeRole === newRole) return;
+    const target = newRole === "admin" ? "/admin/fleet" : "/driver/profile";
+    if (activeRole === newRole) {
+      commitRoleVisualTransition(newRole, () => {
+        void switchRole(newRole, activeCompanyId || undefined);
+        navigate(target, { replace: true });
+      });
+      return;
+    }
 
     const currentMember = currentMembership;
     const hasRole =
@@ -372,7 +337,6 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
       return;
     }
 
-    const target = newRole === "admin" ? "/admin/fleet" : "/driver/profile";
     commitRoleVisualTransition(newRole, () => {
       void switchRole(newRole, activeCompanyId || undefined);
       navigate(target, { replace: true });
@@ -390,9 +354,8 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
       setActiveCompanyId(companyId);
       void switchRole(nextRole, companyId);
       setIsProfileMenuOpen(false);
-      if (nextRole !== activeRole) {
-        navigate(target, { replace: true });
-      }
+      setIsMobileMenuOpen(false);
+      navigate(target, { replace: true });
     };
 
     if (nextRole === activeRole) {
@@ -405,12 +368,13 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
   };
 
   const handleLogout = async () => {
+    setIsMobileMenuOpen(false);
     await logOutApp();
     navigate("/login");
   };
 
   const handleSidebarNavigation = React.useCallback(
-    (event: React.MouseEvent<HTMLAnchorElement>, path: string) => {
+    (event: React.MouseEvent<HTMLAnchorElement>, path: string, state?: Record<string, unknown>) => {
       setIsMobileMenuOpen(false);
       if (!isPlainPrimaryNavigation(event.nativeEvent)) return;
       event.preventDefault();
@@ -419,7 +383,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
           navigate(path, { state: { backgroundLocation: location } });
           return;
         }
-        navigate(path);
+        navigate(path, { state });
       };
       if (path === "/ranking") {
         // Commit first; the ranking warm-up is best-effort and never gates
@@ -445,52 +409,23 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
       memberships.find((m) => m.companyId === activeCompanyId)?.status ===
         "active");
 
-  const navItems = isApproved
-    ? [
-        {
-          label: "Painel Operacional",
-          icon: LayoutDashboard,
-          path: "/driver",
-          exact: true,
-        },
-        {
-          label: "Ranking Global",
-          icon: Trophy,
-          path: "/ranking",
-          exact: false,
-        },
-        {
-          label: "NVU News",
-          icon: Newspaper,
-          path: "/driver/news",
-          exact: false,
-        },
-        {
-          label: "Relatórios",
-          icon: Activity,
-          path: "/driver/reports",
-          exact: false,
-        },
-        {
-          label: "Manual",
-          icon: BookOpen,
-          path: "/driver/manual",
-          exact: false,
-        },
-      ]
-    : [];
+  const navItems = isApproved ? DRIVER_MENU_ITEMS : [];
 
   return (
+    <OperationRecoveryContext.Provider value={operationRecovery}>
     <div
       data-nvu-native-android={nativeAndroid ? "true" : "false"}
       className={cn(
-        "min-h-screen bg-gray-50 dark:bg-[#09090b] flex flex-col text-gray-900 dark:text-[#fafafa] font-sans",
+        "nvu-workspace-shell min-h-screen bg-gray-50 dark:bg-nvu-page flex flex-col text-gray-900 dark:text-nvu-text font-sans",
         nativeAndroid && "nvu-native-android nvu-native-driver-shell",
-        isDriverProfileRoute && "nvu-native-profile-route",
+        !nativeAndroid && "nvu-desktop-shell nvu-desktop-driver-shell",
+        isDriverHeroRoute && "nvu-native-profile-route",
+        isCoverPage && "nvu-cover-page-shell",
+        isLandscapeDashboard && "nvu-landscape-dashboard",
       )}
     >
       {window.location.pathname.includes("/driver/join") ? (
-        <Outlet />
+        <>{isLegacyCoverPage && <WorkspaceProfileCover scope="driver"/>}<RetainedWorkspaceOutlet scope={`${currentUser?.id || ""}:${activeCompanyId || ""}:driver`} /></>
       ) : (
         <>
           <SimpleAutomationCompletionBridge
@@ -501,18 +436,21 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
             activeVehicle={driverVehicle}
             activeTrailer={driverTrailer}
             currentOperationProgress={driverOperationProgress}
-            finishJob={finishJob}
+            currentOperationTrips={driverOperationTrips}
+            operationHistoryLoading={driverTripState.loading}
+            operationHistoryReady={driverTripState.historyReady}
+            operationHistoryError={Boolean(driverTripState.error)}
           />
           {/* Top Bar (Header) fixed at the top */}
           <header
             className={cn(
               "nvu-native-header nvu-profile-native-header nvu-profile-chrome-header fixed top-0 left-0 right-0 h-11 md:h-12 flex items-center px-4 md:px-6 justify-between z-50",
-              isDriverProfileRoute
+              isDriverHeroRoute
                 ? "bg-transparent border-transparent text-white"
-                : "bg-white dark:bg-[#09090b] border-b border-gray-100 dark:border-[#2A2F3A]",
+                : "bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line",
             )}
-            style={isDriverProfileRoute ? ({ "--nvu-chrome-progress": profileChromeProgress } as React.CSSProperties) : undefined}
-            data-nvu-hero-chrome={isDriverProfileRoute ? (heroChromeActive ? "active" : "settled") : undefined}
+            ref={headerRef}
+            data-nvu-hero-chrome={isDriverHeroRoute ? (heroChromeActive ? "active" : "settled") : undefined}
           >
             <div className="flex items-center gap-3 md:gap-4">
               <button
@@ -523,9 +461,9 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
                 aria-label={isMobileMenuOpen ? "Fechar menu" : "Abrir menu"}
                 className={cn(
                   "nvu-native-menu-button md:hidden p-1.5 -ml-1.5 rounded-lg transition-colors",
-                  isDriverProfileRoute
+                  isDriverHeroRoute
                     ? "text-white hover:bg-white/10"
-                    : "text-gray-600 dark:text-[#d4d4d8] hover:bg-gray-50 dark:bg-[#09090b] dark:hover:bg-[#3f3f46]",
+                    : "text-gray-600 dark:text-nvu-text-soft hover:bg-gray-50 dark:bg-nvu-page dark:hover:bg-nvu-strip",
                 )}
               >
                 <svg
@@ -549,38 +487,25 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
                 data-nvu-layout-brand
                 className={cn(
                   "nvu-native-desktop-brand hidden md:flex items-center",
-                  isDriverProfileRoute && "nvu-profile-wordmark",
+                  isDriverHeroRoute && "nvu-profile-wordmark",
                 )}
               >
-                {isDriverProfileRoute ? (
-                  <h1 className="nvu-profile-wordmark text-[20px] font-extrabold leading-none tracking-[-0.06em] text-white">NVU</h1>
-                ) : (
-                  <h1 className={cn(
-                    "font-bold text-lg tracking-tight",
-                    "text-gray-900 dark:text-[#fafafa]",
-                  )}>
-                    NVU
-                  </h1>
-                )}
+                <NvuWordmark />
               </div>
               <div
                 data-nvu-background-brand
                 data-nvu-layout-brand
                 className={cn(
                   "nvu-native-mobile-brand md:hidden flex items-center font-bold leading-none",
-                  isDriverProfileRoute ? "nvu-profile-wordmark text-white" : "text-lg text-gray-900 dark:text-[#fafafa]",
+                  isDriverHeroRoute ? "nvu-profile-wordmark text-white" : "text-lg text-gray-900 dark:text-nvu-text",
                 )}
               >
-                {isDriverProfileRoute ? (
-                  <span className="nvu-profile-wordmark text-[20px] font-extrabold leading-none tracking-[-0.06em] text-white">NVU</span>
-                ) : (
-                  <span>NVU</span>
-                )}
+                <NvuWordmark />
               </div>
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
-              {isDriverProfileRoute && isHeaderEditRevealed && (
+              {isDriverHeroRoute && isHeaderEditRevealed && (
                 <button
                   type="button"
                   data-nvu-header-edit-button
@@ -591,7 +516,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
                     "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-white/40",
                     heroChromeActive
                       ? "text-white/95 hover:bg-white/10 hover:text-white"
-                      : "text-gray-700 dark:text-[#d4d4d8] hover:bg-gray-100 dark:hover:bg-[#3f3f46]/50",
+                      : "text-gray-700 dark:text-nvu-text-soft hover:bg-gray-100 dark:hover:bg-nvu-strip/50",
                   )}
                 >
                   <Pencil size={20} strokeWidth={2} />
@@ -607,7 +532,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
                   "relative p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20",
                   heroChromeActive
                     ? "text-white/90 hover:text-white hover:bg-white/10"
-                    : "text-gray-700 dark:text-[#d4d4d8] hover:text-gray-950 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#3f3f46]/50",
+                    : "text-gray-700 dark:text-nvu-text-soft hover:text-gray-950 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-nvu-strip/50",
                 )}
                 onOpen={(notification) => {
                   const type = notification.type ?? notification.tipo;
@@ -617,14 +542,14 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
 
               <div className={cn(
                 "hidden sm:block h-6 w-px mx-1",
-                isDriverProfileRoute ? "hidden" : "bg-gray-200 dark:bg-[#2A2F3A]",
+                isDriverHeroRoute ? "hidden" : "bg-gray-200 dark:bg-nvu-strip",
               )}></div>
 
               <button
                 onClick={() => navigate("/driver/profile")}
                 className={cn(
                   "flex items-center gap-2 focus:outline-none hover:opacity-80 transition-opacity",
-                  isDriverProfileRoute && "ring-1 ring-white/35 rounded-full",
+                  isDriverHeroRoute && "ring-1 ring-white/35 rounded-full",
                 )}
               >
                 {currentActiveCompany?.logoUrl ? (
@@ -634,17 +559,17 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
                     loading="eager"
                     decoding="async"
                     fetchPriority="high"
-                    wrapperClassName="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-gray-200 dark:border-[#2A2F3A] bg-gray-100 dark:bg-[#18181b] shrink-0"
+                    wrapperClassName="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-gray-200 dark:border-nvu-line bg-gray-100 dark:bg-nvu-surface shrink-0"
                     className="object-cover"
                     referrerPolicy="no-referrer"
                     fallback={
-                      <span className="h-full w-full bg-slate-900 dark:bg-[#18181b] flex items-center justify-center text-white text-xs sm:text-sm font-bold">
+                      <span className="h-full w-full bg-slate-900 dark:bg-nvu-surface flex items-center justify-center text-white text-xs sm:text-sm font-bold">
                         {currentActiveCompany.companyName?.substring(0, 2).toUpperCase() || "NV"}
                       </span>
                     }
                   />
                 ) : currentActiveCompany ? (
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-900 dark:bg-[#18181b] border border-transparent dark:border-[#2A2F3A] flex items-center justify-center text-white text-xs sm:text-sm font-bold shrink-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-900 dark:bg-nvu-surface border border-transparent dark:border-nvu-line flex items-center justify-center text-white text-xs sm:text-sm font-bold shrink-0">
                     {currentActiveCompany.companyName
                       ?.substring(0, 2)
                       .toUpperCase()}
@@ -656,17 +581,17 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
                     loading="eager"
                     decoding="async"
                     fetchPriority="high"
-                    wrapperClassName="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-gray-200 dark:border-[#2A2F3A] bg-gray-100 dark:bg-[#18181b] shrink-0"
+                    wrapperClassName="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-gray-200 dark:border-nvu-line bg-gray-100 dark:bg-nvu-surface shrink-0"
                     className="object-cover"
                     referrerPolicy="no-referrer"
                     fallback={
-                      <span className="h-full w-full bg-slate-900 dark:bg-[#18181b] flex items-center justify-center text-white text-xs sm:text-sm font-bold">
+                      <span className="h-full w-full bg-slate-900 dark:bg-nvu-surface flex items-center justify-center text-white text-xs sm:text-sm font-bold">
                         {currentUser?.name?.substring(0, 2).toUpperCase() || "MO"}
                       </span>
                     }
                   />
                 ) : (
-                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-900 dark:bg-[#18181b] border border-transparent dark:border-[#2A2F3A] flex items-center justify-center text-white text-xs sm:text-sm font-bold shrink-0">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-900 dark:bg-nvu-surface border border-transparent dark:border-nvu-line flex items-center justify-center text-white text-xs sm:text-sm font-bold shrink-0">
                     {currentUser?.name?.substring(0, 2).toUpperCase()}
                   </div>
                 )}
@@ -678,7 +603,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
           <div
             className={cn(
               "nvu-native-shell flex-1 flex max-w-full relative",
-              isDriverProfileRoute ? "nvu-native-profile-shell pt-0" : "pt-11 md:pt-12",
+              isDriverHeroRoute ? "nvu-native-profile-shell pt-0" : "pt-11 md:pt-12",
             )}
           >
             <GlobalMenu
@@ -701,6 +626,7 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
               activeCompanyId={activeCompanyId}
               onCompanySwitch={handleCompanySwitch}
               onProfileEdit={() => {
+                setIsMobileMenuOpen(false);
                 setIsProfileMenuOpen(false);
                 setIsProfileModalOpen(true);
               }}
@@ -715,14 +641,15 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
               <div
                 className={cn(
                   "nvu-native-content p-2 sm:p-4 md:p-6 flex-1 w-full max-w-full overflow-hidden",
-                  isDriverProfileRoute && "nvu-native-profile-content",
+                  isDriverHeroRoute && "nvu-native-profile-content",
                 )}
               >
-                {children ?? <Outlet />}
+                <>{isLegacyCoverPage && <WorkspaceProfileCover scope="driver"/>}<RetainedWorkspaceOutlet scope={`${currentUser?.id || ""}:${activeCompanyId || ""}:driver`} /></>
               </div>
             </main>
           </div>
 
+        <WorkspaceDock role="driver" />
         <CompactProfileEditorModal
           open={isProfileModalOpen}
           mode="driver"
@@ -731,5 +658,6 @@ export default function DriverLayout({ children }: { children?: React.ReactNode 
         </>
       )}
     </div>
+    </OperationRecoveryContext.Provider>
   );
 }

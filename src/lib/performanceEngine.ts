@@ -1,5 +1,8 @@
-import { calculateScopeAwareOperationalScores } from "./operationalRhythm";
-import { getTripMetricDate, normalizeTrip, parseTripValue } from "./tripNormalizer";
+import {
+  getTripMetricDate,
+  normalizeTrip,
+} from "./tripNormalizer";
+import { summarizeTripMoney } from "./tripMoneySummary";
 import {
   getCanonicalTripCompanyId,
   getCanonicalTripDriverId,
@@ -14,6 +17,7 @@ export interface DriverRankingQuery {
   endDate: Date;
   driverId: string;
   companyId?: string | null;
+  eligibleCompanyIds?: string[];
 }
 
 export interface DriverRankingEntry {
@@ -22,6 +26,9 @@ export interface DriverRankingEntry {
   companyId?: string;
   trips: number;
   earnings: number;
+  currency?: string;
+  currencyBreakdown?: { currency: string; value: number; tripCount: number; missingValueTrips: number; currencySource?: string; currencySources?: string[] }[];
+  currencyUnresolvedTrips?: number;
 }
 
 export interface DriverRankingContextResult {
@@ -34,10 +41,6 @@ export interface DriverRankingContextResult {
   current: DriverRankingEntry;
   entityTrips: any[];
   periodTrips: any[];
-  ritmoOperacionalScore: number;
-  viagensScore: number;
-  ganhosScore: number;
-  finalIndex: number;
 }
 
 function tripDate(trip: any): Date {
@@ -56,25 +59,9 @@ function driverNameOf(trip: any): string | undefined {
   return getCanonicalTripDriverName(trip);
 }
 
-function tripValue(trip: any): number {
-  return typeof trip?.normalizedValor === "number"
-    ? trip.normalizedValor
-    : parseTripValue(trip?.valor);
-}
-
-function clampScore(value: number): number {
-  return Math.max(0, Math.min(100, Math.round(Number.isFinite(value) ? value : 0)));
-}
-
-function overallRankingScore(position: number | null, totalParticipants: number): number {
-  if (!position || totalParticipants <= 0) return 0;
-  if (totalParticipants === 1) return 100;
-  return clampScore(((totalParticipants - position) / (totalParticipants - 1)) * 100);
-}
-
 /**
- * Single source of truth for the driver performance card.
- * The same scoped population feeds scores, ranking, KPIs and history.
+ * Earnings determine the ranking; trip count retains the existing tie policy.
+ * No composite operational score participates in this financial comparison.
  */
 export function buildDriverRankingContext(
   trips: any[],
@@ -103,12 +90,23 @@ export function buildDriverRankingContext(
   // Internal rankings are company-scoped in both participation and totals.
   // A driver who worked for more than one company in the same simulator must
   // never carry earnings from another company into the selected fleet.
-  const scopedPeriodTrips =
-    query.scope === "internal" && query.companyId
-      ? periodTrips.filter((trip) => companyIdOf(trip) === query.companyId)
-      : periodTrips;
+  const eligibleCompanyIds = query.eligibleCompanyIds
+    ? new Set(
+        query.eligibleCompanyIds
+          .map((id) => String(id || "").trim())
+          .filter(Boolean),
+      )
+    : null;
+  const scopedPeriodTrips = periodTrips.filter((trip) => {
+    const companyId = companyIdOf(trip);
+    if (query.scope === "internal" && query.companyId) {
+      return companyId === query.companyId;
+    }
+    return !eligibleCompanyIds || eligibleCompanyIds.has(companyId || "");
+  });
 
   const canonicalStats = new Map<string, DriverRankingEntry>();
+  const tripsByDriver = new Map<string, any[]>();
   for (const trip of scopedPeriodTrips) {
     const id = driverIdOf(trip);
     if (!id) continue;
@@ -126,9 +124,18 @@ export function buildDriverRankingContext(
       current.companyId = companyIdOf(trip);
     }
     current.trips += 1;
-    current.earnings += tripValue(trip);
+    const driverTrips = tripsByDriver.get(id) || [];
+    driverTrips.push(trip);
+    tripsByDriver.set(id, driverTrips);
     canonicalStats.set(id, current);
   }
+
+  const overallMoneyGroups = summarizeTripMoney(scopedPeriodTrips);
+  const overallKnown = overallMoneyGroups.filter((group) => group.currencyStatus === "known");
+  const overallUnresolved = overallMoneyGroups.some((group) => group.currencyStatus !== "known");
+  const overallMissingValues = overallKnown.some((group) => group.missingValueTrips > 0);
+  const comparableCurrency = overallKnown.length === 1 && !overallUnresolved && !overallMissingValues
+    ? overallKnown[0]?.currency : undefined;
 
   const eligibleDriverIds = new Set<string>();
   canonicalStats.forEach((_entry, id) => eligibleDriverIds.add(id));
@@ -136,8 +143,26 @@ export function buildDriverRankingContext(
   const ranking = Array.from(eligibleDriverIds)
     .map((id) => canonicalStats.get(id))
     .filter((entry): entry is DriverRankingEntry => Boolean(entry))
+    .map((entry) => {
+      const groups = summarizeTripMoney(tripsByDriver.get(entry.id) || []);
+      const known = groups.filter((group) => group.currencyStatus === "known" && group.currency);
+      const unresolvedTrips = groups.filter((group) => group.currencyStatus !== "known")
+        .reduce((sum, group) => sum + group.tripCount, 0);
+      const currencyBreakdown = known.map((group) => ({
+        currency: group.currency!, value: group.value ?? 0, tripCount: group.tripCount,
+        missingValueTrips: group.missingValueTrips, currencySource: group.currencySource,
+        currencySources: group.currencySources,
+      }));
+      return {
+        ...entry,
+        earnings: comparableCurrency ? known.find((group) => group.currency === comparableCurrency)?.value ?? 0 : 0,
+        currency: comparableCurrency,
+        currencyBreakdown,
+        currencyUnresolvedTrips: unresolvedTrips,
+      };
+    })
     .sort((a, b) => {
-      if (b.earnings !== a.earnings) return b.earnings - a.earnings;
+      if (comparableCurrency && b.earnings !== a.earnings) return b.earnings - a.earnings;
       if (b.trips !== a.trips) return b.trips - a.trips;
       const nameOrder = String(a.name || "").localeCompare(
         String(b.name || ""),
@@ -148,8 +173,14 @@ export function buildDriverRankingContext(
     });
 
   const index = ranking.findIndex((entry) => entry.id === query.driverId);
-  const current = canonicalStats.get(query.driverId) ||
-    { id: query.driverId, companyId: query.companyId || undefined, trips: 0, earnings: 0 };
+  const current = canonicalStats.get(query.driverId) || {
+    id: query.driverId,
+    companyId: query.companyId || undefined,
+    trips: 0,
+    earnings: 0,
+    currencyBreakdown: [],
+    currencyUnresolvedTrips: 0,
+  };
   const hasActivity = current.trips > 0;
   const position = hasActivity && index >= 0 ? index + 1 : null;
   const nextCompetitor = hasActivity && index > 0 ? ranking[index - 1] : null;
@@ -157,43 +188,17 @@ export function buildDriverRankingContext(
     ? Math.max(0, nextCompetitor.earnings - current.earnings)
     : 0;
 
-  const baseScores = calculateScopeAwareOperationalScores(
-    { viagens: current.trips, ganhos: current.earnings },
-    ranking.map((entry) => ({ viagens: entry.trips, ganhos: entry.earnings })),
-  );
-
-  // The selected universe must influence every displayed score, not only the
-  // position card. Blend the metric comparison with the driver's overall
-  // position in the selected ranking. This makes Interno/Global react to the
-  // exact same population used by the ranking and classification history.
-  const scopeRankScore = hasActivity
-    ? overallRankingScore(position, ranking.length)
-    : 0;
-  const scores = {
-    ritmoOperacionalScore: clampScore(
-      baseScores.ritmoOperacionalScore * 0.5 + scopeRankScore * 0.5,
-    ),
-    viagensScore: clampScore(
-      baseScores.viagensScore * 0.65 + scopeRankScore * 0.35,
-    ),
-    ganhosScore: clampScore(
-      baseScores.ganhosScore * 0.65 + scopeRankScore * 0.35,
-    ),
-  };
-
   return {
     scope: query.scope,
     ranking,
     position,
-    totalParticipants: Math.max(ranking.length, 1),
+    totalParticipants: ranking.length,
     differenceToNext,
     nextCompetitor,
     current,
-    entityTrips: scopedPeriodTrips.filter((trip) => driverIdOf(trip) === query.driverId),
-    periodTrips: scopedPeriodTrips,
-    ...scores,
-    finalIndex: Math.round(
-      (scores.ritmoOperacionalScore + scores.viagensScore + scores.ganhosScore) / 3,
+    entityTrips: scopedPeriodTrips.filter(
+      (trip) => driverIdOf(trip) === query.driverId,
     ),
+    periodTrips: scopedPeriodTrips,
   };
 }

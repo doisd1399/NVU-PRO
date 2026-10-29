@@ -1,0 +1,119 @@
+@font-face { font-family: "NVU Podium"; src: url("/assets/ranking-podium/fonts/roboto-500.woff2") format("woff2"); font-weight: 400 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "NVU Podium"; src: url("/assets/ranking-podium/fonts/roboto-700.woff2") format("woff2"); font-weight: 600 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "NVU Podium"; src: url("/assets/ranking-podium/fonts/roboto-900.woff2") format("woff2"); font-weight: 800 900; font-style: normal; font-display: swap; }
+
+:where(.nvu-gamer-ranking, .nvu-premium-podium, .nvu-gamer-leaderboard) {
+  --gamer-bg: var(--nvu-page, #f6f9fa);
+  --gamer-panel: #fff;
+  --gamer-panel-soft: #edf3f6;
+  --gamer-text: #172330;
+  --gamer-muted: #6b7d8f;
+  --gamer-border: #e0e8ee;
+  --gamer-accent: #009bb3;
+  --gamer-accent-bright: #0bc4d9;
+  --gamer-accent-soft: #e7f6f8;
+  --gamer-leader-bg: #fff;
+  color-scheme: light;
+}
+.dark :where(.nvu-gamer-ranking, .nvu-premium-podium, .nvu-gamer-leaderboard) {
+  --gamer-bg: var(--nvu-page);
+  --gamer-panel: var(--nvu-surface);
+  --gamer-panel-soft: var(--nvu-strip);
+  --gamer-text: var(--nvu-text);
+  --gamer-muted: var(--nvu-muted);
+  --gamer-border: var(--nvu-line);
+  --gamer-accent: var(--nvu-accent);
+  --gamer-accent-bright: var(--nvu-accent);
+  --gamer-accent-soft: var(--nvu-accent-soft);
+  --gamer-leader-bg: var(--nvu-surface);
+  color-scheme: dark;
+}
+.nvu-metal-gold { --rank-metal: #e6a800; --rank-highlight: #fff0ab; --rank-lowlight: #bb8308; }
+.nvu-metal-silver { --rank-metal: #8d9db4; --rank-highlight: #e8edf3; --rank-lowlight: #718198; }
+.nvu-metal-bronze { --rank-metal: #cc8756; --rank-highlight: #f6d4b9; --rank-lowlight: #a56b42; }
+.nvu-metal-neutral { --rank-metal: #8194a5; --rank-highlight: #e3eaf0; --rank-lowlight: #65798e; }
+.dark .nvu-metal-gold { --rank-metal: #efc351; --rank-highlight: #fff0bc; --rank-lowlight: #c59329; }
+.dark .nvu-metal-silver { --rank-metal: #b3c2d4; --rank-highlight: #e6edf7; --rank-lowlight: #839ab1; }
+.dark .nvu-metal-bronze { --rank-metal: #e2a679; --rank-highlight: #f7d3b8; --rank-lowlight: #b37a53; }
+
+/* The approved podium is real layout and gradients, never a screenshot of data. */
+.nvu-premium-podium {
+  --podium-edge: #e5ebee; --podium-front: #f8fafb; --podium-center: #fff;
+  --podium-deck: #fff; --podium-rim: #ffffffd9;
+  width: 100%; max-width: 660px; margin-inline: auto; container-type: inline-size;
+  color: var(--gamer-text); font-family: "NVU Podium", system-ui, sans-serif;
+}
+.nvu-podium-scene {
+  display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.08fr) minmax(0,1fr);
+  align-items: end; gap: 0; padding: 18px 0 4px;
+}
+.nvu-podium-slot {
+  --podium-photo-size: clamp(60px, 20.5cqw, 116px);
+  --podium-base-height: clamp(70px, 20cqw, 104px);
+  min-width: 0; position: relative;
+}
+.nvu-podium-gold {
+  --podium-photo-size: clamp(68px, 23cqw, 128px);
+  --podium-base-height: clamp(80px, 23cqw, 122px);
+  z-index: 1;
+}
+.nvu-podium-participant {
+  position: relative; display: block; width: 100%; min-width: 0;
+  height: calc(var(--podium-photo-size) + var(--podium-base-height) - 12px);
+  padding: 0; border: 0; background: transparent; color: inherit; font: inherit;
+  text-align: center; cursor: pointer; isolation: isolate; -webkit-tap-highlight-color: transparent;
+}
+.nvu-podium-participant:disabled { cursor: default; opacity: 1; }
+.nvu-podium-participant:focus:not(:focus-visible) { outline: none; }
+.nvu-podium-participant:focus-visible { outline: 2px solid var(--gamer-muted); outline-offset: 4px; border-radius: 16px; }
+.nvu-podium-plinth {
+  position: absolute; inset: auto 1px 0; height: var(--podium-base-height); z-index: -1;
+  filter: drop-shadow(0 3px 2px #20364614) drop-shadow(0 8px 8px #20364607);
+}
+.nvu-podium-plinth svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.nvu-podium-portrait-shell {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  display: block; width: var(--podium-photo-size); height: var(--podium-photo-size);
+  padding: clamp(7px, 2cqw, 12px); box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--gamer-border) 38%, transparent);
+  border-radius: clamp(12px, 3.7cqw, 22px); background: var(--gamer-panel);
+  box-shadow: 0 5px 8px #243a4b15, inset 0 1px 0 #ffffffb3;
+}
+/* All three holders use the same neutral edge: no cyan/gold outline on first place. */
+.nvu-podium-photo {
+  display: block !important; width: 100%; height: 100%; border-radius: clamp(7px, 2cqw, 12px);
+  background: var(--gamer-panel-soft); color: var(--gamer-muted); border: 0;
+}
+.nvu-podium-photo img { object-fit: cover; object-position: center; }
+.nvu-podium-crown { position: absolute; top: -23px; left: 50%; transform: translateX(-50%); }
+.nvu-podium-crown .nvu-gamer-crown { width: 24px; height: 24px; filter: drop-shadow(0 1px 1px #c18b0a20); }
+.nvu-podium-place {
+  position: absolute; top: calc(var(--podium-photo-size) - 12px + var(--podium-base-height) * .25);
+  inset-inline: 8px; color: var(--rank-metal);
+  font-size: clamp(22px, 6.4cqw, 30px); line-height: 1.05; font-weight: 700; letter-spacing: -.045em;
+}
+.nvu-podium-place sup { position: static; vertical-align: super; font-size: .55em; margin-left: 1px; }
+.nvu-podium-name {
+  position: absolute; bottom: 4px; inset-inline: 7px; margin-inline: auto; max-width: 85px;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 24px; max-height: 3em; overflow: hidden; overflow-wrap: anywhere;
+  font-size: clamp(10px, 3.2cqw, 16px); font-weight: 500; line-height: 1.1; letter-spacing: -.015em;
+}
+.nvu-podium-initials, .nvu-podium-vacancy-photo { display: flex !important; align-items: center; justify-content: center; font-size: clamp(20px, 6cqw, 34px); font-weight: 500; }
+.nvu-podium-vacancy { color: var(--gamer-muted); font-size: clamp(9px, 2.8cqw, 14px); }
+.nvu-gamer-crown { display: block; width: 14px; height: 14px; flex: none; }
+.nvu-gamer-route { width: 13px; height: 13px; flex: none; color: var(--gamer-accent-bright); filter: drop-shadow(0 1px 1px #0e8f9c1f); }
+.dark .nvu-premium-podium { --podium-edge: #1a2532; --podium-front: #253442; --podium-center: #2a3947; --podium-deck: #314150; --podium-rim: #ffffff12; }
+.dark .nvu-podium-plinth { filter: drop-shadow(0 4px 5px #0003); }
+.dark .nvu-podium-portrait-shell { box-shadow: 0 5px 8px #0003, inset 0 1px 0 #ffffff12; }
+@media (min-width: 620px) {
+  .nvu-podium-name { min-height: 34px; bottom: 10px; max-width: 110px; }
+}
+@media (forced-colors: active) {
+  :where(.nvu-gamer-ranking, .nvu-premium-podium, .nvu-gamer-leaderboard) { --gamer-panel: Canvas; --gamer-text: CanvasText; --gamer-muted: CanvasText; --gamer-border: CanvasText; --gamer-accent: LinkText; }
+  .nvu-premium-podium { --podium-edge: Canvas; --podium-front: Canvas; --podium-center: Canvas; --podium-deck: Canvas; --podium-rim: CanvasText; }
+  .nvu-podium-plinth { filter: none; }
+  .nvu-podium-front { stroke: CanvasText; }
+  .nvu-podium-portrait-shell { border: 1px solid CanvasText; background: Canvas; box-shadow: none; }
+  .nvu-podium-participant:focus-visible { outline-color: Highlight; }
+}

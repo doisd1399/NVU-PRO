@@ -1,37 +1,58 @@
-# Dependencies and caches
+# Node dependencies and generated Web output
 node_modules/
-.npm/
-.vite/
-
-# Generated Web and Android outputs
 dist/
-android/.gradle/
-android/build/
-android/app/build/
-android/app/src/main/assets/public/
-android/app/src/main/assets/cordova.js
-android/app/src/main/assets/cordova_plugins.js
+verification/central-management/
+
+# Android/Gradle generated outputs and caches (all modules)
+**/build/
+.gradle/
+**/.gradle/
+local.properties
+.release-work/
+.apk-integrity-tmp/
+
+# APK/AAB/APKS are delivery artifacts, never project source
+*.apk
+*.aab
+*.apks
+dist-apk/
+.ci-delivery/
+.ci-evidence/
+
+# Capacitor sync assets are regenerated from source before a Release
 android/app/src/main/assets/capacitor.config.json
 android/app/src/main/assets/capacitor.plugins.json
-android/capacitor.settings.gradle
-android/capacitor-cordova-android-plugins/
-android/capacitor-*/
+android/app/src/main/assets/public/*
+!android/app/src/main/assets/public/.gitkeep
 
-# Local machine configuration and secrets
-.env
-.env.*
-!.env.example
-android/local.properties
+# Private release inputs -- never commit
 android/app/google-services.json
 *.jks
 *.keystore
 *.p12
+*.pem
+.env
+.env.*
+!.env.example
 
-# Release outputs are kept only when explicitly promoted and reviewed
-release/*
-!release/.gitkeep
-
-# Logs and temporary files
-*.log
+# IDE / OS
+.idea/
+.vscode/
 .DS_Store
-coverage/
+Thumbs.db
+*.iml
+
+# Automated QA outputs and downloaded public tools
+qa/results/
+reports/
+.qa-cache/
+
+# Recreated from npm dependencies and the tracked compressed language model
+public/tesseract/
+public/tessdata/eng.traineddata
+public/vendor/browser-image-compression.js
+public/vendor/browser-image-compression.LICENSE
+functions/lib/
+SOURCE-QA-SHA256.json
+*-debug.log
+firebase-debug.*.log

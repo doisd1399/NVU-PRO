@@ -1,27 +1,71 @@
 package com.nvu.operacional;
 
 import android.content.Intent;
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.RenderProcessGoneDetail;
 
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.WebViewListener;
+import com.google.firebase.auth.FirebaseAuth;
 import io.capawesome.capacitorjs.plugins.firebase.authentication.FirebaseAuthenticationPlugin;
 import org.json.JSONObject;
 
 public class MainActivity extends BridgeActivity {
     public static final String EXTRA_NATIVE_ROUTE = "nvuNativeRoute";
     public static final String EXTRA_NATIVE_PROFILE_TAB = "nvuNativeProfileTab";
+    private static final String WEB_ASSET_RELEASE_KEY = BuildConfig.VERSION_CODE + ":" + BuildConfig.VERSION_NAME;
+    private FirebaseAuth.AuthStateListener proQueueAuthListener;
+    private boolean webViewRecoveryRequested;
+    private static long lastWebViewRecoveryAt;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(GtoObserverPlugin.class);
         registerPlugin(SimpleAutomationPlugin.class);
+        registerPlugin(ProOverlayProbePlugin.class);
+        registerPlugin(PrintDiagnosticsPlugin.class);
         super.onCreate(savedInstanceState);
+        invalidateWebAssetCacheForCurrentRelease();
+        if (getBridge() != null) {
+            getBridge().addWebViewListener(new WebViewListener() {
+                @Override
+                public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                    // Android can discard only the WebView renderer while NVU
+                    // is in the background. Recreate the bridge once instead of
+                    // retaining a dead white surface. Auth, routes and durable
+                    // pending commands remain in their existing local stores.
+                    if (!webViewRecoveryRequested && !isFinishing() && !isDestroyed()) {
+                        webViewRecoveryRequested = true;
+                        long now = android.os.SystemClock.elapsedRealtime();
+                        boolean repeated = lastWebViewRecoveryAt > 0 && now - lastWebViewRecoveryAt < 30_000;
+                        lastWebViewRecoveryAt = now;
+                        getWindow().getDecorView().post(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            if (repeated) {
+                                // A repeatedly failing renderer must not cause
+                                // an automatic recreation loop or a dead page.
+                                new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("Não foi possível retomar a tela")
+                                    .setMessage("Seus registros foram preservados. Reabra a tela para continuar.")
+                                    .setPositiveButton("Reabrir", (dialog, which) -> recreate())
+                                    .setCancelable(false)
+                                    .show();
+                            } else recreate();
+                        });
+                    }
+                    return true;
+                }
+            });
+        }
         // Profile hero must render underneath a transparent status bar. Disable
         // framework inset fitting here; the Web route applies its own safe-area
         // padding and contrast without changing any business flow.
@@ -52,10 +96,38 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    /**
+     * Local Capacitor assets keep stable hashed filenames between hotfixes.
+     * Clear only the WebView cache once per native release so an APK update
+     * cannot render a cached JS/CSS chunk from the previous APK.
+     */
+    private void invalidateWebAssetCacheForCurrentRelease() {
+        try {
+            WebView webView = getBridge() == null ? null : getBridge().getWebView();
+            if (webView == null) return;
+            android.content.SharedPreferences prefs = getSharedPreferences("nvu_web_release", MODE_PRIVATE);
+            String previousKey = prefs.getString("asset_cache_release", "");
+            if (!WEB_ASSET_RELEASE_KEY.equals(previousKey)) {
+                webView.clearCache(true);
+                webView.clearHistory();
+                prefs.edit().putString("asset_cache_release", WEB_ASSET_RELEASE_KEY).apply();
+            }
+            // Release invalidation is one-time. Normal HTTP/image caching must
+            // remain available during the first session after an APK update.
+            webView.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
+        } catch (Exception error) {
+            android.util.Log.w("NVU", "Não foi possível invalidar o cache dos assets Web", error);
+        }
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        // The controller performs the only permission refresh on initial resume
+        // or after returning from the Android overlay settings it opened.
+        ProModeController.onActivityResume(this);
         GtoObserverService.reportMainActivityForeground(true);
+        GtoObserverService.recoverIfEnabled(this);
     }
 
     @Override
@@ -67,11 +139,24 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onStart() {
         super.onStart();
+        // Recover durable Pro receipts even if the overlay was closed before
+        // network or native authentication became available.
+        ProPendingTripJobService.scheduleImmediate(this);
+        FirebaseAuth nativeAuth = GtoFirebaseRuntime.auth(this);
+        if (nativeAuth != null) {
+            proQueueAuthListener = auth -> {
+                android.content.SharedPreferences pendingIndex = getSharedPreferences(
+                    SimpleAutomationService.PREFS_NAME, MODE_PRIVATE);
+                if (!ProPendingTripStore.ids(pendingIndex).isEmpty()) {
+                    SimpleAutomationService.triggerPendingProcessing(this);
+                }
+            };
+            nativeAuth.addAuthStateListener(proQueueAuthListener);
+        }
         android.content.SharedPreferences gtoPrefs = getSharedPreferences(GtoObserverService.PREFS_NAME, MODE_PRIVATE);
         // HF54: recover HF51/HF52 legacy queue state before the observer/menu can render
         // a sticky previous-sync status. The recovery never deletes a sealed trip.
         GtoAutoTripSync.recoverLegacyPendingStateOnAuthenticatedStart(this, gtoPrefs);
-        GtoObserverService.recoverIfEnabled(this);
         // Durable completed deliveries must be retried even when the driver has
         // temporarily disabled the floating observer. Authentication is checked
         // before touching the queue so the login screen does not inherit another
@@ -79,6 +164,16 @@ public class MainActivity extends BridgeActivity {
         if (GtoFirebaseRuntime.currentUser(this) != null) {
             GtoTripSubmissionCoordinator.flushPending(this, gtoPrefs, null);
         }
+    }
+
+    @Override
+    public void onStop() {
+        if (proQueueAuthListener != null) {
+            FirebaseAuth nativeAuth = GtoFirebaseRuntime.auth(this);
+            if (nativeAuth != null) nativeAuth.removeAuthStateListener(proQueueAuthListener);
+            proQueueAuthListener = null;
+        }
+        super.onStop();
     }
 
     @Override

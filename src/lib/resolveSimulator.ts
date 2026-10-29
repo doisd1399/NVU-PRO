@@ -102,6 +102,7 @@ export function collectSimulatorAliases(
     includeDocumentId ? record.id : undefined,
     record.simulatorId,
     record.simuladorId,
+    record.currentRecruitmentSimulatorId,
     ...semanticValues,
   ].forEach((value) => {
     const normalized = normalizeSimulatorId(value);
@@ -328,7 +329,7 @@ export function resolveSimulatorId(
 
   const record = data as SimulatorLike;
   if (hasUnsupportedSimulatorSemantic(record)) return "";
-  const explicitId = readText(record.simulatorId, record.simuladorId);
+  const explicitId = readText(record.simulatorId, record.simuladorId, record.currentRecruitmentSimulatorId);
   if (explicitId) {
     return isUnsupportedSimulatorAlias(explicitId) ? "" : explicitId;
   }

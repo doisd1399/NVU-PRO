@@ -18,6 +18,7 @@ import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.view.WindowMetrics;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
@@ -30,7 +31,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
-import android.provider.Settings;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.TextWatcher;
@@ -85,6 +85,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class GtoObserverService extends Service {
+    // Responsibility boundary: capture/permission and overlay lifecycle are
+    // explicit collaborators; detection and submission remain below as legacy adapters.
+    private final GtoServiceBoundaries serviceBoundaries = new GtoServiceBoundaries();
     public static final String GTO_PACKAGE = "com.stargamesapps.gto";
     public static final String PREFS_NAME = "nvu_gto_observer";
 
@@ -431,6 +434,12 @@ public class GtoObserverService extends Service {
     private String statusChipDriverStageKey = "";
     private int statusChipDriverStagePriority = GtoDriverMessagePriorityPolicy.INFO;
     private long statusChipShownAt = 0L;
+    private View tripRegisteredCardView;
+    private Runnable tripRegisteredCardHideRunnable;
+    private WindowManager.LayoutParams tripRegisteredCardParams;
+    private final NativeBubbleVisibility bubbleCardVisibility = new NativeBubbleVisibility();
+    private final NativeOverlayCardVisibility cardVisibility =
+        new NativeOverlayCardVisibility(this::applyBubbleCardVisibility);
     private Runnable pendingDriverStageReplacementRunnable;
     // HF6: recovery remains inside the NVU bubble menu. No second standalone
         // Independent 1px touch-pulse sensor. It never toggles the NVU bubble. During
@@ -456,9 +465,6 @@ public class GtoObserverService extends Service {
     // HF20: the bubble is the visual anchor for the open card. If the pair needs an
     // automatic nudge to fit, remember the driver's pre-open position and restore it when
     // the card is minimized. Automatic layout must never overwrite the saved drag position.
-    private int bubbleXBeforeMenuOpen = Integer.MIN_VALUE;
-    private int bubbleYBeforeMenuOpen = Integer.MIN_VALUE;
-    private boolean bubbleAutoDockedForMenu = false;
     // HF17: prevents a tap on the separate bubble window from reopening the card when
     // the card has already received ACTION_OUTSIDE for the same physical gesture.
     private long lastMenuOutsideTouchAt = 0L;
@@ -1019,6 +1025,8 @@ public class GtoObserverService extends Service {
                 // driver's normalized landscape anchor as soon as the GTO geometry is
                 // stable. This happens before consent/recovery UI can take input focus.
                 reconcileBubbleForStableGtoGeometry(now);
+                positionTripRegisteredCard();
+                applyBubbleCardVisibility(cardVisibility.isSuppressed());
 
                 // Only after the bubble had a chance to attach may the recorder consent
                 // be opened. maybeLaunchInitialProjectionPermissionOverGto() enforces
@@ -1101,6 +1109,32 @@ public class GtoObserverService extends Service {
 
     public static boolean isRunning() {
         return running;
+    }
+
+    /**
+     * Starts the foreground observer after ProModeController has performed the
+     * single entry permission validation. Android continues service preparation
+     * asynchronously; readiness is reported by the existing heartbeat poll.
+     */
+    public static boolean startIfAllowed(Context context) {
+        if (context == null) return false;
+        Context appContext = context.getApplicationContext();
+        try {
+            appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .remove("startError")
+                .apply();
+            Intent intent = new Intent(appContext, GtoObserverService.class)
+                .setAction(ACTION_START);
+            ContextCompat.startForegroundService(appContext, intent);
+            return true;
+        } catch (Exception error) {
+            appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString("startError", describeError(error))
+                .apply();
+            return false;
+        }
     }
 
     public static void refreshOperationCardIfRunning() {
@@ -1386,7 +1420,7 @@ public class GtoObserverService extends Service {
 
     private boolean armFreshFloatingButtonForNextGtoForeground() {
         if (destroying || prefs == null || windowManager == null) return false;
-        if (!Settings.canDrawOverlays(this)) {
+        if (!ProModeController.hasOverlay(this)) {
             prefs.edit()
                 .putBoolean("floatingButtonActivationArmed", false)
                 .putString("overlayError", "Permissão SYSTEM_ALERT_WINDOW não está ativa")
@@ -1661,7 +1695,7 @@ public class GtoObserverService extends Service {
         Context appContext = context.getApplicationContext();
         SharedPreferences preferences = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         if (!preferences.getBoolean("enabled", false)) return false;
-        if (!Settings.canDrawOverlays(appContext)) {
+        if (!ProModeController.hasOverlay(appContext)) {
             preferences.edit().putString("startError", "Permissão de sobreposição não está ativa.").apply();
             return false;
         }
@@ -1795,6 +1829,8 @@ public class GtoObserverService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        ProModeController.onServiceCreate(this);
+        serviceBoundaries.onServiceCreated();
         running = true;
         instance = this;
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -2332,7 +2368,7 @@ public class GtoObserverService extends Service {
     }
 
     private boolean validateObserverRuntimePermissions() {
-        boolean overlayOk = Settings.canDrawOverlays(this);
+        boolean overlayOk = ProModeController.hasOverlay(this);
         boolean usageOk = hasUsageStatsAccess();
         if (overlayOk && usageOk) {
             if (!lastRuntimePermissionError.isEmpty() || (prefs != null && !prefs.getString("runtimePermissionError", "").isEmpty())) {
@@ -2904,6 +2940,7 @@ public class GtoObserverService extends Service {
                 }
                 DisplayMetrics currentMetrics = realDisplayMetrics();
                 if (bubbleGestureActive
+                    || cardVisibility.isSuppressed()
                     || !gtoForeground
                     || currentMetrics.widthPixels <= currentMetrics.heightPixels) {
                     mainHandler.postDelayed(this, 250L);
@@ -3005,6 +3042,7 @@ public class GtoObserverService extends Service {
     }
 
     private synchronized void showBubbleIfAllowed() {
+        if (destroying) return;
         if (bubbleView != null) return;
         long bubbleNow = System.currentTimeMillis();
         lastBubbleAttemptAt = bubbleNow;
@@ -3022,7 +3060,7 @@ public class GtoObserverService extends Service {
             recordOverlayFailure(new IllegalStateException("WindowManager indisponível"));
             return;
         }
-        if (!Settings.canDrawOverlays(this)) {
+        if (!ProModeController.hasOverlay(this)) {
             recordOverlayFailure(new SecurityException("Permissão SYSTEM_ALERT_WINDOW não está ativa"));
             return;
         }
@@ -3089,6 +3127,7 @@ public class GtoObserverService extends Service {
         final int touchSlop = Math.max(dp(10), ViewConfiguration.get(this).getScaledTouchSlop());
 
         bubbleView.setOnTouchListener((view, event) -> {
+            if (cardVisibility.isSuppressed()) return true;
             final int action = event.getActionMasked();
             final long now = System.currentTimeMillis();
             switch (action) {
@@ -3226,7 +3265,7 @@ public class GtoObserverService extends Service {
                         // A long press already opened the cards; do not toggle them closed on
                         // ACTION_UP. A short tap keeps the 1.0.203 open/close behavior.
                         if (!longPress) toggleAutomationFromFloatingButton();
-                    } else if (bubbleView == null && gtoForeground && Settings.canDrawOverlays(this)) {
+                    } else if (bubbleView == null && gtoForeground && ProModeController.hasOverlay(this)) {
                         mainHandler.postDelayed(this::showBubbleIfAllowed, 220L);
                     }
                     return true;
@@ -3249,6 +3288,7 @@ public class GtoObserverService extends Service {
         FrameLayout bubbleAddedView = bubbleView;
         try {
             int previousFailures = prefs.getInt("overlayFailureCount", 0);
+            applyBubbleCardVisibility(cardVisibility.isSuppressed());
             windowManager.addView(bubbleAddedView, bubbleParams);
             bubbleAddedToWindowManager = true;
             updateNvuBubbleAppearance();
@@ -3571,7 +3611,7 @@ public class GtoObserverService extends Service {
         boolean shouldShow = GtoResultActionFlowPolicy.keepPassiveTransportObserver(
             prefs != null && prefs.getBoolean("enabled", false) && !destroying,
             hasAuthorizedCaptureSession(),
-            windowManager != null && Settings.canDrawOverlays(this)
+            windowManager != null && ProModeController.hasOverlay(this)
         );
         // Listener presence is continuity infrastructure, not action authority. The
         // ACTION_OUTSIDE callback still requires a current visual list/context before it
@@ -3744,7 +3784,7 @@ public class GtoObserverService extends Service {
             return;
         }
         if (!touchDiagnosticModeEnabled() || windowManager == null
-            || !Settings.canDrawOverlays(this) || destroying) {
+            || !ProModeController.hasOverlay(this) || destroying) {
             hidePhysicalTouchDiagnosticOverlay();
             return;
         }
@@ -3910,7 +3950,7 @@ public class GtoObserverService extends Service {
     }
 
     private void showFreightTouchPulseSensor() {
-        if (freightTouchPulseView != null || windowManager == null || !Settings.canDrawOverlays(this)) return;
+        if (freightTouchPulseView != null || windowManager == null || !ProModeController.hasOverlay(this)) return;
 
         View sensor = new View(this);
         sensor.setBackgroundColor(Color.TRANSPARENT);
@@ -4135,7 +4175,7 @@ public class GtoObserverService extends Service {
         if (prefs == null) return false;
         boolean required = prefs.getBoolean("resultAdsGuardRequired", false);
         if (!required) return true;
-        if (!gtoForeground || windowManager == null || !Settings.canDrawOverlays(this)) return false;
+        if (!gtoForeground || windowManager == null || !ProModeController.hasOverlay(this)) return false;
         if (resultAdsGuardView != null && resultAdsGuardView.isAttachedToWindow()) return true;
 
         Rect target = resolveResultAdsGuardTarget();
@@ -5353,15 +5393,11 @@ public class GtoObserverService extends Service {
     }
 
     private void openMenu() {
+        if (tripRegisteredCardView != null) return;
         if (windowManager == null || bubbleParams == null || menuView != null) return;
 
-        menuView = new LinearLayout(this);
-        menuView.setOrientation(LinearLayout.VERTICAL);
-        // HF132: restore the compact gameplay-safe card. Keep the WindowManager geometry
-        // contract unchanged, but use a genuinely translucent surface with tighter insets.
-        menuView.setPadding(dp(8), dp(8), dp(8), dp(8));
-        menuView.setBackground(makeRoundedBackground(Color.argb(214, 28, 31, 36), dp(14)));
-        menuView.setElevation(dp(6));
+        menuView = new NativeCompactMenuView(this);
+        final LinearLayout openedMenu = menuView;
 
         // HF19: the card has a stable width and a measured maximum height. Long review
         // content scrolls inside the card instead of being clipped outside the screen.
@@ -5423,54 +5459,31 @@ public class GtoObserverService extends Service {
             return;
         }
 
-        bubbleXBeforeMenuOpen = bubbleParams.x;
-        bubbleYBeforeMenuOpen = bubbleParams.y;
-        bubbleAutoDockedForMenu = false;
-        int side = GtoOverlayLayoutPolicy.chooseMenuSideForBubble(
-            bubbleParams.x, bubbleWidth, menuWidth, safeLeft, safeRight, gap
-        );
-        int initialBubbleX = GtoOverlayLayoutPolicy.bubbleXForMenuSide(
-            side, bubbleParams.x, bubbleWidth, menuWidth, safeLeft, safeRight, gap
-        );
-        if (GtoOverlayLayoutPolicy.horizontalPairFits(safeLeft, safeRight, bubbleWidth, menuWidth, gap)
-            && initialBubbleX != bubbleParams.x) {
-            bubbleParams.x = initialBubbleX;
-            bubbleAutoDockedForMenu = true;
-            try {
-                windowManager.updateViewLayout(bubbleView, bubbleParams);
-            } catch (Exception ex) {
-                recordOverlayFailure(ex);
-            }
-        }
-        menuParams.x = GtoOverlayLayoutPolicy.menuXBesideBubble(
-            side, bubbleParams.x, bubbleWidth, menuWidth, safeLeft, safeRight, gap
-        );
+        int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
+        safeLeft = Math.max(safeLeft, horizontal[0] + margin);
+        safeRight = Math.min(safeRight, screen.widthPixels - horizontal[1] - margin);
+        menuParams.width = Math.max(1, Math.min(menuWidth, safeRight - safeLeft));
+        menuParams.x = clamp(bubbleParams.x + bubbleWidth / 2 - menuParams.width / 2,
+            safeLeft, Math.max(safeLeft, safeRight - menuParams.width));
         int initialSafeTop = safeTopInsetPx() + margin;
         int initialSafeBottom = safeBottomInsetPx() + margin;
         menuParams.y = GtoOverlayLayoutPolicy.centeredMenuYBesideBubble(
-            bubbleParams.y,
-            bubbleHeight,
-            dp(220),
-            initialSafeTop,
-            screen.heightPixels - initialSafeBottom
-        );
+            bubbleParams.y, bubbleHeight, dp(220), initialSafeTop, screen.heightPixels - initialSafeBottom);
 
         // HF17: an outside touch minimizes only the card. FLAG_NOT_TOUCH_MODAL lets the
         // same touch continue to the GTO while FLAG_WATCH_OUTSIDE_TOUCH gives this window
         // a single ACTION_OUTSIDE notification. The bubble/service/capture stay alive.
-        menuView.setOnTouchListener((view, event) -> {
-            if (event != null && event.getActionMasked() == MotionEvent.ACTION_OUTSIDE) {
-                lastMenuOutsideTouchAt = System.currentTimeMillis();
-                mainHandler.post(() -> {
-                    closeMenu();
-                    showManualRoutePendingAlert();
-                });
-                return false;
-            }
-            return false;
+        NativeCompactMenuView.bindOutsideDismiss(openedMenu, () -> menuView == openedMenu, () -> {
+            lastMenuOutsideTouchAt = System.currentTimeMillis();
+            mainHandler.post(() -> {
+                if (menuView != openedMenu || destroying) return;
+                closeMenu();
+                showManualRoutePendingAlert();
+            });
         });
 
         try {
+            if (!cardVisibility.acquire(menuView)) { closeMenu(); return; }
             windowManager.addView(menuView, menuParams);
             if (isManualRouteSelectionPending()) clearManualRoutePendingAlert();
             prefs.edit()
@@ -6258,6 +6271,7 @@ public class GtoObserverService extends Service {
         String driverStageKey
     ) {
         runOnMainImmediatelyOrPost(() -> {
+            if (destroying || tripRegisteredCardView != null) return;
             long now = System.currentTimeMillis();
             // HF19: an important journey message must remain visible long enough to be
             // readable before another stage is allowed to replace it.
@@ -6284,8 +6298,7 @@ public class GtoObserverService extends Service {
             // postDelayed(this::hideStatusChip). That old callback could later remove a
             // brand-new stage message such as "Tudo preparado, podemos partir!".
             cancelScheduledStatusChipHide();
-            hideStatusChipViewOnly();
-            if (windowManager == null || !Settings.canDrawOverlays(this)) return;
+            if (windowManager == null || !ProModeController.hasOverlay(this)) return;
             if (!driverStage && bubbleParams == null) return;
 
             boolean compactSyncIndicator = driverStage && isCompactSyncStage(driverStageKey);
@@ -6334,15 +6347,27 @@ public class GtoObserverService extends Service {
                 visualView = chip;
             }
 
+            boolean dismissible = driverStage && durationMs <= 0L;
+            if (dismissible) {
+                final View[] surface = new View[1];
+                visualView = NativeTripReceiptCardView.dismissibleMessage(visualView, () -> {
+                    if (statusChipView == surface[0]) {
+                        acknowledgeDriverStageShown(statusChipDriverStageKey);
+                        hideStatusChip();
+                    }
+                });
+                surface[0] = visualView;
+            }
             WindowManager.LayoutParams params = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                    | (dismissible ? 0 : WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE)
                     | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
             );
+            NativeTripReceiptCardView.applyPassThroughOpacity(this, params);
             DisplayMetrics screen = realDisplayMetrics();
             int maxMessageWidth;
             if (driverStage) {
@@ -6365,6 +6390,8 @@ public class GtoObserverService extends Service {
             }
 
             try {
+                if (!cardVisibility.acquire(visualView)) return;
+                hideStatusChipViewOnly();
                 windowManager.addView(visualView, params);
                 statusChipView = visualView;
                 statusChipTextView = messageView;
@@ -6419,6 +6446,7 @@ public class GtoObserverService extends Service {
                 statusChipDriverStagePriority = GtoDriverMessagePriorityPolicy.INFO;
                 statusChipShownAt = 0L;
                 statusChipHideRunnable = null;
+                cardVisibility.release(visualView);
             }
         });
     }
@@ -6605,6 +6633,7 @@ public class GtoObserverService extends Service {
     }
 
     private void hideStatusChipViewOnly() {
+        View previous = statusChipView;
         if (statusChipView != null && windowManager != null) {
             try {
                 windowManager.removeView(statusChipView);
@@ -6618,6 +6647,7 @@ public class GtoObserverService extends Service {
         statusChipDriverStageKey = "";
         statusChipDriverStagePriority = GtoDriverMessagePriorityPolicy.INFO;
         statusChipShownAt = 0L;
+        cardVisibility.release(previous);
         if (menuView != null) {
             // Release the temporary message band and restore the card's normal geometry.
             mainHandler.post(this::adjustOpenMenuLayoutAfterMeasure);
@@ -8301,6 +8331,7 @@ public class GtoObserverService extends Service {
     }
 
     private boolean isOperationClosedForNewTrip() {
+        if (PendingOperationStartStore.capturePaused(this, prefs)) return true;
         String currentJobId = prefs.getString("jobId", "");
         String backendJobId = prefs.getString("gtoBackendJobId", "");
         if (!currentJobId.isEmpty()
@@ -8312,7 +8343,7 @@ public class GtoObserverService extends Service {
         if ("completed".equals(status) || "cancelled".equals(status)
             || "canceled".equals(status)) return true;
 
-        int progress = Math.max(prefs.getInt("jobProgress", 0), prefs.getInt("gtoJobProgress", 0));
+        int progress = Math.max(0, prefs.getInt("confirmedTripCount", 0));
         int total = prefs.getInt("jobTotalDeliveries", 0);
         // `awaiting_completion` is a server transition after progress reaches the
         // contract total. If a stale web/native status arrives while deliveries remain,
@@ -8356,10 +8387,7 @@ public class GtoObserverService extends Service {
         if (total <= 0) return isOperationClosedForNewTrip();
         int startingProgress = prefs.getInt("gtoTripStartingProgress", -1);
         if (startingProgress < 0) {
-            startingProgress = Math.max(
-                prefs.getInt("jobProgress", 0),
-                prefs.getInt("gtoJobProgress", 0)
-            );
+            startingProgress = Math.max(0, prefs.getInt("confirmedTripCount", 0));
         }
         return !GtoDeterministicFlowPolicy.hasNextFreightAfterCurrentTrip(startingProgress, total);
     }
@@ -8372,10 +8400,7 @@ public class GtoObserverService extends Service {
         if (total <= 0) return false;
         int startingProgress = prefs.getInt("gtoTripStartingProgress", -1);
         if (startingProgress < 0) {
-            startingProgress = Math.max(
-                prefs.getInt("jobProgress", 0),
-                prefs.getInt("gtoJobProgress", 0)
-            );
+            startingProgress = Math.max(0, prefs.getInt("confirmedTripCount", 0));
         }
         return GtoDeterministicFlowPolicy.mayPrepareNextFreightAfterSealedQueue(
             getTripState(), true, false, startingProgress, total
@@ -8389,10 +8414,7 @@ public class GtoObserverService extends Service {
             || !GtoAutoTripSync.hasPendingSession(this, completedSession)
             || !canPrepareNextFreightFromSealedQueue()) return false;
 
-        int currentProgress = Math.max(
-            prefs.getInt("jobProgress", 0),
-            prefs.getInt("gtoJobProgress", 0)
-        );
+        int currentProgress = Math.max(0, prefs.getInt("confirmedTripCount", 0));
         int currentStartingProgress = prefs.getInt("gtoTripStartingProgress", -1);
         int nextStartingProgress = currentStartingProgress >= 0
             ? Math.max(currentProgress, currentStartingProgress + 1)
@@ -8602,12 +8624,7 @@ public class GtoObserverService extends Service {
                 .putString("gtoAutoNextTripFromSession", completedSessionId)
                 .apply();
             recordObserverEvent("ACK_RECONCILED_NEXT_READY", "session=" + completedSessionId);
-            announceDriverStage(
-                "SYNCED_NEXT_READY_RECONCILED",
-                "Viagem registrada com sucesso! Próximo frete pronto.",
-                2800L,
-                true
-            );
+            showTripRegisteredCard("Registro confirmado · próximo frete pronto.");
             updateNotification();
             if (menuView != null) refreshMenuContents();
         }
@@ -9031,9 +9048,8 @@ public class GtoObserverService extends Service {
         String sessionId = prefs.getString("gtoTripSessionId", "").trim();
         boolean createNewSession = prefs.getBoolean("gtoNextTripPending", false) || sessionId.isEmpty();
         long startedAt = System.currentTimeMillis();
-        int startingProgress = prefs.getInt("gtoNextTripStartingProgress", Math.max(
-            prefs.getInt("jobProgress", 0), prefs.getInt("gtoJobProgress", 0)
-        ));
+        int startingProgress = prefs.getInt("gtoNextTripStartingProgress",
+            Math.max(0, prefs.getInt("confirmedTripCount", 0)));
         int totalDeliveries = prefs.getInt("gtoNextTripTotalDeliveries", prefs.getInt("jobTotalDeliveries", 0));
         String previousSession = prefs.getString("gtoNextTripPreviousSessionId", "").trim();
 
@@ -9164,10 +9180,7 @@ public class GtoObserverService extends Service {
         }
         if (!preserveCompletedTripBeforeReset()) return;
         String previousSessionId = prefs.getString("gtoTripSessionId", "");
-        int startingProgress = Math.max(
-            prefs.getInt("jobProgress", 0),
-            prefs.getInt("gtoJobProgress", 0)
-        );
+        int startingProgress = Math.max(0, prefs.getInt("confirmedTripCount", 0));
         int totalDeliveries = prefs.getInt("jobTotalDeliveries", 0);
         if (!clearTripAnalysis()) {
             showStatusChip("Entrega certificada ainda está sendo preservada. O próximo frete será liberado assim que ela estiver selada.", 4200L);
@@ -9931,79 +9944,14 @@ public class GtoObserverService extends Service {
         }
         safeRight = Math.min(screen.widthPixels - margin, safeRight);
 
-        int side = GtoOverlayLayoutPolicy.chooseMenuSideForBubble(
-            bubbleParams.x, bubbleWidth, menuWidth, safeLeft, safeRight, gap
-        );
-        boolean pairFits = GtoOverlayLayoutPolicy.horizontalPairFits(
-            safeLeft, safeRight, bubbleWidth, menuWidth, gap
-        );
-
-        int targetBubbleX = bubbleParams.x;
-        if (pairFits) {
-            targetBubbleX = GtoOverlayLayoutPolicy.bubbleXForMenuSide(
-                side, bubbleParams.x, bubbleWidth, menuWidth, safeLeft, safeRight, gap
-            );
-        } else {
-            targetBubbleX = clamp(
-                bubbleParams.x,
-                safeLeft,
-                Math.max(safeLeft, safeRight - bubbleWidth)
-            );
-        }
-        int targetMenuX = GtoOverlayLayoutPolicy.menuXBesideBubble(
-            side, targetBubbleX, bubbleWidth, menuWidth, safeLeft, safeRight, gap
-        );
-
-        int anchorBubbleY = bubbleYBeforeMenuOpen != Integer.MIN_VALUE
-            ? bubbleYBeforeMenuOpen
-            : bubbleParams.y;
+        int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
+        safeLeft = Math.max(safeLeft, horizontal[0] + margin);
+        safeRight = Math.min(safeRight, screen.widthPixels - horizontal[1] - margin);
+        menuWidth = Math.max(1, Math.min(menuWidth, safeRight - safeLeft));
+        int targetMenuX = clamp(bubbleParams.x + bubbleWidth / 2 - menuWidth / 2,
+            safeLeft, Math.max(safeLeft, safeRight - menuWidth));
         int targetMenuY = GtoOverlayLayoutPolicy.centeredMenuYBesideBubble(
-            anchorBubbleY, bubbleHeight, effectiveHeight, messageReservedTop, safeBottom
-        );
-        int targetBubbleY = clamp(
-            bubbleParams.y,
-            safeTop,
-            Math.max(safeTop, safeBottom - bubbleHeight)
-        );
-
-        // Very narrow freight-safe corridors may not fit a 256dp card + bubble side by
-        // side. In that exceptional case keep the card full-width and dock the bubble just
-        // above/below it, choosing the closest valid position instead of overlapping it.
-        if (!pairFits && GtoOverlayLayoutPolicy.overlaps(
-            targetBubbleX, targetBubbleY, bubbleWidth, bubbleHeight,
-            targetMenuX, targetMenuY, menuWidth, effectiveHeight
-        )) {
-            int aboveY = targetMenuY - gap - bubbleHeight;
-            int belowY = targetMenuY + effectiveHeight + gap;
-            boolean aboveFits = aboveY >= safeTop;
-            boolean belowFits = belowY + bubbleHeight <= safeBottom;
-            if (aboveFits && belowFits) {
-                targetBubbleY = Math.abs(aboveY - bubbleParams.y) <= Math.abs(belowY - bubbleParams.y)
-                    ? aboveY : belowY;
-            } else if (belowFits) {
-                targetBubbleY = belowY;
-            } else if (aboveFits) {
-                targetBubbleY = aboveY;
-            } else {
-                targetBubbleY = Math.abs(safeTop - bubbleParams.y)
-                    <= Math.abs((safeBottom - bubbleHeight) - bubbleParams.y)
-                    ? safeTop : Math.max(safeTop, safeBottom - bubbleHeight);
-            }
-        }
-
-        boolean bubbleChanged = bubbleParams.x != targetBubbleX || bubbleParams.y != targetBubbleY;
-        if (bubbleChanged) {
-            bubbleAutoDockedForMenu = true;
-            bubbleParams.x = targetBubbleX;
-            bubbleParams.y = targetBubbleY;
-            try {
-                // Automatic docking is intentionally NOT persisted. Only an explicit user
-                // drag updates bubbleX/bubbleY preferences.
-                windowManager.updateViewLayout(bubbleView, bubbleParams);
-            } catch (Exception ex) {
-                recordOverlayFailure(ex);
-            }
-        }
+            bubbleParams.y, bubbleHeight, effectiveHeight, messageReservedTop, safeBottom);
 
         boolean menuChanged = interactionChanged
             || menuParams.height != desiredHeight
@@ -10026,8 +9974,7 @@ public class GtoObserverService extends Service {
             .putInt("menuMeasuredHeight", effectiveHeight)
             .putInt("menuSafeY", targetMenuY)
             .putBoolean("menuMessageBandReserved", messageBandReserved)
-            .putString("menuDockSide", side == GtoOverlayLayoutPolicy.SIDE_RIGHT ? "RIGHT" : "LEFT")
-            .putBoolean("menuHorizontalPairFits", pairFits)
+            .putString("menuDockSide", "INDEPENDENT_HIDDEN_BUBBLE")
             .putLong("menuLayoutAdjustedAt", System.currentTimeMillis())
             .apply();
     }
@@ -10049,10 +9996,9 @@ public class GtoObserverService extends Service {
     }
 
     private void closeMenu(boolean restoreAutoDockedBubble) {
-        if (menuView != null && windowManager != null) {
-            try {
-                windowManager.removeView(menuView);
-            } catch (Exception ignored) {}
+        View previous = menuView;
+        if (previous != null && windowManager != null) {
+            try { windowManager.removeView(previous); } catch (RuntimeException ignored) {}
         }
         menuView = null;
         menuScrollView = null;
@@ -10061,44 +10007,19 @@ public class GtoObserverService extends Service {
         menuParams = null;
         lastMenuRenderSignature = "";
         operationSummaryExpanded = false;
+        cardVisibility.release(previous);
+    }
 
-        if (restoreAutoDockedBubble
-            && bubbleAutoDockedForMenu
-            && bubbleView != null
-            && bubbleParams != null
-            && bubbleView.isAttachedToWindow()
-            && bubbleXBeforeMenuOpen != Integer.MIN_VALUE
-            && bubbleYBeforeMenuOpen != Integer.MIN_VALUE) {
-            DisplayMetrics screen = realDisplayMetrics();
-            int bubbleWidth = bubbleView.getWidth() > 0 ? bubbleView.getWidth() : dp(69);
-            int bubbleHeight = bubbleView.getHeight() > 0 ? bubbleView.getHeight() : dp(56);
-            int safeLeft = dp(8);
-            int safeRight = Math.max(
-                safeLeft + bubbleWidth,
-                Math.min(screen.widthPixels, freightOverlaySafeRight(screen)) - dp(8)
-            );
-            int safeTop = safeTopInsetPx() + dp(8);
-            int safeBottom = Math.max(safeTop + bubbleHeight, screen.heightPixels - safeBottomInsetPx() - dp(8));
-            bubbleParams.x = clamp(
-                bubbleXBeforeMenuOpen,
-                safeLeft,
-                Math.max(safeLeft, safeRight - bubbleWidth)
-            );
-            bubbleParams.y = clamp(
-                bubbleYBeforeMenuOpen,
-                safeTop,
-                Math.max(safeTop, safeBottom - bubbleHeight)
-            );
-            try {
-                windowManager.updateViewLayout(bubbleView, bubbleParams);
-            } catch (Exception ex) {
-                recordOverlayFailure(ex);
-            }
+    private void applyBubbleCardVisibility(boolean suppressed) {
+        if (suppressed) {
+            cancelBubbleGesture("CARD_VISIBILITY", false);
+            hideBubbleRemoveTarget();
         }
-
-        bubbleAutoDockedForMenu = false;
-        bubbleXBeforeMenuOpen = Integer.MIN_VALUE;
-        bubbleYBeforeMenuOpen = Integer.MIN_VALUE;
+        bubbleCardVisibility.apply(bubbleView, bubbleParams, windowManager,
+            !suppressed && !destroying && ProModeController.hasOverlay(this));
+        if (prefs != null && prefs.getBoolean("bubbleTemporarilyHiddenByCard", false) != suppressed) {
+            prefs.edit().putBoolean("bubbleTemporarilyHiddenByCard", suppressed).apply();
+        }
     }
 
     private synchronized void clearBubbleReferenceAndRemove(String reason) {
@@ -10185,6 +10106,7 @@ public class GtoObserverService extends Service {
 
     private synchronized void removeAllOverlays() {
         cancelBubbleGesture("HIDE_OVERLAYS", false);
+        hideTripRegisteredCard();
         closeMenu();
         hideStatusChip();
         hideFreightTouchPulseSensor();
@@ -20107,13 +20029,14 @@ public class GtoObserverService extends Service {
 
     private boolean ocrLineBelongsToOwnOverlay(Rect lineRect) {
         if (lineRect == null || lineRect.width() <= 0 || lineRect.height() <= 0) return false;
-        return ocrLineOverlapsView(lineRect, menuView)
+        return ocrLineOverlapsView(lineRect, tripRegisteredCardView)
+            || ocrLineOverlapsView(lineRect, menuView)
             || ocrLineOverlapsView(lineRect, statusChipView)
             || ocrLineOverlapsView(lineRect, bubbleView);
     }
 
     private boolean ocrLineOverlapsView(Rect lineRect, View view) {
-        if (view == null || !view.isAttachedToWindow() || view.getWidth() <= 0 || view.getHeight() <= 0) return false;
+        if (view == null || view.getVisibility() != View.VISIBLE || !view.isAttachedToWindow() || view.getWidth() <= 0 || view.getHeight() <= 0) return false;
         int[] location = new int[2];
         try {
             view.getLocationOnScreen(location);
@@ -22898,7 +22821,7 @@ public class GtoObserverService extends Service {
                 moved = true;
             }
         }
-        if (bubbleView != null && bubbleParams != null && bubbleView.isAttachedToWindow()) {
+        if (bubbleView != null && bubbleParams != null && bubbleView.getVisibility() == View.VISIBLE && bubbleView.isAttachedToWindow()) {
             int protectedBubbleWidth = bubbleView.getWidth() > 0 ? bubbleView.getWidth() : dp(69);
             int maxBubbleX = Math.max(dp(8), safeRight - protectedBubbleWidth - dp(8));
             if (bubbleParams.x > maxBubbleX) {
@@ -23018,7 +22941,7 @@ public class GtoObserverService extends Service {
             }
         }
 
-        if (bubbleView != null && bubbleParams != null && bubbleView.isAttachedToWindow()) {
+        if (bubbleView != null && bubbleParams != null && bubbleView.getVisibility() == View.VISIBLE && bubbleView.isAttachedToWindow()) {
             int size = Math.max(dp(56), bubbleView.getWidth());
             Rect bubble = new Rect(bubbleParams.x, bubbleParams.y, bubbleParams.x + size, bubbleParams.y + size);
             if (Rect.intersects(bubble, protectedRegion)) {
@@ -23181,6 +23104,7 @@ public class GtoObserverService extends Service {
     @Override
     public void onDestroy() {
         destroying = true;
+        cardVisibility.close();
         running = false;
         projectionVerifiedGtoBridgeActive = false;
         nvuMainActivityForeground = false;
@@ -23223,6 +23147,7 @@ public class GtoObserverService extends Service {
             .putBoolean("nvuMainActivityForeground", false)
             .putLong("serviceHeartbeatAt", 0L)
             .apply();
+        serviceBoundaries.onServiceDestroyed();
         instance = null;
         super.onDestroy();
     }
@@ -23559,12 +23484,13 @@ public class GtoObserverService extends Service {
         }
         persistArrivalCityFromSelectedFreight();
         long now = System.currentTimeMillis();
+
         boolean completionPersisted = prefs.edit()
             .putString("finalGain", detectedResultValue)
             .putString("completionStatus", "CONFIRMED_NORMAL")
             .putLong("completionDetectedAt", now)
             .putString("gtoTripSyncStatus", GtoAutoTripSync.STATUS_PENDING)
-            .putString("gtoTripIntegrityStatus", "COMPLETION_PERSISTED")
+            .putString("gtoTripIntegrityStatus", "COMPLETION_PERSISTED_PENDING_ACK")
             .putString("resultTerminalCommitStatus", "COMPLETION_PERSISTED")
             .remove("gtoTripIntegrityError")
             .commit();
@@ -23579,6 +23505,13 @@ public class GtoObserverService extends Service {
             return;
         }
         clearCertifiedResultTerminalFailsafe(prefs.getString("gtoTripSessionId", ""));
+
+        // Local certification is not server confirmation. Do not mutate jobProgress or
+        // refresh the operation snapshot here: until the backend ACK, historico_viagens
+        // may not contain the trip and the card must not advertise a false 09 -> 10.
+        // The existing job progress remains the session boundary for next-trip control;
+        // the ACK callback is the only authority allowed to advance the displayed count.
+
         setTripState(STATE_RESULT_CONFIRMED, "Entrega finalizada automaticamente pela tela Concluído: " + detectedResultValue);
         String completedSessionId = prefs.getString("gtoTripSessionId", "");
         boolean queued = GtoTripSubmissionCoordinator.submitCompletedTrip(this, prefs, automaticTripSyncListener());
@@ -23612,6 +23545,87 @@ public class GtoObserverService extends Service {
         if (menuView != null) refreshMenuContents();
     }
 
+    /**
+     * HF371: a confirmed server registration gets its own compact receipt card.
+     * It intentionally replaces the generic "Viagem registrada" message and
+     * temporarily closes the expanded floating-button menu so the two surfaces
+     * can never overlap.
+     */
+    private void showTripRegisteredCard(String nextStateMessage) {
+        NativeTripReceipt receipt = NativeTripReceiptPreferences.read(prefs,
+            prefs == null ? "" : prefs.getString("gtoTripSessionId", ""));
+        if (receipt != null) showTripRegisteredCard(receipt);
+        else showStatusChip("Viagem registrada.", 3600L);
+    }
+
+    private void showTripRegisteredCard(NativeTripReceipt receipt) {
+        runOnMainImmediatelyOrPost(() -> {
+            if (destroying || windowManager == null || prefs == null || !ProModeController.hasOverlay(this)) return;
+            if (receipt == null || !receipt.belongsTo(prefs.getString("driverId", ""))) return;
+            if (!receipt.jobId.equals(prefs.getString("jobId", ""))
+                || !receipt.companyId.equals(prefs.getString("companyId", ""))) return;
+            if (tripRegisteredCardView instanceof NativeTripReceiptCardView
+                && receipt.sameConfirmation(((NativeTripReceiptCardView) tripRegisteredCardView).receipt)) return;
+            NativeTripReceiptCardView card = new NativeTripReceiptCardView(this, receipt);
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                overlayType(), WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+            int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
+            NativeTripReceiptCardView.position(this, card, params, realDisplayMetrics(),
+                horizontal[0] + dp(8), safeTopInsetPx() + dp(8), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
+            if (!cardVisibility.acquire(card)) return;
+            hideTripRegisteredCard();
+            String pendingStage = prefs.getString("driverStagePendingKey", "");
+            if (!receipt.sessionId.isEmpty() && pendingStage.startsWith(receipt.sessionId + "|")) {
+                prefs.edit().remove("driverStagePendingKey").remove("driverStagePendingDurationMs")
+                    .remove("driverStagePendingAt").apply();
+            }
+            hideStatusChip();
+            closeMenu();
+            try {
+                windowManager.addView(card, params);
+                tripRegisteredCardView = card;
+                tripRegisteredCardParams = params;
+                card.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> positionTripRegisteredCard());
+                card.post(this::positionTripRegisteredCard);
+                tripRegisteredCardHideRunnable = () -> {
+                    if (tripRegisteredCardView == card) hideTripRegisteredCard();
+                };
+                mainHandler.postDelayed(tripRegisteredCardHideRunnable, 3600L);
+            } catch (RuntimeException error) {
+                cardVisibility.release(card);
+                recordOverlayFailure(error);
+            }
+        });
+    }
+
+    private void positionTripRegisteredCard() {
+        if (tripRegisteredCardView == null || tripRegisteredCardParams == null || windowManager == null
+            || !tripRegisteredCardView.isAttachedToWindow()) return;
+        int width = tripRegisteredCardParams.width, x = tripRegisteredCardParams.x, y = tripRegisteredCardParams.y;
+        int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
+        NativeTripReceiptCardView.position(this, tripRegisteredCardView, tripRegisteredCardParams, realDisplayMetrics(),
+            horizontal[0] + dp(8), safeTopInsetPx() + dp(8), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
+        if (width != tripRegisteredCardParams.width || x != tripRegisteredCardParams.x || y != tripRegisteredCardParams.y) {
+            try { windowManager.updateViewLayout(tripRegisteredCardView, tripRegisteredCardParams); }
+            catch (RuntimeException error) { recordOverlayFailure(error); }
+        }
+    }
+
+    private void hideTripRegisteredCard() {
+        if (tripRegisteredCardHideRunnable != null) mainHandler.removeCallbacks(tripRegisteredCardHideRunnable);
+        tripRegisteredCardHideRunnable = null;
+        View previous = tripRegisteredCardView;
+        if (previous != null && windowManager != null) {
+            try { windowManager.removeView(previous); } catch (RuntimeException ignored) {}
+        }
+        tripRegisteredCardView = null;
+        tripRegisteredCardParams = null;
+        cardVisibility.release(previous);
+    }
+
     private void announceCurrentTripSubmissionState() {
         if (prefs == null) return;
         String state = prefs.getString("tripSubmissionState", GtoTripSubmissionCoordinator.STATE_READY);
@@ -23629,7 +23643,7 @@ public class GtoObserverService extends Service {
         } else if (GtoTripSubmissionCoordinator.STATE_PENDING_RETRY.equals(state)) {
             announceDriverStage("TRIP_PENDING_RETRY", "Envio pendente; nova tentativa automática.", 3600L, false);
         } else if (GtoTripSubmissionCoordinator.STATE_SYNCED.equals(state)) {
-            announceDriverStage("TRIP_SYNCED", "Viagem registrada com sucesso!", 2600L, true);
+            showTripRegisteredCard("");
         }
     }
 
@@ -23637,7 +23651,13 @@ public class GtoObserverService extends Service {
         return new GtoAutoTripSync.Listener() {
             @Override
             public void onSynced(String sessionId, String tripId) {
+                onSynced(sessionId, tripId, NativeTripReceiptPreferences.read(prefs, sessionId));
+            }
+
+            @Override
+            public void onSynced(String sessionId, String tripId, NativeTripReceipt receipt) {
                 runOnMainImmediatelyOrPost(() -> {
+                    if (destroying || (receipt != null && !receipt.belongsTo(prefs.getString("driverId", "")))) return;
                     recordObserverEvent("SYNCED", "session=" + sessionId + " tripId=" + (tripId == null ? "" : tripId));
                     finalizeResultProofAfterServerAck(sessionId);
                     String currentSession = prefs.getString("gtoTripSessionId", "");
@@ -23651,24 +23671,14 @@ public class GtoObserverService extends Service {
                             .putLong("lastIndependentDeliveryAckAt", System.currentTimeMillis())
                             .apply();
                         GtoAutoTripSync.reconcileBackgroundSyncMarkers(GtoObserverService.this, prefs);
-                        announceDriverStage(
-                            "SYNCED_INDEPENDENT",
-                            "Viagem registrada com sucesso!",
-                            2600L,
-                            true
-                        );
+                        showTripRegisteredCard(receipt);
                         updateNotification();
                         if (menuView != null) refreshMenuContents();
                         return;
                     }
                     boolean operationClosed = isOperationClosedForNewTrip();
                     if (operationClosed) {
-                        announceDriverStage(
-                            "SYNCED",
-                            "Viagem registrada com sucesso!",
-                            2800L,
-                            true
-                        );
+                        showTripRegisteredCard(receipt);
                     } else if (GtoDeterministicFlowPolicy.shouldAutoPrepareNextFreightAfterSync(
                             getTripState(),
                             GtoAutoTripSync.STATUS_SYNCED.equals(prefs.getString("gtoTripSyncStatus", "")),
@@ -23686,27 +23696,12 @@ public class GtoObserverService extends Service {
                                 .putLong("gtoAutoNextTripPreparedAt", System.currentTimeMillis())
                                 .putString("gtoAutoNextTripFromSession", completedSession)
                                 .apply();
-                            announceDriverStage(
-                                "SYNCED_NEXT_READY",
-                                "Viagem registrada com sucesso!",
-                                2800L,
-                                true
-                            );
+                            showTripRegisteredCard(receipt);
                         } else {
-                            announceDriverStage(
-                                "SYNCED",
-                                "Viagem registrada com sucesso!",
-                                2600L,
-                                true
-                            );
+                            showTripRegisteredCard(receipt);
                         }
                     } else {
-                        announceDriverStage(
-                            "SYNCED",
-                            "Viagem registrada com sucesso!",
-                            2600L,
-                            true
-                        );
+                        showTripRegisteredCard(receipt);
                     }
                     updateNotification();
                     if (menuView != null) refreshMenuContents();

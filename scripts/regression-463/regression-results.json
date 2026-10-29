@@ -1,0 +1,159 @@
+{
+  "status": "SYNTHETIC_OFFLINE_TESTS_ONLY",
+  "base": "1.0.463",
+  "sourceArchive": "NVU-PRO-1.0.463-ranking-ajustes-source.zip",
+  "sourceSha256": "",
+  "verifiedCases": 24,
+  "productionCalls": 0,
+  "firestoreRealCalls": 0,
+  "storageRealCalls": 0,
+  "reactLifecycleExecuted": false,
+  "photoStorageRoute": "real localStorage fallback; IndexedDB not exercised",
+  "backendRoute": "archived compiled preflight; Firebase wrappers and database are doubles",
+  "results": [
+    {
+      "id": "F01",
+      "name": "opaque simulator ID is held until the catalog resolves",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "P01",
+      "name": "photo keys isolate accounts, simulators and vehicles",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "P02",
+      "name": "failed photo upload preserves locally saved bytes",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "P03",
+      "name": "metadata retry reuses an uploaded photo without a second upload",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "P04",
+      "name": "changing accounts prevents the previous owner photo from uploading",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "F02",
+      "name": "legacy users photo remains visible to owner but absent for another viewer",
+      "kind": "condition",
+      "outcome": "verified"
+    },
+    {
+      "id": "P05",
+      "name": "flat published projection is readable by another viewer",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "F10",
+      "name": "synced local photo is discoverable for publication reconciliation",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "F03",
+      "name": "ranking chooses operation within simulator scope",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "F04",
+      "name": "open photo hook listens for projection updates",
+      "kind": "static",
+      "outcome": "verified"
+    },
+    {
+      "id": "F05",
+      "name": "two packaged Firestore rule files differ on ranking photo projection support",
+      "kind": "static",
+      "outcome": "verified"
+    },
+    {
+      "id": "F06",
+      "name": "Web Simple completion includes immutable captured receiptText",
+      "kind": "static",
+      "outcome": "verified"
+    },
+    {
+      "id": "F08",
+      "name": "Web Pro evidence preserves explicit EUR currency",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "F09",
+      "name": "Web sync adapter has alternative duplicate receipt ACK guard",
+      "kind": "static",
+      "outcome": "verified"
+    },
+    {
+      "id": "X01",
+      "name": "Web registration keeps the exact receipt bytes, amount and attempt ID",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "X02",
+      "name": "ambiguous Web receipt remains UNKNOWN, not simulator default BRL",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "X03",
+      "name": "simulator isolation does not use an unrelated newest operation",
+      "kind": "regression",
+      "outcome": "verified"
+    },
+    {
+      "id": "V01",
+      "name": "backend reproduces exact screenshot evidence rejection",
+      "kind": "validation",
+      "outcome": "verified"
+    },
+    {
+      "id": "V02",
+      "name": "backend reproduces exact screenshot evidence rejection",
+      "kind": "validation",
+      "outcome": "verified"
+    },
+    {
+      "id": "V03",
+      "name": "backend reproduces exact screenshot evidence rejection",
+      "kind": "validation",
+      "outcome": "verified"
+    },
+    {
+      "id": "V04",
+      "name": "valid Simple flags pass the evidence gate",
+      "kind": "validation",
+      "outcome": "verified"
+    },
+    {
+      "id": "V05",
+      "name": "server rejects a different authenticated driver",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "V06",
+      "name": "server rejects a receipt amount different from the submitted cents",
+      "kind": "protection",
+      "outcome": "verified"
+    },
+    {
+      "id": "F07",
+      "name": "Simple request without receiptText reaches the database boundary",
+      "kind": "regression",
+      "outcome": "verified"
+    }
+  ]
+}

@@ -1,15 +1,16 @@
+import { CachedImage } from "./common/CachedImage";
 import React from "react";
-import { createPortal } from "react-dom";
+import { ModalPortal } from "./ui/ModalPortal";
 import { Camera, Check, ImagePlus, LoaderCircle, Pencil, X } from "lucide-react";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import { useSessionStore } from "../context/AppContext";
 import { useCompanyStore } from "../context/CompanyContext";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import { resolveProfilePhoto } from "../lib/resolveProfilePhoto";
-import { convertFileToBase64, compressImage } from "../lib/utils";
 import { normalizeFileAccessError, snapshotSelectedFile } from "../lib/fileAccess";
 import { uploadService } from "../services/uploadService";
+import { BannerPhotoCrop } from "./BannerPhotoCrop";
 
 export type CompactProfileEditorMode = "driver" | "company";
 
@@ -35,6 +36,7 @@ export function CompactProfileEditorModal({
   const [photoValue, setPhotoValue] = React.useState<string | null>(null);
   const [logoFile, setLogoFile] = React.useState<File | null>(null);
   const [logoPreview, setLogoPreview] = React.useState<string | null>(null);
+  const [pendingCrop, setPendingCrop] = React.useState<File | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [processingImage, setProcessingImage] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -44,6 +46,7 @@ export function CompactProfileEditorModal({
     if (!open) return;
     setError("");
     setLogoFile(null);
+    setPendingCrop(null);
     setLogoPreview(null);
     if (mode === "driver") {
       setName(currentUser?.name || "");
@@ -54,7 +57,8 @@ export function CompactProfileEditorModal({
       setWhatsapp(activeCompany?.whatsapp || "");
       setPhotoValue(activeCompany?.logoUrl || (activeCompany as any)?.logoURL || null);
     }
-  }, [activeCompany, currentUser, mode, open]);
+  // Live presence/profile snapshots must not discard an in-progress form.
+  }, [activeCompany?.id, currentUser?.id, mode, open]);
 
   React.useEffect(() => {
     return () => {
@@ -62,14 +66,6 @@ export function CompactProfileEditorModal({
     };
   }, [logoPreview]);
 
-  React.useEffect(() => {
-    if (!open) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loading) onClose();
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [loading, onClose, open]);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -99,13 +95,7 @@ export function CompactProfileEditorModal({
         maxBytes: 10 * 1024 * 1024,
         fallbackName: `${isCompany ? "logo" : "perfil"}-${Date.now()}.jpg`,
       });
-      if (isCompany) {
-        setLogoFile(file);
-        setLogoPreview(URL.createObjectURL(file));
-      } else {
-        const base64 = await convertFileToBase64(file);
-        setPhotoValue(await compressImage(base64, 500, 500, 0.7));
-      }
+      setPendingCrop(file);
     } catch (cause) {
       const normalized = normalizeFileAccessError(cause);
       setError(normalized.message);
@@ -133,9 +123,9 @@ export function CompactProfileEditorModal({
             companyId: activeCompany.id,
             userId: currentUser.id,
             folder: "company-logos",
-            compressionMaxSizeMB: 0.4,
-            maxWidthOrHeight: 800,
-            maxOutputBytes: 480_000,
+            compressionMaxSizeMB: 1.7,
+            maxWidthOrHeight: 1600,
+            maxOutputBytes: 1_800_000,
           });
         }
         await updateCompany(activeCompany.id, {
@@ -145,18 +135,37 @@ export function CompactProfileEditorModal({
         });
         toast.success("Perfil da empresa atualizado.");
       } else {
-        if (!currentUser?.id) throw new Error("Sua sessão expirou. Entre novamente.");
-        await updateDoc(doc(db, "users", currentUser.id), {
+        const uid = auth.currentUser?.uid;
+        if (!uid) throw new Error("Sua sessão expirou. Entre novamente.");
+        let persistedPhoto = photoValue;
+        if (logoFile) {
+          persistedPhoto = await uploadService.uploadImage({
+            file: logoFile, companyId: uid, userId: uid, storageScope: "profile-photo",
+            folder: "avatars", compressionMaxSizeMB: 1.7,
+            maxWidthOrHeight: 1600, maxOutputBytes: 1_800_000,
+          });
+        }
+        const profileUpdatedAt = new Date().toISOString();
+        await setDoc(doc(db, "users", uid), {
           name: trimmedName,
           whatsapp,
-          profilePhotoURL: photoValue,
+          profilePhotoURL: persistedPhoto,
           authPhotoURL: currentUser.authPhotoURL || null,
-        });
+          profileNameSource: "user_edit",
+          profileNameUpdatedAt: profileUpdatedAt,
+          profilePhotoSource: "user_edit",
+          profilePhotoUpdatedAt: profileUpdatedAt,
+          updatedAt: profileUpdatedAt,
+        }, { merge: true });
         setCurrentUser({
           ...currentUser,
           name: trimmedName,
+          profileNameSource: "user_edit",
+          profileNameUpdatedAt: profileUpdatedAt,
+          profilePhotoSource: "user_edit",
+          profilePhotoUpdatedAt: profileUpdatedAt,
           whatsapp,
-          profilePhotoURL: photoValue || undefined,
+          profilePhotoURL: persistedPhoto || undefined,
           authPhotoURL: currentUser.authPhotoURL || undefined,
         });
         toast.success("Perfil atualizado.");
@@ -170,7 +179,8 @@ export function CompactProfileEditorModal({
     }
   };
 
-  return createPortal(
+  return (
+    <ModalPortal label={title} onClose={onClose} busy={loading}>
     <div
       className="nvu-profile-edit-modal-overlay fixed inset-0 z-[270] flex items-start justify-center bg-slate-950/35 px-3 pb-4 pt-[calc(300px+env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-[2px] sm:px-5"
       role="presentation"
@@ -179,10 +189,7 @@ export function CompactProfileEditorModal({
       }}
     >
       <section
-        className="nvu-profile-edit-modal w-full max-w-[360px] overflow-hidden rounded-[22px] border border-white/70 bg-white/95 shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-[#17191f]/95"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="compact-profile-editor-title"
+        className="nvu-profile-edit-modal nvu-viewport-modal-card w-full max-w-[360px] overflow-hidden rounded-[22px] border border-white/70 bg-white/95 shadow-[0_24px_80px_rgba(15,23,42,0.28)] dark:border-white/10 dark:bg-nvu-surface/95"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="flex items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-3 dark:border-white/10">
@@ -192,7 +199,7 @@ export function CompactProfileEditorModal({
             </span>
             <div className="min-w-0">
               <h2 id="compact-profile-editor-title" className="truncate text-[15px] font-extrabold text-slate-900 dark:text-white">{title}</h2>
-              <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">{subtitle}</p>
+              <p className="truncate text-[11px] text-slate-500 dark:text-nvu-muted">{subtitle}</p>
             </div>
           </div>
           <button type="button" onClick={onClose} disabled={loading} aria-label="Fechar edição" className="rounded-full p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-white/10 dark:hover:text-white">
@@ -200,16 +207,22 @@ export function CompactProfileEditorModal({
           </button>
         </header>
 
-        <div className="space-y-3 p-4">
+        <div className="nvu-modal-body space-y-3 p-4">
           {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-[11px] font-semibold text-rose-700 dark:bg-rose-500/10 dark:text-rose-300" role="alert">{error}</p>}
+          {pendingCrop && <BannerPhotoCrop file={pendingCrop} onCancel={() => setPendingCrop(null)}
+            onConfirm={(cropped) => {
+              setLogoFile(cropped);
+              setLogoPreview(URL.createObjectURL(cropped));
+              setPendingCrop(null);
+            }} />}
           <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-white/[0.05]">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-black/10">
-              {image ? <img src={image} alt="Pré-visualização" className="h-full w-full object-cover" /> : isCompany ? <ImagePlus size={21} className="text-slate-400" /> : <Camera size={21} className="text-slate-400" />}
+              {image ? <CachedImage src={image} alt="Pré-visualização" className="h-full w-full object-cover" /> : isCompany ? <ImagePlus size={21} className="text-slate-400" /> : <Camera size={21} className="text-slate-400" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[12px] font-bold text-slate-800 dark:text-slate-100">{isCompany ? "Logo da empresa" : "Foto do perfil"}</p>
-              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">JPG, PNG ou WEBP · até 10 MB</p>
-              <button type="button" onClick={() => inputRef.current?.click()} disabled={loading || processingImage} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10">
+              <p className="text-[12px] font-bold text-slate-800 dark:text-nvu-text">{isCompany ? "Logo da empresa" : "Foto do perfil"}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-nvu-muted">JPG, PNG ou WEBP · até 10 MB</p>
+              <button type="button" onClick={() => inputRef.current?.click()} disabled={loading || processingImage} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50 dark:border-white/15 dark:bg-white/5 dark:text-nvu-text dark:hover:bg-white/10">
                 {processingImage ? <LoaderCircle size={13} className="animate-spin" /> : <ImagePlus size={13} />}
                 Alterar imagem
               </button>
@@ -218,25 +231,25 @@ export function CompactProfileEditorModal({
           </div>
 
           <label className="block">
-            <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">{isCompany ? "Nome da empresa" : "Nome"}</span>
+            <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-nvu-muted">{isCompany ? "Nome da empresa" : "Nome"}</span>
             <input value={name} onChange={(event) => setName(event.target.value)} className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-300/40 dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/35" />
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">WhatsApp</span>
+            <span className="mb-1 block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 dark:text-nvu-muted">WhatsApp</span>
             <input type="tel" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} placeholder="(00) 00000-0000" className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-[13px] font-semibold text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-300/40 dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/35" />
           </label>
         </div>
 
         <footer className="flex justify-end gap-2 border-t border-slate-200/80 bg-slate-50/75 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
-          <button type="button" onClick={onClose} disabled={loading} className="rounded-xl px-3 py-2 text-[12px] font-bold text-slate-500 transition hover:bg-slate-200/70 disabled:opacity-50 dark:text-slate-300 dark:hover:bg-white/10">Cancelar</button>
-          <button type="button" onClick={() => void handleSave()} disabled={loading || processingImage} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-[12px] font-extrabold text-white transition hover:bg-slate-700 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
+          <button type="button" onClick={onClose} disabled={loading} className="rounded-xl px-3 py-2 text-[12px] font-bold text-slate-500 transition hover:bg-slate-200/70 disabled:opacity-50 dark:text-nvu-text-soft dark:hover:bg-white/10">Cancelar</button>
+          <button type="button" onClick={() => void handleSave()} disabled={loading || processingImage || Boolean(pendingCrop)} className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-2 text-[12px] font-extrabold text-white transition hover:bg-slate-700 disabled:cursor-wait disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
             {loading ? <LoaderCircle size={14} className="animate-spin" /> : <Check size={14} />}
             {loading ? "Salvando…" : "Salvar"}
           </button>
         </footer>
       </section>
-    </div>,
-    document.body,
+    </div>
+    </ModalPortal>
   );
 }

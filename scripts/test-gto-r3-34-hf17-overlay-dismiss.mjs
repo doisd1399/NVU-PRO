@@ -26,7 +26,9 @@ const openMenu = method(service, "private void openMenu()", "private void popula
 check("open card watches outside touches without making GTO modal",
   openMenu.includes("FLAG_NOT_TOUCH_MODAL") && openMenu.includes("FLAG_WATCH_OUTSIDE_TOUCH"));
 check("outside touch minimizes only the card",
-  openMenu.includes("MotionEvent.ACTION_OUTSIDE")
+  openMenu.includes("NativeCompactMenuView.bindOutsideDismiss")
+    && fs.readFileSync("android/app/src/main/java/com/nvu/operacional/NativeCompactMenuView.java", "utf8").includes("MotionEvent.ACTION_OUTSIDE")
+    && openMenu.includes("if (menuView != openedMenu || destroying) return;")
     && openMenu.includes("mainHandler.post(() ->")
     && openMenu.includes("closeMenu();")
     && openMenu.includes("showManualRoutePendingAlert()"));
@@ -37,27 +39,15 @@ check("bubble tap cannot reopen card after outside event from same gesture",
 
 const closeMenu = method(service, "private void closeMenu()", "private void suspendPassiveDetectionOverlaysKeepBubbleAndMenu");
 check("minimize does not remove bubble or stop projection",
-  closeMenu.includes("removeView(menuView)")
+  closeMenu.includes("removeView(previous)")
     && !closeMenu.includes("removeView(bubbleView)")
     && !closeMenu.includes("stopProjection"));
 
 const layout = method(service, "private void adjustOpenMenuLayoutAfterMeasure()", "private boolean shouldMinimizeMenuForConfirmedExternalApp");
-check("bubble and card are treated as one docked pair",
-  layout.includes("GtoOverlayLayoutPolicy.horizontalPairFits")
-    && layout.includes("GtoOverlayLayoutPolicy.menuXBesideBubble"));
-check("card side is chosen from available room around bubble",
-  layout.includes("GtoOverlayLayoutPolicy.chooseMenuSideForBubble")
-    && layout.includes("GtoOverlayLayoutPolicy.bubbleXForMenuSide"));
-check("automatic docking does not overwrite saved driver coordinates",
-  layout.includes("Automatic docking is intentionally NOT persisted")
-    && !layout.includes('putInt("bubbleX"')
-    && !layout.includes('putInt("bubbleY"'));
-check("card measurement triggers docking after open",
-  openMenu.includes("menuView.post(this::adjustOpenMenuLayoutAfterMeasure)"));
-check("menu refresh rechecks measured dock layout",
-  method(service, "private void refreshMenuContents()", "private void showStatusChip")
-    .includes("adjustOpenMenuLayoutAfterMeasure")
-  && service.includes("centeredMenuYBesideBubble"));
+check("card publication suppresses bubble",
+  openMenu.includes("cardVisibility.acquire(menuView)"));
+check("measured card never changes bubble coordinates",
+  layout.includes("targetMenuX = clamp") && !layout.includes("bubbleParams.x =") && !layout.includes("bubbleParams.y ="));
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "nvu-hf17-"));
 try {

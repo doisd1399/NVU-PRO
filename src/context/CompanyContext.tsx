@@ -1,3 +1,5 @@
+import { pageCacheKey, readPageSnapshot, writePageSnapshot, removePageSnapshot, isPermissionFailure } from "../lib/pageReadCache";
+import { publicCompanyIdentity } from "../lib/publicCompanyIdentity";
 import React, {
   createContext,
   useContext,
@@ -37,7 +39,7 @@ import type {
   User,
 } from "./AppContext";
 
-const COMPANIES_CACHE_KEY = "nvu.public.companies.v5";
+const COMPANIES_CACHE_KEY = "nvu.public.companies.v6";
 // A cache written by older builds may contain the first page/chunk of the
 // catalog while claiming `complete: true`.  Keep it useful for the first
 // paint, but never use it as this session's authoritative catalog.
@@ -57,6 +59,7 @@ type CachedPublicCompanies = {
 
 const readCachedCompanies = (): CachedPublicCompanies => {
   try {
+    localStorage.removeItem("nvu.public.companies.v5");
     const raw = localStorage.getItem(COMPANIES_CACHE_KEY);
     if (!raw) return { companies: [], serverConfirmed: false };
     const parsed = JSON.parse(raw) as {
@@ -95,7 +98,7 @@ export const writeCachedCompanies = (
     localStorage.setItem(
       COMPANIES_CACHE_KEY,
       JSON.stringify({
-        companies,
+        companies: companies.map(publicCompanyIdentity),
         cachedAt: Date.now(),
         complete: options.serverConfirmed !== false,
         serverConfirmed: options.serverConfirmed !== false,
@@ -365,7 +368,7 @@ export const useCompanyDataController = ({
             serverError,
           );
         }
-        return getDoc(companyRef);
+        return getDoc(doc(db, "public_companies", companyId));
       })
       .then((snapshot) => {
         if (isAuthTeardownActive() || !snapshot.exists()) return null;
@@ -434,18 +437,22 @@ export const useCompanyDataController = ({
     // `getDocs` may resolve from the Android/WebView persistence layer.  A
     // full catalog is only allowed to become authoritative after this
     // explicit server read succeeds.
-    const request = getDocsFromServer(collection(db, "frotas"))
+    const request = getDocsFromServer(collection(db, "public_companies"))
       .then((snapshot) => {
         const nextCompanies = snapshot.docs.map((companyDocument) =>
           normalizeCompanyProfile(companyDocument.id, companyDocument.data()),
         );
-        companiesRef.current = nextCompanies;
+        const scopedIds = new Set(memberships.filter(member => member.status === "active").map(member => member.companyId));
+        if (activeCompanyId) scopedIds.add(activeCompanyId);
+        const scoped = companiesRef.current.filter(company => scopedIds.has(company.id));
+        const merged = mergeCompanyCatalogs(nextCompanies, scoped);
+        companiesRef.current = merged;
         companyCatalogLoadedRef.current = true;
-        setCompanies(nextCompanies);
+        setCompanies(merged);
         setCompanyCatalogLoaded(true);
         setCompanyCatalogAttempted(true);
         writeCachedCompanies(nextCompanies);
-        return nextCompanies;
+        return merged;
       })
       .catch((error) => {
         if (!isAuthTeardownActive()) {
@@ -545,6 +552,10 @@ export const useCompanyDataController = ({
       doc(db, "frotas", companyId),
       (companySnapshot) => {
         if (isAuthTeardownActive()) return;
+        // Firestore can emit a cache miss (exists=false) while the device is
+        // offline. That is not proof that the company was deleted and must not
+        // erase the profile/simulator identity required for offline work.
+        if (companySnapshot.metadata.fromCache && !companySnapshot.exists()) return;
         setCompanies((current) => {
           const activeCompany = companySnapshot.exists()
             ? normalizeCompanyProfile(
@@ -619,6 +630,7 @@ interface CompanyScopedControllerOptions {
 export interface CompanyMembersController {
   allCompanyMembers: CompanyMember[];
   allCompanyMembersReady: boolean;
+  allCompanyMembersError?: unknown | null;
   setAllCompanyMembers: Dispatch<SetStateAction<CompanyMember[]>>;
 }
 
@@ -631,6 +643,9 @@ export const useCompanyMembersController = ({
 }: CompanyScopedControllerOptions): CompanyMembersController => {
   const [allCompanyMembers, setAllCompanyMembers] = useState<CompanyMember[]>([]);
   const [allCompanyMembersReady, setAllCompanyMembersReady] = useState(false);
+  const [membersScope, setMembersScope] = useState("");
+  const [membersError, setMembersError] = useState<unknown | null>(null);
+  const scope = JSON.stringify([userId, targetCompanyId]);
   const generationRef = useRef(0);
 
   useEffect(() => {
@@ -652,12 +667,16 @@ export const useCompanyMembersController = ({
       return;
     }
 
+    if (membersScope !== scope) setAllCompanyMembers([]);
+    setMembersScope(scope);
+    setMembersError(null);
     setAllCompanyMembersReady(false);
     const unsubscribe = onSnapshot(
       query(
         collection(db, "companyMembers"),
         where("companyId", "==", targetCompanyId),
       ),
+      { includeMetadataChanges: true },
       (snapshot) => {
         if (!canPublish()) return;
         setAllCompanyMembers(
@@ -681,17 +700,17 @@ export const useCompanyMembersController = ({
                       typeof permission === "string",
                   )
                 : [],
-              status:
-                raw.status === "pending" || raw.status === "rejected"
-                  ? raw.status
-                  : "active",
+              status: !raw.status || raw.status === "active" ? "active"
+                : raw.status === "pending" || raw.status === "rejected" ? raw.status : "inactive",
             } as CompanyMember;
           }),
         );
-        setAllCompanyMembersReady(true);
+        setMembersError(null);
+        setAllCompanyMembersReady(!snapshot.metadata.fromCache);
       },
       (error) => {
         if (!canPublish()) return;
+        setMembersError(error);
         setAllCompanyMembersReady(false);
         console.warn("Error fetching all company members", error);
       },
@@ -703,7 +722,12 @@ export const useCompanyMembersController = ({
     };
   }, [isActive, suspended, targetCompanyId, userId]);
 
-  return { allCompanyMembers, allCompanyMembersReady, setAllCompanyMembers };
+  return {
+    allCompanyMembers: membersScope === scope ? allCompanyMembers : [],
+    allCompanyMembersReady: membersScope === scope && allCompanyMembersReady,
+    allCompanyMembersError: membersScope === scope ? membersError : null,
+    setAllCompanyMembers,
+  };
 };
 
 interface CompanyRecruitmentControllerOptions extends CompanyScopedControllerOptions {
@@ -733,7 +757,7 @@ export const useCompanyRecruitmentController = ({
   >([]);
   const generationRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const generation = ++generationRef.current;
     const canPublish = () =>
       generationRef.current === generation &&
@@ -754,7 +778,28 @@ export const useCompanyRecruitmentController = ({
     }
 
     setDriverRequests([]);
-    setRecruitmentApplications([]);
+    const applicationCacheKey = pageCacheKey(userId, "recruitment-pending", isActive && activeRole === "admin" && targetCompanyId ? `company:${targetCompanyId}` : "own");
+    const cachedApplications = readPageSnapshot<RecruitmentApplication[]>(applicationCacheKey);
+    setRecruitmentApplications(Array.isArray(cachedApplications?.value) ? cachedApplications.value : []);
+    const publishApplications = (snapshot: import("firebase/firestore").QuerySnapshot) => {
+      if (!canPublish()) return;
+      const rows = snapshot.docs.map(applicationDocument => ({ ...applicationDocument.data(), id: applicationDocument.id }) as RecruitmentApplication);
+      // The SDK can initially emit a partial/empty disk snapshot. It is not an authoritative deletion.
+      if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) {
+        if (!readPageSnapshot(applicationCacheKey) && rows.length) setRecruitmentApplications(rows);
+        return;
+      }
+      writePageSnapshot(applicationCacheKey, rows);
+      setRecruitmentApplications(rows);
+    };
+    const applicationsError = (error: unknown) => {
+      if (!canPublish()) return;
+      if (isPermissionFailure(error)) {
+        removePageSnapshot(applicationCacheKey);
+        setRecruitmentApplications([]);
+      }
+      console.warn("[Recruitment] Última consulta preservada quando o servidor está indisponível.", error);
+    };
 
     const normalizedEmail = String(userEmail || "").trim().toLowerCase();
     const userApplicationsQuery = normalizedEmail
@@ -809,19 +854,9 @@ export const useCompanyRecruitmentController = ({
           where("status", "==", "pending"),
           limit(MAX_PENDING_REQUESTS),
         ),
-        (snapshot) => {
-          if (!canPublish()) return;
-          setRecruitmentApplications(
-            snapshot.docs.map(
-              (applicationDocument) =>
-                ({
-                  ...applicationDocument.data(),
-                  id: applicationDocument.id,
-                }) as RecruitmentApplication,
-            ),
-          );
-        },
-        onError("Error fetching recruitment apps admin"),
+        { includeMetadataChanges: true },
+        publishApplications,
+        applicationsError,
       );
     } else {
       if (isActive && activeRole !== "admin") {
@@ -850,19 +885,9 @@ export const useCompanyRecruitmentController = ({
 
       unsubscribeApplications = onSnapshot(
         userApplicationsQuery,
-        (snapshot) => {
-          if (!canPublish()) return;
-          setRecruitmentApplications(
-            snapshot.docs.map(
-              (applicationDocument) =>
-                ({
-                  ...applicationDocument.data(),
-                  id: applicationDocument.id,
-                }) as RecruitmentApplication,
-            ),
-          );
-        },
-        onError("Error fetching recruitment apps motorista"),
+        { includeMetadataChanges: true },
+        publishApplications,
+        applicationsError,
       );
     }
 
@@ -901,6 +926,7 @@ export interface CompanyStoreType {
   memberships: CompanyMember[];
   allCompanyMembers: CompanyMember[];
   allCompanyMembersReady: boolean;
+  allCompanyMembersError?: unknown | null;
   recruitmentApplications: RecruitmentApplication[];
   driverRequests: DriverRequest[];
   updateRecruitmentSettings: (
@@ -910,7 +936,7 @@ export interface CompanyStoreType {
   submitRecruitmentApplication: (
     data: Omit<RecruitmentApplication, "id" | "status" | "createdAt">,
   ) => Promise<string>;
-  approveRecruitmentApplication: (applicationId: string) => Promise<void>;
+  approveRecruitmentApplication: (applicationId: string, companyId?: string) => Promise<void>;
   rejectRecruitmentApplication: (applicationId: string) => Promise<void>;
   deleteRecruitmentApplication: (applicationId: string) => Promise<void>;
   createCompany: (

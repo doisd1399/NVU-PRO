@@ -1,0 +1,1 @@
+package com.nvu.operacional; final class ProPendingTripJobService { static int scheduled=0; static void schedulePermissionRecovery(android.content.Context c){} static void scheduleImmediate(android.content.Context c){scheduled++;} }

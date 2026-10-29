@@ -41,7 +41,7 @@ export function validateProReceiptEvidence(
   const definition = getProSimulatorDefinition(simulatorKey);
   if (!definition) throw new Error("PRO_SIMULATOR_NOT_REGISTERED");
   const validation = validateSimpleReceiptText(rawText, {
-    amountLabels: Array.from(new Set([
+      amountLabels: Array.from(new Set([
       ...definition.resultScreen.amountLabels,
       "valor a receber",
       "ganhos da viagem",
@@ -59,7 +59,9 @@ export function validateProReceiptEvidence(
   const evidence: ProReceiptEvidence = {
     simulatorKey,
     amountCents,
-    currency: definition.locale.currency,
+    // A simulator's usual currency is not proof of the receipt currency.
+    // Explicit EUR/BRL must win; unknown stays unknown until verified.
+    currency: validation.currency,
     baseReceiptFound: validation.amount !== null,
     resultScreenConfirmed,
     bonusEvidence,

@@ -1,0 +1,234 @@
+{
+  "schema": 1,
+  "runId": "2026-10-26T23-36-08-990Z",
+  "profile": "web",
+  "projectId": "demo-nvu-v36-4-staging",
+  "appVersion": "1.0.520",
+  "startedAt": "2026-10-26T23:36:08.990Z",
+  "sourceFingerprint": "1081e7aa076d877bdc7c545f7e30d7a0898c9bf6dd446d8946fa52c124011c0c",
+  "status": "PASS",
+  "releaseApproved": false,
+  "steps": [
+    {
+      "id": "harness",
+      "label": "Bloqueio de liberação e execução dos testes",
+      "kind": "qa-self-test",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 225,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "harness.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "types",
+      "label": "Tipos e compilação do aplicativo",
+      "kind": "static",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 10132,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "types.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "functions",
+      "label": "Compilação do servidor",
+      "kind": "build",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 3190,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "functions.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "web-build",
+      "label": "Build Web atual",
+      "kind": "build",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 9508,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "web-build.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "contracts",
+      "label": "Upload, confirmação, identidade e autorização",
+      "kind": "controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 617,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "contracts.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "queue",
+      "label": "Fila, falhas, reconexão e preservação das viagens",
+      "kind": "controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 3569,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "queue.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "supervisor",
+      "label": "Envio sem bloqueio por operações antigas",
+      "kind": "controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 113,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "supervisor.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "images",
+      "label": "Imagens persistentes, reabertura e isolamento",
+      "kind": "browser-controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 3158,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "images.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "teams",
+      "label": "Telas de aprovação e remoção",
+      "kind": "browser-controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 2731,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "teams.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "diagnostics",
+      "label": "Diagnóstico somente após falha",
+      "kind": "browser-controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 3241,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "diagnostics.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "notifications",
+      "label": "Notificações reais: hidratação, popup e isolamento de sessão",
+      "kind": "react-controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 393,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "notifications.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "push-client",
+      "label": "Registro push: falhas, permissões, concorrência e recuperação",
+      "kind": "controlled",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 360,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "push-client.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "native-policies",
+      "label": "Políticas reais de OCR e valores do Android/JVM",
+      "kind": "native-jvm",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 999,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "native-policies.log",
+      "summary": "Concluído"
+    },
+    {
+      "id": "emulators",
+      "label": "Firebase local: ciclo operacional, regras, telas e upload",
+      "kind": "integration",
+      "required": true,
+      "status": "PASS",
+      "durationMs": 37418,
+      "exitCode": 0,
+      "timedOut": false,
+      "log": "emulators.log",
+      "summary": "Concluído"
+    }
+  ],
+  "limitations": [
+    "Chromium e Firebase local não medem a latência de produção.",
+    "A interação completa com o jogo GTO e permissões do fabricante requer aparelho/jogo disponível."
+  ],
+  "auditBlockers": [
+    {
+      "id": "SEC-01",
+      "severity": "P1",
+      "status": "open",
+      "title": "Motorista autenticado pode alterar catálogo global de simuladores",
+      "evidence": [
+        "qa/audits/2026-10-26/REPORT-original.html"
+      ]
+    },
+    {
+      "id": "SEC-02",
+      "severity": "P1",
+      "status": "open",
+      "title": "Atualização de userDevices permite troca do proprietário conhecido",
+      "evidence": [
+        "qa/audits/2026-10-26/REPORT-original.html"
+      ]
+    },
+    {
+      "id": "SEC-03",
+      "severity": "P1",
+      "status": "open",
+      "title": "Leitura de users expõe o documento completo a outras contas autenticadas",
+      "evidence": [
+        "qa/audits/2026-10-26/REPORT-original.html"
+      ]
+    },
+    {
+      "id": "SEC-04",
+      "severity": "P1",
+      "status": "open",
+      "title": "Cadastro pendente pode ativar a própria frota sem aprovação canônica",
+      "evidence": [
+        "qa/audits/2026-10-26/REPORT-original.html"
+      ]
+    },
+    {
+      "id": "DEP-01",
+      "severity": "P1",
+      "status": "open",
+      "title": "Dependências com avisos graves precisam de análise de alcance e patches compatíveis",
+      "evidence": [
+        "qa/audits/2026-10-26/REPORT-original.html"
+      ]
+    }
+  ],
+  "finishedAt": "2026-10-26T23:37:24.878Z",
+  "sourceUnchanged": true
+}

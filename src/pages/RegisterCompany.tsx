@@ -1,3 +1,4 @@
+import { CachedImage } from "../components/common/CachedImage";
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOperationalStore, useSessionStore } from "../context/AppContext";
@@ -385,13 +386,13 @@ export default function RegisterCompany() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex flex-col items-center p-4 sm:p-6 overflow-y-auto">
+    <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex flex-col items-center p-4 sm:p-6 overflow-y-auto">
       <div className="w-full max-w-[440px] my-auto py-8">
         <div className="relative mb-6">
           <button
               type="button"
               onClick={handleCancel}
-              className="absolute left-0 top-1/2 -translate-y-1/2 p-2 w-10 h-10 text-slate-500 hover:text-slate-900 dark:text-[#a1a1aa] dark:hover:text-white transition-colors bg-white dark:bg-[#1A1F26] rounded-full border border-slate-200 dark:border-[#2A2F3A] shadow-sm flex items-center justify-center group"
+              className="absolute left-0 top-1/2 -translate-y-1/2 p-2 w-10 h-10 text-slate-500 hover:text-slate-900 dark:text-nvu-muted dark:hover:text-white transition-colors bg-white dark:bg-nvu-surface rounded-full border border-slate-200 dark:border-nvu-line shadow-sm flex items-center justify-center group"
               title="Voltar para a tela anterior"
             >
               <ArrowLeft
@@ -400,26 +401,26 @@ export default function RegisterCompany() {
               />
             </button>
           <div className="text-center">
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-[#fafafa] tracking-tight mb-1">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-nvu-text tracking-tight mb-1">
               NVU
             </h1>
-            <p className="text-slate-500 dark:text-[#a1a1aa] text-sm font-medium">
+            <p className="text-slate-500 dark:text-nvu-muted text-sm font-medium">
               Cadastro de Nova Empresa
             </p>
           </div>
         </div>
 
-        <Card className="rounded-[24px] border border-slate-200/60 dark:border-[#2A2F3A] shadow-xl shadow-slate-200/40 dark:shadow-none bg-white dark:bg-[#1A1F26] overflow-hidden">
+        <Card className="rounded-[24px] border border-slate-200/60 dark:border-nvu-line shadow-xl shadow-slate-200/40 dark:shadow-none bg-white dark:bg-nvu-surface overflow-hidden">
           <CardContent className="p-5 sm:p-7">
             {!auth.currentUser?.uid ? (
               <div className="flex flex-col items-center text-center py-6 sm:py-8">
                 <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-2xl flex items-center justify-center mb-5">
                   <LogIn size={28} className="text-blue-600 dark:text-blue-400" />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
                   Identifique o proprietário
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-[#a1a1aa] leading-relaxed mb-6 max-w-sm">
+                <p className="text-sm text-slate-500 dark:text-nvu-muted leading-relaxed mb-6 max-w-sm">
                   Acesse com a conta Google do proprietário para enviar o cadastro e acompanhar a avaliação da empresa.
                 </p>
                 <Button
@@ -433,11 +434,11 @@ export default function RegisterCompany() {
               </div>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="flex items-center gap-4 bg-slate-50/50 dark:bg-[#18181b] p-3.5 rounded-2xl border border-slate-200 dark:border-[#2A2F3A]/60 w-full mb-1">
+                <div className="flex items-center gap-4 bg-slate-50/50 dark:bg-nvu-surface p-3.5 rounded-2xl border border-slate-200 dark:border-nvu-line/60 w-full mb-1">
                   <div className="relative group shrink-0">
                     {photoPreview ? (
-                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white dark:border-[#2A2F3A] shadow-sm relative">
-                        <img
+                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white dark:border-nvu-line shadow-sm relative">
+                        <CachedImage
                           src={photoPreview}
                           alt="Preview"
                           className="w-full h-full object-cover"
@@ -456,10 +457,10 @@ export default function RegisterCompany() {
                         </div>
                       </div>
                     ) : (
-                      <label className="w-14 h-14 rounded-full bg-slate-100 dark:bg-[#2A2F3A] border border-dashed border-slate-300 dark:border-[#3f3f46] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-[#3f3f46] transition-colors">
+                      <label className="w-14 h-14 rounded-full bg-slate-100 dark:bg-nvu-strip border border-dashed border-slate-300 dark:border-nvu-line flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-nvu-strip transition-colors">
                         <ImageIcon
                           size={18}
-                          className="text-slate-400 dark:text-[#71717a]"
+                          className="text-slate-400 dark:text-nvu-muted"
                         />
                         <input
                           type="file"
@@ -471,7 +472,7 @@ export default function RegisterCompany() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <label className="block text-[14px] font-semibold text-slate-800 dark:text-[#d4d4d8] mb-0.5">
+                    <label className="block text-[14px] font-semibold text-slate-800 dark:text-nvu-text-soft mb-0.5">
                       Logo da Empresa
                     </label>
                     {photoPreview ? (
@@ -487,18 +488,18 @@ export default function RegisterCompany() {
                         Remover foto
                       </button>
                     ) : (
-                      <p className="text-[12px] text-slate-500 dark:text-[#a1a1aa] truncate">
+                      <p className="text-[12px] text-slate-500 dark:text-nvu-muted truncate">
                         Envie uma imagem opcional
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 bg-slate-50/50 dark:bg-[#18181b] p-3.5 rounded-2xl border border-slate-200 dark:border-[#2A2F3A]/60 w-full mb-1">
+                <div className="flex items-center gap-4 bg-slate-50/50 dark:bg-nvu-surface p-3.5 rounded-2xl border border-slate-200 dark:border-nvu-line/60 w-full mb-1">
                   <div className="relative group shrink-0">
                     {ownerPhotoPreview ? (
-                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white dark:border-[#2A2F3A] shadow-sm relative">
-                        <img
+                      <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white dark:border-nvu-line shadow-sm relative">
+                        <CachedImage
                           src={ownerPhotoPreview}
                           alt="Owner Preview"
                           className="w-full h-full object-cover"
@@ -517,10 +518,10 @@ export default function RegisterCompany() {
                         </div>
                       </div>
                     ) : (
-                      <label className="w-14 h-14 rounded-full bg-slate-100 dark:bg-[#2A2F3A] border border-dashed border-slate-300 dark:border-[#3f3f46] flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-[#3f3f46] transition-colors">
+                      <label className="w-14 h-14 rounded-full bg-slate-100 dark:bg-nvu-strip border border-dashed border-slate-300 dark:border-nvu-line flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-nvu-strip transition-colors">
                         <ImageIcon
                           size={18}
-                          className="text-slate-400 dark:text-[#71717a]"
+                          className="text-slate-400 dark:text-nvu-muted"
                         />
                         <input
                           type="file"
@@ -532,7 +533,7 @@ export default function RegisterCompany() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <label className="block text-[14px] font-semibold text-slate-800 dark:text-[#d4d4d8] mb-0.5">
+                    <label className="block text-[14px] font-semibold text-slate-800 dark:text-nvu-text-soft mb-0.5">
                       Foto do Proprietário
                     </label>
                     {ownerPhotoPreview ? (
@@ -548,7 +549,7 @@ export default function RegisterCompany() {
                         Remover foto
                       </button>
                     ) : (
-                      <p className="text-[12px] text-slate-500 dark:text-[#a1a1aa] truncate">
+                      <p className="text-[12px] text-slate-500 dark:text-nvu-muted truncate">
                         Entrará no seu perfil de motorista
                       </p>
                     )}
@@ -556,7 +557,7 @@ export default function RegisterCompany() {
                 </div>
 
                 <div>
-                  <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+                  <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
                     Nome da Empresa
                   </label>
                   <input
@@ -565,11 +566,11 @@ export default function RegisterCompany() {
                     onChange={(e) =>
                       setFormData({ ...formData, companyName: e.target.value })
                     }
-                    className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
+                    className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+                  <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
                     Nome do Proprietário
                   </label>
                   <input
@@ -578,12 +579,12 @@ export default function RegisterCompany() {
                     onChange={(e) =>
                       setFormData({ ...formData, ownerName: e.target.value })
                     }
-                    className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
+                    className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+                    <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
                       Email
                     </label>
                     <input
@@ -596,11 +597,11 @@ export default function RegisterCompany() {
                         setFormData({ ...formData, email: e.target.value })
                       }
                       title="E-mail vinculado do Google"
-                      className="w-full bg-slate-50 dark:bg-[#09090b]/50 border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-[#a1a1aa] cursor-not-allowed shadow-none"
+                      className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-nvu-muted cursor-not-allowed shadow-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+                    <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
                       WhatsApp
                     </label>
                     <input
@@ -611,13 +612,13 @@ export default function RegisterCompany() {
                       onChange={(e) =>
                         setFormData({ ...formData, whatsapp: e.target.value })
                       }
-                      className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm"
+                      className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+                    <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
                       CNPJ{" "}
                       <span className="font-normal opacity-70">
                         (Automático)
@@ -630,18 +631,18 @@ export default function RegisterCompany() {
                       onChange={(e) =>
                         setFormData({ ...formData, cnpj: e.target.value })
                       }
-                      className="w-full bg-slate-50 dark:bg-[#09090b]/50 border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-[#a1a1aa] cursor-not-allowed shadow-none"
+                      className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-nvu-muted cursor-not-allowed shadow-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+                    <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
                       Simulador
                     </label>
                     {simulatorsLoading ? (
                       <div
                         role="status"
                         aria-live="polite"
-                        className="w-full bg-slate-50 dark:bg-[#09090b]/50 border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 flex items-center text-[15px] text-slate-500 dark:text-[#a1a1aa] shadow-none"
+                        className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 flex items-center text-[15px] text-slate-500 dark:text-nvu-muted shadow-none"
                       >
                         Carregando simuladores...
                       </div>
@@ -650,7 +651,7 @@ export default function RegisterCompany() {
                         Não foi possível carregar os simuladores do Firebase.
                       </div>
                     ) : activeSimulators.length === 0 ? (
-                      <div className="w-full bg-slate-50 dark:bg-[#09090b]/50 border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-12 flex items-center text-[15px] text-slate-500 dark:text-[#a1a1aa] shadow-none">
+                      <div className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 flex items-center text-[15px] text-slate-500 dark:text-nvu-muted shadow-none">
                         Nenhum simulador disponível no sistema.
                       </div>
                     ) : (
@@ -683,7 +684,7 @@ export default function RegisterCompany() {
                     type="button"
                     onClick={handleCancel}
                     variant="outline"
-                    className="w-full sm:w-1/3 rounded-xl h-12 text-[15px] font-semibold border-slate-200 dark:border-[#2A2F3A]"
+                    className="w-full sm:w-1/3 rounded-xl h-12 text-[15px] font-semibold border-slate-200 dark:border-nvu-line"
                   >
                     Cancelar
                   </Button>

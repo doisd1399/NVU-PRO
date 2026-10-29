@@ -106,6 +106,9 @@ final class GtoAutoTripSync {
 
     interface Listener {
         void onSynced(String sessionId, String tripId);
+        default void onSynced(String sessionId, String tripId, NativeTripReceipt receipt) {
+            onSynced(sessionId, tripId);
+        }
         void onPending(String sessionId, String message);
     }
 
@@ -148,6 +151,8 @@ final class GtoAutoTripSync {
     ) {
         String sessionId = clean(prefs.getString("gtoTripSessionId", ""));
         String driverId = clean(prefs.getString("driverId", ""));
+        if (PendingOperationStartStore.blocks(context, driverId, clean(prefs.getString("companyId", "")), clean(prefs.getString("jobId", ""))))
+            return com.google.android.gms.tasks.Tasks.forException(new IllegalStateException("OPERATION_START_PENDING"));
         if (sessionId.isEmpty() || driverId.isEmpty() || state == null || state.trim().isEmpty()) {
             return com.google.android.gms.tasks.Tasks.forException(new IllegalStateException("Sessão/contexto GTO ausente"));
         }
@@ -598,7 +603,7 @@ final class GtoAutoTripSync {
             prefs.getString("operationName", ""),
             prefs.getString("contractName", ""),
             prefs.getString("jobStatus", ""),
-            prefs.getInt("jobProgress", 0),
+            prefs.getInt("confirmedTripCount", 0),
             prefs.getInt("jobTotalDeliveries", 0),
             prefs.getString("vehicleName", ""),
             prefs.getString("trailerName", ""),
@@ -618,7 +623,7 @@ final class GtoAutoTripSync {
             snapshot.optString("operationName", ""),
             snapshot.optString("contractName", ""),
             snapshot.optString("jobStatus", ""),
-            snapshot.optInt("jobProgress", 0),
+            snapshot.optInt("confirmedTripCount", snapshot.optInt("jobProgress", 0)),
             snapshot.optInt("jobTotalDeliveries", 0),
             snapshot.optString("vehicleName", ""),
             snapshot.optString("trailerName", ""),
@@ -649,10 +654,16 @@ final class GtoAutoTripSync {
                 && !(isClosedJobStatus(existingStatus) && !isClosedJobStatus(nextStatus))) {
                 snapshot.put("jobStatus", nextStatus);
             }
+            long activeRevision = Math.max(0L, prefs.getLong("gtoOperationContextRevision", 0L));
+            long snapshotRevision = Math.max(0L, snapshot.optLong("operationContextRevision", 0L));
             int existingProgress = Math.max(0, snapshot.optInt("jobProgress", 0));
-            snapshot.put("jobProgress", Math.max(existingProgress, Math.max(0, prefs.getInt("jobProgress", 0))));
+            int nextProgress = Math.max(0, prefs.getInt("confirmedTripCount", 0));
+            snapshot.put("confirmedTripCount", activeRevision >= snapshotRevision ? nextProgress
+                : Math.max(0, snapshot.optInt("confirmedTripCount", existingProgress)));
+            snapshot.put("jobProgress", activeRevision >= snapshotRevision ? nextProgress : existingProgress);
             int existingTotal = Math.max(0, snapshot.optInt("jobTotalDeliveries", 0));
-            snapshot.put("jobTotalDeliveries", Math.max(existingTotal, Math.max(0, prefs.getInt("jobTotalDeliveries", 0))));
+            int nextTotal = Math.max(0, prefs.getInt("jobTotalDeliveries", 0));
+            snapshot.put("jobTotalDeliveries", activeRevision >= snapshotRevision ? nextTotal : existingTotal);
             String nextContractName = clean(prefs.getString("contractName", ""));
             String nextOperationName = clean(prefs.getString("operationName", ""));
             String nextVehicleName = clean(prefs.getString("vehicleName", ""));
@@ -693,7 +704,9 @@ final class GtoAutoTripSync {
         if (sessionId.isEmpty()) return;
         try {
             int existingProgress = Math.max(0, snapshot.optInt("jobProgress", 0));
-            snapshot.put("jobProgress", Math.max(existingProgress, Math.max(0, progress)));
+            int acknowledgedProgress = Math.max(existingProgress, Math.max(0, progress));
+            snapshot.put("confirmedTripCount", acknowledgedProgress);
+            snapshot.put("jobProgress", acknowledgedProgress);
             String safeStatus = clean(jobStatus);
             if (!safeStatus.isEmpty()) snapshot.put("jobStatus", safeStatus);
             context.getSharedPreferences(SNAPSHOT_PREFS, Context.MODE_PRIVATE)
@@ -1189,6 +1202,26 @@ final class GtoAutoTripSync {
         return false;
     }
 
+    /** Read-only, exact-owner snapshot of the sealed Max queue. */
+    static List<String> pendingOperationSessionIds(Context context, String driver, String company, String job) {
+        List<String> ids = new ArrayList<>();
+        com.google.firebase.auth.FirebaseUser user = GtoFirebaseRuntime.currentUser(context);
+        if (user == null || !driver.equals(clean(user.getUid())) || company.isEmpty() || job.isEmpty()) return ids;
+        SharedPreferences queue = context.getSharedPreferences(QUEUE_PREFS, Context.MODE_PRIVATE);
+        SharedPreferences retry = context.getSharedPreferences(RETRY_PREFS, Context.MODE_PRIVATE);
+        for (Map.Entry<String, ?> item : queue.getAll().entrySet()) {
+            if (!item.getKey().startsWith(QUEUE_PREFIX) || !(item.getValue() instanceof String)) continue;
+            String session = item.getKey().substring(QUEUE_PREFIX.length());
+            if (retry.getLong(RETRY_AT_PREFIX + session, 0L) == Long.MAX_VALUE) continue;
+            QueueRecord record = readQueueRecord((String) item.getValue());
+            if (record == null) continue;
+            JSONObject payload = record.payload;
+            if (driver.equals(clean(payload.optString("driverId", ""))) && company.equals(clean(payload.optString("companyId", "")))
+                && job.equals(clean(payload.optString("jobId", "")))) ids.add("gto-session:" + session);
+        }
+        return ids;
+    }
+
     /** Persists a sealed completed payload before the network call is attempted. */
     static boolean enqueueConfirmedTrip(Context context, SharedPreferences mainPrefs, Listener listener) {
         String sessionId = clean(mainPrefs.getString("gtoTripSessionId", ""));
@@ -1388,6 +1421,12 @@ final class GtoAutoTripSync {
             }
 
             String payloadDriverId = clean(payload.optString("driverId", ""));
+            if (PendingOperationStartStore.blocks(context, payloadDriverId,
+                clean(payload.optString("companyId", "")), clean(payload.optString("jobId", "")))) {
+                releaseInFlightAttempt(sessionId, attemptToken);
+                if (listener != null) listener.onPending(sessionId, "Início da operação salvo; envio aguardando confirmação.");
+                continue;
+            }
             if (!payloadDriverId.equals(currentUid)) {
                 // Keep another driver's durable queue intact on shared devices, but never
                 // leave the current trip looking like an endless network sync. This also
@@ -1491,6 +1530,16 @@ final class GtoAutoTripSync {
                         response.get("jobStatus") == null ? "" : response.get("jobStatus")
                     ));
                     String payloadJobId = clean(payload.optString("jobId", ""));
+                    JSONObject receiptSnapshot = readJson(context.getSharedPreferences(SNAPSHOT_PREFS, Context.MODE_PRIVATE)
+                        .getString(SNAPSHOT_PREFIX + sessionId, ""));
+                    NativeTripReceipt receipt = NativeTripReceiptPreferences.fromAcknowledgement(
+                        payload, receiptSnapshot, tripId, responseProgress);
+                    // UI metadata is independent from sealed queue/checksum and is frozen
+                    // before cleanup or any next-session handoff. The live callback remains
+                    // correct even if this optional recovery copy cannot be persisted.
+                    if (receipt.belongsTo(mainPrefs.getString("driverId", ""))) {
+                        NativeTripReceiptPreferences.save(mainPrefs, receipt);
+                    }
                     boolean backendJobClosed = isClosedJobStatus(responseJobStatus);
                     String activeJobId = clean(mainPrefs.getString("jobId", ""));
                     boolean sameOperation = !payloadJobId.isEmpty() && payloadJobId.equals(activeJobId);
@@ -1526,6 +1575,7 @@ final class GtoAutoTripSync {
                             .putBoolean("gtoTripSyncRetryPaused", false)
                             .remove("gtoTripSyncLastErrorCode")
                             .putString("gtoRegisteredTripId", tripId)
+                            .putInt("confirmedTripCount", responseProgress)
                             .putInt("gtoJobProgress", responseProgress)
                             .putString("gtoJobStatus", responseJobStatus)
                             .putString("gtoBackendJobId", payloadJobId)
@@ -1558,7 +1608,7 @@ final class GtoAutoTripSync {
                             // The trip is already durably ACKed and may safely release the
                             // driver for the next trip. The old queue entry is idempotent.
                             if (listener != null) {
-                                listener.onSynced(sessionId, tripId);
+                                listener.onSynced(sessionId, tripId, receipt);
                             } else if (currentSession) {
                                 GtoObserverService.reconcileAcknowledgedTripIfRunning();
                             }
@@ -1597,7 +1647,7 @@ final class GtoAutoTripSync {
                     }
                     reconcileBackgroundSyncMarkers(context, mainPrefs);
                     if (listener != null) {
-                        listener.onSynced(sessionId, tripId);
+                        listener.onSynced(sessionId, tripId, receipt);
                     } else if (currentSession) {
                         GtoObserverService.reconcileAcknowledgedTripIfRunning();
                     }
@@ -1736,6 +1786,7 @@ final class GtoAutoTripSync {
         }) {
             target.put(field, clean(prefs.getString(field, "")));
         }
+        target.put("confirmedTripCount", Math.max(0, prefs.getInt("confirmedTripCount", 0)));
         target.put("jobProgress", Math.max(0, prefs.getInt("jobProgress", 0)));
         target.put("jobTotalDeliveries", Math.max(0, prefs.getInt("jobTotalDeliveries", 0)));
         target.put("operationContextRevision", Math.max(0, prefs.getLong("gtoOperationContextRevision", 0L)));
@@ -1749,7 +1800,7 @@ final class GtoAutoTripSync {
             if (value.isEmpty()) return "Contexto da operação incompleto: " + field + ".";
             if (value.length() > 220 || value.contains("/")) return "Identificador inválido no contexto GTO: " + field + ".";
         }
-        int progress = snapshot.optInt("jobProgress", 0);
+        int progress = snapshot.optInt("confirmedTripCount", 0);
         int total = snapshot.optInt("jobTotalDeliveries", 0);
         if (progress < 0 || total < 0 || progress > 1_000_000 || total > 1_000_000) {
             return "Progresso da operação inválido no contexto GTO.";

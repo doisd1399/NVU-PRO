@@ -1,0 +1,97 @@
+.nvu-senior-page { color:var(--nvu-text); }
+.nvu-senior-summary { display:grid; grid-template-columns:1fr 1fr; position:relative; border:1px solid var(--nvu-line); border-radius:18px; background:var(--nvu-surface); overflow:hidden; }
+.nvu-senior-summary::after { content:""; position:absolute; width:1px; background:var(--nvu-line); left:50%; top:18px; bottom:18px; }
+.nvu-senior-summary > button { display:flex; align-items:center; gap:12px; padding:17px 16px; text-align:left; min-width:0; cursor:pointer; }
+.nvu-senior-summary > button:hover { background:var(--nvu-strip); }
+.nvu-senior-summary > button:focus-visible { outline:2px solid var(--nvu-accent); outline-offset:-4px; }
+.nvu-senior-summary-icon { display:grid; place-items:center; width:37px; height:37px; border:1px solid var(--nvu-line); border-radius:12px; color:var(--nvu-muted); flex-shrink:0; }
+.nvu-senior-summary > button > span:last-child { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.nvu-senior-summary > button > span:last-child > span { color:var(--nvu-muted); text-transform:uppercase; letter-spacing:.025em; font-size:9.5px; font-weight:600; white-space:nowrap; }
+.nvu-senior-summary strong { font-size:25px; line-height:1; color:var(--nvu-text); font-weight:700; }
+.nvu-senior-toolbar { position:relative; display:flex; align-items:stretch; gap:10px; padding:4px 0; }
+.nvu-senior-search { display:flex; align-items:center; gap:9px; flex:1; min-width:0; height:44px; padding:0 12px; border:1px solid var(--nvu-line); border-radius:13px; background:var(--nvu-surface); color:var(--nvu-muted); }
+.nvu-senior-search:focus-within { outline:1px solid var(--nvu-muted); }
+.nvu-senior-search input { width:100%; min-width:0; background:transparent; border:0; outline:none; color:var(--nvu-text); font-size:13px; }
+.nvu-senior-search input::placeholder { color:var(--nvu-muted); }
+.nvu-senior-search svg { flex-shrink:0; }
+.nvu-senior-simulator { display:flex; align-items:center; justify-content:center; gap:7px; height:44px; max-width:46%; padding:0 11px; border:1px solid var(--nvu-line); border-radius:13px; background:var(--nvu-surface); color:var(--nvu-muted); font-size:11px; cursor:pointer; }
+.nvu-senior-simulator span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nvu-senior-simulator svg { flex-shrink:0; }
+.nvu-senior-simulator-menu { position:absolute; z-index:35; right:0; top:54px; width:min(290px,100%); padding:7px; border:1px solid var(--nvu-line); border-radius:14px; background:var(--nvu-surface); box-shadow:0 12px 30px #0002; }
+.nvu-senior-simulator-menu button { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-height:42px; padding:8px 10px; border-radius:9px; font-size:13px; text-align:left; cursor:pointer; }
+.nvu-senior-simulator-menu button:hover, .nvu-senior-simulator-menu button[aria-pressed=true] { background:var(--nvu-strip); }
+.nvu-senior-list-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:9px; padding:3px 2px 13px; }
+.nvu-senior-list-heading h2 { display:flex; align-items:center; gap:8px; color:var(--nvu-text); font-size:15px; font-weight:650; margin:0; }
+.nvu-senior-list-heading h2 span { border-radius:7px; padding:3px 7px; background:var(--nvu-strip); color:var(--nvu-muted); font-size:11px; }
+.nvu-senior-list-heading > span { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--nvu-muted); }
+.nvu-senior-registration-list { display:flex; flex-direction:column; gap:12px; }
+.nvu-senior-registration-row { border:1px solid var(--nvu-line); border-radius:16px; background:var(--nvu-surface); padding:13px 13px 0; overflow:hidden; }
+.nvu-senior-registration-open { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:0 0 11px; cursor:pointer; border-radius:8px; }
+.nvu-senior-registration-open:focus-visible { outline:2px solid var(--nvu-accent); outline-offset:3px; }
+.nvu-senior-company-logo { display:grid; place-items:center; width:49px; height:49px; border-radius:12px; flex-shrink:0; overflow:hidden; color:var(--nvu-muted); background:var(--nvu-strip); }
+.nvu-senior-company-logo img { width:100%; height:100%; object-fit:cover; }
+.nvu-senior-registration-info { display:flex; flex:1; min-width:0; flex-direction:column; gap:5px; }
+.nvu-senior-registration-info strong { font-weight:650; font-size:14px; line-height:1.3; color:var(--nvu-text); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.nvu-senior-registration-owner { display:flex; align-items:center; gap:10px; font-size:11.5px; color:var(--nvu-muted); line-height:1.3; }
+.nvu-senior-registration-owner > span:first-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nvu-senior-registration-owner > span:last-child { display:flex; gap:4px; align-items:center; flex-shrink:0; }
+.nvu-senior-registration-cnpj { font-size:11px; color:var(--nvu-muted); line-height:1.2; }
+.nvu-senior-registration-chevron { flex-shrink:0; color:var(--nvu-muted); }
+.nvu-senior-registration-footer { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:7px; min-height:38px; padding:8px 0; border-top:1px solid color-mix(in srgb,var(--nvu-line) 70%,transparent); }
+.nvu-senior-submission { display:flex; align-items:center; gap:5px; font-size:10.5px; line-height:1.4; color:var(--nvu-muted); white-space:nowrap; }
+.nvu-senior-submission svg { flex-shrink:0; }
+.nvu-senior-registration-status { display:inline-flex; align-items:center; gap:5px; padding:4px 7px; border-radius:7px; font-size:10px; line-height:1.1; white-space:nowrap; background:var(--nvu-strip); color:var(--nvu-muted); }
+.nvu-senior-registration-status i { width:4px; height:4px; border-radius:50%; background:currentColor; }
+.nvu-senior-registration-status.is-pending { background:#b3780814; color:#8b6205; }
+.dark .nvu-senior-registration-status.is-pending { background:#eab30812; color:#e3c76d; }
+.nvu-senior-delete-registration { display:grid; place-items:center; color:var(--nvu-muted); min-width:32px; min-height:28px; border-radius:7px; margin-left:auto; cursor:pointer; }
+.nvu-senior-delete-registration:hover { background:var(--nvu-strip); }
+.nvu-senior-list-footer { display:flex; justify-content:space-between; flex-wrap:wrap; align-items:center; gap:12px; padding:17px 2px 8px; color:var(--nvu-muted); font-size:11px; }
+.nvu-senior-list-footer button { display:flex; align-items:center; gap:4px; min-height:35px; color:var(--nvu-text); cursor:pointer; }
+.nvu-senior-empty { text-align:center; border:1px solid var(--nvu-line); border-radius:16px; background:var(--nvu-surface); padding:35px 16px; color:var(--nvu-muted); }
+.nvu-senior-empty svg { margin:0 auto 12px; }
+.nvu-senior-empty h3 { color:var(--nvu-text); font-size:15px; margin-bottom:6px; }
+.nvu-senior-empty p { font-size:12px; }
+.nvu-senior-review { position:fixed; inset:0; z-index:60; height:100vh; height:100dvh; padding-top:var(--nvu-safe-top,env(safe-area-inset-top,0px)); box-sizing:border-box; display:flex; flex-direction:column; background:var(--nvu-page); color:var(--nvu-text); outline:none; }
+.nvu-senior-review-header { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:9px; min-height:54px; padding:6px 16px; border-bottom:1px solid var(--nvu-line); background:var(--nvu-surface); }
+.nvu-senior-review-header button { display:flex; align-items:center; gap:3px; min-height:40px; font-size:12px; font-weight:600; color:var(--nvu-muted); cursor:pointer; flex-shrink:0; }
+.nvu-senior-review-header h2 { font-size:14px; font-weight:650; line-height:1.35; margin:0; }
+.nvu-senior-review-status { font-size:9px; text-transform:uppercase; letter-spacing:.02em; font-weight:650; padding:5px 7px; border:1px solid var(--nvu-line); border-radius:20px; color:var(--nvu-muted); white-space:nowrap; }
+.nvu-senior-review-scroll { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:22px 16px 24px; }
+.nvu-senior-review-content { max-width:520px; width:100%; margin:0 auto; }
+.nvu-senior-review-intro { text-align:center; padding:0 0 19px; }
+.nvu-senior-review-intro h1 { font-size:24px; font-weight:800; line-height:1.2; margin:0 0 6px; }
+.nvu-senior-review-intro p { font-size:13px; color:var(--nvu-muted); }
+.nvu-senior-review-footer { flex-shrink:0; border-top:1px solid var(--nvu-line); padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px)); background:var(--nvu-surface); }
+.nvu-senior-review-footer > div { display:flex; gap:12px; max-width:520px; margin:0 auto; }
+.nvu-senior-review-footer button { min-height:44px; flex:1; font-size:13px; border-radius:12px; }
+.nvu-senior-review-footer .nvu-senior-review-approve { flex:2; background:var(--nvu-text); color:var(--nvu-page); border:0; }
+.nvu-senior-review-footer .nvu-senior-review-approve:hover { opacity:.9; }
+.nvu-senior-review-content input[readonly], .nvu-senior-review-content textarea[readonly] { min-width:0; }
+.nvu-senior-review-content input[readonly]:focus { outline:1px solid var(--nvu-line); }
+@media(max-width:350px) {
+  .nvu-senior-summary > button { padding:15px 10px; gap:8px; }
+  .nvu-senior-summary-icon { width:31px; height:35px; }
+  .nvu-senior-summary > button > span:last-child > span { font-size:9px; }
+  .nvu-senior-registration-row { padding:11px 11px 0; }
+  .nvu-senior-registration-open { gap:9px; }
+  .nvu-senior-company-logo { width:43px; height:43px; }
+  .nvu-senior-registration-info strong { font-size:13px; }
+  .nvu-senior-registration-owner { font-size:11px; gap:5px; }
+  .nvu-senior-submission { font-size:9.5px; gap:4px; }
+  .nvu-senior-registration-status { font-size:9px; padding:4px 5px; }
+  .nvu-senior-review-header { padding-inline:11px; gap:7px; }
+  .nvu-senior-review-header h2 { font-size:12px; }
+  .nvu-senior-review-status { font-size:8px; }
+}
+@media(min-width:640px) {
+  .nvu-senior-summary > button { padding:20px 24px; gap:16px; }
+  .nvu-senior-summary > button > span:last-child > span { font-size:11px; }
+  .nvu-senior-registration-list { gap:14px; }
+  .nvu-senior-registration-row { padding:16px 17px 0; }
+  .nvu-senior-registration-open { gap:15px; padding-bottom:13px; }
+  .nvu-senior-registration-info strong { font-size:15px; }
+  .nvu-senior-registration-owner { font-size:12px; }
+  .nvu-senior-submission { font-size:11px; }
+  .nvu-senior-simulator { font-size:12px; padding-inline:16px; }
+}

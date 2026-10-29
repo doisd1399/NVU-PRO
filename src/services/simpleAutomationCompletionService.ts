@@ -1,5 +1,5 @@
-import { serverTimestamp, updateDoc } from "firebase/firestore";
-import { TripsRepository } from "../repositories/TripsRepository";
+import { canonicalTripOperationService } from "../application/trip/CanonicalTripOperationService";
+import { canonicalTripCommandService } from "../application/trip/CanonicalTripCommandService";
 import { completeTripWithCoordinator } from "./operationalCompletionCoordinator";
 import type { SimpleReceiptValidation } from "./simpleAutomationReceiptPolicy";
 import { validateProReceiptEvidence } from "./pro-universal/proReceiptAdapters";
@@ -11,6 +11,9 @@ import { SimpleAutomation, recordSimpleAutomationProTiming } from "../lib/simple
 import type { SimpleAutomationNativeStatus } from "../lib/simpleAutomationNative";
 import { isTripRecordableJobStatus } from "../lib/jobStatus";
 import { resolveTripTrailerFields } from "../lib/tripTrailer";
+import { isDefinitelyOffline } from "../lib/connectivity";
+import { buildClientOperationProjection } from "../application/operation/operationProjectionSelectors";
+import { canonicalTripRepository } from "../repositories/CanonicalTripRepository";
 
 export type SimpleAutomationCompletionContext = {
   status: SimpleAutomationNativeStatus;
@@ -20,7 +23,6 @@ export type SimpleAutomationCompletionContext = {
   currentContract: any;
   activeVehicle?: any;
   activeTrailer?: any;
-  finishJob: (jobId: string) => Promise<void>;
 };
 
 export type SimpleAutomationCompletionTrace = {
@@ -36,12 +38,13 @@ export type SimpleAutomationCompletionTrace = {
 export type SimpleAutomationCompletionResult = {
   validation: SimpleReceiptValidation;
   submitted: boolean;
-  tripId?: string;
+  pendingSync?: boolean;
   reason?: string;
   trace?: SimpleAutomationCompletionTrace;
   operationProgress?: number;
   operationTotalDeliveries?: number;
   operationClosed?: boolean;
+  operationReadyToFinalize?: boolean;
 };
 
 const monotonicNow = (): number =>
@@ -95,6 +98,10 @@ function text(value: unknown): string {
 
 function sameText(left: unknown, right: unknown): boolean {
   return text(left) === text(right);
+}
+
+function localConfirmedOperationProgress(job: Record<string, unknown>): number {
+  return buildClientOperationProjection(job, canonicalTripRepository.list())?.confirmedTripCount ?? 0;
 }
 
 const emptyValidation = (reason: string): SimpleReceiptValidation => ({
@@ -157,6 +164,20 @@ export async function completeSimpleAutomationReceipt(
   const liveContextEpoch = text(status.contextEpoch);
   const livePackageId = text(status.packageId);
 
+  const contextMismatches = [
+    !attemptId && "tentativa ausente",
+    !capturedContextEpoch || !sameText(capturedContextEpoch, liveContextEpoch) ? "contexto" : "",
+    !capturedSimulatorKey || !sameText(capturedSimulatorKey, liveSimulatorKey) ? "simulador" : "",
+    !capturedSimulatorCode || !sameText(capturedSimulatorCode, liveSimulatorCode) ? "código do simulador" : "",
+    !capturedPackageId || !sameText(capturedPackageId, livePackageId) ? "pacote" : "",
+    !capturedCompanyId || !sameText(capturedCompanyId, input.currentCompany?.id) ? "empresa" : "",
+    !capturedJobId || !sameText(capturedJobId, input.currentJob?.id) ? "operação" : "",
+    !capturedContractId || !sameText(capturedContractId, input.currentContract?.id) ? "contrato" : "",
+    !origin && "origem ausente",
+    !destination && "destino ausente",
+    !simulatorDefinition && "simulador inválido",
+  ].filter(Boolean) as string[];
+
   if (
     !attemptId
     || !capturedContextEpoch
@@ -177,7 +198,8 @@ export async function completeSimpleAutomationReceipt(
     || !sameText(capturedJobId, input.currentJob?.id)
     || !sameText(capturedContractId, input.currentContract?.id)
   ) {
-    return rejectWithReason("A captura pertence a um contexto diferente; ela não será enviada automaticamente.");
+    const details = contextMismatches.length ? ` Motivo: ${contextMismatches.join(", ")}.` : "";
+    return rejectWithReason(`A captura pertence a um contexto diferente; ela não será enviada automaticamente.${details}`);
   }
 
   const validationStartedAt = monotonicNow();
@@ -223,34 +245,17 @@ export async function completeSimpleAutomationReceipt(
   const operationStateStartedAt = monotonicNow();
   traceStage("web_preflight_started");
   const duplicateStartedAt = operationStateStartedAt;
-  let authoritativeState: Awaited<ReturnType<typeof TripsRepository.readAuthoritativeOperationState>>;
-  let previousIdenticalTrip: Awaited<ReturnType<typeof TripsRepository.findLatestOperationTripByValue>>;
-  try {
-    [authoritativeState, previousIdenticalTrip] = await Promise.all([
-      TripsRepository.readAuthoritativeOperationState(
-        capturedJobId,
-        Number(input.currentContract.totalDeliveries || 0),
-      ),
-      TripsRepository.findLatestOperationTripByValue({
-        jobId: capturedJobId,
-        driverId: input.currentUser.id,
-        companyId: capturedCompanyId,
-        amountCents,
-        simulatorKey: capturedSimulatorKey,
-        duplicateGuardKey,
-      }),
-    ]);
-    const parallelElapsed = monotonicNow() - operationStateStartedAt;
-    trace.operationStateMs = parallelElapsed;
-    trace.duplicateGuardMs = monotonicNow() - duplicateStartedAt;
-    traceStage("web_preflight_finished", parallelElapsed);
-  } catch (error) {
-    const elapsed = monotonicNow() - operationStateStartedAt;
-    trace.operationStateMs = elapsed;
-    trace.duplicateGuardMs = elapsed;
-    console.warn("[NVU-Pro] operação/duplicate guard não pôde ser confirmado; envio bloqueado", error);
-    return rejectWithReason("Não foi possível confirmar a operação atual. A viagem não foi enviada; tente novamente.", validation);
-  }
+  // Capture/queueing must not wait for a remote preflight. The server
+  // transaction owns eligibility, capacity and capture-event idempotency.
+  const authoritativeState = {
+    progress: localConfirmedOperationProgress(input.currentJob),
+    totalDeliveries: Number(input.currentJob.totalDeliveries || input.currentContract.totalDeliveries || 0),
+    status: String(input.currentJob.status || "active"),
+  };
+  const isOffline = isDefinitelyOffline();
+  trace.operationStateMs = monotonicNow() - operationStateStartedAt;
+  trace.duplicateGuardMs = monotonicNow() - duplicateStartedAt;
+  traceStage("web_preflight_finished", trace.operationStateMs);
   const authoritativeTotal = authoritativeState.totalDeliveries || Number(input.currentContract.totalDeliveries || 0);
   if (!isTripRecordableJobStatus(authoritativeState.status, authoritativeState.progress, authoritativeTotal)) {
     try {
@@ -263,16 +268,16 @@ export async function completeSimpleAutomationReceipt(
     } catch (error) {
       console.warn("[NVU-Pro] refresh terminal da operação falhou", error);
     }
-    return rejectWithReason("Operação concluída. Solicite uma nova operação para continuar.", validation);
+    const terminalMessage = String(authoritativeState.status || "").trim().toLowerCase() === "awaiting_completion"
+      ? "Todas as viagens foram registradas. Finalize a operação no painel para continuar."
+      : "Operação concluída. Solicite uma nova operação para continuar.";
+    return rejectWithReason(terminalMessage, validation);
   }
 
-  if (previousIdenticalTrip) {
-    return rejectWithReason(
-      "Esta viagem Pro foi bloqueada porque o mesmo valor já foi registrado consecutivamente nesta operação.",
-      validation,
-    );
-  }
-
+  // Equal amounts can belong to different journeys. Replay protection is
+  // bound to attempt/context/capture time, never to the amount alone.
+  const capturedAt = Number(status.receiptCapturedAt || 0);
+  const tripCompletedAtLocal = new Date(capturedAt > 0 && capturedAt <= Date.now() + 300_000 ? capturedAt : Date.now()).toISOString();
   const tripData: Record<string, unknown> = {
     empresaId: capturedCompanyId,
     companyId: capturedCompanyId,
@@ -295,10 +300,12 @@ export async function completeSimpleAutomationReceipt(
     comprovanteTituloOriginal: "simple-native-receipt",
     status: "concluida",
     criadoPor: input.currentUser.id,
-    dataLancamento: serverTimestamp(),
-    completedAt: serverTimestamp(),
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    createdAtLocal: tripCompletedAtLocal,
+    completedAtLocal: tripCompletedAtLocal,
+    dataLancamento: tripCompletedAtLocal,
+    completedAt: tripCompletedAtLocal,
+    createdAt: tripCompletedAtLocal,
+    updatedAt: tripCompletedAtLocal,
     simulatorId: capturedSimulatorKey,
     simulatorKey: capturedSimulatorKey,
     simulatorCode: simulatorDefinition.simulatorCode,
@@ -311,6 +318,9 @@ export async function completeSimpleAutomationReceipt(
     ...trailerFields,
     simpleAutomation: true,
     simpleAutomationVersion: "v2-universal-snapshot",
+    // Preserve immutable OCR evidence through the queue; server checks it
+    // against the cents and removes raw text before persisting public history.
+    receiptText,
     simpleReceiptCurrency: evidence.currency,
     simpleReceiptSourceField: validation.sourceField,
     simpleReceiptResultScreenConfirmed: evidence.resultScreenConfirmed,
@@ -320,6 +330,7 @@ export async function completeSimpleAutomationReceipt(
     simpleReceiptCaptureAttemptId: attemptId,
     simpleReceiptCaptureContextEpoch: capturedContextEpoch,
     simpleReceiptRawTextHashPending: true,
+    source: "PRO_SIMPLE_AUTOMATION",
     idempotencyKey: `simple:${capturedJobId}:${input.currentUser.id}:${attemptId}`,
     deterministicTripId,
     simpleDuplicateGuardKey: duplicateGuardKey,
@@ -334,10 +345,10 @@ export async function completeSimpleAutomationReceipt(
     console.warn("[NVU-Pro] mensagem visual de envio não pôde ser exibida", error);
   });
 
-  const projectedOperationProgress = authoritativeState.progress + 1;
-  const operationWillClose = Boolean(
-    authoritativeTotal > 0 && projectedOperationProgress >= authoritativeTotal,
-  );
+  // The next confirmed count is assigned by the server writer. Before ACK,
+  // the client must not predict a slot, limit or terminal state.
+  const projectedOperationProgress = authoritativeState.progress;
+  const operationWillClose = false;
   const addTripStartedAt = monotonicNow();
   traceStage("web_adddoc_started");
   const result = await completeTripWithCoordinator({
@@ -347,23 +358,19 @@ export async function completeSimpleAutomationReceipt(
     job: input.currentJob,
     contract: input.currentContract,
     addTrip: (trip) =>
-      TripsRepository.addTripWithinOperationLimit(trip, {
+      canonicalTripCommandService.addTripWithinOperationLimit(trip, {
         jobId: capturedJobId,
         totalDeliveries: authoritativeTotal,
         tripId: deterministicTripId,
       }),
-    persistTripId: async (tripRef) => {
-      await updateDoc(tripRef as any, { tripId: tripRef.id });
-    },
-    syncJobProgress: (jobId) => TripsRepository.syncJobProgress(jobId),
-    finishJob: input.finishJob,
+    syncJobProgress: (jobId) => canonicalTripOperationService.syncJobProgress(jobId),
     deferOperationReconciliation: !operationWillClose,
     projectedOperationProgress,
     projectedOperationTotalDeliveries: authoritativeTotal,
     onOperationReconciled: async (state) => {
       try {
         await SimpleAutomation.refreshOperationState({
-          jobProgress: Number(state.progress ?? authoritativeState.progress + 1),
+          jobProgress: Number(state.progress ?? authoritativeState.progress),
           jobTotalDeliveries: Number(state.totalDeliveries ?? authoritativeTotal),
           jobStatus: state.status || "active",
           operationClosed: Boolean(state.closed),
@@ -416,9 +423,14 @@ export async function completeSimpleAutomationReceipt(
 
   const acknowledgeStartedAt = monotonicNow();
   traceStage("web_ack_started");
+  const savedOffline = result.docRef.offline === true || String(result.docRef.id || "").startsWith("local-");
   await SimpleAutomation.acknowledgeReceipt({
     accepted: true,
-    reason: `Viagem Pro lançada com segurança (${result.docRef.id}).`,
+    pendingSync: savedOffline,
+    captureAttemptId: attemptId,
+      reason: savedOffline
+        ? "Viagem Pro registrada offline. Aguardando conexão para validação."
+        : `Viagem Pro lançada com segurança (${result.docRef.id}).`,
   });
   trace.acknowledgeMs = monotonicNow() - acknowledgeStartedAt;
   traceStage("web_ack_finished", trace.acknowledgeMs);
@@ -427,11 +439,12 @@ export async function completeSimpleAutomationReceipt(
   return {
     validation,
     submitted: true,
-    tripId: result.docRef.id,
+    pendingSync: savedOffline,
     trace,
     operationProgress: result.operationProgress,
     operationTotalDeliveries: result.operationTotalDeliveries,
     operationClosed: result.operationClosed,
+    operationReadyToFinalize: result.operationReadyToFinalize,
   };
   });
 }

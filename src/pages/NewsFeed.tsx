@@ -1,3 +1,7 @@
+import { coalescePageRead, isOnline, isReadFresh, PAGE_READ_FRESH_MS, withReadDeadline } from "../lib/pageReadCache";
+import { resolveProfilePhoto } from "../lib/resolveProfilePhoto";
+import { getAuthTeardownGeneration, onAuthTeardown } from "../lib/authLifecycle";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   collection,
@@ -5,7 +9,8 @@ import {
   DocumentData,
   getCountFromServer,
   getDoc,
-  getDocs,
+  getDocsFromServer,
+  type Query,
   limit,
   onSnapshot,
   orderBy,
@@ -25,6 +30,7 @@ import { useOperationalStore, useSessionStore } from "../context/AppContext";
 import { useCompanyStore } from "../context/CompanyContext";
 import { getRuntimePerformanceProfile } from "../lib/runtimePerformance";
 import { isRankingPeriodClosed } from "../lib/rankingPeriods";
+import { newsSimulatorKey as simulatorFilterKey, newsSimulatorAliases as expandedSimulatorAliases, resolveNewsSessionSimulator } from "../lib/newsSimulator";
 
 const PAGE_SIZE = 10;
 const SEARCH_LIMIT = 30;
@@ -32,8 +38,7 @@ const UNREAD_SCAN_LIMIT = 100;
 const UNREAD_REFRESH_MIN_INTERVAL_MS = 2 * 60 * 1000;
 const NEWS_CACHE_VERSION = "nvu_news_feed_v10_consistent_metrics";
 const NEWS_SCROLL_VERSION = "nvu_news_scroll_v1";
-const NEWS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-const NEWS_CACHE_FRESH_MS = 2 * 60 * 1000;
+const NEWS_CACHE_FRESH_MS = PAGE_READ_FRESH_MS;
 const NEWS_CACHE_MAX_ENTRIES = 12;
 const COLLECTIONS = {
   noticias: "nvu_classificacoes",
@@ -112,6 +117,7 @@ type CachedFeed = {
   savedAt: number;
   posts: FeedPost[];
   hasMore: boolean;
+  firstPageIds?: string[];
 };
 
 type FeedCursor = QueryDocumentSnapshot<DocumentData> | null;
@@ -125,6 +131,23 @@ type PrefetchedPage = {
 const memoryFeedCache = new Map<string, CachedFeed>();
 const memoryFeedCursors = new Map<string, FeedCursor>();
 const newsWarmupInFlight = new Map<string, Promise<void>>();
+
+onAuthTeardown(() => {
+  memoryFeedCache.clear();
+  memoryFeedCursors.clear();
+  newsWarmupInFlight.clear();
+  try {
+    Object.keys(localStorage).filter(key => key.startsWith(`${NEWS_CACHE_VERSION}:`)).forEach(key => localStorage.removeItem(key));
+  } catch { /* Storage may be unavailable. */ }
+});
+
+async function readNewsSnapshot(newsQuery: Query<DocumentData>) {
+  if (!isOnline()) throw Object.assign(new Error("Offline"), { code: "unavailable" });
+  const generation = getAuthTeardownGeneration();
+  const snapshot = await withReadDeadline(getDocsFromServer(newsQuery));
+  if (generation !== getAuthTeardownGeneration()) throw new Error("Sessão encerrada");
+  return snapshot;
+}
 
 function feedCacheStorageKey(key: string): string {
   return `${NEWS_CACHE_VERSION}:${key}`;
@@ -156,18 +179,19 @@ function writeFeedScrollPosition(userId: string, key: string, value: number): vo
 
 function readFeedCache(key: string): CachedFeed | null {
   const memory = memoryFeedCache.get(key);
-  if (memory && Date.now() - memory.savedAt <= NEWS_CACHE_MAX_AGE_MS) return memory;
+  if (memory) return memory;
   if (typeof window === "undefined") return null;
 
   try {
     const raw = localStorage.getItem(feedCacheStorageKey(key));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as CachedFeed;
-    if (!Array.isArray(parsed?.posts) || !Number.isFinite(parsed?.savedAt)) return null;
-    if (Date.now() - parsed.savedAt > NEWS_CACHE_MAX_AGE_MS) {
-      localStorage.removeItem(feedCacheStorageKey(key));
-      return null;
+    if (!raw) {
+      // Weekly/monthly filters use the same server page; reuse the saved all-period read.
+      const allPeriods = key.replace(/:noticias:(?:semana|mes):/, ":noticias:all:");
+      return allPeriods !== key ? readFeedCache(allPeriods) : null;
     }
+    const parsed = JSON.parse(raw) as CachedFeed;
+    if (!Array.isArray(parsed?.posts) || !Number.isFinite(parsed?.savedAt) || parsed.savedAt <= 0 || typeof parsed.hasMore !== "boolean") return null;
+    parsed.posts = parsed.posts.filter(post => post && typeof post === "object" && typeof post.id === "string");
     memoryFeedCache.set(key, parsed);
     return parsed;
   } catch {
@@ -209,7 +233,7 @@ function writeFeedCache(key: string, value: CachedFeed): void {
 
 function canPrefetchNews(): boolean {
   if (typeof navigator === "undefined") return true;
-  return getRuntimePerformanceProfile().allowSecondaryRouteWarmup;
+  return isOnline() && getRuntimePerformanceProfile().allowSecondaryRouteWarmup;
 }
 
 function scheduleIdleTask(task: () => void, delay = 1200): () => void {
@@ -278,39 +302,6 @@ function normalizeLookup(value: unknown): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function simulatorFilterKey(value: unknown): string {
-  const normalized = normalizeLookup(value).replace(/\s/g, "");
-  if (!normalized) return "";
-  if (normalized === "gto" || normalized.includes("globaltruckonline")) return "gto";
-  if (normalized === "ets2" || normalized.includes("eurotrucksimulator2")) return "ets2";
-  if (normalized === "ats" || normalized.includes("americantrucksimulator")) return "ats";
-  if (normalized === "toe3" || normalized.includes("truckersofeurope3")) return "toe3";
-  if (normalized === "wtds" || normalized.includes("worldtruckdrivingsimulator")) return "wtds";
-  if (normalized === "wbds" || normalized.includes("worldbusdrivingsimulator")) return "wbds";
-  if (normalized === "pbs" || normalized.includes("protonbussimulator")) return "pbs";
-  return normalized;
-}
-
-function expandedSimulatorAliases(...values: unknown[]): string[] {
-  const aliases = new Set<string>();
-  values.forEach((value) => {
-    const raw = normalizeLookup(value).replace(/\s/g, "");
-    const canonical = simulatorFilterKey(value);
-    if (raw) aliases.add(raw);
-    if (canonical) aliases.add(canonical);
-  });
-
-  if (aliases.has("gto")) ["gto", "globaltruckonline"].forEach((value) => aliases.add(value));
-  if (aliases.has("ets2")) ["ets2", "eurotrucksimulator2"].forEach((value) => aliases.add(value));
-  if (aliases.has("ats")) ["ats", "americantrucksimulator"].forEach((value) => aliases.add(value));
-  if (aliases.has("toe3")) ["toe3", "truckersofeurope3"].forEach((value) => aliases.add(value));
-  if (aliases.has("wtds")) ["wtds", "worldtruckdrivingsimulator"].forEach((value) => aliases.add(value));
-  if (aliases.has("wbds")) ["wbds", "worldbusdrivingsimulator"].forEach((value) => aliases.add(value));
-  if (aliases.has("pbs")) ["pbs", "protonbussimulator"].forEach((value) => aliases.add(value));
-
-  return Array.from(aliases).filter(Boolean).slice(0, 10);
 }
 
 function isAllSimulator(value: string): boolean {
@@ -642,7 +633,7 @@ export async function warmNvuNewsFirstPage({
 
     const task = (async () => {
       try {
-        const snapshot = await getDocs(query(
+        const snapshot = await readNewsSnapshot(query(
           collection(db, COLLECTIONS[section]),
           ...buildFeedConstraints(section, "all", simulator, simulatorAliases),
         ));
@@ -656,13 +647,14 @@ export async function warmNvuNewsFirstPage({
         writeFeedCache(cacheKey, {
           savedAt: Date.now(),
           posts: warmedPosts,
+          firstPageIds: warmedPosts.map(post => post.id),
           hasMore: snapshot.size === PAGE_SIZE,
         });
         if (section === "noticias") warmCriticalNewsImages(warmedPosts);
       } catch (error) {
         console.warn(`[NVU NEWS] Aquecimento inicial de ${section} indisponível:`, error);
       } finally {
-        newsWarmupInFlight.delete(cacheKey);
+        if (newsWarmupInFlight.get(cacheKey) === task) newsWarmupInFlight.delete(cacheKey);
       }
     })();
 
@@ -672,7 +664,7 @@ export async function warmNvuNewsFirstPage({
 }
 
 export default function NewsFeed() {
-  const { currentUser } = useSessionStore();
+  const { currentUser, activeRole } = useSessionStore();
   const {
     allCompanies,
     companies,
@@ -682,28 +674,25 @@ export default function NewsFeed() {
     loadCompanyCatalog,
   } = useCompanyStore();
   const { simulators } = useOperationalStore();
-  const initialCompany = [...(allCompanies || []), ...(companies || [])].find((company: any) => (
-    isActiveCompany(company) &&
-    (company?.id === activeCompanyId || company?.id === (currentUser as any)?.companyId)
-  ));
-  const initialSimulatorId = initialCompany?.simulatorId || initialCompany?.simuladorId ||
-    (currentUser as any)?.currentRecruitmentSimulatorId ||
-    (currentUser as any)?.simulatorId ||
-    (currentUser as any)?.simuladorId;
-  const initialSimulatorDocument = (simulators || []).find((simulator: any) => simulator?.id === initialSimulatorId);
-  const initialSimulatorKey = simulatorFilterKey(
-    initialSimulatorDocument?.name ||
-    initialCompany?.simulatorName ||
-    initialCompany?.simuladorNome ||
-    (currentUser as any)?.simulatorName ||
-    (currentUser as any)?.simuladorNome ||
-    (currentUser as any)?.simulator ||
-    initialSimulatorId,
-  );
+  const sessionSimulator = useMemo(() => resolveNewsSessionSimulator({
+    activeCompanyId, currentUser,
+    companies: (companies || []).filter(isActiveCompany),
+    allCompanies: (allCompanies || []).filter(isActiveCompany),
+    simulators: simulators || [],
+    catalogSettled: companyCatalogLoaded || companyCatalogAttempted,
+  }), [activeCompanyId, currentUser, companies, allCompanies, simulators, companyCatalogLoaded, companyCatalogAttempted]);
+  const simulatorScope = [currentUser?.id || "", activeRole || "", sessionSimulator.companyId || "account", sessionSimulator.key].join(":");
+  const [manualSimulator, setManualSimulator] = useState<{ scope: string; value: string } | null>(null);
+  const [fallbackSimulatorScope, setFallbackSimulatorScope] = useState("");
+  // Derive the default during render. The first query after a workspace change
+  // must not use the previous company's simulator for one effect cycle.
+  const selectedSimulator = manualSimulator?.scope === simulatorScope
+    ? manualSimulator.value
+    : sessionSimulator.key || (fallbackSimulatorScope === simulatorScope ? "all" : "");
+  const simulatorReady = Boolean(selectedSimulator);
+  const online = useOnlineStatus();
   const [activeSection, setActiveSection] = useState<Section>("noticias");
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("all");
-  const [selectedSimulator, setSelectedSimulator] = useState(initialSimulatorKey || "");
-  const [simulatorReady, setSimulatorReady] = useState(Boolean(initialSimulatorKey));
   const [searchTerm, setSearchTerm] = useState("");
   const [posts, setPosts] = useState<FeedPost[]>([]);
   const cursorRef = useRef<FeedCursor>(null);
@@ -724,9 +713,7 @@ export default function NewsFeed() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const requestRef = useRef(0);
   const initialLoadCompletedRef = useRef(false);
-  const simulatorSelectionModeRef = useRef<"pending" | "auto" | "user">(initialSimulatorKey ? "auto" : "pending");
   const remoteSearchActiveRef = useRef(false);
-  const autoSimulatorSourceRef = useRef("");
   const postsRef = useRef<FeedPost[]>([]);
   const lastQueryKeyRef = useRef("");
   const loadingMoreRef = useRef(false);
@@ -738,6 +725,11 @@ export default function NewsFeed() {
   const scrollRestoreKeyRef = useRef("");
   const scrollSaveFrameRef = useRef<number | null>(null);
 
+  useEffect(() => () => {
+    requestRef.current += 1;
+    lastQueryKeyRef.current = "";
+  }, []);
+
   useEffect(() => {
     if (companyCatalogLoaded || companyCatalogAttempted) return;
     void loadCompanyCatalog();
@@ -746,15 +738,7 @@ export default function NewsFeed() {
   const validCompaniesMap = useMemo(() => {
     const map = new Map<string, any>();
     const currentUserId = String(currentUser?.id || "").trim();
-    const currentUserPhoto = String(
-      (currentUser as any)?.profilePhotoURL ||
-      (currentUser as any)?.profilePhotoUrl ||
-      (currentUser as any)?.photoURL ||
-      (currentUser as any)?.photoUrl ||
-      (currentUser as any)?.authPhotoURL ||
-      (currentUser as any)?.avatar ||
-      "",
-    ).trim();
+    const currentUserPhoto = resolveProfilePhoto(currentUser);
     [...(allCompanies || []), ...(companies || [])].forEach((company: any) => {
       if (!company?.id || !isActiveCompany(company)) return;
       const companySimulatorId = String(
@@ -808,21 +792,6 @@ export default function NewsFeed() {
     });
   }, [validCompanyIds, validCompaniesMap]);
 
-  const sessionSimulator = useMemo(() => {
-    const activeCompany = validCompanies.find((company: any) => company.id === activeCompanyId) ||
-      validCompanies.find((company: any) => company.id === (currentUser as any)?.companyId);
-    const rawSimulatorId = activeCompany?.simulatorId || activeCompany?.simuladorId ||
-      (currentUser as any)?.currentRecruitmentSimulatorId || (currentUser as any)?.simulatorId || (currentUser as any)?.simuladorId;
-    const simulatorDocument = (simulators || []).find((simulator: any) => simulator?.id === rawSimulatorId);
-    const label = simulatorDocument?.name || activeCompany?.simulatorName || activeCompany?.simuladorNome ||
-      (currentUser as any)?.simulatorName || (currentUser as any)?.simuladorNome || (currentUser as any)?.simulator;
-    return {
-      key: simulatorFilterKey(label || rawSimulatorId),
-      label: String(label || rawSimulatorId || "").trim(),
-      aliases: expandedSimulatorAliases(rawSimulatorId, label, simulatorDocument?.id, simulatorDocument?.name),
-    };
-  }, [activeCompanyId, currentUser, simulators, validCompanies]);
-
   useEffect(() => {
     const userId = String(currentUser?.id || "").trim();
     const simulatorKey = sessionSimulator.key;
@@ -838,13 +807,15 @@ export default function NewsFeed() {
     };
     seenTimestampsRef.current = localSeen;
     setUnreadCounts({ noticias: 0, comunicados: 0 });
-    setReadStateReady(false);
+    setReadStateReady(true);
+    if (!isOnline()) return;
 
+    const stateGeneration = getAuthTeardownGeneration();
     void (async () => {
       const stateRef = doc(db, "nvu_news_read_state", safeReadStateId(userId, simulatorKey));
       try {
-        const snapshot = await getDoc(stateRef);
-        if (cancelled) return;
+        const snapshot = await withReadDeadline(getDoc(stateRef));
+        if (cancelled || stateGeneration !== getAuthTeardownGeneration()) return;
         if (snapshot.exists()) {
           const data = snapshot.data();
           const resolved = {
@@ -855,14 +826,14 @@ export default function NewsFeed() {
           localStorage.setItem(sectionSeenKey(userId, simulatorKey, "comunicados"), String(resolved.comunicados));
           seenTimestampsRef.current = resolved;
         } else {
-          await setDoc(stateRef, {
+          void setDoc(stateRef, {
             userId,
             simulatorKey,
             noticiasSeenAtMs: localSeen.noticias,
             comunicadosSeenAtMs: localSeen.comunicados,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-          });
+          }).catch(() => undefined);
         }
       } catch (error) {
         console.warn("[NVU NEWS] Estado remoto de leitura indisponível; usando armazenamento local.", error);
@@ -901,23 +872,10 @@ export default function NewsFeed() {
   }, [sessionSimulator, simulators, validCompanies]);
 
   useEffect(() => {
-    if (!sessionSimulator.key) {
-      if (simulatorSelectionModeRef.current !== "pending") return;
-      const fallbackTimer = window.setTimeout(() => {
-        if (simulatorSelectionModeRef.current !== "pending") return;
-        simulatorSelectionModeRef.current = "auto";
-        setSelectedSimulator("all");
-        setSimulatorReady(true);
-      }, 220);
-      return () => window.clearTimeout(fallbackTimer);
-    }
-    const sourceKey = `${activeCompanyId || (currentUser as any)?.companyId || "account"}:${sessionSimulator.key}`;
-    if (autoSimulatorSourceRef.current === sourceKey && simulatorReady) return;
-    autoSimulatorSourceRef.current = sourceKey;
-    simulatorSelectionModeRef.current = "auto";
-    setSelectedSimulator(sessionSimulator.key);
-    setSimulatorReady(true);
-  }, [activeCompanyId, currentUser, sessionSimulator.key, simulatorReady]);
+    if (sessionSimulator.key || sessionSimulator.pending || manualSimulator?.scope === simulatorScope) return;
+    const timer = window.setTimeout(() => setFallbackSimulatorScope(simulatorScope), 220);
+    return () => window.clearTimeout(timer);
+  }, [sessionSimulator.key, sessionSimulator.pending, manualSimulator?.scope, simulatorScope]);
 
   const selectedSimulatorOption = useMemo(() => {
     if (isAllSimulator(selectedSimulator)) return null;
@@ -991,6 +949,7 @@ export default function NewsFeed() {
     setUnreadCounts((current) => ({ ...current, [section]: 0 }));
 
     const stateRef = doc(db, "nvu_news_read_state", safeReadStateId(userId, simulatorKey));
+    if (!isOnline()) return;
     void setDoc(stateRef, {
       userId,
       simulatorKey,
@@ -1002,7 +961,7 @@ export default function NewsFeed() {
   }, [currentUser?.id, sessionSimulator.key]);
 
   const loadUnreadIndicators = useCallback(async (force = false) => {
-    if (!readStateReady || !currentUser?.id || !sessionSimulator.key) return;
+    if (!isOnline() || !readStateReady || !currentUser?.id || !sessionSimulator.key) return;
 
     const scopeKey = `${currentUser.id}|${sessionSimulator.key}`;
     if (unreadRefreshScopeRef.current !== scopeKey) {
@@ -1036,13 +995,13 @@ export default function NewsFeed() {
 
           const seenAtMs = Math.max(0, seenTimestampsRef.current[section] || 0);
           try {
-            const aggregateSnapshot = await getCountFromServer(query(
+            const aggregateSnapshot = await withReadDeadline(getCountFromServer(query(
               collection(db, COLLECTIONS[section]),
               ...simulatorConstraints,
               where("status", "==", "publicado"),
               where("sortAt", ">", Timestamp.fromMillis(seenAtMs)),
               orderBy("sortAt", "desc"),
-            ));
+            )));
             return [section, aggregateSnapshot.data().count] as const;
           } catch (aggregateError) {
             // Fallback temporário preserva o contador caso um índice ainda não tenha sido publicado.
@@ -1056,7 +1015,7 @@ export default function NewsFeed() {
             orderBy("sortAt", "desc"),
             limit(UNREAD_SCAN_LIMIT),
           ];
-          const snapshot = await getDocs(query(collection(db, COLLECTIONS[section]), ...fallbackConstraints));
+          const snapshot = await readNewsSnapshot(query(collection(db, COLLECTIONS[section]), ...fallbackConstraints));
           const visible = snapshot.docs
             .map((document) => ({ id: document.id, ...document.data() } as FeedPost))
             .filter((post) => normalizeLookup(post.status || "publicado") === "publicado")
@@ -1073,6 +1032,7 @@ export default function NewsFeed() {
         }
       }));
 
+      if (unreadRefreshScopeRef.current !== scopeKey) return;
       setUnreadCounts(Object.fromEntries(entries) as Record<Section, number>);
       unreadLastCompletedAtRef.current = Date.now();
     })();
@@ -1109,7 +1069,7 @@ export default function NewsFeed() {
 
     const task = (async () => {
       try {
-        const snapshot = await getDocs(query(
+        const snapshot = await readNewsSnapshot(query(
           collection(db, COLLECTIONS[section]),
           ...buildFeedConstraints(section, period, simulator, simulatorAliases, cursor),
         ));
@@ -1136,6 +1096,11 @@ export default function NewsFeed() {
 
   const fetchPosts = useCallback(async (loadMore = false, silent = false): Promise<void> => {
     if (!currentUser?.id || !simulatorReady || !activeQueryKey) return;
+    if (!isOnline()) {
+      setFeedError(postsRef.current.length ? "Offline · conteúdo salvo neste aparelho." : "Sem publicações salvas para este filtro. Conecte-se para carregar.");
+      setLoading(false); setLoadingMore(false); setRefreshing(false); setFeedReady(true);
+      return;
+    }
 
     if (!loadMore) setFeedError(null);
 
@@ -1167,6 +1132,8 @@ export default function NewsFeed() {
         const merged = deduplicateFeedPosts([...postsRef.current, ...prefetched.posts]);
         postsRef.current = merged;
         setPosts(merged);
+        const saved = readFeedCache(activeQueryKey);
+        writeFeedCache(activeQueryKey, { savedAt: saved?.savedAt || Date.now(), posts: merged, hasMore: prefetched.hasMore });
         cursorRef.current = prefetched.cursor;
         setHasMore(prefetched.hasMore);
         loadingMoreRef.current = false;
@@ -1198,7 +1165,7 @@ export default function NewsFeed() {
     }
 
     try {
-      const snapshot = await getDocs(query(
+      const snapshot = await coalescePageRead(`news:${activeQueryKey}:${loadMore ? cursorRef.current?.id || "next" : "first"}`, () => readNewsSnapshot(query(
         collection(db, COLLECTIONS[activeSection]),
         ...buildFeedConstraints(
           activeSection,
@@ -1207,13 +1174,17 @@ export default function NewsFeed() {
           selectedSimulatorAliases,
           loadMore ? cursorRef.current : null,
         ),
-      ));
+      )));
       if (requestId !== requestRef.current) return;
 
       const fetched = processDocuments(snapshot.docs, activeSection, selectedSimulator, selectedSimulatorAliases);
+      const previous = readFeedCache(activeQueryKey);
+      const previousFirstPage = new Set(previous?.firstPageIds || postsRef.current.map(post => post.id));
+      const nextFirstPage = new Set(fetched.map(post => post.id));
+      const older = loadMore || snapshot.size < PAGE_SIZE ? [] : postsRef.current.filter(post => !previousFirstPage.has(post.id) && !nextFirstPage.has(post.id));
       const nextPosts = loadMore
         ? deduplicateFeedPosts([...postsRef.current, ...fetched])
-        : fetched;
+        : deduplicateFeedPosts([...fetched, ...older]);
 
       if (!loadMore && activeSection === "noticias") warmCriticalNewsImages(nextPosts);
       setFeedError(null);
@@ -1221,17 +1192,17 @@ export default function NewsFeed() {
       setPosts(nextPosts);
       initialLoadCompletedRef.current = true;
       setFeedReady(true);
-      cursorRef.current = snapshot.docs[snapshot.docs.length - 1] || null;
-      const moreAvailable = snapshot.size === PAGE_SIZE;
+      if (!older.length || loadMore) cursorRef.current = snapshot.docs[snapshot.docs.length - 1] || null;
+      const moreAvailable = older.length && !loadMore ? previous?.hasMore ?? snapshot.size === PAGE_SIZE : snapshot.size === PAGE_SIZE;
       setHasMore(moreAvailable);
-      if (!loadMore) {
-        memoryFeedCursors.set(activeQueryKey, cursorRef.current);
-        writeFeedCache(activeQueryKey, {
-          savedAt: Date.now(),
-          posts: nextPosts,
-          hasMore: moreAvailable,
-        });
-      }
+      memoryFeedCursors.set(activeQueryKey, cursorRef.current);
+      const saved = readFeedCache(activeQueryKey);
+      writeFeedCache(activeQueryKey, {
+        savedAt: loadMore ? saved?.savedAt || Date.now() : Date.now(),
+        posts: nextPosts,
+        firstPageIds: loadMore ? saved?.firstPageIds : fetched.map(post => post.id),
+        hasMore: moreAvailable,
+      });
 
       const newestForSession = fetched
         .filter((post) => postMatchesSimulator(post, activeSection, sessionSimulator.key, sessionSimulator.aliases))
@@ -1256,6 +1227,7 @@ export default function NewsFeed() {
         });
       }
     } catch (error) {
+      if (requestId !== requestRef.current || lastQueryKeyRef.current !== activeQueryKey) return;
       console.error("[NVU NEWS] Falha ao carregar publicações:", error);
       if (!loadMore) {
         setFeedError(
@@ -1294,10 +1266,15 @@ export default function NewsFeed() {
     const queryKey = feedCacheKey(String(currentUser.id), section, period, selectedSimulator || "all");
     const cached = readFeedCache(queryKey);
     if (cached && Date.now() - cached.savedAt < NEWS_CACHE_FRESH_MS) return;
+    if (section === "noticias" && period !== "all") {
+      const allPeriods = readFeedCache(feedCacheKey(String(currentUser.id), section, "all", selectedSimulator || "all"));
+      if (allPeriods) writeFeedCache(queryKey, allPeriods);
+      return;
+    }
     if (variantPrefetchInFlightRef.current.has(queryKey)) return;
     variantPrefetchInFlightRef.current.add(queryKey);
     try {
-      const snapshot = await getDocs(query(
+      const snapshot = await readNewsSnapshot(query(
         collection(db, COLLECTIONS[section]),
         ...buildFeedConstraints(section, period, selectedSimulator, selectedSimulatorAliases),
       ));
@@ -1306,6 +1283,7 @@ export default function NewsFeed() {
       writeFeedCache(queryKey, {
         savedAt: Date.now(),
         posts: prefetchedPosts,
+        firstPageIds: prefetchedPosts.map(post => post.id),
         hasMore: snapshot.size === PAGE_SIZE,
       });
     } catch (error) {
@@ -1367,10 +1345,11 @@ export default function NewsFeed() {
     if (cached) {
       hydrateCachedFeed(cached);
       const fresh = Date.now() - cached.savedAt < NEWS_CACHE_FRESH_MS;
-      if (fresh) {
-        return scheduleIdleTask(() => void fetchPosts(false, true), 1400);
+      if (!isOnline()) {
+        setFeedError("Offline · conteúdo salvo neste aparelho.");
+        return;
       }
-      void fetchPosts(false, true);
+      if (!fresh) void fetchPosts(false, true);
       return;
     }
 
@@ -1431,13 +1410,14 @@ export default function NewsFeed() {
   useEffect(() => {
     if (
       !feedReady ||
+      !online ||
       !currentUser?.id ||
       !simulatorReady ||
       !activeQueryKey ||
       remoteSearchActiveRef.current
     ) return;
 
-    liveFirstPageIdsRef.current = new Set();
+    liveFirstPageIdsRef.current = new Set(readFeedCache(activeQueryKey)?.firstPageIds || []);
     const liveQuery = query(
       collection(db, COLLECTIONS[activeSection]),
       ...buildFeedConstraints(
@@ -1448,10 +1428,16 @@ export default function NewsFeed() {
       ),
     );
 
-    const unsubscribe = onSnapshot(
+    let stopped = false;
+    let unsubscribe = () => {};
+    const subscribe = () => {
+      if (stopped || !isOnline()) return;
+      unsubscribe = onSnapshot(
       liveQuery,
+      { includeMetadataChanges: true },
       (snapshot) => {
-        if (lastQueryKeyRef.current !== activeQueryKey) return;
+        if (stopped || lastQueryKeyRef.current !== activeQueryKey || remoteSearchActiveRef.current || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;
+        setFeedError(null);
         const firstPage = processDocuments(
           snapshot.docs,
           activeSection,
@@ -1463,10 +1449,8 @@ export default function NewsFeed() {
         liveFirstPageIdsRef.current = nextFirstPageIds;
 
         setPosts((current) => {
-          const olderPosts = current.filter(
-            (post) =>
-              !previousFirstPageIds.has(post.id) &&
-              !nextFirstPageIds.has(post.id),
+          const olderPosts = snapshot.size < PAGE_SIZE ? [] : current.filter(
+            (post) => !previousFirstPageIds.has(post.id) && !nextFirstPageIds.has(post.id),
           );
           const merged = deduplicateFeedPosts([...firstPage, ...olderPosts])
             .sort((left, right) => postTimestamp(right) - postTimestamp(left));
@@ -1474,6 +1458,7 @@ export default function NewsFeed() {
           writeFeedCache(activeQueryKey, {
             savedAt: Date.now(),
             posts: merged,
+            firstPageIds: firstPage.map(post => post.id),
             hasMore: snapshot.size === PAGE_SIZE,
           });
           return merged;
@@ -1488,8 +1473,13 @@ export default function NewsFeed() {
         console.warn("[NVU NEWS] Atualização em tempo real indisponível:", error);
       },
     );
-
+    };
+    const saved = readFeedCache(activeQueryKey);
+    const delay = saved ? Math.max(0, NEWS_CACHE_FRESH_MS - (Date.now() - saved.savedAt)) : 0;
+    const timer = window.setTimeout(subscribe, delay);
     return () => {
+      stopped = true;
+      window.clearTimeout(timer);
       unsubscribe();
       liveFirstPageIdsRef.current = new Set();
     };
@@ -1503,15 +1493,16 @@ export default function NewsFeed() {
     selectedSimulator,
     selectedSimulatorAliases,
     simulatorReady,
+    online,
   ]);
 
   useEffect(() => {
-    if (!feedReady) return;
+    if (!simulatorReady || !activeQueryKey) return;
     const cancelInitialLoad = scheduleIdleTask(() => void loadUnreadIndicators(), 800);
     const refreshWhenVisible = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible" || !isOnline()) return;
       void loadUnreadIndicators();
-      void fetchPosts(false, true);
+      if (!remoteSearchActiveRef.current && !isReadFresh(readFeedCache(activeQueryKey)?.savedAt)) void fetchPosts(false, true);
 
       if (Date.now() - companyCatalogRefreshAtRef.current >= 5 * 60 * 1000) {
         companyCatalogRefreshAtRef.current = Date.now();
@@ -1521,14 +1512,16 @@ export default function NewsFeed() {
           });
       }
     };
+    window.addEventListener("online", refreshWhenVisible);
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       cancelInitialLoad();
+      window.removeEventListener("online", refreshWhenVisible);
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [feedReady, fetchPosts, loadCompanyCatalog, loadUnreadIndicators]);
+  }, [activeQueryKey, simulatorReady, fetchPosts, loadCompanyCatalog, loadUnreadIndicators]);
 
   useEffect(() => {
     const normalized = normalizeLookup(searchTerm);
@@ -1548,11 +1541,18 @@ export default function NewsFeed() {
           setLoading(false);
           initialLoadCompletedRef.current = true;
         }
-        void fetchPosts(false, Boolean(cached));
+        if (!isReadFresh(cached?.savedAt)) void fetchPosts(false, Boolean(cached));
       }
       return;
     }
     remoteSearchActiveRef.current = true;
+    requestRef.current += 1;
+    const searchKey = `${activeQueryKey}:search:${normalized}`;
+    const cachedSearch = readFeedCache(searchKey);
+    const local = cachedSearch || readFeedCache(activeQueryKey);
+    const localPosts = local ? sanitizeCachedPosts(local.posts) : [];
+    postsRef.current = localPosts; setPosts(localPosts); setHasMore(false); setLoading(false);
+    if (!isOnline() || isReadFresh(cachedSearch?.savedAt)) { setSearching(false); return; }
 
     let canceled = false;
     const timeout = window.setTimeout(async () => {
@@ -1565,7 +1565,7 @@ export default function NewsFeed() {
           ?.slice(0, 18);
         if (!token) return;
 
-        const snapshot = await getDocs(query(
+        const snapshot = await readNewsSnapshot(query(
           collection(db, COLLECTIONS[activeSection]),
           where("searchTokens", "array-contains", token),
           limit(SEARCH_LIMIT),
@@ -1574,10 +1574,12 @@ export default function NewsFeed() {
         const results = processDocuments(snapshot.docs, activeSection, selectedSimulator, selectedSimulatorAliases)
           .filter((post) => activeSection !== "noticias" || postMatchesPeriod(post, periodFilter))
           .sort((left, right) => postTimestamp(right) - postTimestamp(left));
+        writeFeedCache(searchKey, { savedAt: Date.now(), posts: results, hasMore: false });
         postsRef.current = results;
         setPosts(results);
         setHasMore(false);
       } catch (error) {
+        if (!canceled) setFeedError("Pesquisa online indisponível. Exibindo correspondências no conteúdo salvo.");
         console.warn("[NVU NEWS] Pesquisa indisponível:", error);
       } finally {
         if (!canceled) setSearching(false);
@@ -1661,12 +1663,22 @@ export default function NewsFeed() {
     };
   }, [activeQueryKey, currentUser?.id, feedReady, loading, posts.length]);
 
+  useEffect(() => {
+    if (!online) {
+      requestRef.current += 1;
+      loadingMoreRef.current = false;
+      setLoading(false); setLoadingMore(false); setRefreshing(false); setSearching(false);
+      setFeedError(postsRef.current.length ? "Offline · conteúdo salvo neste aparelho." : "Sem publicações salvas para este filtro. Conecte-se para carregar.");
+    } else if (activeQueryKey && isReadFresh(readFeedCache(activeQueryKey)?.savedAt)) setFeedError(null);
+  }, [online, activeQueryKey]);
+
   const filteredPosts = useMemo(() => {
+    if (!simulatorReady) return [];
     const normalized = normalizeLookup(searchTerm);
     const simulatorScoped = posts
       .filter(postMatchesSelectedSimulator)
       .filter((post) => activeSection !== "noticias" || postMatchesPeriod(post, periodFilter));
-    if (!normalized || normalized.length >= 3) return simulatorScoped;
+    if (!normalized) return simulatorScoped;
     return simulatorScoped.filter((post) => normalizeLookup([
       post.titulo,
       post.legenda,
@@ -1678,7 +1690,7 @@ export default function NewsFeed() {
       ...(post.topEmpresas || []).map((item) => item.nome),
       ...(post.topMotoristas || []).flatMap((item) => [item.nome, item.empresaNome]),
     ].filter(Boolean).join(" ")).includes(normalized));
-  }, [activeSection, periodFilter, postMatchesSelectedSimulator, posts, searchTerm]);
+  }, [activeSection, periodFilter, postMatchesSelectedSimulator, posts, searchTerm, simulatorReady]);
 
   const hydrateUpcomingVariant = useCallback((
     section: Section,
@@ -1730,10 +1742,8 @@ export default function NewsFeed() {
 
   const changeSimulator = (value: string) => {
     const normalizedValue = value || "all";
-    simulatorSelectionModeRef.current = "user";
-    setSimulatorReady(true);
     hydrateUpcomingVariant(activeSection, periodFilter, normalizedValue);
-    setSelectedSimulator(normalizedValue);
+    setManualSimulator({ scope: simulatorScope, value: normalizedValue });
   };
 
   return (
@@ -1741,7 +1751,7 @@ export default function NewsFeed() {
       activeSection={activeSection}
       periodFilter={periodFilter}
       filteredPosts={filteredPosts}
-      loading={loading}
+      loading={loading || !simulatorReady}
       loadingMore={loadingMore}
       refreshing={refreshing}
       searching={searching}
@@ -1750,6 +1760,7 @@ export default function NewsFeed() {
       feedError={feedError}
       searchTerm={searchTerm}
       selectedSimulator={selectedSimulator || "all"}
+      simulators={simulators}
       simulatorOptions={simulatorOptions}
       activeSimulatorLabel={activeSimulatorLabel}
       sentinelRef={sentinelRef}

@@ -1,0 +1,1 @@
+package com.nvu.operacional; final class GtoFirebaseRuntime { static com.google.firebase.auth.FirebaseUser user=null; static com.google.firebase.auth.FirebaseUser currentUser(android.content.Context c){return user;} }

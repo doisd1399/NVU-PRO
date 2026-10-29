@@ -1,0 +1,9 @@
+import fs from 'node:fs';import path from 'node:path';import {createRequire} from 'node:module';import {publicFleetInvokerPolicy} from './fleet-invoker-policy-515.mjs';
+const require=createRequire(import.meta.url),project=process.env.NVU_FIREBASE_PROJECT||'vtc-frota-log';if(project!=='vtc-frota-log')throw Error('UNAUTHORIZED_FIREBASE_PROJECT');
+const resource=`projects/${project}/locations/us-central1/functions/manageFleetMembership`;
+const{selectAccount,setActiveAccount}=require('firebase-tools/lib/auth'),{requireAuth}=require('firebase-tools/lib/requireAuth'),{setIamPolicy}=require('firebase-tools/lib/gcp/cloudfunctions'),{Client}=require('firebase-tools/lib/apiv2'),{functionsOrigin}=require('firebase-tools/lib/api');
+const client=new Client({urlPrefix:functionsOrigin(),apiVersion:'v1'}),getPolicy=async()=>(await client.get(`/${resource}:getIamPolicy`,{queryParams:{'options.requestedPolicyVersion':3}})).body;
+const options={project,projectId:project,projectRoot:process.cwd(),nonInteractive:true},account=selectAccount(undefined,options.projectRoot);if(account)setActiveAccount(options,account);await requireAuth(options);
+const before=await getPolicy(),plan=publicFleetInvokerPolicy(before);
+if(plan.changed){if(typeof before.etag!=='string'||!before.etag)throw Error('IAM_POLICY_ETAG_REQUIRED');const privateDir=path.resolve('.release-private');fs.mkdirSync(privateDir,{recursive:true,mode:0o700});fs.writeFileSync(path.join(privateDir,`fleet-invoker-before-${Date.now()}.json`),JSON.stringify(before,null,2),{mode:0o600});await setIamPolicy({name:resource,policy:plan.policy});}
+if(publicFleetInvokerPolicy(await getPolicy()).changed)throw Error('FLEET_PUBLIC_INVOKER_NOT_CONFIRMED');console.log(JSON.stringify({resource,changed:plan.changed,publicTransportVerified:true,authenticatedFleetActionExecuted:false}));

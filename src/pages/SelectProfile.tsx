@@ -29,16 +29,16 @@ const ProfileSelectionTransition = ({
   label?: string;
 }) => (
   <div
-    className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex items-center justify-center"
+    className="min-h-screen bg-slate-50 dark:bg-nvu-page flex items-center justify-center"
     role="status"
     aria-live="polite"
   >
     <div className="flex flex-col items-center gap-2 opacity-70">
-      <span className="text-lg font-bold tracking-[0.22em] text-slate-800 dark:text-white">
+      <span className="text-lg font-bold tracking-[0.22em] text-slate-800 dark:text-nvu-text">
         NVU
       </span>
       <span className="h-0.5 w-10 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-        <span className="block h-full w-1/2 rounded-full bg-blue-500 motion-safe:animate-[nvu-progress_900ms_ease-in-out_infinite]" />
+        <span className="block h-full w-1/2 rounded-full bg-blue-500 dark:bg-nvu-accent motion-safe:animate-[nvu-progress_900ms_ease-in-out_infinite]" />
       </span>
     </div>
     <span className="sr-only">{label}</span>
@@ -52,18 +52,18 @@ const SessionDiagnosticCard = ({
   diagnostic: NonNullable<ReturnType<typeof useSessionStore>["sessionDiagnostic"]>;
   onRetry: () => void;
 }) => (
-  <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex items-center justify-center p-4 font-sans">
-    <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#18181b] border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7">
+  <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex items-center justify-center p-4 font-sans">
+    <div className="w-full max-w-md rounded-3xl bg-white dark:bg-nvu-surface border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7">
       <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300 flex items-center justify-center">
         <Building2 size={28} />
       </div>
-      <h2 className="text-xl font-bold text-slate-900 dark:text-white text-center">
+      <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text text-center">
         Não foi possível confirmar seus vínculos
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-[#a1a1aa] text-center">
+      <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-nvu-muted text-center">
         {sessionDiagnosticMessage(diagnostic)}
       </p>
-      <div className="mt-5 rounded-xl bg-slate-50 dark:bg-[#202124] border border-slate-200 dark:border-[#303136] p-3 text-left text-[11px] leading-relaxed text-slate-500 dark:text-[#a1a1aa]">
+      <div className="mt-5 rounded-xl bg-slate-50 dark:bg-nvu-strip border border-slate-200 dark:border-nvu-line p-3 text-left text-[11px] leading-relaxed text-slate-500 dark:text-nvu-muted">
         <div><strong>Código:</strong> {diagnostic.code}</div>
         <div><strong>UID:</strong> {diagnostic.uidSuffix || "não autenticada"}</div>
         <div><strong>Geração:</strong> {diagnostic.generation}</div>
@@ -73,7 +73,7 @@ const SessionDiagnosticCard = ({
       <button
         type="button"
         onClick={onRetry}
-        className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+        className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-nvu-accent dark:text-nvu-on-accent dark:hover:bg-nvu-accent/90 dark:focus-visible:ring-2 dark:focus-visible:ring-nvu-accent dark:focus-visible:ring-offset-2 dark:ring-offset-nvu-surface"
       >
         Tentar novamente
       </button>
@@ -127,12 +127,12 @@ const PendingApplicationsAccess = React.memo(function PendingApplicationsAccess(
         type="button"
         onPointerDown={openPanel}
         onKeyDown={handleOpenKeyDown}
-        className="absolute -top-3 right-0 z-20 w-11 h-11 inline-flex items-center justify-center text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 bg-white dark:bg-[#18181b] border border-amber-200 dark:border-amber-500/30 rounded-full shadow-sm touch-manipulation select-none"
+        className="absolute -top-3 right-0 z-20 w-11 h-11 inline-flex items-center justify-center text-amber-600 dark:text-amber-300 hover:text-amber-700 dark:hover:text-amber-200 bg-white dark:bg-nvu-surface border border-amber-200 dark:border-amber-500/30 rounded-full shadow-sm touch-manipulation select-none"
         title="Inscrições e cadastros pendentes"
         aria-label={`Abrir ${applications.length} solicitação${applications.length > 1 ? "ões" : ""} pendente${applications.length > 1 ? "s" : ""}`}
       >
         <ClipboardClock size={16} />
-        <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-slate-50 dark:border-[#09090b]">
+        <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center border-2 border-slate-50 dark:border-nvu-page">
           {applications.length > 9 ? "9+" : applications.length}
         </span>
       </button>
@@ -141,7 +141,7 @@ const PendingApplicationsAccess = React.memo(function PendingApplicationsAccess(
         ref={dialogRef}
         data-nvu-pending-dialog
         aria-label="Inscrições e cadastros pendentes"
-        className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none border-0 p-0 overflow-y-auto overscroll-contain bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-white"
+        className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none border-0 p-0 overflow-y-auto overscroll-contain bg-slate-50 dark:bg-nvu-page text-slate-900 dark:text-nvu-text"
       >
         <div className="min-h-full flex items-center justify-center p-4 sm:p-6 font-sans">
           <div className="w-full max-w-md">
@@ -149,20 +149,20 @@ const PendingApplicationsAccess = React.memo(function PendingApplicationsAccess(
               <button
                 type="button"
                 onPointerDown={closePanel}
-                className="absolute left-0 -top-2 w-11 h-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-800 dark:text-[#a1a1aa] dark:hover:text-white bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] rounded-full shadow-sm touch-manipulation"
+                className="absolute left-0 -top-2 w-11 h-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-800 dark:text-nvu-muted dark:hover:text-nvu-text bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-full shadow-sm touch-manipulation"
                 aria-label="Voltar para seleção de perfil"
               >
                 <ArrowLeft size={17} />
               </button>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-nvu-text tracking-tight">
                 Pendências
               </h1>
-              <p className="text-sm text-slate-500 dark:text-[#a1a1aa] mt-1">
+              <p className="text-sm text-slate-500 dark:text-nvu-muted mt-1">
                 Inscrições e cadastros aguardando avaliação
               </p>
             </div>
 
-            <div className="bg-white dark:bg-[#18181b] rounded-3xl border border-slate-100 dark:border-[#2A2F3A] shadow-xl dark:shadow-none p-5 sm:p-6">
+            <div className="bg-white dark:bg-nvu-surface rounded-3xl border border-slate-100 dark:border-nvu-line shadow-xl dark:shadow-none p-5 sm:p-6">
               <div className="w-12 h-12 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300 rounded-2xl flex items-center justify-center mx-auto mb-5 border border-amber-100 dark:border-amber-500/20">
                 <ClipboardClock size={24} />
               </div>
@@ -172,7 +172,7 @@ const PendingApplicationsAccess = React.memo(function PendingApplicationsAccess(
                 companies={companies}
                 deferImages
               />
-              <p className="mt-5 text-center text-[11px] sm:text-xs text-slate-400 dark:text-[#a1a1aa] leading-relaxed px-1">
+              <p className="mt-5 text-center text-[11px] sm:text-xs text-slate-400 dark:text-nvu-muted leading-relaxed px-1">
                 Você será notificado(a) quando houver uma resposta, se as notificações estiverem ativas.
               </p>
             </div>
@@ -434,21 +434,21 @@ export default function SelectProfile() {
 
   if (profileIndex.status === "error") {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#18181b] border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7 text-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-nvu-surface border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7 text-center">
           <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300 flex items-center justify-center">
             <Building2 size={28} />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text">
             Perfil operacional não resolvido
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-[#a1a1aa]">
+          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
             Nenhum perfil será aberto com empresa ou simulador não confirmado.
           </p>
           <button
             type="button"
             onClick={() => refreshSession("profile-index-retry")}
-            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-nvu-accent dark:text-nvu-on-accent dark:hover:bg-nvu-accent/90 dark:focus-visible:ring-2 dark:focus-visible:ring-nvu-accent dark:focus-visible:ring-offset-2 dark:ring-offset-nvu-surface"
           >
             Tentar novamente
           </button>
@@ -472,21 +472,21 @@ export default function SelectProfile() {
 
   if (profileGateState === "identity-failed") {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#18181b] border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7 text-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-nvu-surface border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7 text-center">
           <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300 flex items-center justify-center">
             <Building2 size={28} />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text">
             Não foi possível confirmar seu vínculo
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-[#a1a1aa]">
+          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
             A autenticação foi concluída, mas a leitura dos vínculos falhou. Tente novamente sem desconectar.
           </p>
           <button
             type="button"
             onClick={() => refreshSession()}
-            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-nvu-accent dark:text-nvu-on-accent dark:hover:bg-nvu-accent/90 dark:focus-visible:ring-2 dark:focus-visible:ring-nvu-accent dark:focus-visible:ring-offset-2 dark:ring-offset-nvu-surface"
           >
             Tentar novamente
           </button>
@@ -527,21 +527,21 @@ export default function SelectProfile() {
 
   if (pendingApplicationsQueryError && pendingApplications.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-[#18181b] border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7 text-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-md rounded-3xl bg-white dark:bg-nvu-surface border border-amber-200 dark:border-amber-500/20 shadow-xl dark:shadow-none p-7 text-center">
           <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300 flex items-center justify-center">
             <Building2 size={28} />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text">
             Não foi possível consultar suas pendências
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-[#a1a1aa]">
+          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
             Sua sessão está preservada. Tente novamente para confirmar inscrições e cadastros antes de concluir que não há vínculo.
           </p>
           <button
             type="button"
             onClick={() => refreshSession("pending-applications-retry")}
-            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+            className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-nvu-accent dark:text-nvu-on-accent dark:hover:bg-nvu-accent/90 dark:focus-visible:ring-2 dark:focus-visible:ring-nvu-accent dark:focus-visible:ring-offset-2 dark:ring-offset-nvu-surface"
           >
             Tentar novamente
           </button>
@@ -554,15 +554,15 @@ export default function SelectProfile() {
   // the pending-application queries have completed successfully.
   if (profileGateState === "empty" && serverEmptyConfirmed) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex flex-col items-center justify-center p-4 font-sans">
-        <div className="w-full max-w-md bg-white dark:bg-[#18181b] p-6 sm:p-8 rounded-3xl shadow-xl dark:shadow-none border border-slate-100 dark:border-[#2A2F3A] text-center">
-          <div className="w-14 h-14 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-5">
+      <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex flex-col items-center justify-center p-4 font-sans">
+        <div className="w-full max-w-md bg-white dark:bg-nvu-surface p-6 sm:p-8 rounded-3xl shadow-xl dark:shadow-none border border-slate-100 dark:border-nvu-line text-center">
+          <div className="w-14 h-14 bg-blue-50 dark:bg-nvu-accent-soft text-blue-600 dark:text-nvu-accent rounded-2xl flex items-center justify-center mx-auto mb-5">
             <Building2 size={28} />
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-nvu-text mb-2">
             Pendências
           </h2>
-          <p className="text-sm text-slate-500 dark:text-[#a1a1aa] mb-6 leading-relaxed px-1">
+          <p className="text-sm text-slate-500 dark:text-nvu-muted mb-6 leading-relaxed px-1">
             Suas inscrições e cadastros são acompanhados nesta tela até que um perfil aprovado seja disponibilizado.
           </p>
           {pendingApplications.length > 0 && (
@@ -573,7 +573,7 @@ export default function SelectProfile() {
                 companies={pendingApplicationCompanies}
                 className="mb-5"
               />
-              <p className="text-[11px] sm:text-xs text-slate-400 dark:text-[#a1a1aa] leading-relaxed mb-5 px-1">
+              <p className="text-[11px] sm:text-xs text-slate-400 dark:text-nvu-muted leading-relaxed mb-5 px-1">
                 Você será notificado(a) assim que houver resposta (se as notificações estiverem ativas).
               </p>
             </>
@@ -587,7 +587,7 @@ export default function SelectProfile() {
                 <div className="grid grid-cols-2 gap-2 mt-1">
                   <button
                     onClick={() => setShowLogoutConfirm(false)}
-                    className="w-full py-2.5 rounded-lg bg-white dark:bg-[#18181b] border border-red-200 dark:border-red-500/30 text-slate-700 dark:text-slate-300 font-semibold text-sm transition-colors hover:bg-slate-50 dark:hover:bg-[#22252d]"
+                    className="w-full py-2.5 rounded-lg bg-white dark:bg-nvu-surface border border-red-200 dark:border-red-500/30 text-slate-700 dark:text-nvu-muted font-semibold text-sm transition-colors hover:bg-slate-50 dark:hover:bg-nvu-strip"
                   >
                     Cancelar
                   </button>
@@ -609,7 +609,7 @@ export default function SelectProfile() {
                 </button>
                 <button
                   onClick={handleBackToStart}
-                  className="w-full py-3 sm:py-3.5 rounded-xl bg-slate-100 dark:bg-[#27272a] hover:bg-slate-200 dark:hover:bg-[#3f3f46] text-slate-700 dark:text-white font-semibold text-sm sm:text-base transition-colors"
+                  className="w-full py-3 sm:py-3.5 rounded-xl bg-slate-100 dark:bg-nvu-strip hover:bg-slate-200 dark:hover:bg-nvu-surface text-slate-700 dark:text-nvu-text font-semibold text-sm sm:text-base transition-colors"
                 >
                   Ir para o início
                 </button>
@@ -622,7 +622,7 @@ export default function SelectProfile() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex flex-col items-center justify-center p-4 sm:p-6 font-sans selection:bg-blue-100 dark:selection:bg-blue-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex flex-col items-center justify-center p-4 sm:p-6 font-sans selection:bg-blue-100 dark:selection:bg-nvu-accent-soft dark:selection:text-nvu-text">
       <div className="w-full max-w-[420px] flex flex-col relative z-10">
         {/* Header Section */}
         <div className="text-center mb-8 relative">
@@ -636,7 +636,7 @@ export default function SelectProfile() {
           {profileHydrationPending && (
             <p
               role="status"
-              className="mb-3 text-center text-xs font-medium text-slate-500 dark:text-[#a1a1aa]"
+              className="mb-3 text-center text-xs font-medium text-slate-500 dark:text-nvu-muted"
             >
               Seus perfis preservados estão visíveis. A autorização será confirmada em segundo plano antes da abertura.
             </p>
@@ -649,10 +649,10 @@ export default function SelectProfile() {
               {profileActionError}
             </p>
           )}
-          <p className="text-slate-500 dark:text-[#a1a1aa] text-[13px] font-medium mb-1.5 opacity-80 uppercase tracking-wider">
+          <p className="text-slate-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 opacity-80 uppercase tracking-wider">
             Bem-vindo(a) de volta
           </p>
-          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl sm:text-[26px] font-semibold text-slate-900 dark:text-nvu-text tracking-tight">
             Selecionar Perfil
           </h1>
         </div>
@@ -662,13 +662,13 @@ export default function SelectProfile() {
           <div className="flex justify-center mb-6 relative z-50">
             <button
               onClick={() => setIsSelectorOpen(!isSelectorOpen)}
-              className="flex items-center gap-2.5 px-4 py-2 bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] rounded-full shadow-sm hover:border-slate-300 dark:hover:border-slate-600 transition-all focus:outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-[#2A2F3A]"
+              className="flex items-center gap-2.5 px-4 py-2 bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-full shadow-sm hover:border-slate-300 dark:hover:border-nvu-accent/60 transition-all focus:outline-none focus:ring-2 focus:ring-slate-200 dark:focus:ring-nvu-accent/60"
             >
               <Building2
                 size={16}
-                className="text-slate-400 text-opacity-80 dark:text-[#71717a]"
+                className="text-slate-400 text-opacity-80 dark:text-nvu-muted"
               />
-              <span className="text-[14px] font-medium text-slate-700 dark:text-[#e4e4e7] truncate max-w-[240px] sm:max-w-[280px]">
+              <span className="text-[14px] font-medium text-slate-700 dark:text-nvu-text truncate max-w-[240px] sm:max-w-[280px]">
                 {activeCompany?.companyName}
               </span>
               <ChevronDown
@@ -683,7 +683,7 @@ export default function SelectProfile() {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsSelectorOpen(false)}
                 ></div>
-                <div className="absolute top-12 left-1/2 -translate-x-1/2 w-[280px] bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute top-12 left-1/2 -translate-x-1/2 w-[280px] bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="max-h-[300px] overflow-y-auto p-1.5">
                     {availableCompanies.map((comp) => (
                       <button
@@ -692,13 +692,13 @@ export default function SelectProfile() {
                           setSelectedCompanyId(comp.companyId);
                           setIsSelectorOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[14px] transition-colors ${selectedCompanyId === comp.companyId ? "bg-slate-50 dark:bg-[#27272a] text-slate-900 dark:text-white font-medium" : "text-slate-600 dark:text-[#a1a1aa] hover:bg-slate-50 dark:hover:bg-[#27272a] font-normal"}`}
+                        className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-[14px] transition-colors ${selectedCompanyId === comp.companyId ? "bg-slate-50 dark:bg-nvu-accent-soft text-slate-900 dark:text-nvu-accent font-medium" : "text-slate-600 dark:text-nvu-muted hover:bg-slate-50 dark:hover:bg-nvu-strip font-normal"}`}
                       >
                         <span className="truncate">{comp.companyName}</span>
                         {selectedCompanyId === comp.companyId && (
                           <Check
                             size={16}
-                            className="text-slate-600 dark:text-[#a1a1aa] shrink-0 ml-2"
+                            className="text-slate-600 dark:text-nvu-accent shrink-0 ml-2"
                           />
                         )}
                       </button>
@@ -714,11 +714,13 @@ export default function SelectProfile() {
         <div className="flex flex-col gap-3">
           {profilesToSelect.includes("admin") && (
             <button
+              onPointerDown={() => { void preloadRoute("/admin/fleet").catch(() => undefined); }}
+              onFocus={() => { void preloadRoute("/admin/fleet").catch(() => undefined); }}
               onClick={() => handleSelect("admin", activeCompany!.companyId)}
-              className="group relative flex items-center justify-between bg-white dark:bg-[#121214] border border-slate-200 dark:border-[#27272A] hover:border-slate-300 dark:hover:border-[#3F3F46] rounded-[20px] p-4 sm:p-5 hover:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:hover:shadow-none transition-all duration-200 text-left outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-[#3F3F46]"
+              className="group relative flex items-center justify-between bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line hover:border-slate-300 dark:hover:border-nvu-accent/60 rounded-[20px] p-4 sm:p-5 hover:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:hover:shadow-none transition-all duration-200 text-left outline-none dark:hover:bg-nvu-strip focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-nvu-accent/60"
             >
               <div className="flex items-center gap-4">
-                <div className="w-[46px] h-[46px] rounded-[14px] bg-slate-50 dark:bg-[#18181B] border border-slate-100 dark:border-[#27272A] flex items-center justify-center text-slate-500 dark:text-[#A1A1AA] group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-indigo-500/10 dark:group-hover:text-indigo-400 group-hover:border-indigo-100 dark:group-hover:border-indigo-500/20 transition-all duration-300 overflow-hidden">
+                <div className="w-[46px] h-[46px] rounded-[14px] bg-slate-50 dark:bg-nvu-strip border border-slate-100 dark:border-nvu-line flex items-center justify-center text-slate-500 dark:text-nvu-muted group-hover:bg-indigo-50 group-hover:text-indigo-600 dark:group-hover:bg-nvu-accent-soft dark:group-hover:text-nvu-accent group-hover:border-indigo-100 dark:group-hover:border-nvu-accent/30 transition-all duration-300 overflow-hidden">
                   {allCompanies.find(
                     (company) =>
                       String(company.id || "").trim() ===
@@ -745,35 +747,37 @@ export default function SelectProfile() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-[15px] sm:text-base font-semibold text-slate-900 dark:text-[#FAFAFA] tracking-tight">
+                    <h3 className="text-[15px] sm:text-base font-semibold text-slate-900 dark:text-nvu-text tracking-tight">
                       Administrador
                     </h3>
                     {activeRole === "admin" &&
                       activeCompanyIsCurrent && (
-                        <span className="flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] uppercase font-bold tracking-wide">
+                        <span className="flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-nvu-accent-soft border border-emerald-200/60 dark:border-nvu-accent/30 text-emerald-700 dark:text-nvu-accent text-[10px] uppercase font-bold tracking-wide">
                           Atual
                         </span>
                       )}
                   </div>
-                  <p className="text-[13px] text-slate-500 dark:text-[#A1A1AA]">
+                  <p className="text-[13px] text-slate-500 dark:text-nvu-muted">
                     Gestão e controle operacional
                   </p>
                 </div>
               </div>
               <ChevronRight
                 size={18}
-                className="text-slate-300 dark:text-[#52525B] group-hover:text-indigo-500 dark:group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all duration-300"
+                className="text-slate-300 dark:text-nvu-muted group-hover:text-indigo-500 dark:group-hover:text-nvu-accent group-hover:translate-x-0.5 transition-all duration-300"
               />
             </button>
           )}
 
           {profilesToSelect.includes("driver") && (
             <button
+              onPointerDown={() => { void preloadRoute("/driver/profile").catch(() => undefined); }}
+              onFocus={() => { void preloadRoute("/driver/profile").catch(() => undefined); }}
               onClick={() => handleSelect("driver", activeCompany!.companyId)}
-              className="group relative flex items-center justify-between bg-white dark:bg-[#121214] border border-slate-200 dark:border-[#27272A] hover:border-slate-300 dark:hover:border-[#3F3F46] rounded-[20px] p-4 sm:p-5 hover:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:hover:shadow-none transition-all duration-200 text-left outline-none focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-[#3F3F46]"
+              className="group relative flex items-center justify-between bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line hover:border-slate-300 dark:hover:border-nvu-accent/60 rounded-[20px] p-4 sm:p-5 hover:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] dark:hover:shadow-none transition-all duration-200 text-left outline-none dark:hover:bg-nvu-strip focus-visible:ring-2 focus-visible:ring-slate-300 dark:focus-visible:ring-nvu-accent/60"
             >
               <div className="flex items-center gap-4">
-                <div className="w-[46px] h-[46px] rounded-[14px] bg-slate-50 dark:bg-[#18181B] border border-slate-100 dark:border-[#27272A] flex items-center justify-center text-slate-500 dark:text-[#A1A1AA] group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-500/10 dark:group-hover:text-blue-400 group-hover:border-blue-100 dark:group-hover:border-blue-500/20 transition-all duration-300 overflow-hidden">
+                <div className="w-[46px] h-[46px] rounded-[14px] bg-slate-50 dark:bg-nvu-strip border border-slate-100 dark:border-nvu-line flex items-center justify-center text-slate-500 dark:text-nvu-muted group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-nvu-accent-soft dark:group-hover:text-nvu-accent group-hover:border-blue-100 dark:group-hover:border-nvu-accent/30 transition-all duration-300 overflow-hidden">
                   {resolveProfilePhoto(currentUser) || null ? (
                     <StableImage
                       src={resolveProfilePhoto(currentUser) || null}
@@ -791,47 +795,47 @@ export default function SelectProfile() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-[15px] sm:text-base font-semibold text-slate-900 dark:text-[#FAFAFA] tracking-tight">
+                    <h3 className="text-[15px] sm:text-base font-semibold text-slate-900 dark:text-nvu-text tracking-tight">
                       Motorista
                     </h3>
                     {activeRole === "driver" &&
                       activeCompanyIsCurrent && (
-                        <span className="flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[10px] uppercase font-bold tracking-wide">
+                        <span className="flex items-center px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-nvu-accent-soft border border-emerald-200/60 dark:border-nvu-accent/30 text-emerald-700 dark:text-nvu-accent text-[10px] uppercase font-bold tracking-wide">
                           Atual
                         </span>
                       )}
                   </div>
-                  <p className="text-[13px] text-slate-500 dark:text-[#A1A1AA]">
+                  <p className="text-[13px] text-slate-500 dark:text-nvu-muted">
                     Rotas, entregas e checklist
                   </p>
                 </div>
               </div>
               <ChevronRight
                 size={18}
-                className="text-slate-300 dark:text-[#52525B] group-hover:text-blue-500 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all duration-300"
+                className="text-slate-300 dark:text-nvu-muted group-hover:text-blue-500 dark:group-hover:text-nvu-accent group-hover:translate-x-0.5 transition-all duration-300"
               />
             </button>
           )}
         </div>
 
         {/* Security / Footer Area */}
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-slate-400 dark:text-[#71717A] opacity-90">
+        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6 text-slate-400 dark:text-nvu-muted opacity-90">
           <div className="flex items-center gap-1.5">
             <ShieldCheck
               size={14}
               strokeWidth={2}
-              className="text-emerald-500/70"
+              className="text-emerald-500/70 dark:text-nvu-accent"
             />
             <span className="text-[12px] font-medium tracking-wide border-b border-transparent">
               Sessão segura
             </span>
           </div>
-          <span className="hidden sm:inline text-slate-300 dark:text-[#3F3F46]">
+          <span className="hidden sm:inline text-slate-300 dark:text-nvu-muted">
             •
           </span>
           <button
             onClick={handleLogout}
-            className="text-[12px] font-medium tracking-wide border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+            className="text-[12px] font-medium tracking-wide border-b border-transparent hover:border-slate-300 dark:hover:border-nvu-accent/60 transition-colors"
           >
             Sair desta conta
           </button>

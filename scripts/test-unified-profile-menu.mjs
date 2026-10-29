@@ -13,8 +13,17 @@ assert.equal((globalMenu.match(/<aside\b/g) || []).length, 1, "GlobalMenu deve p
 assert.match(driver, /<GlobalMenu[\s\S]*profile="driver"/);
 assert.match(company, /<GlobalMenu[\s\S]*profile="company"/);
 assert.match(globalMenu, /data-nvu-unified-profile-menu=\{profile\}/);
+assert.match(globalMenu, /nvu-admin-floating-menu/);
+assert.match(globalMenu, /nvu-profile-floating-menu/);
+assert.match(globalMenu, /Central do motorista/);
+assert.match(globalMenu, /Central da empresa/);
+assert.match(globalMenu, /Menu do motorista/);
+assert.match(globalMenu, /Menu corporativo/);
+assert.match(globalMenu, /nativeAndroid = false/);
 assert.match(globalMenu, /data-nvu-menu-open=\{open \? "true" : "false"\}/);
-assert.match(css, /\[data-nvu-unified-profile-menu\]\[data-nvu-menu-open="true"\][\s\S]*translate\(-50%, 0\)/);
+assert.match(css, /\[data-nvu-unified-profile-menu\]\[data-nvu-menu-open="true"\][\s\S]*display: flex !important/);
+assert.match(css, /\[data-nvu-unified-profile-menu\]\[data-nvu-menu-open="false"\][\s\S]*display: none !important/);
+assert.match(css, /transition: none !important/);
 assert.match(globalMenu, /nvu-floating-menu-card nvu-profile-menu-card/);
 assert.match(globalMenu, /nvu-profile-logout-button/);
 assert.match(globalMenu, /nvu-driver-logout-button/);

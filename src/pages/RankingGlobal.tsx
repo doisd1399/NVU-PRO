@@ -1,24 +1,27 @@
+import { NvuWordmark } from "../components/common/NvuWordmark";
+import { ModalSelect } from "../components/ui/ModalSelect";
 import React, {
-  memo,
+  useCallback,
   useDeferredValue,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { ChevronLeft, Trophy, ChevronDown, List as ListIcon, Building2, Users, Globe2, ChevronRight, Crown, Calendar, X, Menu } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Trophy, ChevronDown, Building2, Users, Globe2, ChevronRight, Calendar, Menu, ChevronUp, Gamepad2 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useOperationalStore, useRankingFilterStore, useSessionStore } from "../context/AppContext";
 import { useNotificationStore } from "../context/NotificationsContext";
 import { useCompanyStore } from "../context/CompanyContext";
 import { useTripsRealtime } from "../hooks/useTripsRealtime";
 import { groupMetricsByCompany, filterTripsBySimulator } from "../lib/metricsEngine";
-import { preloadImages } from "../lib/imageCache";
+import { preloadRankingImages } from "../services/preloadRankingImages";
+import { auth } from "../lib/firebase";
 import { StableImage } from "../components/common/StableImage";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { resolveDriverPhoto } from "../lib/resolveDriverPhoto";
 import { cn } from "../lib/utils";
-import { buildDriverRankingPageData } from "../lib/rankingPageEngine";
+import { buildDriverRankingPageData, buildInternalDriverRankingPageData, getActiveInternalDriverIds } from "../lib/rankingPageEngine";
 import { useRankingUsersRealtime } from "../hooks/useRankingUsersRealtime";
 import { useRankingCompaniesByIds } from "../hooks/useRankingCompaniesByIds";
 import { useLiveCalendarReference } from "../hooks/useLiveCalendarReference";
@@ -38,6 +41,7 @@ import {
   buildDriverRankingFromAggregate,
   buildRankingAggregatePeriodKey,
   isRankingEligibleCompany,
+  mergeRankingCompanyCatalogs,
   type RankingAggregatePeriodType,
 } from "../lib/rankingAggregates";
 import {
@@ -49,18 +53,35 @@ import {
   getRankingUtcWeeklyRange,
 } from "../lib/rankingPeriods";
 import { getRuntimePerformanceProfile } from "../lib/runtimePerformance";
+import { onCanonicalTripUpdated } from "../lib/CanonicalTripUpdateEvent";
+import RankingPremiumPodium from "../components/RankingPremiumPodium";
+import { RankingGamerLeaderboard } from "../components/RankingGamerLeaderboard";
+import { RankingPeriodModal } from "../components/RankingPeriodModal";
+import { RankingPreviousPeriodCard } from "../components/RankingPreviousPeriodCard";
+import RankingParticipantPremiumModal from "../components/RankingParticipantPremiumModal";
+import { SimulatorSelectionModal } from "../components/SimulatorSelectionModal";
+import { rankingCompanyDisplayName } from "../lib/rankingDisplayName";
+import { WorkspaceDock } from "../components/WorkspaceDock";
+import { useRankingVehiclePhotoPrefetch } from "../hooks/useRankingVehiclePhotoPrefetch";
 
 const freezeRankingSnapshot = (items: any[]) =>
   items.map((item) => ({ ...item }));
 
-const BRL_FORMATTER = new Intl.NumberFormat("pt-BR", {
-  style: "currency",
-  currency: "BRL",
-});
-
-const formatRankingCurrency = (value: number) => BRL_FORMATTER.format(value);
-const getRankingInitials = (name: string) =>
-  name?.substring(0, 2).toUpperCase() || "UN";
+const formatRankingAmount = (value: number, currency: string) => {
+  try { return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value); }
+  catch { return `${currency} ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
+};
+const formatRankingCurrency = (item: any) => {
+  const groups = Array.isArray(item?.currencyBreakdown) ? item.currencyBreakdown : [];
+  if (groups.length) return groups.map((group: any) => formatRankingAmount(Number(group.value || 0), String(group.currency))).join(" · ");
+  return item?.currency ? formatRankingAmount(Number(item.val || 0), String(item.currency)) : "—";
+};
+const comparableRankingMoney = (item: any) => {
+  const groups = Array.isArray(item?.currencyBreakdown) ? item.currencyBreakdown : [];
+  if (groups.length !== 1 || !groups[0]?.currency || item?.currencyUnresolvedTrips) return null;
+  const value = Number(groups[0].value);
+  return Number.isFinite(value) ? { value, currency: String(groups[0].currency) } : null;
+};
 
 const ALL_SIMULATORS_VALUE = "all";
 const ALL_SIMULATORS_LABEL = "Todos os simuladores";
@@ -98,6 +119,8 @@ const getRankingImagePreloadConfig = () => {
 type RankingSnapshotCacheEntry = {
   cachedAt: number;
   items: any[];
+  viewerId?: string;
+  assetType?: "driver" | "company";
 };
 
 // Ranking snapshots are short-lived, UID-scoped first-paint accelerators.
@@ -106,7 +129,7 @@ type RankingSnapshotCacheEntry = {
 // while avoiding the blank/skeleton cycle on every app restart.
 const RANKING_CACHE_TTL_MS = 2 * 60 * 1000;
 const RANKING_PERSISTED_CACHE_TTL_MS = 15 * 60 * 1000;
-const RANKING_PERSISTED_CACHE_PREFIX = "nvu.ranking.snapshot.v2.";
+const RANKING_PERSISTED_CACHE_PREFIX = "nvu.ranking.snapshot.v4.";
 const RANKING_CACHE_LIMIT = 16;
 const rankingSnapshotCache = new Map<string, RankingSnapshotCacheEntry>();
 let lastRankingSnapshot: RankingSnapshotCacheEntry | null = null;
@@ -127,15 +150,16 @@ const readRankingSnapshot = (key: string): any[] => {
     if (
       !parsed ||
       typeof parsed.cachedAt !== "number" ||
-      Date.now() - parsed.cachedAt > RANKING_PERSISTED_CACHE_TTL_MS ||
+      (navigator.onLine !== false && Date.now() - parsed.cachedAt > RANKING_PERSISTED_CACHE_TTL_MS) ||
       !Array.isArray(parsed.items)
     ) {
-      window.localStorage.removeItem(storageKey);
       return [];
     }
     const persisted = {
       cachedAt: parsed.cachedAt,
       items: parsed.items.slice(0, 200),
+      viewerId: parsed.viewerId,
+      assetType: parsed.assetType,
     };
     rankingSnapshotCache.set(key, persisted);
     return persisted.items;
@@ -155,15 +179,21 @@ const readLastRankingSnapshot = (): any[] => {
   return lastRankingSnapshot.items;
 };
 
-const writeRankingSnapshot = (key: string, items: any[]) => {
+const writeRankingSnapshot = (key: string, items: any[], viewerId?: string, assetType: "driver" | "company" = "driver") => {
   const compactItems = items.slice(0, 200).map((item) => ({
     id: item.id,
     name: item.name,
     logo: item.logo,
+    companyId: item.companyId,
+    companyName: item.companyName,
+    companyLogo: item.companyLogo,
     val: item.val,
     trips: item.trips,
+    currency: item.currency,
+    currencyBreakdown: item.currencyBreakdown,
+    currencyUnresolvedTrips: item.currencyUnresolvedTrips,
   }));
-  const entry = { cachedAt: Date.now(), items: compactItems };
+  const entry = { cachedAt: Date.now(), items: compactItems, viewerId, assetType };
   rankingSnapshotCache.delete(key);
   rankingSnapshotCache.set(key, entry);
   lastRankingSnapshot = entry;
@@ -195,93 +225,42 @@ const rankingImageUrls = (
     .map((item) => item?.logo)
     .filter((url): url is string => typeof url === "string" && Boolean(url.trim()));
 
-const preloadRankingSnapshotImages = (items: any[]) => {
+const preloadRankingSnapshotImages = (items: any[], viewerId: string, assetType: "driver" | "company") => {
   const config = getRankingImagePreloadConfig();
-  return preloadImages(
-    rankingImageUrls(items, config.criticalLimit),
+  return preloadRankingImages(
+    items.slice(0, config.criticalLimit), viewerId, assetType,
     config.concurrency,
     "auto",
   );
 };
 
 export function preloadLastRankingSnapshotImages(): Promise<void> {
-  return preloadRankingSnapshotImages(readLastRankingSnapshot());
+  const viewerId = auth.currentUser?.uid;
+  if (!viewerId || lastRankingSnapshot?.viewerId !== viewerId) return Promise.resolve();
+  return preloadRankingSnapshotImages(readLastRankingSnapshot(), viewerId, lastRankingSnapshot.assetType || "driver");
 }
 
-type RankingListItemProps = {
-  item: any;
-  actualRank: number;
-  critical: boolean;
-};
-
-const RankingListItem = memo(function RankingListItem({
-  item,
-  actualRank,
-  critical,
-}: RankingListItemProps) {
-  let rankStyle = "bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-slate-400";
-  let itemBorderColor = "border-gray-100 dark:border-[#2A2F3A]";
-
-  if (actualRank === 1) {
-    rankStyle = "bg-yellow-50 text-yellow-600 border border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-500 dark:border-yellow-500/30 shadow-sm dark:shadow-[0_0_10px_rgba(250,204,21,0.2)]";
-    itemBorderColor = "border-yellow-200/50 dark:border-yellow-500/20";
-  } else if (actualRank === 2) {
-    rankStyle = "bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-300/20 dark:text-slate-300 dark:border-slate-300/30 shadow-sm";
-  } else if (actualRank === 3) {
-    rankStyle = "bg-orange-50 text-orange-600 border border-orange-200 dark:bg-orange-500/20 dark:text-orange-400 dark:border-orange-500/30 shadow-sm";
-  }
-
-  const initials = getRankingInitials(String(item?.name || ""));
-  const logo = item?.logo;
-
-  return (
-    <div
-      key={item.id}
-      style={{ contentVisibility: "auto", containIntrinsicSize: "76px" }}
-      className={`flex items-center justify-between gap-3 p-3 sm:p-4 bg-white dark:bg-[#1A1D24] rounded-2xl hover:bg-gray-50 dark:hover:bg-[#1F232B] transition-colors border ${itemBorderColor} hover:border-gray-200 dark:hover:border-[#3A4050] shadow-sm group cursor-pointer`}
-    >
-      <div className="flex items-center gap-3 w-full max-w-[65%]">
-        <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-[13px] sm:text-sm font-black shrink-0 ${rankStyle}`}>
-          {actualRank}º
-        </div>
-        {logo ? (
-          <StableImage
-            src={logo}
-            alt={item.name}
-            loading={critical ? "eager" : "lazy"}
-            decoding="async"
-            fetchPriority={critical ? "high" : "low"}
-            preload={critical}
-            hideFallbackWhenCached
-            hideFallbackWhileLoading
-            wrapperClassName="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-white shrink-0 shadow-sm border border-gray-100 dark:border-gray-800"
-            className="object-cover"
-            fallback={<span className="h-full w-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-gray-400 dark:text-slate-400 font-bold">{initials}</span>}
-          />
-        ) : (
-          <div className="w-9 h-9 sm:w-12 sm:h-12 rounded-full bg-gray-100 dark:bg-slate-800 border-2 border-gray-200 dark:border-slate-700 flex items-center justify-center shrink-0 shadow-sm text-gray-400 dark:text-slate-400 font-bold">
-            {initials}
-          </div>
-        )}
-        <div className="flex flex-col min-w-0 pr-1">
-          <p className="text-sm sm:text-base font-bold text-gray-900 dark:text-white line-clamp-2 leading-tight">{item.name}</p>
-          <div className="mt-1">
-            <span className="text-[11px] sm:text-xs text-gray-500 dark:text-slate-400 font-medium bg-gray-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded-md whitespace-nowrap">{item.trips} viagens</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col items-end shrink-0 pl-2">
-        <span className="text-[10px] text-gray-400 dark:text-slate-500 font-semibold mb-0.5 whitespace-nowrap">Ganhos totais</span>
-        <p className="text-[14px] sm:text-lg font-black text-green-600 dark:text-green-500 tracking-tight">{formatRankingCurrency(item.val)}</p>
-      </div>
-    </div>
-  );
-});
-
 export default function RankingGlobal() {
+  const location = useLocation();
+  const profileIntent = (location.state as { profileRanking?: {
+    type?: "entre" | "interno" | "global"; simulatorId?: string; companyId?: string;
+    periodType?: "semana" | "mes";
+  } } | null)?.profileRanking;
+  const profileRankingType = ["entre", "interno", "global"].includes(profileIntent?.type || "")
+    ? profileIntent?.type : undefined;
   const navigate = useNavigate();
   const rankingImageConfig = useMemo(getRankingImagePreloadConfig, []);
-  const { currentUser } = useSessionStore();
+  useEffect(() => onCanonicalTripUpdated(() => {
+    rankingSnapshotCache.clear();
+    lastRankingSnapshot = null;
+    if (typeof window !== "undefined") {
+      for (let index = window.localStorage.length - 1; index >= 0; index -= 1) {
+        const key = window.localStorage.key(index);
+        if (key?.startsWith(RANKING_PERSISTED_CACHE_PREFIX)) window.localStorage.removeItem(key);
+      }
+    }
+  }), []);
+  const { currentUser, activeRole } = useSessionStore();
   const { notifications, markNotificationAsRead } = useNotificationStore();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const {
@@ -298,6 +277,8 @@ export default function RankingGlobal() {
     simulators,
     simulatorsLoading,
     users: knownUsers,
+    jobs,
+    vehicles,
   } = useOperationalStore();
   const {
     globalPeriodPreset: periodPreset,
@@ -395,15 +376,34 @@ export default function RankingGlobal() {
   // profile/company catalogs finish loading instead of briefly showing an
   // incorrect cross-simulator ranking.
   const [simulator, setSimulator] = useState<string>(
-    () => preferredProfileSimulatorValue,
+    () => String(profileIntent?.simulatorId || preferredProfileSimulatorValue),
   );
   const simulatorSelectionModeRef = useRef<"pending" | "auto" | "user">(
-    preferredProfileSimulatorValue ? "auto" : "pending",
+    profileIntent?.simulatorId ? "user" : preferredProfileSimulatorValue ? "auto" : "pending",
   );
   const autoSimulatorSourceRef = useRef("");
-  const [rankingType, setRankingType] = useState<"entre" | "interno" | "global">("entre");
+  const [rankingType, setRankingType] = useState<"entre" | "interno" | "global">(profileRankingType || "entre");
   const [viewType, setViewType] = useState<"podio" | "lista">("podio");
-  const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string>(profileIntent?.companyId || "");
+  const [selectedParticipant, setSelectedParticipant] = useState<{ item: any; rank: number } | null>(null);
+  const [showAdditionalParticipants, setShowAdditionalParticipants] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
+
+  const appliedProfileIntentRef = useRef("");
+  useEffect(() => {
+    if (!profileRankingType || appliedProfileIntentRef.current === location.key) return;
+    appliedProfileIntentRef.current = location.key;
+    setRankingType(profileRankingType);
+    setSelectedCompanyId(String(profileIntent?.companyId || ""));
+    if (profileIntent?.simulatorId) {
+      simulatorSelectionModeRef.current = "user";
+      setSimulator(String(profileIntent.simulatorId));
+    }
+    if (profileIntent?.periodType === "semana" || profileIntent?.periodType === "mes") {
+      setPeriodPreset(profileIntent.periodType);
+    }
+  }, [location.key, profileIntent?.companyId, profileIntent?.periodType, profileIntent?.simulatorId, profileRankingType, setPeriodPreset]);
 
   const [showDatePicker, setShowDatePicker] = useState(false);
   const referenceDate = useLiveCalendarReference("utc");
@@ -445,44 +445,61 @@ export default function RankingGlobal() {
         : "",
     [aggregatePeriodType, referenceDate],
   );
-  // Open periods are mutable. Every operational surface reads the live
-  // historico_viagens dataset, so using a precomputed document here can show
-  // stale totals after a deletion, moderation action or missed backend
-  // trigger. Aggregates remain useful for closed periods, whose result is
-  // immutable; the current week/month always uses the same bounded live
-  // source as profiles, dashboards and Histórico de Viagens.
+  // Open weekly/monthly periods use the authenticated callable, which rebuilds
+  // the bounded canonical source before the result is accepted. This keeps the
+  // global universe complete without opening a collection-wide live listener.
   const isOpenRankingPeriod = rankingRange.end.getTime() >= Date.now();
   const aggregateEligible = Boolean(
     aggregatePeriodType &&
       aggregatePeriodKey &&
       simulator &&
       simulator !== ALL_SIMULATORS_VALUE &&
-      rankingType !== "interno" &&
-      !isOpenRankingPeriod,
+      rankingType !== "interno",
   );
   const rankingAggregateState = useRankingAggregate({
     simulatorId: simulator,
     periodType: aggregatePeriodType,
     periodKey: aggregatePeriodKey,
     enabled: aggregateEligible,
+    refreshOnRead: isOpenRankingPeriod,
   });
+  const previousPeriodReferenceDate = useMemo(() => {
+    if (!aggregatePeriodType) return referenceDate;
+    return new Date(rankingRange.start.getTime() - 1);
+  }, [aggregatePeriodType, rankingRange.start, referenceDate]);
+  const previousAggregatePeriodKey = useMemo(
+    () => aggregatePeriodType
+      ? buildRankingAggregatePeriodKey(aggregatePeriodType, previousPeriodReferenceDate)
+      : "",
+    [aggregatePeriodType, previousPeriodReferenceDate],
+  );
+  const previousAggregateEligible = Boolean(
+    aggregatePeriodType && previousAggregatePeriodKey && simulator &&
+      simulator !== ALL_SIMULATORS_VALUE && rankingType !== "interno",
+  );
+  const previousRankingAggregateState = useRankingAggregate({
+    simulatorId: simulator,
+    periodType: aggregatePeriodType,
+    periodKey: previousAggregatePeriodKey,
+    enabled: previousAggregateEligible,
+    refreshOnRead: false,
+  });
+  const previousRankingAggregate = previousRankingAggregateState.status === "ready"
+    ? previousRankingAggregateState.aggregate
+    : null;
   const consolidatedAggregate =
     rankingAggregateState.status === "ready"
       ? rankingAggregateState.aggregate
       : null;
-  const standardCollectiveRanking = Boolean(
-    aggregatePeriodType && rankingType !== "interno",
+  const globalAggregateUnsupported = Boolean(
+    rankingType !== "interno" &&
+      (!aggregatePeriodType || simulator === ALL_SIMULATORS_VALUE),
   );
-  const useTripFallback =
-    isOpenRankingPeriod ||
-    !standardCollectiveRanking ||
-    simulator === ALL_SIMULATORS_VALUE ||
-    rankingAggregateState.status === "unavailable";
+  const useTripFallback = rankingType === "interno";
 
-  // Standard weekly/monthly rankings read only the companies referenced by
-  // the selected aggregate. The complete `frotas` catalog remains a guarded
-  // fallback for custom periods, "Todos os simuladores" and deployments where
-  // the aggregate Function is not available yet.
+  // Standard weekly/monthly rankings read only companies referenced by the
+  // selected aggregate. Bounded fallback reads every eligible company in the
+  // loaded catalog—not merely companies affiliated with the current viewer.
   const aggregateCompanyIds = useMemo(() => {
     if (!consolidatedAggregate) return [] as string[];
     const ids = new Set<string>(Object.keys(consolidatedAggregate.companies));
@@ -513,19 +530,12 @@ export default function RankingGlobal() {
   const aggregateForRanking = consolidatedAggregate;
 
   const companies = useMemo(() => {
-    const byId = new Map<string, any>();
-    [
-      ...catalogCompanies,
-      ...((profileCompanies || []) as any[]),
-      ...aggregateCompanies,
-    ].forEach((company) => {
-      const id = String(company?.id || "").trim();
-      if (id) byId.set(id, company);
-    });
-    return Array.from(byId.values()).filter((company) =>
-      isRankingEligibleCompany(company),
+    return mergeRankingCompanyCatalogs(
+      [...catalogCompanies, ...((profileCompanies || []) as any[])],
+      aggregateCompanies,
+      aggregateCompaniesComplete && aggregateCompaniesServerConfirmed ? aggregateCompanyIds : [],
     );
-  }, [aggregateCompanies, catalogCompanies, profileCompanies]);
+  }, [aggregateCompanies, aggregateCompaniesComplete, aggregateCompaniesServerConfirmed, aggregateCompanyIds, catalogCompanies, profileCompanies]);
 
   const companyCatalogRetryRef = useRef(0);
   useEffect(() => {
@@ -593,7 +603,7 @@ export default function RankingGlobal() {
       key: rankingCacheKey,
       signature: immediateItems
         .map((item) =>
-          [item.id, item.name, item.logo || "", item.val, item.trips].join("~"),
+          [item.id, item.name, item.logo || "", item.val, item.trips, item.currency || "", item.companyId || "", item.companyName || "", JSON.stringify(item.currencyBreakdown || [])].join("~"),
         )
         .join("|"),
       // Mobile favors immediate information. StableImage reserves the final
@@ -633,7 +643,7 @@ export default function RankingGlobal() {
     const snapshot = freezeRankingSnapshot(exact);
     const signature = snapshot
       .map((item) =>
-        [item.id, item.name, item.logo || "", item.val, item.trips].join("~"),
+        [item.id, item.name, item.logo || "", item.val, item.trips, item.currency || "", item.companyId || "", item.companyName || "", JSON.stringify(item.currencyBreakdown || [])].join("~"),
       )
       .join("|");
 
@@ -658,10 +668,10 @@ export default function RankingGlobal() {
     };
 
     if (rankingImageConfig.gateInitialPublishOnImages) {
-      void preloadRankingSnapshotImages(snapshot).then(publish);
+      void preloadRankingSnapshotImages(snapshot, currentUser?.id || "", rankingType === "entre" ? "company" : "driver").then(publish);
     } else {
       publish();
-      void preloadRankingSnapshotImages(snapshot);
+      void preloadRankingSnapshotImages(snapshot, currentUser?.id || "", rankingType === "entre" ? "company" : "driver");
     }
 
     return () => {
@@ -674,11 +684,15 @@ export default function RankingGlobal() {
     loading: tripsLoading,
     refreshing: tripsRefreshing,
     error: tripsError,
+    serverConfirmed: tripsServerConfirmed,
   } = useTripsRealtime({
     startDate: rankingRange.start,
     endDate: rankingRange.end,
     enabled: effectiveTripFallback,
     keepPreviousData: true,
+    companyIds: rankingType === "interno"
+      ? [selectedCompanyId || activeCompanyId || ""].filter(Boolean)
+      : [],
   });
 
   const rankingComputationInput = useMemo(
@@ -736,24 +750,9 @@ export default function RankingGlobal() {
     });
   }, [deferredRankingInput]);
 
-  const activeInternalDriverIds = useMemo(() => {
-    if (rankingType !== "interno" || !selectedCompanyId) return [] as string[];
-    return Array.from(
-      new Set(
-        (allCompanyMembers || [])
-          .filter((member: any) => {
-            if (String(member?.companyId || "") !== selectedCompanyId) return false;
-            if (String(member?.status || "").toLowerCase() !== "active") return false;
-            const roles = Array.isArray(member?.roles)
-              ? member.roles.map((role: unknown) => String(role).toLowerCase())
-              : [];
-            return roles.includes("driver") || String(member?.role || "").toLowerCase() === "driver";
-          })
-          .map((member: any) => String(member?.userId || "").trim())
-          .filter(Boolean),
-      ),
-    ).sort();
-  }, [allCompanyMembers, rankingType, selectedCompanyId]);
+  const activeInternalDriverIds = useMemo(() => rankingType === "interno"
+    ? getActiveInternalDriverIds(allCompanyMembers as unknown as Record<string, unknown>[], selectedCompanyId)
+    : [], [allCompanyMembers, rankingType, selectedCompanyId]);
 
   const rankingParticipantIds = useMemo(() => {
     if (!deferredRankingInput?.simulator) return [] as string[];
@@ -928,13 +927,13 @@ export default function RankingGlobal() {
   }, [companies, simulator, simulatorOptions]);
 
   useEffect(() => {
-    if (rankingType === "interno" && selectedCompanyId) {
+    if (rankingType === "interno" && selectedCompanyId && companyCatalogLoaded && !companiesLoading) {
        const isValid = filteredCompaniesForDropdown.some(c => c.id === selectedCompanyId);
        if (!isValid) {
-         setSelectedCompanyId(filteredCompaniesForDropdown.length > 0 ? filteredCompaniesForDropdown[0].id : "");
+         setSelectedCompanyId(String(filteredCompaniesForDropdown[0]?.id || ""));
        }
     }
-  }, [simulator, rankingType, filteredCompaniesForDropdown, selectedCompanyId]);
+  }, [simulator, rankingType, filteredCompaniesForDropdown, selectedCompanyId, companyCatalogLoaded, companiesLoading]);
 
   const calculatedRankingData = useMemo(() => {
     if (!deferredRankingInput?.simulator) return [];
@@ -969,72 +968,23 @@ export default function RankingGlobal() {
       );
     }
 
-    const driverRanking = buildDriverRankingPageData({
+    const rankingParams = {
       trips: preparedRankingTrips,
       startDate: deferredRankingInput.startDate,
       endDate: deferredRankingInput.endDate,
-      scope:
-        deferredRankingInput.rankingType === "interno"
-          ? "internal"
-          : "global",
-      companyId:
-        deferredRankingInput.rankingType === "interno"
-          ? deferredRankingInput.selectedCompanyId
-          : undefined,
-      // The input was already filtered by the canonical simulator boundary in
-      // `preparedRankingTrips`; keep the simulator ID for identity checks but
-      // avoid a second full scan in the shared engine.
+      companyId: deferredRankingInput.rankingType === "interno"
+        ? deferredRankingInput.selectedCompanyId : undefined,
       simulatorId: deferredRankingInput.simulator,
       tripsAlreadyFilteredBySimulator: true,
       companies: deferredRankingInput.companies,
       simulators: deferredRankingInput.simulators,
       users,
-      companyMembers: (allCompanyMembers as unknown) as Record<string, unknown>[],
-    });
+      companyMembers: allCompanyMembers as unknown as Record<string, unknown>[],
+    };
+    return deferredRankingInput.rankingType === "interno"
+      ? buildInternalDriverRankingPageData(rankingParams)
+      : buildDriverRankingPageData({ ...rankingParams, scope: "global" });
 
-    if (deferredRankingInput.rankingType !== "interno") return driverRanking;
-
-    const usersById = new Map(
-      users.map((user: any) => [String(user?.id || ""), user] as const),
-    );
-    const existingIds = new Set(driverRanking.map((item) => item.id));
-    const selectedCompany = deferredRankingInput.companies.find(
-      (company: any) => String(company?.id || "") === deferredRankingInput.selectedCompanyId,
-    );
-    const companyName = String(
-      selectedCompany?.companyName || selectedCompany?.name || "",
-    );
-    const zeroActivityDrivers = activeInternalDriverIds
-      .filter((id) => !existingIds.has(id))
-      .map((id) => {
-        const user = usersById.get(id) as any;
-        const fullName = String(user?.name || "Motorista Desconhecido").trim();
-        return {
-          id,
-          name: fullName.split(/\s+/).slice(0, 2).join(" "),
-          logo: String(
-            user?.profilePhotoURL ||
-              user?.photoURL ||
-              user?.photoUrl ||
-              user?.avatar ||
-              "",
-          ),
-          trips: 0,
-          val: 0,
-          companyId: deferredRankingInput.selectedCompanyId,
-          companyName,
-        };
-      });
-
-    return [...driverRanking, ...zeroActivityDrivers].sort((a, b) => {
-      if (b.val !== a.val) return b.val - a.val;
-      if (b.trips !== a.trips) return b.trips - a.trips;
-      const nameOrder = a.name.localeCompare(b.name, "pt-BR", {
-        sensitivity: "base",
-        numeric: true,
-      });
-      return nameOrder || a.id.localeCompare(b.id);
-    });
   }, [
     activeInternalDriverIds,
     allCompanyMembers,
@@ -1065,21 +1015,23 @@ export default function RankingGlobal() {
   const aggregateSourceReady = Boolean(aggregateForRanking);
   const aggregateCompaniesReady =
     !aggregateSourceReady ||
+    aggregateCompanyIds.length === 0 ||
     (aggregateCompaniesComplete === true &&
       aggregateCompaniesServerConfirmed === true &&
-      !aggregateCompaniesLoading &&
-      !aggregateCompaniesRefreshing);
+      !aggregateCompaniesLoading);
   const fallbackCompaniesReady =
     !effectiveTripFallback || (companyCatalogLoaded && !companiesLoading);
   const tripSourceReady =
     effectiveTripFallback &&
     fallbackCompaniesReady &&
+    tripsServerConfirmed &&
+    !tripsError &&
     !tripsLoading &&
     !tripsRefreshing;
   const rankingSourcesReady =
     rankingComputationReady &&
     simulatorSelectionReady &&
-    ((aggregateSourceReady && aggregateCompaniesReady) || tripSourceReady) &&
+    ((aggregateSourceReady && aggregateCompaniesReady) || tripSourceReady || globalAggregateUnsupported) &&
     internalSelectionReady &&
     participantProfilesReady;
   const preparedLiveRanking = rankingSourcesReady;
@@ -1091,7 +1043,7 @@ export default function RankingGlobal() {
     () =>
       liveRankingData
         .map((item) =>
-          [item.id, item.name, item.logo || "", item.val, item.trips].join("~"),
+          [item.id, item.name, item.logo || "", item.val, item.trips, item.currency || "", item.companyId || "", item.companyName || "", JSON.stringify(item.currencyBreakdown || [])].join("~"),
         )
         .join("|"),
     [liveRankingData],
@@ -1100,12 +1052,36 @@ export default function RankingGlobal() {
     visibleRankingSnapshot.key === rankingCacheKey &&
     visibleRankingSnapshot.items.length > 0
       ? visibleRankingSnapshot.items
-      : liveRankingData;
-  // A non-empty projection from the exact simulator/period is sufficient for
-  // first paint. Full source readiness remains the reconciliation boundary,
-  // not the visual gate; this prevents the Android WebView from showing the
-  // synchronization skeleton while aliases/profile chunks are still settling.
+      : preparedLiveRanking ? liveRankingData : [];
+  const previousRankingData = useMemo(() => {
+    if (!previousRankingAggregate) return [];
+    if (rankingType === "entre") {
+      return buildCompanyRankingFromAggregate(previousRankingAggregate, rankingCompanyPool, simulators);
+    }
+    return buildDriverRankingFromAggregate(
+      previousRankingAggregate,
+      users,
+      rankingCompanyPool,
+      simulators,
+      (allCompanyMembers as unknown) as Record<string, unknown>[],
+    );
+  }, [allCompanyMembers, previousRankingAggregate, rankingCompanyPool, rankingType, simulators, users]);
+  const previousPeriodLeader = previousRankingData[0];
+  const currentPeriodLeader = rankingData[0];
+  const previousLeaderComparison = useMemo(() => {
+    const current = comparableRankingMoney(currentPeriodLeader);
+    const previous = comparableRankingMoney(previousPeriodLeader);
+    if (!current || !previous || current.currency !== previous.currency) return null;
+    return { current, previous, delta: current.value - previous.value };
+  }, [currentPeriodLeader, previousPeriodLeader]);
+  // Reuse a previously confirmed snapshot for this exact scope immediately.
+  // A newly calculated subset must wait for complete comparative sources;
+  // otherwise a partial company read can falsely appear as a first place.
   const rankingReady = rankingData.length > 0 || preparedLiveRanking;
+  useRankingVehiclePhotoPrefetch(rankingData, {
+    viewerId: currentUser?.id, simulatorId: simulator,
+    companies: companies as Record<string, any>[], simulators: simulators as unknown as Record<string, any>[],
+  }, rankingReady && rankingType !== "entre");
 
   useEffect(() => {
     if (!preparedLiveRanking) return;
@@ -1131,14 +1107,14 @@ export default function RankingGlobal() {
         signature: liveRankingSignature,
         items: snapshot,
       });
-      writeRankingSnapshot(rankingCacheKey, snapshot);
+      writeRankingSnapshot(rankingCacheKey, snapshot, currentUser?.id, rankingType === "entre" ? "company" : "driver");
     };
 
     if (rankingImageConfig.gateInitialPublishOnImages) {
-      void preloadRankingSnapshotImages(snapshot).finally(publish);
+      void preloadRankingSnapshotImages(snapshot, currentUser?.id || "", rankingType === "entre" ? "company" : "driver").finally(publish);
     } else {
       publish();
-      void preloadRankingSnapshotImages(snapshot);
+      void preloadRankingSnapshotImages(snapshot, currentUser?.id || "", rankingType === "entre" ? "company" : "driver");
     }
 
     return () => {
@@ -1154,14 +1130,13 @@ export default function RankingGlobal() {
 
   useEffect(() => {
     if (!rankingReady || rankingImageConfig.deferredLimit <= 0) return;
-    const deferredLogos = rankingData
+    const deferredItems = rankingData
       .slice(
         rankingImageConfig.criticalLimit,
         rankingImageConfig.deferredLimit,
       )
-      .map((item) => item.logo)
-      .filter(Boolean) as string[];
-    if (deferredLogos.length === 0) return;
+      ;
+    if (deferredItems.length === 0) return;
 
     const idleApi = window as Window & {
       requestIdleCallback?: (
@@ -1173,8 +1148,8 @@ export default function RankingGlobal() {
     let idleId: number | null = null;
     const timer = window.setTimeout(() => {
       const warm = () =>
-        void preloadImages(
-          deferredLogos,
+        void preloadRankingImages(
+          deferredItems, currentUser?.id || "", rankingType === "entre" ? "company" : "driver",
           rankingImageConfig.mobileViewport ? 2 : 3,
           "low",
         );
@@ -1205,7 +1180,6 @@ export default function RankingGlobal() {
     if (
       !rankingLoadError ||
       rankingReady ||
-      calculatedRankingData.length > 0 ||
       rankingErrorNoticeKeysRef.current.has(rankingCacheKey)
     ) {
       return;
@@ -1214,69 +1188,64 @@ export default function RankingGlobal() {
     setRankingErrorNoticeKey(rankingCacheKey);
   }, [calculatedRankingData.length, rankingCacheKey, rankingLoadError, rankingReady]);
 
+  const [rankingDeadlineReached, setRankingDeadlineReached] = useState(false);
+  useEffect(() => {
+    setRankingDeadlineReached(false);
+    if (rankingReady) return;
+    const timer = setTimeout(() => setRankingDeadlineReached(true), 20_000);
+    return () => clearTimeout(timer);
+  }, [rankingReady, rankingCacheKey]);
+
   const showRankingErrorNotice =
     rankingErrorNoticeKey === rankingCacheKey &&
-    !rankingReady &&
-    calculatedRankingData.length === 0;
+    !rankingReady;
+  const showServerRankingUnavailableNotice =
+    rankingType !== "interno" &&
+    !globalAggregateUnsupported &&
+    Boolean(simulator) &&
+    (rankingAggregateState.status === "unavailable" || rankingAggregateState.status === "missing") &&
+    !aggregateForRanking;
 
-  const formatCurrency = (val: number) => BRL_FORMATTER.format(val);
+  const formatCurrency = formatRankingCurrency;
 
-  const getInitials = (name: string) => {
-    return name?.substring(0, 2).toUpperCase() || "UN";
-  };
+  const rankingPeriodLabel = periodPreset === "semana"
+    ? "Semana atual"
+    : periodPreset === "mes"
+      ? formatRankingMonthLabel(referenceDate)
+      : (startDateStr || endDateStr)
+        ? `${startDateStr ? formatDateBR(startDateStr) : "Início"} até ${endDateStr ? formatDateBR(endDateStr) : "Hoje"}`
+        : "Sem filtro de data";
+  const rankingTypeLabel = rankingType === "global" ? "Global" : rankingType === "interno" ? "Interno" : "Empresarial";
+  const pageTitle = "Ranking Global";
+  const pageDescription = "Classificação financeira.";
+  const simulatorLabel = simulatorOptions.find((option) => option.value === simulator)?.label || ALL_SIMULATORS_LABEL;
+  const simulatorModalItems = useMemo(
+    () => [{ id: ALL_SIMULATORS_VALUE, label: ALL_SIMULATORS_LABEL }, ...simulatorOptions.map((option) => ({ id: option.value, label: option.label }))],
+    [simulatorOptions],
+  );
 
-  const renderLogo = (
-    item: any,
-    size: "lg" | "md" | "sm" = "md",
-    critical = true,
-  ) => {
-    const sizeClasses = {
-      lg: "w-14 h-14 sm:w-16 sm:h-16",
-      md: "w-11 h-11 sm:w-14 sm:h-14",
-      sm: "w-9 h-9 sm:w-12 sm:h-12"
-    };
+  const openParticipant = useCallback((item: any, rank: number) => {
+    // Only driver rankings have a participant profile. Company tiles remain informational.
+    if (rankingType !== "entre") setSelectedParticipant({ item, rank });
+  }, [rankingType]);
+  const participantRankingScope = rankingType === "entre" ? "companies" : rankingType === "interno" ? "internal" : "global";
+  const additionalRankingData = rankingData.slice(3);
+  useEffect(() => { setSelectedParticipant(null); setShowAdditionalParticipants(false); }, [rankingType, selectedCompanyId, simulator, periodPreset, rankingRange.start, rankingRange.end]);
 
-    if (item.logo) {
-      return (
-        <StableImage
-          src={item.logo}
-          alt={item.name}
-          loading={critical ? "eager" : "lazy"}
-          decoding="async"
-          fetchPriority={critical ? "high" : "low"}
-          preload={critical}
-          hideFallbackWhenCached
-          hideFallbackWhileLoading
-          wrapperClassName={`${sizeClasses[size]} rounded-full bg-white shrink-0 shadow-sm border border-gray-100 dark:border-gray-800`}
-          className="object-cover"
-          fallback={
-            <span className={`h-full w-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center text-gray-400 dark:text-slate-400 font-bold ${size === "lg" ? "text-lg" : "text-base"}`}>
-              {getInitials(item.name)}
-            </span>
-          }
-        />
-      );
-    }
-    return (
-      <div className={`${sizeClasses[size]} rounded-full bg-gray-100 dark:bg-slate-800 border-2 border-gray-200 dark:border-slate-700 flex items-center justify-center shrink-0 shadow-sm text-gray-400 dark:text-slate-400 font-bold ${size === "lg" ? "text-lg" : "text-base"}`}>
-        {getInitials(item.name)}
-      </div>
-    );
-  };
 
   return (
-    <div className="nvu-ranking-page min-h-screen bg-gray-50 dark:bg-[#0F1115] text-gray-900 dark:text-slate-200 font-sans pb-10">
-      <header className="nvu-ranking-app-header flex items-center justify-between px-4 z-30 bg-white dark:bg-[#09090b] border-b border-gray-100 dark:border-[#2A2F3A] text-gray-900 dark:text-white">
+    <div className="nvu-ranking-page nvu-gamer-ranking min-h-screen bg-gray-50 dark:bg-nvu-surface text-gray-900 dark:text-nvu-text font-sans pb-10">
+      <header className="nvu-ranking-app-header flex items-center justify-between px-4 z-30 bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line text-gray-900 dark:text-white">
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => window.dispatchEvent(new CustomEvent("nvu-toggle-shell-menu"))}
-            aria-label="Alternar menu do aplicativo"
-            className="rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-white/10"
+            onClick={() => window.dispatchEvent(new CustomEvent("nvu-open-shell-menu"))}
+            aria-label="Abrir menu do aplicativo"
+            className="rounded-lg p-1.5 text-gray-600 transition-colors hover:bg-gray-100 dark:text-nvu-text dark:hover:bg-white/10"
           >
             <Menu size={24} />
           </button>
-          <span className="text-[20px] font-extrabold leading-none tracking-[-0.06em]">NVU</span>
+          <NvuWordmark />
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           <NotificationCenter
@@ -1285,15 +1254,15 @@ export default function RankingGlobal() {
             isOpen={isNotificationsOpen}
             onToggle={() => setIsNotificationsOpen((open) => !open)}
             onClose={() => setIsNotificationsOpen(false)}
-            buttonClassName="relative rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-200 dark:hover:bg-white/10"
+            buttonClassName="relative rounded-full p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:text-nvu-text dark:hover:bg-white/10"
             onOpen={(notification) => {
               const type = notification.type ?? notification.tipo;
-              navigate(type === "NEW_OPERATION" ? "/driver" : currentUser?.roles?.includes("admin") ? "/admin/fleet" : "/driver/profile");
+              navigate(type === "NEW_OPERATION" ? "/driver" : activeRole === "admin" ? "/admin/fleet" : "/driver/profile");
             }}
           />
           <button
             type="button"
-            onClick={() => navigate(currentUser?.roles?.includes("admin") ? "/admin/fleet" : "/driver/profile")}
+            onClick={() => navigate(activeRole === "admin" ? "/admin/fleet" : "/driver/profile")}
             aria-label="Abrir perfil"
             className="flex items-center rounded-full transition-opacity hover:opacity-80"
           >
@@ -1304,7 +1273,7 @@ export default function RankingGlobal() {
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
-                wrapperClassName="h-9 w-9 shrink-0 rounded-full border border-gray-200 bg-gray-100 dark:border-[#2A2F3A] dark:bg-[#18181b]"
+                wrapperClassName="h-9 w-9 shrink-0 rounded-full border border-gray-200 bg-gray-100 dark:border-nvu-line dark:bg-nvu-surface"
                 className="object-cover"
                 referrerPolicy="no-referrer"
                 fallback={<span className="flex h-full w-full items-center justify-center bg-slate-900 text-xs font-bold text-white">NV</span>}
@@ -1316,317 +1285,143 @@ export default function RankingGlobal() {
                 loading="eager"
                 decoding="async"
                 fetchPriority="high"
-                wrapperClassName="h-9 w-9 shrink-0 rounded-full border border-gray-200 bg-gray-100 dark:border-[#2A2F3A] dark:bg-[#18181b]"
+                wrapperClassName="h-9 w-9 shrink-0 rounded-full border border-gray-200 bg-gray-100 dark:border-nvu-line dark:bg-nvu-surface"
                 className="object-cover"
                 referrerPolicy="no-referrer"
                 fallback={<span className="flex h-full w-full items-center justify-center bg-slate-900 text-xs font-bold text-white">NV</span>}
               />
             ) : (
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-[#18181b]">{String(currentUser?.name || "NV").slice(0, 2).toUpperCase()}</span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-bold text-white dark:bg-nvu-surface">{String(currentUser?.name || "NV").slice(0, 2).toUpperCase()}</span>
             )}
           </button>
         </div>
       </header>
 
       {/* Ranking title bar */}
-      <div className="nvu-ranking-header flex items-center justify-between bg-gray-50 px-4 pb-4 pt-3 transition-colors dark:bg-[#0F1115]">
-        <button onClick={() => navigate(-1)} className="rounded-full p-2 transition-colors hover:bg-gray-200 dark:hover:bg-white/5" aria-label="Voltar">
-          <ChevronLeft size={24} className="text-gray-600 dark:text-slate-300" />
-        </button>
-        <div className="flex-1 text-center">
-          <h1 className="text-lg font-bold leading-tight text-gray-900 dark:text-white">Ranking Global</h1>
-          <p className="text-xs font-medium text-gray-500 dark:text-slate-400">Classificação por ganhos</p>
-        </div>
-        <div className="p-2">
-          <Trophy size={22} className="text-yellow-500" />
+      <div className="nvu-ranking-header nvu-ranking-header-centered flex items-center justify-center bg-gray-50 px-4 pb-4 pt-3 transition-colors dark:bg-nvu-surface">
+        <div className="nvu-ranking-title-lockup">
+          <div className="nvu-ranking-title-copy">
+            <h1>{pageTitle}</h1>
+            <p>{pageDescription}</p>
+          </div>
         </div>
       </div>
 
-      <div className="px-4 space-y-4 max-w-lg mx-auto pt-6">
-        {/* Controls Layout */}
-        <div className="flex items-end justify-between gap-3">
-          {/* Simulador */}
-          <div className="space-y-1.5 flex-1">
-            <label className="text-xs font-semibold text-gray-700 dark:text-slate-400 px-1">Simulador</label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-slate-400">
-                <Building2 size={14} />
-              </div>
-              <select
-                value={simulator}
-                onChange={(e) => {
-                  const nextSimulator = e.target.value;
-                  simulatorSelectionModeRef.current = "user";
-                  setSimulator(nextSimulator);
-                }}
-                className="w-full h-10 bg-white dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] text-gray-800 dark:text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-9 pr-9 py-1 transition-colors outline-none appearance-none font-medium shadow-sm"
-              >
-                {!simulator && (
-                  <option value="" disabled>
-                    Identificando simulador do perfil...
-                  </option>
-                )}
-                <option value={ALL_SIMULATORS_VALUE}>
-                  {ALL_SIMULATORS_LABEL}
-                </option>
-                {simulatorOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400 dark:text-slate-400">
-                <ChevronDown size={14} />
-              </div>
-            </div>
-          </div>
-
-          <button 
-            onClick={() => setShowDatePicker(true)}
-            className="w-10 h-10 shrink-0 bg-white dark:bg-[#1A1D24] flex items-center justify-center rounded-xl border border-gray-200 dark:border-[#2A2F3A] shadow-sm text-gray-500 dark:text-slate-400 hover:text-blue-500 transition-colors"
-          >
-            <Calendar size={18} />
+      <div className="nvu-gamer-content">
+        <div className={`nvu-gamer-controls${filtersExpanded ? " is-expanded" : " is-collapsed"}`}>
+          <button type="button" className="nvu-gamer-filter-summary" aria-label={`Filtros do ranking: ${simulatorLabel}, ${rankingTypeLabel}, ${rankingPeriodLabel}`} aria-expanded={filtersExpanded} aria-controls="ranking-gamer-filter-body" onClick={() => setFiltersExpanded((open) => !open)}>
+            <span className="nvu-gamer-filter-summary-text"><span>{simulatorLabel}</span><span aria-hidden="true">·</span><span>{rankingTypeLabel}</span><span aria-hidden="true">·</span><span>{rankingPeriodLabel}</span></span>
+            {filtersExpanded ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
           </button>
-        </div>
-
-        {/* Date Period Indicator */}
-        <div className="flex items-center justify-center px-1">
-          <p className="text-[11px] font-medium text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-[#1A1D24] px-3 py-1 rounded-full border border-gray-200 dark:border-[#2A2F3A]">
-            Período: {periodPreset === "semana" ? "Semana Atual" : periodPreset === "mes" ? formatRankingMonthLabel(referenceDate) : (startDateStr || endDateStr) ? `${startDateStr ? formatDateBR(startDateStr) : "Início"} até ${endDateStr ? formatDateBR(endDateStr) : "Hoje"}` : "Sem filtro de data"}
-          </p>
-        </div>
-
-        {showRankingErrorNotice && (
-          <div className="rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
-            Não foi possível atualizar todos os dados agora. Estamos tentando novamente; o ranking será exibido assim que houver uma projeção válida.
+          <div id="ranking-gamer-filter-body" className="nvu-gamer-filter-body" hidden={!filtersExpanded}>
+          <div className="nvu-gamer-filter-line">
+            <button type="button" className="nvu-gamer-simulator" aria-label="Simulador" aria-haspopup="dialog" aria-expanded={isSimulatorModalOpen} onClick={() => setIsSimulatorModalOpen(true)}>
+              <Gamepad2 size={16} aria-hidden="true" />
+              <span className="nvu-gamer-filter-button-value">{simulatorLabel}</span>
+            </button>
+            <button type="button" className="nvu-gamer-calendar" aria-label="Escolher período do ranking" onClick={() => setShowDatePicker(true)}><Calendar size={16} />Período</button>
           </div>
-        )}
-
-        {/* Tipo de Ranking */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-700 dark:text-slate-400 px-1">Tipo de ranking</label>
-          <div className="flex bg-white dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] rounded-xl p-1 shadow-sm h-10">
-            <button
-              onClick={() => setRankingType("entre")}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-colors ${
-                rankingType === "entre" ? "bg-gray-100 dark:bg-[#283142] text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-transparent" : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-              }`}
-            >
-              <Building2 size={13} className="shrink-0" />
-              <span className="truncate">Entre empresas</span>
-            </button>
-            <button
-              onClick={() => setRankingType("interno")}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-colors ${
-                rankingType === "interno" ? "bg-gray-100 dark:bg-[#283142] text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-transparent" : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-              }`}
-            >
-              <Users size={13} className="shrink-0" />
-              Interno
-            </button>
-            <button
-              onClick={() => setRankingType("global")}
-              className={`flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1 rounded-lg text-[10px] sm:text-xs font-bold transition-colors ${
-                rankingType === "global" ? "bg-gray-100 dark:bg-[#283142] text-blue-600 dark:text-blue-400 shadow-sm border border-gray-200 dark:border-transparent" : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-              }`}
-            >
-              <Globe2 size={13} className="shrink-0" />
-              Global
-            </button>
+          <p className="nvu-gamer-period">Período ativo: {rankingPeriodLabel}</p>
+          <div className="nvu-gamer-tabs" role="group" aria-label="Tipo de ranking">
+            <button type="button" aria-pressed={rankingType === "global"} onClick={() => setRankingType("global")}><Globe2 size={14} />Global</button>
+            <button type="button" aria-pressed={rankingType === "interno"} onClick={() => setRankingType("interno")}><Users size={14} />Interno</button>
+            <button type="button" aria-pressed={rankingType === "entre"} onClick={() => setRankingType("entre")}><Building2 size={14} />Empresarial</button>
+          </div>
+          {rankingType === "interno" && <label className="nvu-gamer-company">Selecione a empresa
+            <ModalSelect title="Selecionar empresa" aria-label="Selecione a empresa" value={selectedCompanyId} onChange={(e) => setSelectedCompanyId(e.target.value)}>
+              <option value="">Selecione...</option>
+              {filteredCompaniesForDropdown.map(c => <option key={String(c.id)} value={String(c.id)}>{rankingCompanyDisplayName(c.name || c.companyName || "Empresa")}</option>)}
+            </ModalSelect>
+          </label>}
           </div>
         </div>
+        <SimulatorSelectionModal
+          open={isSimulatorModalOpen}
+          items={simulatorModalItems}
+          selectedId={simulator || ALL_SIMULATORS_VALUE}
+          onSelect={(value) => {
+            simulatorSelectionModeRef.current = "user";
+            setSimulator(value);
+          }}
+          onClose={() => setIsSimulatorModalOpen(false)}
+          description="Escolha o ambiente de trabalho do ranking."
+        />
 
-        {/* Selected Company Dropdown when Interno */}
-        {rankingType === "interno" && (
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-700 dark:text-slate-400 px-1">Selecione a empresa</label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-slate-400">
-                <Building2 size={14} />
-              </div>
-              <select
-                value={selectedCompanyId}
-                onChange={(e) => {
-                  const companyId = e.target.value;
-                  setSelectedCompanyId(companyId);
-                }}
-                className="w-full h-10 bg-white dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] text-gray-800 dark:text-slate-200 text-sm rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-9 pr-9 py-1 transition-colors outline-none appearance-none font-medium shadow-sm"
-              >
-                <option value="">Selecione...</option>
-                {filteredCompaniesForDropdown.map(c => (
-                  <option key={c.id} value={c.id}>{c.name || c.companyName}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-gray-400 dark:text-slate-400">
-                <ChevronDown size={14} />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Visualização */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-gray-700 dark:text-slate-400 px-1">Visualização</label>
-          <div className="flex bg-white dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] rounded-xl p-1 shadow-sm h-10">
-            <button
-              onClick={() => setViewType("podio")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-lg text-xs font-bold transition-colors ${
-                viewType === "podio" ? "bg-gray-100 dark:bg-[#283142] text-yellow-600 dark:text-yellow-500 shadow-sm border border-gray-200 dark:border-transparent" : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-              }`}
-            >
-              <Trophy size={16} />
-              Pódio
-            </button>
-            <button
-              onClick={() => setViewType("lista")}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-colors ${
-                viewType === "lista" ? "bg-gray-100 dark:bg-[#283142] text-gray-800 dark:text-slate-200 shadow-sm border border-gray-200 dark:border-transparent" : "text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-              }`}
-            >
-              <ListIcon size={14} />
-              Lista
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-6 sm:mt-8">
-          {rankingReady ? (
-            <>
-          {viewType === "podio" && (
-            <div className="relative pt-6 pb-2 w-full max-w-full">
-              <div className="absolute inset-0 flex justify-center -translate-y-4 pointer-events-none opacity-35 dark:opacity-45">
-                <div
-                  className="w-48 h-48 sm:w-64 sm:h-64 rounded-full"
-                  style={{
-                    background:
-                      "radial-gradient(circle, rgba(234,179,8,0.32) 0%, rgba(234,179,8,0.08) 48%, transparent 72%)",
-                  }}
-                />
-              </div>
-
-              <div className="flex items-end justify-center gap-1.5 sm:gap-3 relative z-10 mx-auto w-full px-1">
-                {/* 2nd Place */}
-                <div className="flex-1 flex flex-col items-center max-w-[120px] sm:max-w-[140px]">
-                  <div className="bg-white dark:bg-[#1C2028] border border-gray-200 dark:border-[#3C475A] rounded-xl sm:rounded-2xl p-2 sm:p-3 w-full flex flex-col items-center shadow-md dark:shadow-lg dark:shadow-blue-900/10 relative overflow-hidden group min-h-[140px] sm:min-h-[160px]">
-                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-slate-300 to-slate-500 opacity-80 dark:opacity-50"></div>
-                    <div className="bg-slate-500 dark:bg-slate-700/80 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full mb-2 shadow-[0_0_10px_rgba(100,116,139,0.3)] dark:shadow-[0_0_10px_rgba(200,200,200,0.3)] border border-slate-300 dark:border-slate-500/50">2º</div>
-                    
-                    {rankingData[1] ? (
-                      <>
-                        {renderLogo(rankingData[1], "md")}
-                        <h3 className="text-gray-900 dark:text-white text-[11px] sm:text-[13px] font-bold mt-2 text-center w-full px-0.5 line-clamp-2 leading-tight">{rankingData[1].name}</h3>
-                        <p className="text-blue-600 dark:text-blue-300 font-extrabold text-[12px] sm:text-sm mt-0.5 shrink-0 whitespace-nowrap">{formatCurrency(rankingData[1].val)}</p>
-                        <div className="flex items-center gap-1 mt-1.5 bg-gray-50 dark:bg-black/40 border border-gray-100 dark:border-none px-1.5 py-0.5 rounded-md w-full justify-center">
-                          <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-slate-300 whitespace-nowrap font-medium">{rankingData[1].trips} viagens</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center flex-1 py-2 h-full">
-                         <span className="text-[10px] sm:text-xs text-gray-400 dark:text-slate-500 font-medium text-center">Sem classificação</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Podium base */}
-                  <div className="w-[85%] h-5 sm:h-7 bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-400/80 dark:to-slate-600/30 rounded-t-lg sm:rounded-t-xl mt-[-2px] -z-10 dark:shadow-[inset_0_2px_4px_rgba(255,255,255,0.4)] relative">
-                     <div className="absolute inset-x-0 top-0 h-[1px] bg-slate-100 dark:bg-slate-200/50"></div>
-                  </div>
-                </div>
-
-                {/* 1st Place */}
-                <div className="flex-[1.1] sm:flex-[1.2] flex flex-col items-center z-20 min-w-[110px] sm:min-w-[130px] max-w-[130px] sm:max-w-[160px]">
-                  {rankingData[0] ? (
-                    <Crown size={36} className="text-yellow-500 dark:text-yellow-400 mb-1 fill-yellow-400/30 dark:fill-yellow-400/20 drop-shadow-[0_0_15px_rgba(234,179,8,0.5)] dark:drop-shadow-[0_0_15px_rgba(250,204,21,0.5)] sm:w-[44px] sm:h-[44px]" strokeWidth={1.5} />
-                  ) : (
-                    <div className="h-10 sm:h-[48px] w-full invisible"><Crown size={36} /></div>
-                  )}
-                  <div className="bg-white dark:bg-[#1C2028] border-2 border-yellow-400/50 dark:border-yellow-500/50 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 w-full flex flex-col items-center shadow-xl shadow-yellow-500/20 dark:shadow-yellow-500/10 relative overflow-hidden min-h-[160px] sm:min-h-[190px] z-10">
-                    <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-yellow-300 via-yellow-500 to-yellow-600 opacity-90 dark:opacity-80"></div>
-                    <div className="absolute inset-0 bg-yellow-500/5 mix-blend-multiply dark:mix-blend-screen pointer-events-none"></div>
-                    
-                    <div className="bg-gradient-to-b from-yellow-400 to-yellow-600 text-white text-[11px] sm:text-sm font-extrabold px-3 py-0.5 rounded-full mb-2 shadow-[0_0_15px_rgba(234,179,8,0.4)] dark:shadow-[0_0_15px_rgba(250,204,21,0.4)] border border-yellow-300/50">1º</div>
-                    
-                    {rankingData[0] ? (
-                      <>
-                        {renderLogo(rankingData[0], "lg")}
-                        <h3 className="text-gray-900 dark:text-white text-[12px] sm:text-[14px] font-extrabold mt-2 text-center w-full px-0.5 line-clamp-2 leading-tight">{rankingData[0].name}</h3>
-                        <p className="text-yellow-600 dark:text-yellow-400 font-black text-[13px] sm:text-base mt-0.5 shrink-0 drop-shadow-sm dark:drop-shadow-md whitespace-nowrap">{formatCurrency(rankingData[0].val)}</p>
-                        <div className="flex items-center gap-1 mt-1.5 bg-yellow-50 dark:bg-black/50 border border-yellow-100 dark:border-none px-1.5 py-0.5 rounded-md w-full justify-center">
-                          <span className="text-[10px] sm:text-[11px] text-yellow-800 dark:text-slate-300 whitespace-nowrap font-bold dark:font-medium">{rankingData[0].trips} viagens</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center flex-1 h-full w-full">
-                        <span className="text-[11px] sm:text-[13px] text-yellow-600/60 dark:text-yellow-500/50 font-bold text-center">Vaga disponível</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Podium base */}
-                  <div className="w-[90%] h-7 sm:h-9 bg-gradient-to-b from-yellow-400 to-yellow-600 dark:from-yellow-600/80 dark:to-yellow-900/30 rounded-t-lg sm:rounded-t-xl mt-[-2px] -z-10 shadow-[inset_0_2px_4px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_2px_4px_rgba(255,255,255,0.4)] relative">
-                    <div className="absolute inset-x-0 top-0 h-[1px] bg-yellow-100 dark:bg-yellow-200/50"></div>
-                  </div>
-                </div>
-
-                {/* 3rd Place */}
-                <div className="flex-1 flex flex-col items-center max-w-[120px] sm:max-w-[140px]">
-                  <div className="bg-white dark:bg-[#1C2028] border border-gray-200 dark:border-[#523A28] rounded-xl sm:rounded-2xl p-2 sm:p-3 w-full flex flex-col items-center shadow-md dark:shadow-lg dark:shadow-orange-900/10 relative overflow-hidden group min-h-[110px] sm:min-h-[140px]">
-                    <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-orange-300 to-orange-500 opacity-80 dark:opacity-40"></div>
-                    <div className="bg-orange-600 dark:bg-[#8A5A44]/80 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full mb-2 shadow-[0_0_10px_rgba(234,88,12,0.3)] dark:shadow-[0_0_10px_rgba(138,90,68,0.3)] border border-orange-400 dark:border-orange-500/40">3º</div>
-                    
-                    {rankingData[2] ? (
-                      <>
-                        {renderLogo(rankingData[2], "md")}
-                        <h3 className="text-gray-900 dark:text-white text-[11px] sm:text-[13px] font-bold mt-2 text-center w-full px-0.5 line-clamp-2 leading-tight">{rankingData[2].name}</h3>
-                        <p className="text-orange-600 dark:text-orange-400 font-extrabold text-[12px] sm:text-sm mt-0.5 shrink-0 whitespace-nowrap">{formatCurrency(rankingData[2].val)}</p>
-                        <div className="flex items-center gap-1 mt-1.5 bg-gray-50 dark:bg-black/40 border border-gray-100 dark:border-none px-1.5 py-0.5 rounded-md w-full justify-center">
-                          <span className="text-[9px] sm:text-[10px] text-gray-500 dark:text-slate-300 whitespace-nowrap font-medium">{rankingData[2].trips} viagens</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center flex-1 py-2 h-full">
-                         <span className="text-[10px] sm:text-xs text-gray-400 dark:text-slate-500 font-medium text-center">Sem classificação</span>
-                      </div>
-                    )}
-                  </div>
-                  {/* Podium base */}
-                  <div className="w-[85%] h-4 sm:h-5 bg-gradient-to-b from-orange-200 to-orange-300 dark:from-orange-800/80 dark:to-orange-950/30 rounded-t-lg sm:rounded-t-xl mt-[-2px] -z-10 dark:shadow-[inset_0_2px_4px_rgba(255,255,255,0.2)] relative">
-                     <div className="absolute inset-x-0 top-0 h-[1px] bg-orange-100 dark:bg-orange-300/40"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="nvu-gamer-results">
+          {rankingReady && (rankingAggregateState.stale || aggregateCompaniesRefreshing || aggregateCompaniesError || !rankingSourcesReady) && (
+            <p role="status" data-testid="ranking-saved-snapshot" className="mb-3 text-center text-xs text-slate-500 dark:text-nvu-muted">
+              Último resultado salvo · {rankingAggregateState.refreshing || aggregateCompaniesRefreshing ? "atualizando" : "aguardando atualização"}
+            </p>
           )}
-
-          {/* List items below Podium or for List View */}
-          <div className="mt-8 space-y-3 pb-6">
-            {rankingData.slice(viewType === "podio" ? 3 : 0).map((item, index) => {
-              const actualRank = viewType === "podio" ? index + 4 : index + 1;
-              return (
-                <RankingListItem
-                  key={item.id}
-                  item={item}
-                  actualRank={actualRank}
-                  critical={actualRank <= rankingImageConfig.criticalLimit}
-                />
-              );
-            })}
-            
-            {viewType === "lista" && rankingData.length === 0 && (
-              <div className="text-center py-10 bg-white dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] rounded-2xl shadow-sm">
-                <Trophy size={48} className="mx-auto text-gray-300 dark:text-slate-700 mb-4" />
-                <p className="text-gray-500 dark:text-slate-400 font-semibold text-sm">Nenhum dado encontrado para o filtro atual.</p>
+          {rankingReady ? (
+            rankingData.length === 0 ? (
+              <div data-testid="ranking-empty-state" role="status" className="text-center py-10 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-2xl shadow-sm">
+                <Trophy size={44} className="mx-auto text-gray-300 dark:text-slate-700 mb-3" />
+                <p className="text-gray-500 dark:text-nvu-muted font-semibold text-sm">
+                  {globalAggregateUnsupported
+                    ? "Escolha semana ou mês e um simulador específico para ver o ranking global."
+                    : "Sem classificação no período."}
+                </p>
               </div>
-            )}
-          </div>
+            ) : (
+            <>
+          {viewType === "podio" && <>
+            <div className="nvu-gamer-top-title"><strong>TOP 3</strong><span>Destaques do período</span></div>
+            <RankingPremiumPodium
+              items={rankingData}
+              viewerId={currentUser?.id}
+              assetType={rankingType === "entre" ? "company" : "driver"}
+              formatCurrency={formatCurrency}
+              onOpen={openParticipant}
+            />
+          </>}
+          <RankingGamerLeaderboard
+            items={showAdditionalParticipants ? rankingData : rankingData.slice(0, 3)}
+            viewerId={currentUser?.id}
+            assetType={rankingType === "entre" ? "company" : "driver"}
+            showPhotos
+            criticalLimit={rankingImageConfig.criticalLimit}
+            formatCurrency={formatCurrency}
+            onOpen={openParticipant}
+            additionalCount={additionalRankingData.length}
+            participantCount={rankingData.length}
+            showAdditionalParticipants={showAdditionalParticipants}
+            onToggleAdditional={() => setShowAdditionalParticipants((open) => !open)}
+          />
+          {previousPeriodLeader && currentPeriodLeader && (
+            <RankingPreviousPeriodCard
+              leader={previousPeriodLeader}
+              viewerId={currentUser?.id}
+              assetType={rankingType === "entre" ? "company" : "driver"}
+              periodLabel={periodPreset === "semana" ? "Semana anterior" : "Mês anterior"}
+              earnings={formatCurrency(previousPeriodLeader)}
+              comparison={previousLeaderComparison ? `${previousLeaderComparison.delta >= 0 ? "+" : "−"}${formatRankingAmount(Math.abs(previousLeaderComparison.delta), previousLeaderComparison.current.currency)}` : null}
+            />
+          )}
             </>
+            )
+          ) : showRankingErrorNotice || showServerRankingUnavailableNotice || rankingDeadlineReached ? (
+            <div data-testid="ranking-error-state" role="alert" className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-nvu-line dark:bg-nvu-surface">
+              <Trophy size={40} className="mx-auto mb-3 text-slate-300 dark:text-slate-600" />
+              <p className="font-semibold text-slate-800 dark:text-nvu-text">{rankingAggregateState.status === "missing" ? "Histórico não consolidado para este período." : "Não foi possível carregar o ranking."}</p>
+              <button
+                data-testid="ranking-retry"
+                type="button"
+                onClick={() => window.location.reload()}
+                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Tentar novamente
+              </button>
+            </div>
           ) : (
-            <div className="relative pt-6 pb-8" aria-live="polite">
+            <div data-testid="ranking-loading-state" className="relative pt-6 pb-8" aria-live="polite">
               <div className="flex items-end justify-center gap-1.5 sm:gap-3 mx-auto w-full px-1">
                 {["h-[140px] sm:h-[160px]", "h-[160px] sm:h-[190px]", "h-[110px] sm:h-[140px]"].map(
                   (heightClass, index) => (
                     <div
                       key={index}
                       className={cn(
-                        "flex-1 max-w-[140px] rounded-xl sm:rounded-2xl bg-white dark:bg-[#1C2028] border border-gray-200 dark:border-[#2A2F3A] p-3 shadow-sm",
+                        "flex-1 max-w-[140px] rounded-xl sm:rounded-2xl bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line p-3 shadow-sm",
                         heightClass,
                       )}
                     >
@@ -1638,7 +1433,7 @@ export default function RankingGlobal() {
                   ),
                 )}
               </div>
-              <p className="mt-5 text-center text-[12px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="mt-5 text-center text-[12px] font-medium text-slate-500 dark:text-nvu-muted">
                 Sincronizando classificação
               </p>
             </div>
@@ -1647,80 +1442,41 @@ export default function RankingGlobal() {
       </div>
 
       {showDatePicker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1C2028] border border-gray-200 dark:border-[#2A2F3A] p-5 rounded-2xl w-full max-w-sm shadow-2xl relative">
-            <button 
-              onClick={() => setShowDatePicker(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-            >
-              <X size={20} />
-            </button>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Filtrar por Período</h3>
-            
-            <div className="flex bg-gray-50 dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] rounded-xl p-1 shadow-sm h-10 mb-4">
-              <button
-                onClick={() => setPeriodPreset("semana")}
-                className={cn(
-                  "flex-1 rounded-[8px] text-[12px] font-bold transition-colors hover:shadow-sm",
-                  periodPreset === "semana"
-                    ? "bg-white dark:bg-[#283142] text-gray-900 dark:text-white shadow-sm"
-                    : "text-gray-600 dark:text-slate-300 hover:bg-white/50"
-                )}
-              >
-                Semana Atual
-              </button>
-              <button
-                onClick={() => setPeriodPreset("mes")}
-                className={cn(
-                  "flex-1 rounded-[8px] text-[12px] font-bold transition-colors hover:shadow-sm",
-                  periodPreset === "mes"
-                    ? "bg-white dark:bg-[#283142] text-gray-900 dark:text-white shadow-sm"
-                    : "text-gray-600 dark:text-slate-300 hover:bg-white/50"
-                )}
-              >
-                {formatRankingMonthLabel(referenceDate)}
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5 block">Data Inicial</label>
-                <input 
-                  type="date" 
-                  value={startDateStr}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setStartDateStr(value);
-                    setPeriodPreset("custom");
-                  }}
-                  className="w-full h-11 bg-gray-50 dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] text-gray-900 dark:text-white rounded-xl px-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-gray-700 dark:text-slate-300 mb-1.5 block">Data Final</label>
-                <input 
-                  type="date" 
-                  value={endDateStr}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setEndDateStr(value);
-                    setPeriodPreset("custom");
-                  }}
-                  className="w-full h-11 bg-gray-50 dark:bg-[#1A1D24] border border-gray-200 dark:border-[#2A2F3A] text-gray-900 dark:text-white rounded-xl px-3 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-medium"
-                />
-              </div>
-              <div className="pt-2">
-                <button 
-                  onClick={() => setShowDatePicker(false)}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-sm"
-                >
-                  Aplicar Filtro
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <RankingPeriodModal
+          preset={periodPreset}
+          startDate={startDateStr}
+          endDate={endDateStr}
+          referenceDate={referenceDate}
+          onClose={() => setShowDatePicker(false)}
+          onApply={({ preset, startDate, endDate }) => {
+            setStartDateStr(startDate);
+            setEndDateStr(endDate);
+            setPeriodPreset(preset);
+            setShowDatePicker(false);
+          }}
+        />
       )}
+      {rankingType !== "entre" && selectedParticipant && (
+        <RankingParticipantPremiumModal
+          item={selectedParticipant.item}
+          rank={selectedParticipant.rank}
+          rankingScope={participantRankingScope}
+          periodLabel={rankingPeriodLabel}
+          simulatorId={simulator}
+          periodType={periodPreset === "semana" ? "semana" : "mes"}
+          start={rankingRange.start}
+          end={rankingRange.end}
+          companies={companies as Record<string, unknown>[]}
+          simulators={simulators as unknown as Record<string, unknown>[]}
+          users={users as Record<string, unknown>[]}
+          companyMembers={allCompanyMembers as unknown as Record<string, unknown>[]}
+          currentUserId={currentUser?.id}
+          jobs={jobs as unknown as Array<Record<string, any>>}
+          vehicles={vehicles as unknown as Array<Record<string, any>>}
+          onClose={() => setSelectedParticipant(null)}
+        />
+      )}
+      <WorkspaceDock />
     </div>
   );
 }

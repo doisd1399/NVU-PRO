@@ -1,0 +1,32 @@
+NVU PRO 1.0.518 — CANDIDATA DE CÓDIGO-FONTE (NÃO É APK)
+
+Data: 25/10/2026
+
+Objetivo: incorporar no código 1.0.518 a classificação correta de CANONICAL_TRIP_TOMBSTONED como IDENTITY_GUARD, com mensagem ao motorista e diagnóstico sanitizado. A proteção de exclusão e de idempotência continua ativa. O erro relatado no Motorola não autoriza limpar tombstones.
+
+Mudanças relativas ao fonte 1.0.517:
+- Mitigação preventiva: reconcileOperationTrips não grava um tombstone local permanente quando um ID apenas deixa de constar da lista de viagens confirmadas. Ausência não é prova de exclusão. A exclusão explícita do servidor e a exclusão confirmada continuam produzindo tombstones. Esta é uma mitigação de risco identificada por análise estática, não comprova a origem da marca existente no aparelho.
+- Inclui o patch do guard de tombstones e o diagnóstico já validado em Node.
+- versionCode 518 / versionName 1.0.518, com.package com.nvu.operacional inalterado.
+- Canal Capacitor production-518, OTA desabilitada, bundle local obrigatório.
+- Web version 2.3.194 com package-lock sincronizado.
+- Teste extra npm run test:print-identity-518 verifica consistência de versão e a preservação do bloqueio.
+
+VALIDAÇÃO ATUAL:
+- Testes determinísticos de diagnóstico 517 e guard 517: APROVADOS neste ambiente.
+- Checagem estática de candidato 518: APROVADA.
+- npm ci, TypeScript lint, vite build, cap sync, Firebase emulator, testes Android, assinatura e teste no Motorola: NÃO EXECUTADOS por indisponibilidade de dependências, acesso à rede, Android SDK e material de assinatura.
+- Esta pasta contém o código-fonte da candidata, não contém APK 518, bundle `dist` recompilado ou credenciais.
+- Artefatos/reports anteriores da 517 são referência histórica e NÃO comprovam build ou homologação da 518.
+
+COMO CONCLUIR NA ESTAÇÃO DE RELEASE AUTORIZADA (NÃO ENVIAR A CHAVE OU SENHA PELO CHAT):
+1. Faça backup do projeto e mantenha os dados dos usuários.
+2. Utilize Node 22+, Java 21 e Android SDK 36, com google-services.json ORIGINAL do projeto.
+3. Configure as variáveis RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD, RELEASE_KEY_ALIAS e RELEASE_KEY_PASSWORD da assinatura original em ambiente seguro.
+4. Execute na raiz: npm ci; npm --prefix functions ci; npm run test:print-identity-518; npm run lint; npm --prefix functions run build; npm run build; npx cap sync android; npm run prepare:cap-assets; npm run verify:cap-assets; npm run verify:cap-local.
+5. Execute gradle clean testReleaseUnitTest assembleRelease na pasta android. Valide versionCode 518, package com.nvu.operacional e certificado SHA-256 806a03ea92b69e7f9a70526e9c4d6a4ae52ec4f9cf7cac05ddb1aa28084246ea, assinatura v2/v3 e assets embutidos.
+6. Instale usando adb install -r POR CIMA da versão já instalada. Nunca desinstale ou limpe os dados para testar migração. Se Android reclamar de conflito de assinatura, pare.
+7. Com print de uma viagem realmente nova (não reaproveitar print de viagem excluída), verifique persistência offline, reinício, envio, uma única viagem no histórico, Storage e ACK do servidor. O caso original tombstoned deve continuar bloqueado, agora como IDENTITY_GUARD.
+8. Para reabilitar uma viagem legítima excluída erroneamente, audite o registro do servidor e seus locks com autorização; não retire a marca local automaticamente.
+
+Nota: A assinatura exige a chave privada correspondente ao certificado existente. Possuir somente o fingerprint público não permite assinar um APK compatível.

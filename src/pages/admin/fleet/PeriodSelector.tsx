@@ -132,7 +132,7 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
             "h-8 flex items-center justify-center text-[13px] cursor-pointer transition-all rounded-md relative z-10",
             !isCurrentMonth
               ? "text-slate-300 dark:text-slate-600"
-              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800",
+              : "text-slate-700 dark:text-nvu-text-soft hover:bg-slate-100 dark:hover:bg-nvu-surface",
             isSelected && isCurrentMonth && !isStart && !isEnd
               ? "bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-none"
               : "",
@@ -170,14 +170,14 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2.5 bg-slate-50 dark:bg-[#1A1F26] hover:bg-slate-100 dark:hover:bg-[#2A2F3A] transition-colors border border-slate-200 dark:border-[#2A2F3A] px-3.5 py-2 rounded-xl cursor-pointer active:scale-[0.98] shadow-sm min-w-[150px] justify-between"
+        className="flex items-center gap-2.5 bg-slate-50 dark:bg-nvu-surface hover:bg-slate-100 dark:hover:bg-nvu-strip transition-colors border border-slate-200 dark:border-nvu-line px-3.5 py-2 rounded-xl cursor-pointer active:scale-[0.98] shadow-sm min-w-[150px] justify-between"
       >
         <div className="flex items-center gap-2">
           <CalendarIcon
             size={16}
-            className="text-slate-500 dark:text-slate-400"
+            className="text-slate-500 dark:text-nvu-muted"
           />
-          <span className="text-[14px] font-semibold text-slate-800 dark:text-slate-200">
+          <span className="text-[14px] font-semibold text-slate-800 dark:text-nvu-text">
             {getButtonLabel()}
           </span>
         </div>
@@ -196,9 +196,9 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
             className="fixed inset-0 z-[100] bg-black/20 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none"
             onClick={() => setIsOpen(false)}
           />
-          <div className="fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:top-[calc(100%+8px)] sm:left-auto sm:right-0 sm:translate-x-0 sm:translate-y-0 bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[20px] shadow-2xl sm:shadow-xl z-[110] flex flex-col sm:flex-row overflow-hidden animate-in fade-in zoom-in-95 w-[calc(100vw-2rem)] sm:w-auto max-w-[340px] sm:max-w-none">
+          <div className="fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:top-[calc(100%+8px)] sm:left-auto sm:right-0 sm:translate-x-0 sm:translate-y-0 bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[20px] shadow-2xl sm:shadow-xl z-[110] flex flex-col sm:flex-row overflow-hidden animate-in fade-in zoom-in-95 w-[calc(100vw-2rem)] sm:w-auto max-w-[340px] sm:max-w-none">
             {/* Options List */}
-            <div className="w-full sm:w-[180px] p-2 border-b sm:border-b-0 sm:border-r border-slate-100 dark:border-[#2A2F3A] space-y-1">
+            <div className="w-full sm:w-[180px] p-2 border-b sm:border-b-0 sm:border-r border-slate-100 dark:border-nvu-line space-y-1">
               {options.map((opt) => (
                 <button
                   key={opt.id}
@@ -206,8 +206,8 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-colors text-left",
                     activeOption === opt.id
-                      ? "bg-slate-50 dark:bg-[#2A2F3A]"
-                      : "hover:bg-slate-50 dark:hover:bg-[#2A2F3A]/50",
+                      ? "bg-slate-50 dark:bg-nvu-strip"
+                      : "hover:bg-slate-50 dark:hover:bg-nvu-strip/50",
                   )}
                 >
                   <span
@@ -215,7 +215,7 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
                       "text-[14px] font-medium",
                       activeOption === opt.id
                         ? "text-slate-900 dark:text-white"
-                        : "text-slate-600 dark:text-slate-300",
+                        : "text-slate-600 dark:text-nvu-text-soft",
                     )}
                   >
                     {opt.label}
@@ -240,13 +240,13 @@ export function PeriodSelector({ onPeriodChange }: PeriodSelectorProps) {
                   <div className="flex gap-1">
                     <button
                       onClick={prevMonth}
-                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-[#2A2F3A] rounded-lg text-slate-500 transition-colors"
+                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-nvu-strip rounded-lg text-slate-500 transition-colors"
                     >
                       <ChevronLeft size={16} />
                     </button>
                     <button
                       onClick={nextMonth}
-                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-[#2A2F3A] rounded-lg text-slate-500 transition-colors"
+                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-nvu-strip rounded-lg text-slate-500 transition-colors"
                     >
                       <ChevronRight size={16} />
                     </button>

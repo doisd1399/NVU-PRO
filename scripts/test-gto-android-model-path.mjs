@@ -23,7 +23,7 @@ const checks = [
   ],
   [
     "prebuild always prepares OCR assets",
-    pkg.scripts?.prebuild === "npm run prepare:ocr-assets",
+    pkg.scripts?.prebuild?.includes("npm run prepare:ocr-assets"),
   ],
   [
     "compressed traineddata remains the source asset",

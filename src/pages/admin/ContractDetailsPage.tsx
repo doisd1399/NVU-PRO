@@ -26,12 +26,16 @@ import {
 import { differenceInDays, format } from "date-fns";
 import { cn } from "../../lib/utils";
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
+import { buildClientOperationProjection } from "../../application/operation/operationProjectionSelectors";
+import { useTripHistory } from "../../hooks/useTripHistory";
+import { useSessionStore } from "../../context/AppContext";
 
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
 export default function ContractDetailsPage() {
   const { id: contractId } = useParams<{ id: string }>();
   const { companies } = useCompanyStore();
+  const { currentUser } = useSessionStore();
   const {
     contracts,
     trailers,
@@ -51,6 +55,10 @@ export default function ContractDetailsPage() {
 
   const contract = contracts.find((c) => c.id === contractId);
   const companyProfile = companies.find((c) => c.id === contract?.companyId);
+  const { historicoTrips = [] } = useTripHistory(contract?.companyId, {
+    enabled: Boolean(contract?.companyId),
+    userId: currentUser?.id,
+  });
   
   if (!contractId || !contract) {
     return (
@@ -200,7 +208,7 @@ export default function ContractDetailsPage() {
     return {
       text: "Não Iniciado",
       color: "bg-gray-400",
-      bg: "bg-gray-100 dark:bg-[#18181b]",
+      bg: "bg-gray-100 dark:bg-nvu-surface",
       icon: Clock,
     };
   };
@@ -213,18 +221,18 @@ export default function ContractDetailsPage() {
   const trailersMap = React.useMemo(() => new Map(trailers.map(t => [t.id, t])), [trailers]);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#09090b] flex flex-col pb-20">
+    <div className="min-h-screen bg-gray-50 dark:bg-nvu-page flex flex-col pb-20">
       {/* Top Header */}
-      <div className="bg-white dark:bg-[#1A1F26] border-b border-gray-100 dark:border-[#2A2F3A] sticky top-0 z-30">
+      <div className="bg-white dark:bg-nvu-surface border-b border-gray-100 dark:border-nvu-line sticky top-0 z-30">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate("/admin/fleet", { state: { activeTab: "contracts" } })}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-[#2A2F3A] transition-colors"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-nvu-strip transition-colors"
             >
-              <ArrowLeft size={20} className="text-gray-600 dark:text-[#d4d4d8]" />
+              <ArrowLeft size={20} className="text-gray-600 dark:text-nvu-text-soft" />
             </button>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-[#fafafa]">Detalhes da Operação</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-nvu-text">Detalhes da Operação</h1>
           </div>
           
           <div className="flex items-center gap-2">
@@ -244,7 +252,7 @@ export default function ContractDetailsPage() {
             <div className="relative">
               <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-[#d4d4d8] bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] hover:bg-gray-50 dark:hover:bg-[#3f3f46] rounded-xl shadow-sm dark:shadow-none transition-colors"
+                className="flex items-center justify-center w-9 h-9 text-gray-600 dark:text-nvu-text-soft bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line hover:bg-gray-50 dark:hover:bg-nvu-strip rounded-xl shadow-sm dark:shadow-none transition-colors"
               >
                 <MoreVertical size={16} />
               </button>
@@ -255,18 +263,18 @@ export default function ContractDetailsPage() {
                     className="fixed inset-0 z-40"
                     onClick={() => setShowDropdown(false)}
                   ></div>
-                  <div className="absolute right-0 top-11 w-48 bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] shadow-xl rounded-xl z-50 py-2 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                  <div className="absolute right-0 top-11 w-48 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line shadow-xl rounded-xl z-50 py-2 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                     <button
                       onClick={() => {
                         setShowDropdown(false);
                         navigate(`/admin/contract/${contractId}/edit`);
                       }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-gray-700 dark:text-[#d4d4d8] hover:bg-gray-50 dark:hover:bg-[#3f3f46] transition-colors"
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-left text-[13px] font-medium text-gray-700 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip transition-colors"
                     >
                       <Pencil size={14} className="text-gray-400" />
                       Editar Operação
                     </button>
-                    <div className="h-px w-full bg-gray-100 dark:bg-[#18181b]"></div>
+                    <div className="h-px w-full bg-gray-100 dark:bg-nvu-line"></div>
                     <button
                       onClick={() => {
                         setShowDropdown(false);
@@ -287,14 +295,14 @@ export default function ContractDetailsPage() {
 
       <div className="max-w-4xl mx-auto w-full px-4 py-6 flex-1 space-y-6">
         {/* Header Summary */}
-        <div className="bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-2xl p-6 shadow-sm">
+        <div className="bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-2xl p-6 shadow-sm">
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <span className="px-2 py-0.5 bg-gray-100 dark:bg-[#18181b] text-gray-600 dark:text-[#d4d4d8] rounded text-[10px] uppercase font-bold tracking-wider shrink-0 flex items-center gap-1.5">
+            <span className="px-2 py-0.5 bg-gray-100 dark:bg-nvu-surface text-gray-600 dark:text-nvu-text-soft rounded text-[10px] uppercase font-bold tracking-wider shrink-0 flex items-center gap-1.5">
               <Rocket size={12} className="text-gray-400" />
               {contract.simulator}
             </span>
             {companyProfile && (
-              <span className="px-2 py-0.5 bg-gray-100 dark:bg-[#18181b] text-gray-600 dark:text-[#d4d4d8] rounded text-[10px] uppercase font-bold tracking-wider shrink-0 flex items-center gap-1.5">
+              <span className="px-2 py-0.5 bg-gray-100 dark:bg-nvu-surface text-gray-600 dark:text-nvu-text-soft rounded text-[10px] uppercase font-bold tracking-wider shrink-0 flex items-center gap-1.5">
                 <Truck size={12} className="text-gray-400" />
                 Empresa: {companyProfile.companyName}
               </span>
@@ -302,23 +310,23 @@ export default function ContractDetailsPage() {
           </div>
 
           <div className="flex flex-col mb-4">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-[#fafafa] leading-tight mb-1">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-nvu-text leading-tight mb-1">
               {contract.name}
             </h2>
             {!trailerlessSimulator && (
-              <span className="text-[13px] font-medium text-gray-500 dark:text-[#a1a1aa] flex items-center gap-1.5">
+              <span className="text-[13px] font-medium text-gray-500 dark:text-nvu-muted flex items-center gap-1.5">
                 <Truck size={14} className="text-gray-400" />
                 {trailer ? trailer.name : "Qualquer Reboque"}
               </span>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-[13px] font-medium text-gray-600 dark:text-[#d4d4d8]">
-            <div className="flex items-center gap-1.5 border border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#18181b] px-3 py-1.5 rounded-lg">
+          <div className="flex flex-wrap items-center gap-4 text-[13px] font-medium text-gray-600 dark:text-nvu-text-soft">
+            <div className="flex items-center gap-1.5 border border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface px-3 py-1.5 rounded-lg">
               <ListTodo size={14} className="text-gray-400" />
               <span>{contract.totalDeliveries} entregas</span>
             </div>
-            <div className="flex items-center gap-1.5 border border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#18181b] px-3 py-1.5 rounded-lg">
+            <div className="flex items-center gap-1.5 border border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface px-3 py-1.5 rounded-lg">
               <Calendar size={14} className="text-gray-400" />
               <span>{contract.deadlineDays} dias</span>
             </div>
@@ -328,24 +336,24 @@ export default function ContractDetailsPage() {
         {/* Rotas */}
         {contract.mode === "detailed" && contract.deliveries && contract.deliveries.length > 0 && (
           <section>
-            <h3 className="text-[15px] font-bold text-gray-900 dark:text-[#fafafa] mb-3 ml-1">
+            <h3 className="text-[15px] font-bold text-gray-900 dark:text-nvu-text mb-3 ml-1">
               Rotas Planejadas
             </h3>
-            <div className="bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-200 dark:border-[#2A2F3A] p-2 sm:p-3 space-y-2 shadow-sm">
+            <div className="bg-white dark:bg-nvu-surface rounded-2xl border border-gray-200 dark:border-nvu-line p-2 sm:p-3 space-y-2 shadow-sm">
               {contract.deliveries.map((del, i) => (
                 <div
                   key={del.id}
-                  className="bg-gray-50 dark:bg-[#18181b] border border-gray-100 dark:border-[#2A2F3A]/60 rounded-xl p-3 flex items-center gap-3 sm:gap-4 transition-shadow"
+                  className="bg-gray-50 dark:bg-nvu-surface border border-gray-100 dark:border-nvu-line/60 rounded-xl p-3 flex items-center gap-3 sm:gap-4 transition-shadow"
                 >
-                  <div className="w-7 h-7 rounded-full bg-white dark:bg-[#2A2F3A] shadow-sm text-gray-600 dark:text-[#a1a1aa] flex items-center justify-center font-bold text-[12px] shrink-0 border border-gray-200 dark:border-[#3f3f46]">
+                  <div className="w-7 h-7 rounded-full bg-white dark:bg-nvu-strip shadow-sm text-gray-600 dark:text-nvu-muted flex items-center justify-center font-bold text-[12px] shrink-0 border border-gray-200 dark:border-nvu-line">
                     {i + 1}
                   </div>
                   <div className="flex-1 flex flex-col sm:flex-row sm:items-center text-[14px] gap-1 sm:gap-3">
-                    <span className="font-semibold text-gray-900 dark:text-[#fafafa]">
+                    <span className="font-semibold text-gray-900 dark:text-nvu-text">
                       {del.origin}
                     </span>
                     <span className="text-gray-400 hidden sm:inline">→</span>
-                    <span className="font-semibold text-gray-900 dark:text-[#fafafa]">
+                    <span className="font-semibold text-gray-900 dark:text-nvu-text">
                       {del.destination}
                     </span>
                   </div>
@@ -358,28 +366,30 @@ export default function ContractDetailsPage() {
         {/* Motoristas em Operação */}
         <section>
           <div className="flex items-center gap-2 mb-4">
-            <h3 className="text-[15px] font-bold text-gray-900 dark:text-[#fafafa] ml-1">
+            <h3 className="text-[15px] font-bold text-gray-900 dark:text-nvu-text ml-1">
               Motoristas em Operação
             </h3>
             {uniqueMotoristasEmOperacao.length > 0 && (
-              <span className="text-[11px] font-bold text-gray-500 dark:text-[#a1a1aa] bg-gray-200 dark:bg-[#2A2F3A] px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold text-gray-500 dark:text-nvu-muted bg-gray-200 dark:bg-nvu-strip px-2 py-0.5 rounded-full">
                 {uniqueMotoristasEmOperacao.length}
               </span>
             )}
           </div>
 
           {uniqueMotoristasEmOperacao.length === 0 ? (
-            <div className="bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-200 dark:border-[#2A2F3A] p-6 text-center text-[14px] text-gray-500 dark:text-gray-400 shadow-sm">
+            <div className="bg-white dark:bg-nvu-surface rounded-2xl border border-gray-200 dark:border-nvu-line p-6 text-center text-[14px] text-gray-500 dark:text-nvu-muted shadow-sm">
               Nenhum motorista em operação nesta operação no momento.
             </div>
           ) : (
             <div className="flex flex-col gap-3">
               {uniqueMotoristasEmOperacao.map(({ motorista: driver, trabalho: job }) => {
                 const statusDetails = getJobStatusDetails(job);
+                const operationProjection = buildClientOperationProjection(job, historicoTrips);
+                const confirmedProgress = operationProjection?.confirmedTripCount ?? 0;
                 const progressPct = Math.round(
-                  (job.progress / Math.max(1, contract.totalDeliveries)) * 100,
+                  (confirmedProgress / Math.max(1, contract.totalDeliveries)) * 100,
                 );
-                const deliveriesLeft = contract.totalDeliveries - job.progress;
+                const deliveriesLeft = Math.max(0, contract.totalDeliveries - confirmedProgress);
                 const effectiveTrailerId = trailerlessSimulator
                   ? ""
                   : job.trailerId || contract.trailerId;
@@ -394,10 +404,10 @@ export default function ContractDetailsPage() {
                   <div
                     key={job.id}
                     className={cn(
-                      "relative flex flex-col border rounded-2xl transition-all overflow-hidden bg-white dark:bg-[#1A1F26]",
+                      "relative flex flex-col border rounded-2xl transition-all overflow-hidden bg-white dark:bg-nvu-surface",
                       isExpanded
                         ? "border-blue-500 shadow-md dark:shadow-none ring-1 ring-blue-500/20"
-                        : "border-gray-200 dark:border-[#2A2F3A] shadow-sm hover:border-gray-300",
+                        : "border-gray-200 dark:border-nvu-line shadow-sm hover:border-gray-300",
                     )}
                   >
                     <button
@@ -407,11 +417,11 @@ export default function ContractDetailsPage() {
                       className="w-full text-left p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6"
                     >
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 dark:text-[#fafafa] text-[17px] sm:text-[18px] truncate tracking-tight">
+                        <h3 className="font-semibold text-gray-900 dark:text-nvu-text text-[17px] sm:text-[18px] truncate tracking-tight">
                           {driver?.name || "Desconhecido"}
                         </h3>
                         {!trailerlessSimulator && (
-                          <div className="flex items-center gap-2 text-[13px] text-gray-500 dark:text-[#a1a1aa] whitespace-nowrap overflow-x-auto scrollbar-hide mt-1 sm:mb-0">
+                          <div className="flex items-center gap-2 text-[13px] text-gray-500 dark:text-nvu-muted whitespace-nowrap overflow-x-auto scrollbar-hide mt-1 sm:mb-0">
                             <span className="flex items-center gap-1.5">
                               <Truck size={14} className="shrink-0" />
                               {currentTrailer?.name || "S/ Reboque"}
@@ -420,11 +430,11 @@ export default function ContractDetailsPage() {
                         )}
                       </div>
 
-                      <div className="w-full sm:w-[280px] shrink-0 border border-gray-100 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#18181b] rounded-xl p-3 flex flex-col gap-2.5 mt-1 sm:mt-0">
+                      <div className="w-full sm:w-[280px] shrink-0 border border-gray-100 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface rounded-xl p-3 flex flex-col gap-2.5 mt-1 sm:mt-0">
                         <div className="flex justify-between items-start">
                           <div className="flex flex-col items-start leading-tight">
                             <span className="text-[14px] text-blue-600 dark:text-blue-400 font-bold tracking-tight">
-                              {job.progress}/{contract.totalDeliveries}
+                              {confirmedProgress}/{contract.totalDeliveries}
                             </span>
                           </div>
                           <div className="flex flex-col items-end leading-tight">
@@ -435,7 +445,7 @@ export default function ContractDetailsPage() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <div className="flex-1 bg-gray-200 dark:bg-[#27272a] rounded-full h-1.5 overflow-hidden">
+                          <div className="flex-1 bg-gray-200 dark:bg-nvu-strip rounded-full h-1.5 overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-500 bg-[#00D1FF] shadow-[0_0_10px_rgba(0,209,255,0.4)]"
                               style={{ width: `${Math.max(3, progressPct)}%` }}
@@ -457,10 +467,10 @@ export default function ContractDetailsPage() {
                     </button>
 
                     {isExpanded && (
-                      <div className="border-t border-gray-100 dark:border-[#2A2F3A] bg-gray-50/50 dark:bg-[#1A1F26] p-4 flex flex-col">
+                      <div className="border-t border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-surface p-4 flex flex-col">
                         <div className="grid grid-cols-2 gap-3 text-[13px] mb-4">
                           <div className="min-w-0">
-                            <span className="block text-[10px] font-bold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1.5">
+                            <span className="block text-[10px] font-bold text-gray-500 dark:text-nvu-muted uppercase tracking-widest mb-1.5">
                               Prazo
                             </span>
                             <span
@@ -468,7 +478,7 @@ export default function ContractDetailsPage() {
                                 "font-medium flex items-center gap-1.5",
                                 isOverdue && job.status === "active"
                                   ? "text-red-600 font-bold"
-                                  : "text-gray-900 dark:text-[#fafafa]",
+                                  : "text-gray-900 dark:text-nvu-text",
                               )}
                             >
                               <Clock
@@ -486,10 +496,10 @@ export default function ContractDetailsPage() {
                             </span>
                           </div>
                           <div className="min-w-0">
-                            <span className="block text-[10px] font-bold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1.5">
+                            <span className="block text-[10px] font-bold text-gray-500 dark:text-nvu-muted uppercase tracking-widest mb-1.5">
                               Veículo
                             </span>
-                            <span className="font-medium text-gray-900 dark:text-[#fafafa] truncate flex items-center gap-1.5">
+                            <span className="font-medium text-gray-900 dark:text-nvu-text truncate flex items-center gap-1.5">
                               <Truck size={14} className="text-gray-400" />
                               {vehicles.find((v) => v.id === job.vehicleId)
                                 ?.name || "Nenhum"}
@@ -497,10 +507,10 @@ export default function ContractDetailsPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row items-center gap-2 pt-3 border-t border-gray-200 dark:border-[#2A2F3A]">
+                        <div className="flex flex-col sm:flex-row items-center gap-2 pt-3 border-t border-gray-200 dark:border-nvu-line">
                           <Button
                             onClick={() => navigate(`/admin/driver/${job.driverId}`, { state: { returnUrl: location.pathname, companyId: job.companyId } })}
-                            className="w-full sm:flex-1 h-9 text-[12px] font-semibold text-gray-700 dark:text-[#d4d4d8] bg-white dark:bg-[#1A1F26] hover:bg-gray-50 dark:hover:bg-[#3f3f46] border border-gray-200 dark:border-[#2A2F3A] shadow-sm"
+                            className="w-full sm:flex-1 h-9 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft bg-white dark:bg-nvu-surface hover:bg-gray-50 dark:hover:bg-nvu-strip border border-gray-200 dark:border-nvu-line shadow-sm"
                           >
                             <User size={14} className="mr-1.5" /> Perfil
                           </Button>
@@ -526,18 +536,18 @@ export default function ContractDetailsPage() {
 
       {isDeleting && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1F26] rounded-2xl shadow-xl w-full max-w-[320px] p-6 flex flex-col items-center text-center">
+          <div className="bg-white dark:bg-nvu-surface rounded-2xl shadow-xl w-full max-w-[320px] p-6 flex flex-col items-center text-center">
             <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 text-red-600 rounded-full flex items-center justify-center mb-4">
               <Trash2 size={24} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-[#fafafa] mb-2">Excluir Operação?</h3>
-            <p className="text-[13px] text-gray-500 dark:text-[#a1a1aa] mb-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-nvu-text mb-2">Excluir Operação?</h3>
+            <p className="text-[13px] text-gray-500 dark:text-nvu-muted mb-6">
               Esta ação não pode ser desfeita e todas as informações vinculadas serão removidas.
             </p>
             <div className="flex items-center gap-3 w-full">
               <Button
                 variant="outline"
-                className="flex-1 h-10 border-gray-200 dark:border-[#2A2F3A] hover:bg-gray-50 dark:hover:bg-[#3f3f46] text-gray-700 dark:text-[#d4d4d8] font-semibold text-[13px]"
+                className="flex-1 h-10 border-gray-200 dark:border-nvu-line hover:bg-gray-50 dark:hover:bg-nvu-strip text-gray-700 dark:text-nvu-text-soft font-semibold text-[13px]"
                 onClick={() => setIsDeleting(false)}
               >
                 Cancelar
@@ -563,18 +573,18 @@ export default function ContractDetailsPage() {
 
       {jobToCancel && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1F26] rounded-2xl shadow-xl w-full max-w-[320px] p-6 flex flex-col items-center text-center">
+          <div className="bg-white dark:bg-nvu-surface rounded-2xl shadow-xl w-full max-w-[320px] p-6 flex flex-col items-center text-center">
             <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 text-red-600 rounded-full flex items-center justify-center mb-4">
               <AlertTriangle size={24} />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 dark:text-[#fafafa] mb-2">Cancelar Operação?</h3>
-            <p className="text-[13px] text-gray-500 dark:text-[#a1a1aa] mb-6">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-nvu-text mb-2">Cancelar Operação?</h3>
+            <p className="text-[13px] text-gray-500 dark:text-nvu-muted mb-6">
               Esta operação será cancelado e o motorista perderá o acesso de sua finalização.
             </p>
             <div className="flex items-center gap-3 w-full">
               <Button
                 variant="outline"
-                className="flex-1 h-10 border-gray-200 dark:border-[#2A2F3A] inline-flex items-center justify-center hover:bg-gray-50 dark:hover:bg-[#3f3f46] text-gray-700 dark:text-[#d4d4d8] font-semibold text-[13px]"
+                className="flex-1 h-10 border-gray-200 dark:border-nvu-line inline-flex items-center justify-center hover:bg-gray-50 dark:hover:bg-nvu-strip text-gray-700 dark:text-nvu-text-soft font-semibold text-[13px]"
                 onClick={() => setJobToCancel(null)}
               >
                 Voltar

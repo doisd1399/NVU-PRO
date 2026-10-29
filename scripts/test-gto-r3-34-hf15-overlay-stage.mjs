@@ -41,9 +41,9 @@ check("result protection repositions card instead of closing it",
   && method(service, "private void keepOverlaysClearOfResultRegion", "private int dp(int value)")
     .includes("full-width card"));
 
-check("trip card uses the same bubble-anchored placement as every other state",
+check("trip card uses independent placement while bubble is hidden",
   method(service, "private void openMenu()", "private void populateMenuContents")
-    .includes("chooseMenuSideForBubble")
+    .includes("cardVisibility.acquire(menuView)")
   && !method(service, "private void openMenu()", "private void populateMenuContents")
     .includes("proposedX = dp(8)"));
 

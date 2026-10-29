@@ -1,0 +1,64 @@
+import { buildTripReportHistory, type ReportPeriod, type ReportHistoryItem } from "./tripReportHistory";
+import { getMonthlyRange, getWeeklyRange } from "./metricsEngine";
+import { RANKING_TIME_ZONE } from "./rankingPeriods";
+import type { NormalizedTrip } from "./tripNormalizer";
+import { summarizeTripMoney } from "./tripMoneySummary";
+
+const dayKeyFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: RANKING_TIME_ZONE,
+  year: "numeric", month: "2-digit", day: "2-digit" });
+
+export function driverDateLabel(date: Date, options: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("pt-BR", { ...options, timeZone: RANKING_TIME_ZONE }).format(date);
+}
+
+export function driverDayKey(date: Date) {
+  const parts = dayKeyFormatter.formatToParts(date);
+  return ["year", "month", "day"].map(type => parts.find(part => part.type === type)!.value).join("-");
+}
+
+export function driverMonthRange(month: string) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null;
+  const [year, number] = month.split("-").map(Number);
+  const end = new Date(Date.UTC(year, number, 0)).getUTCDate();
+  return { start: `${month}-01`, end: `${month}-${String(end).padStart(2, "0")}` };
+}
+
+export function driverMonthOptions(trips: NormalizedTrip[], now = new Date()) {
+  const months = new Set([driverDayKey(now).slice(0, 7)]);
+  trips.forEach(trip => { if (trip.isValid) months.add(driverDayKey(trip.metricDate).slice(0, 7)); });
+  return [...months].sort().reverse().map(id => ({ id,
+    label: driverDateLabel(new Date(`${id}-15T12:00:00Z`), { month: "long", year: "numeric" }),
+  }));
+}
+
+export function groupDriverTripsByDay(trips: NormalizedTrip[]) {
+  const days = new Map<string, { id: string; date: Date; trips: NormalizedTrip[] }>();
+  trips.forEach(trip => {
+    if (!trip.isValid) return;
+    const id = driverDayKey(trip.metricDate);
+    const day = days.get(id) || { id, date: trip.metricDate, trips: [] };
+    day.trips.push(trip);
+    days.set(id, day);
+  });
+  return [...days.values()].sort((a, b) => b.id.localeCompare(a.id));
+}
+
+/** Uses the existing financial and business-calendar policies, before pagination. */
+export function driverResultPeriods(trips: NormalizedTrip[], period: ReportPeriod, now = new Date()): ReportHistoryItem[] {
+  const items = buildTripReportHistory(trips, period, now);
+  const range = period === "mensal" ? getMonthlyRange(now) : getWeeklyRange(now);
+  if (!items.some(item => item.sortDate.getTime() === range.start.getTime())) {
+    items.push({ id: range.start.toISOString().slice(0, period === "mensal" ? 7 : 10),
+      sortDate: range.start, title: period === "mensal" ? "Mês atual" : "Semana atual",
+      subTitle: period === "mensal" ? driverDateLabel(range.start, { month: "long", year: "numeric" })
+        : `${driverDateLabel(range.start, { day: "2-digit", month: "2-digit" })} até ${driverDateLabel(range.end, { day: "2-digit", month: "2-digit", year: "numeric" })}`,
+      totalValue: 0, tripCount: 0, moneyGroups: [], currencySummaries: [], unknownCurrencySummaries: [], variation: 0, hasPrevious: false });
+  }
+  return items.sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime());
+}
+
+export function driverDailyResults(trips: NormalizedTrip[], period: ReportPeriod, date: Date) {
+  const range = period === "mensal" ? getMonthlyRange(date) : getWeeklyRange(date);
+  return groupDriverTripsByDay(trips.filter(trip => trip.metricDate >= range.start && trip.metricDate <= range.end))
+    .map(day => ({ ...day, moneyGroups: summarizeTripMoney(day.trips) }));
+}

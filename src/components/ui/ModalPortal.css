@@ -1,0 +1,28 @@
+.nvu-modal-portal {
+  position: fixed;
+  z-index: 260;
+  inset: var(--modal-top, 0px) 0 auto;
+  height: var(--modal-height, 100dvh);
+  isolation: isolate;
+  outline: none;
+}
+.nvu-modal-portal > .fixed {
+  position: absolute;
+  min-height: 0;
+  padding-top: max(env(safe-area-inset-top, 0px), 8px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nvu-modal-portal .nvu-viewport-modal-card { max-height: 100%; min-height: 0; }
+.nvu-modal-portal .nvu-viewport-modal-card > :first-child,
+.nvu-modal-portal .nvu-viewport-modal-card > :last-child { flex-shrink: 0; }
+.nvu-modal-portal .nvu-modal-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.nvu-modal-portal .nvu-modal-form { display: flex; flex-direction: column; min-height: 0; overflow: hidden; flex-shrink: 1; }
+.nvu-modal-portal .nvu-modal-form > :last-child { flex-shrink: 0; }
+
+.nvu-modal-portal > .nvu-profile-edit-modal-overlay {
+  padding-top: clamp(12px, calc(var(--modal-height, 100dvh) - 460px), 300px);
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
+.nvu-modal-portal .nvu-profile-edit-modal { display: flex; flex-direction: column; }
+
+.nvu-modal-portal .nvu-viewport-modal-card > .nvu-modal-body { flex-shrink: 1; }

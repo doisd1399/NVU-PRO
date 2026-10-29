@@ -1,0 +1,789 @@
+{
+  "bucket": "vtc-frota-log-rollout-backups",
+  "publicAccessPrevention": "enforced",
+  "uniformBucketLevelAccess": true,
+  "noPublicIamBindings": true,
+  "objects": [
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/all_namespaces_all_kinds.export_metadata",
+      "size": "1819",
+      "crc32c": "8DJFrQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-0",
+      "size": "38594",
+      "crc32c": "vOLtKA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-1",
+      "size": "23611",
+      "crc32c": "vGLv5g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-10",
+      "size": "90370",
+      "crc32c": "4j407A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-100",
+      "size": "12592",
+      "crc32c": "x8k7Cw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-101",
+      "size": "41180",
+      "crc32c": "TvH6kw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-102",
+      "size": "49516",
+      "crc32c": "R/McWg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-103",
+      "size": "29748",
+      "crc32c": "LTNXPQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-104",
+      "size": "91916",
+      "crc32c": "QRDoww=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-105",
+      "size": "30319",
+      "crc32c": "bkEvZQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-106",
+      "size": "104998",
+      "crc32c": "c5sWng=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-107",
+      "size": "10970",
+      "crc32c": "Y6Po5Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-108",
+      "size": "64113",
+      "crc32c": "MTXZIQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-109",
+      "size": "68016",
+      "crc32c": "TtV9Iw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-11",
+      "size": "80743",
+      "crc32c": "Jk/KFw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-110",
+      "size": "41808",
+      "crc32c": "bYy8gA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-111",
+      "size": "93238",
+      "crc32c": "elSbiw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-112",
+      "size": "160088",
+      "crc32c": "cHa1+g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-113",
+      "size": "99607",
+      "crc32c": "e3esRg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-114",
+      "size": "10460",
+      "crc32c": "EgQHIA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-115",
+      "size": "246568",
+      "crc32c": "L78F4A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-116",
+      "size": "113316",
+      "crc32c": "o21AOQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-117",
+      "size": "31130",
+      "crc32c": "jn+qsg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-118",
+      "size": "24508",
+      "crc32c": "wrJ6Cg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-119",
+      "size": "66596",
+      "crc32c": "Z/eJvw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-12",
+      "size": "762466",
+      "crc32c": "sT725A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-120",
+      "size": "30552",
+      "crc32c": "+UQa7g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-121",
+      "size": "170920",
+      "crc32c": "L6x+GA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-122",
+      "size": "94810",
+      "crc32c": "Yq0aEQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-123",
+      "size": "48219",
+      "crc32c": "NTefmw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-124",
+      "size": "90417",
+      "crc32c": "wvsDnQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-125",
+      "size": "191995",
+      "crc32c": "3JEjAw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-126",
+      "size": "146402",
+      "crc32c": "LK1URg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-127",
+      "size": "169601",
+      "crc32c": "2GJ+lQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-128",
+      "size": "1054151",
+      "crc32c": "I22now=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-129",
+      "size": "232633",
+      "crc32c": "MzAa0A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-13",
+      "size": "276824",
+      "crc32c": "TmJobw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-130",
+      "size": "87111",
+      "crc32c": "e/AKow=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-131",
+      "size": "4632",
+      "crc32c": "LDl2/A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-132",
+      "size": "31484",
+      "crc32c": "eJR54g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-133",
+      "size": "190642",
+      "crc32c": "epjDCQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-134",
+      "size": "33242",
+      "crc32c": "pJ+JJQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-135",
+      "size": "23580",
+      "crc32c": "kRDLvQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-136",
+      "size": "150777",
+      "crc32c": "pwi4FQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-137",
+      "size": "474107",
+      "crc32c": "EnexsQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-138",
+      "size": "76065",
+      "crc32c": "uzYPWg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-139",
+      "size": "25331",
+      "crc32c": "CTSvsw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-14",
+      "size": "21472",
+      "crc32c": "c+kTYQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-140",
+      "size": "29105",
+      "crc32c": "UJLmpA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-141",
+      "size": "176469",
+      "crc32c": "lRXyIQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-142",
+      "size": "53658",
+      "crc32c": "4WJWdw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-143",
+      "size": "84396",
+      "crc32c": "m8e29g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-144",
+      "size": "47361",
+      "crc32c": "p9pDZw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-145",
+      "size": "12493",
+      "crc32c": "uTho+Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-146",
+      "size": "66941",
+      "crc32c": "0beZzg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-147",
+      "size": "108116",
+      "crc32c": "73cqlQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-148",
+      "size": "52632",
+      "crc32c": "Z04YnQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-149",
+      "size": "112888",
+      "crc32c": "c2xltA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-15",
+      "size": "53390",
+      "crc32c": "aCWtkA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-150",
+      "size": "13849",
+      "crc32c": "SG2vLQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-151",
+      "size": "26267",
+      "crc32c": "8FdK3A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-152",
+      "size": "1986946",
+      "crc32c": "hzFiiA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-153",
+      "size": "27982",
+      "crc32c": "O5SO9w=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-16",
+      "size": "4537",
+      "crc32c": "CuhqcA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-17",
+      "size": "55899",
+      "crc32c": "0Z5SiQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-18",
+      "size": "18075",
+      "crc32c": "JhXyWA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-19",
+      "size": "260444",
+      "crc32c": "EGCFhA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-2",
+      "size": "601269",
+      "crc32c": "5SMOlw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-20",
+      "size": "1097991",
+      "crc32c": "SKotiA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-21",
+      "size": "154330",
+      "crc32c": "2VEnyw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-22",
+      "size": "399552",
+      "crc32c": "Kgj5qA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-23",
+      "size": "26053",
+      "crc32c": "l6eksQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-24",
+      "size": "565103",
+      "crc32c": "OcSjdg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-25",
+      "size": "43407",
+      "crc32c": "1JmRrw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-26",
+      "size": "12966",
+      "crc32c": "MnDLWA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-27",
+      "size": "54681",
+      "crc32c": "Dpz6Pg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-28",
+      "size": "142046",
+      "crc32c": "YgNnnw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-29",
+      "size": "108346",
+      "crc32c": "/2KVwg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-3",
+      "size": "4389",
+      "crc32c": "xiB3tA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-30",
+      "size": "30135",
+      "crc32c": "6tvQXQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-31",
+      "size": "379665",
+      "crc32c": "7RhNLw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-32",
+      "size": "61142",
+      "crc32c": "WJ374w=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-33",
+      "size": "366260",
+      "crc32c": "N9QnEw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-34",
+      "size": "110542",
+      "crc32c": "zj7inw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-35",
+      "size": "306715",
+      "crc32c": "fZ5Jmg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-36",
+      "size": "259662",
+      "crc32c": "Tf7Jqw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-37",
+      "size": "428702",
+      "crc32c": "OyhrWA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-38",
+      "size": "75098",
+      "crc32c": "h0r7+g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-39",
+      "size": "617513",
+      "crc32c": "yl6xVg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-4",
+      "size": "132823",
+      "crc32c": "ZgKdHw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-40",
+      "size": "75268",
+      "crc32c": "LR7OPQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-41",
+      "size": "365624",
+      "crc32c": "wGa73Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-42",
+      "size": "1153107",
+      "crc32c": "DdQEzQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-43",
+      "size": "77600",
+      "crc32c": "xAdd+Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-44",
+      "size": "155263",
+      "crc32c": "7LIaaw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-45",
+      "size": "227317",
+      "crc32c": "3gsOLA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-46",
+      "size": "605648",
+      "crc32c": "nbIsoA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-47",
+      "size": "287125",
+      "crc32c": "G52J/Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-48",
+      "size": "299862",
+      "crc32c": "z7FPZQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-49",
+      "size": "59375",
+      "crc32c": "d48NHg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-5",
+      "size": "4252",
+      "crc32c": "MtEPVQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-50",
+      "size": "315158",
+      "crc32c": "0LB9Nw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-51",
+      "size": "242112",
+      "crc32c": "oaEElQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-52",
+      "size": "103109",
+      "crc32c": "EWpLcA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-53",
+      "size": "105793",
+      "crc32c": "rPZVpA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-54",
+      "size": "105083",
+      "crc32c": "wHRxyA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-55",
+      "size": "44085",
+      "crc32c": "ynR3gg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-56",
+      "size": "236332",
+      "crc32c": "aEFkQw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-57",
+      "size": "605012",
+      "crc32c": "2p1DcA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-58",
+      "size": "142226",
+      "crc32c": "cL1gfg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-59",
+      "size": "385977",
+      "crc32c": "/U0g2g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-6",
+      "size": "226994",
+      "crc32c": "nJ6OUQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-60",
+      "size": "336088",
+      "crc32c": "sGr3/Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-61",
+      "size": "7650",
+      "crc32c": "T6zySA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-62",
+      "size": "60695",
+      "crc32c": "WM8xDw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-63",
+      "size": "10965",
+      "crc32c": "vH7R0Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-64",
+      "size": "1275",
+      "crc32c": "DGQ6Wg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-65",
+      "size": "4080",
+      "crc32c": "wykC4w=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-66",
+      "size": "17849",
+      "crc32c": "lmwkmw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-67",
+      "size": "10198",
+      "crc32c": "1iz2XQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-68",
+      "size": "58909",
+      "crc32c": "Rrt5hQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-69",
+      "size": "1808228",
+      "crc32c": "ZX+N/A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-7",
+      "size": "40275",
+      "crc32c": "KD878Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-70",
+      "size": "2392258",
+      "crc32c": "ePzUPA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-71",
+      "size": "1414273",
+      "crc32c": "y7rp1w=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-72",
+      "size": "533931",
+      "crc32c": "B1MjgA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-73",
+      "size": "4487556",
+      "crc32c": "Rp5EiQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-74",
+      "size": "539175",
+      "crc32c": "l0REvA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-75",
+      "size": "15567",
+      "crc32c": "N+vkxg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-76",
+      "size": "8144",
+      "crc32c": "vmOV2Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-77",
+      "size": "116902",
+      "crc32c": "XCV1ww=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-78",
+      "size": "132699",
+      "crc32c": "nW0ydA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-79",
+      "size": "68840",
+      "crc32c": "fCi/1A=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-8",
+      "size": "968319",
+      "crc32c": "BEXgew=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-80",
+      "size": "208998",
+      "crc32c": "D9SN7w=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-81",
+      "size": "296837",
+      "crc32c": "2MXj+g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-82",
+      "size": "119959",
+      "crc32c": "cBtnNw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-83",
+      "size": "521922",
+      "crc32c": "87S6+g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-84",
+      "size": "252792",
+      "crc32c": "Uelefw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-85",
+      "size": "52519",
+      "crc32c": "HHvofw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-86",
+      "size": "198123",
+      "crc32c": "ZydBxw=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-87",
+      "size": "82376",
+      "crc32c": "Gf2OdA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-88",
+      "size": "380469",
+      "crc32c": "tRcCig=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-89",
+      "size": "162872",
+      "crc32c": "K79Trg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-9",
+      "size": "97730",
+      "crc32c": "3b5yhA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-90",
+      "size": "81449",
+      "crc32c": "O9ktGQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-91",
+      "size": "4259884",
+      "crc32c": "rTrt+Q=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-92",
+      "size": "398940",
+      "crc32c": "Wev/2w=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-93",
+      "size": "223719",
+      "crc32c": "a0f5pg=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-94",
+      "size": "7669",
+      "crc32c": "3oT7FQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-95",
+      "size": "49459",
+      "crc32c": "WMrrrQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-96",
+      "size": "21010",
+      "crc32c": "cbyhlA=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-97",
+      "size": "14395",
+      "crc32c": "h+tUow=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-98",
+      "size": "2738",
+      "crc32c": "+HgL9g=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/all_namespaces/all_kinds/output-99",
+      "size": "49844",
+      "crc32c": "XWJArQ=="
+    },
+    {
+      "name": "before-rollout-2026-10-27/before-rollout-2026-10-27.overall_export_metadata",
+      "size": "99",
+      "crc32c": "j59Zbg=="
+    }
+  ],
+  "hasMore": false
+}

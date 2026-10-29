@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "expected": "blocked-on-open-P0-P1",
+  "exitCode": 1,
+  "output": "QA_CRITICAL_AUDIT_OPEN: SEC-01, SEC-02, SEC-03, SEC-04, PUSH-01, PUSH-02, PUSH-03, PUSH-04, DEP-01",
+  "checkedAt": "2026-10-26T20:23:33.801562+00:00"
+}

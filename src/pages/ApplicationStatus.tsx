@@ -239,7 +239,7 @@ export default function ApplicationStatus() {
   // but it is not needed to mount this status surface or show its local data.
   if (!sessionUiReady || !currentUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#09090b]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-nvu-page">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800 dark:border-slate-400"></div>
       </div>
     );
@@ -247,7 +247,7 @@ export default function ApplicationStatus() {
 
   if (requestedApplicationId && !myApp) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-[#09090b]">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-nvu-page">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800 dark:border-slate-400"></div>
       </div>
     );
@@ -281,30 +281,30 @@ export default function ApplicationStatus() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-[#fafafa] tracking-tight mb-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-nvu-text tracking-tight mb-2">
             NVU
           </h1>
-          <p className="text-slate-500 dark:text-[#a1a1aa] text-sm font-medium">
+          <p className="text-slate-500 dark:text-nvu-muted text-sm font-medium">
             {isCompanyRegistration ? "Cadastro de Empresa" : "Portal do Candidato"}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-[#1A1F26] rounded-3xl border border-slate-200 dark:border-[#2A2F3A] shadow-xl dark:shadow-none overflow-hidden text-center p-8">
+        <div className="bg-white dark:bg-nvu-surface rounded-3xl border border-slate-200 dark:border-nvu-line shadow-xl dark:shadow-none overflow-hidden text-center p-8">
           {isRejected ? (
             // Rejected
             <div className="flex flex-col items-center">
               <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 border border-transparent dark:border-red-500/20 text-red-500 dark:text-red-400 rounded-full flex items-center justify-center mb-6">
                 <ShieldAlert size={32} />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
                 {isCompanyRegistration
                   ? "Cadastro da empresa não aprovado"
                   : "Inscrição Não Aprovada"}
               </h2>
-              <p className="text-slate-500 dark:text-[#a1a1aa] mb-8 text-sm">
+              <p className="text-slate-500 dark:text-nvu-muted mb-8 text-sm">
                 {isCompanyRegistration
                   ? companyRegistration?.rejectionReason ||
                     "Sua solicitação de cadastro não foi aprovada. Você pode revisar os dados e enviar uma nova solicitação."
@@ -336,10 +336,10 @@ export default function ApplicationStatus() {
                   className="text-emerald-500 dark:text-green-400"
                 />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-3 tracking-tight">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-3 tracking-tight">
                 {isCompanyRegistration ? "Empresa aprovada" : "Inscrição aprovada"}
               </h2>
-              <p className="text-slate-500 dark:text-[#a1a1aa] mb-8 text-sm leading-relaxed px-4">
+              <p className="text-slate-500 dark:text-nvu-muted mb-8 text-sm leading-relaxed px-4">
                 {isCompanyRegistration
                   ? "Sua empresa foi aprovada e o perfil corporativo já pode ser acessado."
                   : "Sua inscrição foi aprovada. O acesso será liberado assim que o vínculo com a empresa terminar de sincronizar."}
@@ -370,20 +370,20 @@ export default function ApplicationStatus() {
                     className="text-emerald-500 dark:text-green-400"
                   />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2 tracking-tight">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2 tracking-tight">
                   Cadastro em avaliação
                 </h2>
-                <p className="text-slate-500 dark:text-[#a1a1aa] mb-5 text-sm leading-relaxed px-2">
+                <p className="text-slate-500 dark:text-nvu-muted mb-5 text-sm leading-relaxed px-2">
                   Sua empresa ainda está aguardando avaliação da NVU.
                 </p>
 
-                <div className="w-full rounded-2xl border border-slate-200 dark:border-[#2A2F3A] bg-slate-50/80 dark:bg-[#111318] p-3.5 text-left mb-5">
+                <div className="w-full rounded-2xl border border-slate-200 dark:border-nvu-line bg-slate-50/80 dark:bg-nvu-page p-3.5 text-left mb-5">
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-[#71717a]">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-nvu-muted">
                         Cadastro enviado
                       </p>
-                      <p className="text-xs text-slate-500 dark:text-[#a1a1aa] mt-0.5">
+                      <p className="text-xs text-slate-500 dark:text-nvu-muted mt-0.5">
                         {companyRegistrationDateTime}
                       </p>
                     </div>
@@ -393,8 +393,8 @@ export default function ApplicationStatus() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] px-3 py-2">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-[#27272a] flex items-center justify-center shrink-0">
+                    <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line px-3 py-2">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-nvu-strip flex items-center justify-center shrink-0">
                         {companyRegistration.ownerPhotoUrl ? (
                           <StableImage
                             src={companyRegistration.ownerPhotoUrl}
@@ -404,19 +404,19 @@ export default function ApplicationStatus() {
                             fallback={
                               <User
                                 size={16}
-                                className="text-slate-400 dark:text-[#a1a1aa]"
+                                className="text-slate-400 dark:text-nvu-muted"
                               />
                             }
                           />
                         ) : (
                           <User
                             size={16}
-                            className="text-slate-400 dark:text-[#a1a1aa]"
+                            className="text-slate-400 dark:text-nvu-muted"
                           />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-[#71717a] mb-0.5">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-nvu-muted mb-0.5">
                           Proprietário
                         </p>
                         <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
@@ -425,8 +425,8 @@ export default function ApplicationStatus() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] px-3 py-2">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-[#27272a] flex items-center justify-center shrink-0">
+                    <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line px-3 py-2">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-nvu-strip flex items-center justify-center shrink-0">
                         {companyRegistration.companyLogoURL ? (
                           <StableImage
                             src={companyRegistration.companyLogoURL}
@@ -436,26 +436,26 @@ export default function ApplicationStatus() {
                             fallback={
                               <Building2
                                 size={16}
-                                className="text-slate-400 dark:text-[#a1a1aa]"
+                                className="text-slate-400 dark:text-nvu-muted"
                               />
                             }
                           />
                         ) : (
                           <Building2
                             size={16}
-                            className="text-slate-400 dark:text-[#a1a1aa]"
+                            className="text-slate-400 dark:text-nvu-muted"
                           />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-[#71717a] mb-0.5">
+                        <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-nvu-muted mb-0.5">
                           Empresa
                         </p>
                         <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                           {companyRegistration.companyName || "Empresa em análise"}
                         </p>
                         {(companyRegistration.simulatorName || companyRegistration.simulatorId) && (
-                          <p className="text-[11px] text-slate-500 dark:text-[#a1a1aa] truncate mt-0.5">
+                          <p className="text-[11px] text-slate-500 dark:text-nvu-muted truncate mt-0.5">
                             {companyRegistration.simulatorName || companyRegistration.simulatorId}
                           </p>
                         )}
@@ -475,7 +475,7 @@ export default function ApplicationStatus() {
                   <Button
                     onClick={handleBackToStart}
                     variant="outline"
-                    className="w-full h-12 rounded-xl font-semibold text-slate-600 dark:text-[#f4f4f5] hover:text-slate-900 dark:hover:text-[#fafafa]"
+                    className="w-full h-12 rounded-xl font-semibold text-slate-600 dark:text-nvu-text hover:text-slate-900 dark:hover:text-nvu-text"
                   >
                     Voltar para o início
                   </Button>
@@ -489,10 +489,10 @@ export default function ApplicationStatus() {
                     className="text-emerald-500 dark:text-green-400"
                   />
                 </div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-3 tracking-tight">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-3 tracking-tight">
                   Sua inscrição foi enviada
                 </h2>
-                <p className="text-slate-500 dark:text-[#a1a1aa] mb-8 text-sm leading-relaxed px-4">
+                <p className="text-slate-500 dark:text-nvu-muted mb-8 text-sm leading-relaxed px-4">
                   Sua inscrição foi enviada com sucesso e está aguardando análise
                   da empresa.
                   <br />
@@ -502,7 +502,7 @@ export default function ApplicationStatus() {
                 <Button
                   onClick={handleBackToStart}
                   variant="outline"
-                  className="w-full h-12 rounded-xl font-semibold text-slate-600 dark:text-[#f4f4f5] hover:text-slate-900 dark:hover:text-[#fafafa]"
+                  className="w-full h-12 rounded-xl font-semibold text-slate-600 dark:text-nvu-text hover:text-slate-900 dark:hover:text-nvu-text"
                 >
                   Voltar para o início
                 </Button>
@@ -514,10 +514,10 @@ export default function ApplicationStatus() {
               <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 border border-transparent dark:border-blue-500/20 text-blue-500 dark:text-blue-400 rounded-full flex items-center justify-center mb-6">
                 <ShieldAlert size={32} />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-[#fafafa] mb-2">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-nvu-text mb-2">
                 Complete seu cadastro
               </h2>
-              <p className="text-slate-500 dark:text-[#a1a1aa] mb-8 text-sm">
+              <p className="text-slate-500 dark:text-nvu-muted mb-8 text-sm">
                 Sua conta foi criada, mas você ainda não enviou sua inscrição
                 para a avaliação do RH.
               </p>
@@ -532,7 +532,7 @@ export default function ApplicationStatus() {
               </div>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-[#a1a1aa] hover:text-slate-900 dark:hover:text-[#fafafa] transition-colors"
+                className="flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-nvu-muted hover:text-slate-900 dark:hover:text-nvu-text transition-colors"
               >
                 <ChevronLeft size={16} /> Voltar para login
               </button>
@@ -540,7 +540,7 @@ export default function ApplicationStatus() {
           )}
         </div>
 
-        <p className="text-center text-xs font-semibold text-slate-400 dark:text-[#71717a] mt-8">
+        <p className="text-center text-xs font-semibold text-slate-400 dark:text-nvu-muted mt-8">
           NVU © {new Date().getFullYear()} — Plataforma Operacional
         </p>
       </div>

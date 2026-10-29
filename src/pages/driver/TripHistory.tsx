@@ -1,4 +1,14 @@
+import { CachedImage } from "../../components/common/CachedImage";
+import { ModalPortal } from "../../components/ui/ModalPortal";
+import "../../components/common/TripHistoryCard.css";
+import { ModalSelect } from "../../components/ui/ModalSelect";
 import React, { useState, useEffect } from "react";
+import { DriverActivityRow } from "../../components/driver/DriverActivityRow";
+import { TripSendStatus } from "../../components/driver/TripSendStatus";
+import { useLocalTripHistory } from "../../hooks/useLocalTripHistory";
+import { useLocalTripReceipt } from "../../hooks/useLocalTripReceipt";
+import { mergePendingHistoryTrips, isPendingHistoryTrip } from "../../lib/pendingHistoryTrips";
+import { driverDateLabel, driverDayKey, driverMonthOptions, driverMonthRange, groupDriverTripsByDay } from "../../lib/driverWorkspace";
 import { useNavigate } from "react-router-dom";
 import { handleSafeRouteBack } from "../../lib/safeBackNavigation";
 import { PhotoProvider, PhotoView } from 'react-photo-view';
@@ -32,10 +42,18 @@ import {
   ChevronsDownUp,
   ShieldAlert,
   Check,
+  RefreshCw,
 } from "lucide-react";
 
 import { cn } from "../../lib/utils";
+import { isSimpleAutomationNativeAvailable, SimpleAutomation, type SimpleAutomationNativeStatus } from "../../lib/simpleAutomationNative";
 import { StableImage } from "../../components/common/StableImage";
+import { ProPendingAuthButton } from "../../components/ProPendingAuthButton";
+import { ProPendingRetryButton } from "../../components/ProPendingRetryButton";
+import { ProAttemptDiagnosticDetails, copySafeDiagnosticToClipboard } from "../../components/ProAttemptDiagnosticDetails";
+import { buildSafeProAttemptDiagnostic } from "../../lib/proAttemptDiagnostic";
+import { presentProPendingTrip, canShowProPendingRetry } from "../../lib/proPendingPresentation";
+import { resolveAuthenticatedDriverAliases, type NativeProQueueDiagnosticEntry } from "../../lib/localTripSyncDiagnostic";
 import { doc } from "firebase/firestore";
 import { toast } from "sonner";
 import { db } from "../../lib/firebase";
@@ -44,7 +62,10 @@ import {
   updateTripHistoryOptimistically,
   useTripHistory,
 } from "../../hooks/useTripHistory";
-import { TripsRepository } from "../../repositories/TripsRepository";
+import { canonicalTripMigrationService } from "../../application/trip/CanonicalTripMigrationService";
+import { canonicalTripCommandService } from "../../application/trip/CanonicalTripCommandService";
+import { canonicalTripOperationService } from "../../application/trip/CanonicalTripOperationService";
+import { SyncManager } from "../../services/syncManager";
 import {
   applyDriverSuspension,
   deleteTripWithModeration,
@@ -58,7 +79,16 @@ import {
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { onAuthTeardown } from "../../lib/authLifecycle";
-import { normalizeTrip, parseTripValue } from "../../lib/tripNormalizer";
+import { normalizeTrip, parseTripValue, type NormalizedTrip, type TripCurrencyStatus } from "../../lib/tripNormalizer";
+import { applySimulatorCurrencyContext } from "../../lib/metricsEngine";
+import { formatHistoryMoney, formatTripHistoryMoney } from "../../lib/tripMoneyPresentation";
+import { HistoryReadCoverageNotice } from "../../components/common/HistoryReadCoverageNotice";
+import { FailedHistoryRegistrationRecovery } from "../../components/common/FailedHistoryRegistrationRecovery";
+import { HistoryMoneySummary } from "../../components/common/HistoryMoneySummary";
+import { OperationResultModal } from "../../components/OperationResultModal";
+import { buildOperationInProgressSummary } from "../../lib/operationInProgressSummary";
+import { isRunningJobStatus } from "../../lib/jobStatus";
+import { summarizeTripMoney } from "../../lib/tripMoneySummary";
 import {
   getCanonicalTripCompanyId,
   getCanonicalTripDriverId,
@@ -80,6 +110,7 @@ import {
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
 import { resolveTripTrailerName } from "../../lib/tripTrailer";
 import { resolveProSimulatorCode } from "../../services/pro-universal/proUniversalContracts";
+import { emitHistoryScopeDiagnostic } from "../../lib/historyScopeDiagnostic";
 function displayTripSimulatorName(trip: Record<string, any>): string {
   const canonicalCode = resolveProSimulatorCode(
     trip.simulatorCode
@@ -352,7 +383,7 @@ const CachedImageViewer = React.memo(
         <div
           aria-busy="true"
           className={cn(
-            "w-full min-h-[180px] bg-gray-100/70 dark:bg-gray-800/50 animate-pulse",
+            "w-full min-h-[180px] bg-gray-100/70 dark:bg-nvu-surface/50 animate-pulse",
             className,
           )}
         />
@@ -362,7 +393,7 @@ const CachedImageViewer = React.memo(
     return (
       <PhotoProvider>
         <PhotoView src={displayUrl}>
-          <img
+          <CachedImage
             src={displayUrl}
             alt={alt || "Comprovante"}
             loading="eager"
@@ -475,7 +506,7 @@ const DateRangeCalendar = ({
           roundedClass,
           isSelected
             ? "bg-blue-600 text-white font-semibold shadow-sm z-10"
-            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full",
+            : "text-gray-700 dark:text-nvu-text-soft hover:bg-gray-100 dark:hover:bg-nvu-surface rounded-full",
         )}
       >
         {i}
@@ -499,19 +530,19 @@ const DateRangeCalendar = ({
   ];
 
   return (
-    <div className="bg-white dark:bg-[#121213] border border-gray-200 dark:border-gray-800 rounded-xl p-3 shadow-sm w-full select-none">
+    <div className="bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-xl p-3 shadow-sm w-full select-none">
       <div className="flex justify-between items-center mb-4">
         <button
           type="button"
           onClick={prevMonth}
-          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors hidden sm:block"
+          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-nvu-surface text-gray-500 transition-colors hidden sm:block"
         >
           <ChevronLeft size={18} />
         </button>
         <button
           type="button"
           onClick={prevMonth}
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors sm:hidden"
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-nvu-surface text-gray-500 transition-colors sm:hidden"
         >
           <ChevronLeft size={22} />
         </button>
@@ -521,14 +552,14 @@ const DateRangeCalendar = ({
         <button
           type="button"
           onClick={nextMonth}
-          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors hidden sm:block"
+          className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-nvu-surface text-gray-500 transition-colors hidden sm:block"
         >
           <ChevronRight size={18} />
         </button>
         <button
           type="button"
           onClick={nextMonth}
-          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors sm:hidden"
+          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-nvu-surface text-gray-500 transition-colors sm:hidden"
         >
           <ChevronRight size={22} />
         </button>
@@ -580,7 +611,7 @@ const TripListItem = React.memo(({
   canEdit: boolean;
   canDelete: boolean;
   canSuspend: boolean;
-  formatCurrency: (v: number) => string;
+  formatCurrency: (v: number | null, currency?: string, status?: TripCurrencyStatus) => string;
   formatDate: (d: any) => string;
   formatTime: (d: any) => string;
   tripNumber?: number;
@@ -616,9 +647,33 @@ const TripListItem = React.memo(({
     <div
       onClick={() => toggleExpand(trip.id)}
       className={cn(
-        "nvu-content-auto group relative bg-white dark:bg-[#121213] p-2 sm:p-2.5 rounded-xl border border-gray-100 dark:border-gray-800 shadow-[0_1px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-gray-200 dark:hover:border-gray-700 w-full"
+        "nvu-trip-card nvu-content-auto group relative bg-white dark:bg-nvu-surface p-2 sm:p-2.5 rounded-xl border border-gray-100 dark:border-nvu-line shadow-[0_1px_8px_-4px_rgba(0,0,0,0.05)] flex flex-col cursor-pointer transition-[border-color,box-shadow,background-color] hover:border-gray-200 dark:hover:border-nvu-line w-full"
       )}
     >
+      {isPendingHistoryTrip(trip) && <div className="mb-1.5"><TripSendStatus trip={trip} /></div>}
+      {!isPendingHistoryTrip(trip) && Boolean((trip as any).offlineSyncStatus && (trip as any).offlineSyncStatus !== "validated" && !(trip as any).serverValidatedAt && (trip as any).syncStatus !== "SERVER_CONFIRMED") && (
+        <div className={cn(
+          "mb-2 flex items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold",
+          (trip as any).offlineSyncStatus === "validation_failed"
+            ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800/50 dark:bg-red-500/10 dark:text-red-300"
+            : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/50 dark:bg-amber-500/10 dark:text-amber-300",
+        )}>
+          <span>
+            {(trip as any).offlineSyncStatus === "uploading" && "Enviando comprovante e viagem"}
+            {(trip as any).offlineSyncStatus === "awaiting_connection" && "Aguardando conexão para validar"}
+            {(trip as any).offlineSyncStatus === "pending_sync" && "Aguardando sincronização"}
+            {(trip as any).offlineSyncStatus === "syncing" && "Sincronizando viagem"}
+            {(trip as any).offlineSyncStatus === "server_received" && "Recebida pelo servidor; aguardando validação"}
+            {(trip as any).offlineSyncStatus === "validation_pending" && "Aguardando confirmação definitiva do servidor"}
+            {(trip as any).offlineSyncStatus === "validation_failed" && "Falha na validação; viagem e comprovante preservados"}
+            {!["uploading", "awaiting_connection", "pending_sync", "syncing", "auth_required", "server_received", "validation_pending", "validation_failed"].includes((trip as any).offlineSyncStatus) && "Pendente de sincronização e validação"}
+            {(trip as any).offlineSyncStatus === "auth_required" && "Confirme sua conta para enviar a viagem"}
+          </span>
+          {(trip as any).offlineSyncStatus === "validation_failed" && (
+            <span className="shrink-0 rounded-md border border-red-300 px-2 py-1 dark:border-red-700">Envio bloqueado; veja o diagnóstico</span>
+          )}
+        </div>
+      )}
       {/* Top Bar */}
       <div className="flex items-center justify-between pb-1.5">
         <div className="flex items-center gap-2 min-w-0">
@@ -655,7 +710,7 @@ const TripListItem = React.memo(({
             <span className="text-[13px] font-bold text-gray-900 dark:text-white leading-tight break-words whitespace-normal line-clamp-2">
               {trip.empresaNome}
             </span>
-            <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+            <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted mt-0.5 truncate">
               Contrato #
               {trip.contratoNumero ||
                 trip.contratoId?.substring(0, 4) ||
@@ -668,54 +723,54 @@ const TripListItem = React.memo(({
             size={10}
             className="text-gray-400 shrink-0"
           />
-          <span className="text-[10px] font-normal text-gray-500 dark:text-gray-400 ml-1 whitespace-nowrap">
+          <span className="text-[10px] font-normal text-gray-500 dark:text-nvu-muted ml-1 whitespace-nowrap">
             {formatDate(trip.metricDate)} &bull;{" "}
             {formatTime(trip.metricDate)}
           </span>
         </div>
       </div>
 
-      <div className="w-full h-px bg-gray-50 dark:bg-gray-800/60" />
+      <div className="w-full h-px bg-gray-50 dark:bg-nvu-line" />
 
       {/* Middle Grid Row 1 */}
       <div className="grid grid-cols-2 py-1 sm:py-1.5 relative">
         <div className="flex items-center gap-2 pr-2 min-w-0">
           <User
             size={12}
-            className="text-gray-500 dark:text-gray-400 shrink-0"
+            className="text-gray-500 dark:text-nvu-muted shrink-0"
           />
           <div className="flex flex-col min-w-0">
             <span className="text-[9px] text-gray-400 font-medium leading-tight mb-[1px]">
               Motorista
             </span>
-            <span className="text-[11px] font-medium text-gray-800 dark:text-gray-200 truncate">
+            <span className="text-[11px] font-medium text-gray-800 dark:text-nvu-text truncate">
               {trip.motoristaNome}
             </span>
           </div>
         </div>
 
         {/* Vertical Divider */}
-        <div className="absolute left-[50%] top-1.5 bottom-1.5 w-px bg-gray-50 dark:bg-gray-800/60" />
+        <div className="absolute left-[50%] top-1.5 bottom-1.5 w-px bg-gray-50 dark:bg-nvu-line" />
 
         <div className="flex items-center justify-between pl-3 min-w-0 w-full">
           <div className="flex items-center gap-2 min-w-0">
           <Gamepad2
             size={12}
-            className="text-gray-500 dark:text-gray-400 shrink-0"
+            className="text-gray-500 dark:text-nvu-muted shrink-0"
           />
           <div className="flex flex-col min-w-0">
             <span className="text-[9px] text-gray-400 font-medium leading-tight mb-[1px]">
               Simulador
             </span>
-            <span className="text-[11px] font-medium text-gray-800 dark:text-gray-200 truncate">
+            <span className="text-[11px] font-medium text-gray-800 dark:text-nvu-text truncate">
               {displayTripSimulatorName(trip as Record<string, any>)}
             </span>
           </div>
         </div>
           {tripNumber !== undefined && (
             <div className="flex flex-col items-center justify-center shrink-0 ml-1">
-              <div className="flex items-center justify-center w-6 h-6 rounded bg-gray-100 dark:bg-gray-800/80 text-[11px] font-bold text-gray-700 dark:text-gray-300">
-                {tripNumber.toString().padStart(2, '0')}
+              <div className="flex items-center justify-center min-w-8 h-6 px-1 rounded bg-gray-100 dark:bg-nvu-surface/80 text-[11px] font-bold text-gray-700 dark:text-nvu-text-soft" aria-label={`Ordem ${tripNumber} no histórico do escopo`} title="Ordem cronológica no histórico do escopo">
+                {tripNumber.toString()}
               </div>
             </div>
           )}
@@ -724,20 +779,20 @@ const TripListItem = React.memo(({
 
       {isExpanded && (
         <div className="flex flex-col animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="w-full h-px bg-gray-50 dark:bg-gray-800/60" />
+          <div className="w-full h-px bg-gray-50 dark:bg-nvu-line" />
 
           {/* Middle Grid Row 2 */}
           <div className="grid grid-cols-2 py-1 sm:py-1.5 relative">
             <div className="flex items-center gap-2 pr-2 min-w-0">
               <Truck
                 size={12}
-                className="text-gray-500 dark:text-gray-400 shrink-0"
+                className="text-gray-500 dark:text-nvu-muted shrink-0"
               />
               <div className="flex flex-col min-w-0">
                 <span className="text-[9px] text-gray-400 font-medium leading-tight mb-[1px]">
                   Veículo
                 </span>
-                <span className="text-[11px] font-medium text-gray-800 dark:text-gray-200 truncate">
+                <span className="text-[11px] font-medium text-gray-800 dark:text-nvu-text truncate">
                   {trip.veiculoNome || "-"}
                 </span>
               </div>
@@ -746,18 +801,18 @@ const TripListItem = React.memo(({
             {showTrailer && (
               <>
                 {/* Vertical Divider */}
-                <div className="absolute left-[50%] top-1.5 bottom-1.5 w-px bg-gray-50 dark:bg-gray-800/60" />
+                <div className="absolute left-[50%] top-1.5 bottom-1.5 w-px bg-gray-50 dark:bg-nvu-line" />
 
                 <div className="flex items-center gap-2 pl-3 min-w-0">
                   <Package
                     size={12}
-                    className="text-gray-500 dark:text-gray-400 shrink-0"
+                    className="text-gray-500 dark:text-nvu-muted shrink-0"
                   />
                   <div className="flex flex-col min-w-0">
                     <span className="text-[9px] text-gray-400 font-medium leading-tight mb-[1px]">
                       Reboque
                     </span>
-                    <span className="text-[11px] font-medium text-gray-800 dark:text-gray-200 truncate">
+                    <span className="text-[11px] font-medium text-gray-800 dark:text-nvu-text truncate">
                       {trailerName || "-"}
                     </span>
                   </div>
@@ -766,38 +821,38 @@ const TripListItem = React.memo(({
             )}
           </div>
 
-          <div className="w-full h-px bg-gray-50 dark:bg-gray-800/60" />
+          <div className="w-full h-px bg-gray-50 dark:bg-nvu-line" />
 
           {/* Origin -> Destination */}
           <div className="flex items-center gap-2 py-1 sm:py-1.5">
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <MapPin
                 size={12}
-                className="text-green-500 fill-green-500 shrink-0"
+                className="nvu-trip-route-pin shrink-0"
               />
               <div className="flex flex-col min-w-0">
                 <span className="text-[9px] text-gray-400 font-medium leading-tight mb-[1px]">
                   Origem
                 </span>
-                <span className="text-[11px] font-medium text-gray-900 dark:text-gray-100 truncate">
+                <span className="text-[11px] font-medium text-gray-900 dark:text-nvu-text truncate">
                   {trip.origem || trip.gtoOriginCompany || "-"}
                 </span>
               </div>
             </div>
             <ArrowRight
               size={10}
-              className="text-gray-800 dark:text-gray-400 shrink-0 mx-1"
+              className="text-gray-800 dark:text-nvu-muted shrink-0 mx-1"
             />
             <div className="flex items-center gap-1.5 flex-1 min-w-0">
               <MapPin
                 size={12}
-                className="text-blue-500 fill-blue-500 shrink-0"
+                className="nvu-trip-route-pin shrink-0"
               />
               <div className="flex flex-col min-w-0">
                 <span className="text-[9px] text-gray-400 font-medium leading-tight mb-[1px]">
                   Destino
                 </span>
-                <span className="text-[11px] font-medium text-gray-900 dark:text-gray-100 truncate">
+                <span className="text-[11px] font-medium text-gray-900 dark:text-nvu-text truncate">
                   {trip.destino}
                 </span>
               </div>
@@ -806,12 +861,12 @@ const TripListItem = React.memo(({
 
           {distanceKm !== undefined && distanceKm > 0 && (
             <>
-              <div className="w-full h-px bg-gray-50 dark:bg-gray-800/60" />
+              <div className="w-full h-px bg-gray-50 dark:bg-nvu-line" />
               <div className="flex items-center justify-between py-1.5">
-                <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted">
                   Distância percorrida
                 </span>
-                <span className="text-[11px] font-bold text-gray-900 dark:text-gray-100">
+                <span className="text-[11px] font-bold text-gray-900 dark:text-nvu-text">
                   {formatTripDistance(distanceKm)} km
                 </span>
               </div>
@@ -821,30 +876,36 @@ const TripListItem = React.memo(({
       )}
 
       {/* Bottom Row (Badges & Actions) */}
-      <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-gray-800/60">
+      <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-100 dark:border-nvu-line/60">
         <div className="flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-0.5 rounded-full border border-green-100/50 dark:border-transparent">
-          <div className="w-3 h-3 rounded-full border-[1px] border-green-500 flex items-center justify-center shrink-0">
+          <div className="nvu-trip-money-icon w-3 h-3 rounded-full border-[1px] flex items-center justify-center shrink-0">
             <DollarSign
               size={8}
               className="stroke-[3] text-green-500"
             />
           </div>
           <span className="text-[12px] font-bold text-gray-900 dark:text-green-400 tracking-tight">
-            {formatCurrency(trip.valor)}
+            {formatTripHistoryMoney(trip)}
           </span>
         </div>
+        {(trip as any).editPending === true && (
+          <span className="text-[10px] text-amber-700 dark:text-amber-300" title="Aguardando confirmação do servidor">
+            Edição pendente{Number.isFinite(Number((trip as any).pendingEditValue))
+              ? ` · valor proposto ${formatTripHistoryMoney(trip, Number((trip as any).pendingEditValue))}` : ""}
+          </span>
+        )}
 
         <div className="flex items-center gap-1">
           {operationCounterLabel && (
             <div
-              className="min-w-[42px] h-6 px-2 rounded-md bg-gray-100 dark:bg-gray-800/80 text-[11px] font-bold text-gray-700 dark:text-gray-300 flex items-center justify-center"
-              aria-label={`Posição na operação ${operationCounterLabel}`}
-              title={`Viagem ${operationCounterLabel} da operação`}
+              className="min-w-[42px] h-6 px-2 rounded-md bg-gray-100 dark:bg-nvu-surface/80 text-[11px] font-bold text-gray-700 dark:text-nvu-text-soft flex items-center justify-center"
+              aria-label={`Posição ${operationCounterLabel} dentro da operação física`}
+              title={`Posição ${operationCounterLabel} dentro da operação física`}
             >
               {operationCounterLabel}
             </div>
           )}
-          <div className="w-px h-4 bg-gray-200 dark:bg-gray-800 mx-1" />
+          <div className="w-px h-4 bg-gray-200 dark:bg-nvu-line mx-1" />
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -854,8 +915,8 @@ const TripListItem = React.memo(({
             onMouseEnter={() => {
               if (shouldLoadTripReceipt(trip)) void preloadComprovante(trip.comprovanteUrl);
             }}
-            title="Visualizar Detalhes"
-            className="w-7 h-6 rounded-lg border border-blue-100/60 dark:border-gray-800 bg-blue-50/50 dark:bg-[#121213] flex items-center justify-center text-blue-500 hover:bg-blue-100 dark:hover:bg-gray-800 transition-colors"
+            title="Visualizar Detalhes" aria-label="Visualizar Detalhes" type="button"
+            className="nvu-trip-action w-7 h-6 rounded-lg border flex items-center justify-center transition-colors"
           >
             <Eye size={12} className="stroke-[2]" />
           </button>
@@ -865,8 +926,8 @@ const TripListItem = React.memo(({
                 e.stopPropagation();
                 setEditingTrip(trip);
               }}
-              title="Editar origem e destino"
-              className="w-7 h-6 rounded-lg border border-orange-100/60 dark:border-orange-900/30 bg-orange-50/50 dark:bg-orange-500/5 flex items-center justify-center text-orange-500 hover:bg-orange-100 dark:hover:bg-orange-500/10 transition-colors"
+              title="Editar origem e destino" aria-label="Editar origem e destino" type="button"
+            className="nvu-trip-action w-7 h-6 rounded-lg border flex items-center justify-center transition-colors"
             >
               <Pencil size={11} className="stroke-[2]" />
             </button>
@@ -877,8 +938,8 @@ const TripListItem = React.memo(({
                 e.stopPropagation();
                 setSuspendingTrip(trip);
               }}
-              title="Suspender motorista"
-              className="w-7 h-6 rounded-lg border border-amber-100/60 dark:border-amber-900/30 bg-amber-50/60 dark:bg-amber-500/5 flex items-center justify-center text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-500/10 transition-colors"
+              title="Suspender motorista" aria-label="Suspender motorista" type="button"
+            className="nvu-trip-action w-7 h-6 rounded-lg border flex items-center justify-center transition-colors"
             >
               <ShieldAlert size={11} className="stroke-[2]" />
             </button>
@@ -889,18 +950,20 @@ const TripListItem = React.memo(({
                 e.stopPropagation();
                 setDeletingTrip(trip);
               }}
-              title="Excluir Viagem"
-              className="w-7 h-6 rounded-lg border border-red-100/60 dark:border-red-900/30 bg-red-50/50 dark:bg-red-500/5 flex items-center justify-center text-red-500 hover:bg-red-100 dark:hover:bg-red-500/10 transition-colors"
+              title="Excluir Viagem" aria-label="Excluir Viagem" type="button"
+            className="nvu-trip-action w-7 h-6 rounded-lg border flex items-center justify-center transition-colors"
             >
               <Trash2 size={11} className="stroke-[2]" />
             </button>
           )}
           <button
+            aria-label={isExpanded ? "Recolher detalhes da viagem" : "Expandir detalhes da viagem"}
+            aria-expanded={isExpanded}
             onClick={(e) => {
               e.stopPropagation();
               toggleExpand(trip.id);
             }}
-            className="w-7 h-6 ml-0.5 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-700"
+            className="w-7 h-6 ml-0.5 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 dark:text-nvu-muted dark:hover:text-white hover:bg-gray-50 dark:hover:bg-nvu-surface transition-colors border border-transparent hover:border-gray-200 dark:hover:border-nvu-line"
           >
             {isExpanded ? (
               <ChevronUp size={14} />
@@ -935,7 +998,7 @@ const CompactMultiSelect = ({
             "min-h-10 rounded-xl border px-3 py-2 text-left text-[12px] font-semibold flex items-center gap-2 transition-colors",
             isSelected
               ? "border-blue-500 bg-blue-50 text-blue-800 dark:border-blue-400 dark:bg-blue-500/10 dark:text-blue-200"
-              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-[#18181b] dark:text-gray-300 dark:hover:bg-gray-800",
+              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-nvu-line dark:bg-nvu-surface dark:text-nvu-text-soft dark:hover:bg-nvu-surface",
           )}
           aria-pressed={isSelected}
         >
@@ -944,7 +1007,7 @@ const CompactMultiSelect = ({
               "w-4 h-4 rounded border flex items-center justify-center shrink-0",
               isSelected
                 ? "border-blue-600 bg-blue-600 text-white"
-                : "border-gray-300 dark:border-gray-600",
+                : "border-gray-300 dark:border-nvu-line",
             )}
           >
             {isSelected && <Check size={11} strokeWidth={3} />}
@@ -973,7 +1036,7 @@ const SuspensionFields = ({
 }) => (
   <div className="space-y-4">
     <div>
-      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-nvu-muted">
         Duração da suspensão
       </p>
       <div className="grid grid-cols-3 gap-2">
@@ -986,7 +1049,7 @@ const SuspensionFields = ({
               "h-10 rounded-xl border text-[12px] font-bold transition-colors",
               duration === hours
                 ? "border-amber-500 bg-amber-50 text-amber-800 dark:border-amber-400 dark:bg-amber-500/10 dark:text-amber-200"
-                : "border-gray-200 bg-white text-gray-700 dark:border-gray-700 dark:bg-[#18181b] dark:text-gray-300",
+                : "border-gray-200 bg-white text-gray-700 dark:border-nvu-line dark:bg-nvu-surface dark:text-nvu-text-soft",
             )}
           >
             {hours} horas
@@ -996,7 +1059,7 @@ const SuspensionFields = ({
     </div>
 
     <div>
-      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-nvu-muted">
         Motivo da suspensão
       </p>
       <CompactMultiSelect
@@ -1007,7 +1070,7 @@ const SuspensionFields = ({
     </div>
 
     <div>
-      <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+      <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-nvu-muted">
         Mensagem opcional
       </label>
       <textarea
@@ -1015,7 +1078,7 @@ const SuspensionFields = ({
         onChange={(event) => setMessage(event.target.value.slice(0, 500))}
         rows={3}
         placeholder="Orientação que ficará visível no painel operacional do motorista."
-        className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-amber-500 dark:border-gray-700 dark:bg-[#18181b] dark:text-white"
+        className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-amber-500 dark:border-nvu-line dark:bg-nvu-surface dark:text-white"
       />
       <p className="mt-1 text-right text-[10px] text-gray-400">{message.length}/500</p>
     </div>
@@ -1027,19 +1090,19 @@ const TripHistorySkeleton = () => (
     {[0, 1, 2].map((item) => (
       <div
         key={item}
-        className="h-[112px] rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#121213] p-3 animate-pulse"
+        className="h-[112px] rounded-xl border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface p-3 animate-pulse"
       >
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-lg bg-gray-200 dark:bg-gray-800" />
+          <div className="w-7 h-7 rounded-lg bg-gray-200 dark:bg-nvu-surface" />
           <div className="space-y-1.5 flex-1">
-            <div className="h-3 w-36 rounded bg-gray-200 dark:bg-gray-800" />
-            <div className="h-2.5 w-20 rounded bg-gray-100 dark:bg-gray-800/70" />
+            <div className="h-3 w-36 rounded bg-gray-200 dark:bg-nvu-surface" />
+            <div className="h-2.5 w-20 rounded bg-gray-100 dark:bg-nvu-surface/70" />
           </div>
-          <div className="h-2.5 w-24 rounded bg-gray-100 dark:bg-gray-800/70" />
+          <div className="h-2.5 w-24 rounded bg-gray-100 dark:bg-nvu-surface/70" />
         </div>
-        <div className="grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-gray-800 pt-3">
-          <div className="h-8 rounded bg-gray-100 dark:bg-gray-800/70" />
-          <div className="h-8 rounded bg-gray-100 dark:bg-gray-800/70" />
+        <div className="grid grid-cols-2 gap-4 border-t border-gray-100 dark:border-nvu-line pt-3">
+          <div className="h-8 rounded bg-gray-100 dark:bg-nvu-surface/70" />
+          <div className="h-8 rounded bg-gray-100 dark:bg-nvu-surface/70" />
         </div>
       </div>
     ))}
@@ -1051,6 +1114,8 @@ export default function TripHistory({
   embeddedJob,
   hideHeader = false,
   hideHeaderActions = false,
+  hideFloatingSummary = false,
+  compactDriverView = false,
   isInsideAdminTab = false,
   externalExpandAllState,
   onTripDetailsOpen,
@@ -1060,12 +1125,15 @@ export default function TripHistory({
   mode,
   companyId,
   historicoTripsOverride,
+  canonicalOperationTripsOverride,
   historyLoadingOverride,
   historyErrorOverride,
 }: {
   embeddedJob?: any;
   hideHeader?: boolean;
   hideHeaderActions?: boolean;
+  hideFloatingSummary?: boolean;
+  compactDriverView?: boolean;
   isInsideAdminTab?: boolean;
   externalExpandAllState?: boolean;
   onTripDetailsOpen?: (isOpen: boolean) => void;
@@ -1075,36 +1143,98 @@ export default function TripHistory({
   mode?: "driver" | "company";
   companyId?: string;
   historicoTripsOverride?: TripRecord[];
+  /**
+   * Authoritative trip projection for the embedded current-operation surface.
+   * When supplied, TripHistory MUST NOT rediscover operation membership from
+   * legacy driver/company/contract/date heuristics.
+   */
+  canonicalOperationTripsOverride?: any[];
   historyLoadingOverride?: boolean;
   historyErrorOverride?: unknown;
 } = {}) {
   const navigate = useNavigate();
+  useEffect(() => {
+    const onEditRejected = (event: Event) => {
+      const detail = (event as CustomEvent<{ tripId?: string; reason?: string }>).detail;
+      toast.error("A edição da viagem não foi confirmada. Os dados anteriores foram restaurados.", {
+        id: `trip-edit-${detail?.tripId || "unknown"}`,
+      });
+    };
+    window.addEventListener("nvu-trip-edit-rejected", onEditRejected);
+    return () => window.removeEventListener("nvu-trip-edit-rejected", onEditRejected);
+  }, []);
   const { currentUser, activeRole, isSeniorAuthenticated } = useSessionStore();
   const {
     activeCompanyId: contextActiveCompanyId,
     companies,
     allCompanyMembers,
   } = useCompanyStore();
-  const { contracts, jobs, users, simulators, trailers } = useOperationalStore();
+  const { contracts, jobs, users, simulators, vehicles, trailers } = useOperationalStore();
   const activeCompanyId = companyId || contextActiveCompanyId;
+  const diagnosticOwnerKey = resolveAuthenticatedDriverAliases(currentUser?.id || "", currentUser, allCompanyMembers as any[]).sort().join("|");
+  const diagnosticOwnerDriverIds = React.useMemo(() => diagnosticOwnerKey.split("|").filter(Boolean), [diagnosticOwnerKey]);
+  const [pendingProTrips, setPendingProTrips] = useState<NonNullable<SimpleAutomationNativeStatus["pendingProTrips"]>>([]);
+  const [pendingProOwnerAuthenticated, setPendingProOwnerAuthenticated] = useState(false);
+  const [nativeQueueDiagnostics, setNativeQueueDiagnostics] = useState<NativeProQueueDiagnosticEntry[]>([]);
+  const nativeDiagnosticScope = `${currentUser?.id || ""}:${activeCompanyId || ""}:${embeddedJob?.id || ""}:${diagnosticOwnerKey}`;
+  const nativeDiagnosticSnapshot = React.useRef({ scope: nativeDiagnosticScope, signature: "" });
+  useEffect(() => {
+    if (nativeDiagnosticSnapshot.current.scope !== nativeDiagnosticScope) {
+      nativeDiagnosticSnapshot.current = { scope: nativeDiagnosticScope, signature: "" };
+      setPendingProOwnerAuthenticated(false); setPendingProTrips([]); setNativeQueueDiagnostics([]);
+    }
+    if (!isSimpleAutomationNativeAvailable() || !currentUser?.id) return;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const status = await SimpleAutomation.getReadOnlyProQueueDiagnostics({
+          authenticatedUserId: currentUser.id,
+          authorizedDriverIds: diagnosticOwnerDriverIds,
+        });
+        if (!active) return;
+        const signature = JSON.stringify([status.ownerAuthenticated, status.pendingProTrips || []]);
+        if (nativeDiagnosticSnapshot.current.signature === signature) return;
+        nativeDiagnosticSnapshot.current.signature = signature;
+        setPendingProOwnerAuthenticated(status.ownerAuthenticated);
+        if (!status.ownerAuthenticated) { setPendingProTrips([]); setNativeQueueDiagnostics([]); return; }
+        const ownerRows = status.pendingProTrips || [];
+        setNativeQueueDiagnostics(ownerRows);
+        setPendingProTrips((status.pendingProTrips || []).filter((trip) =>
+          diagnosticOwnerDriverIds.includes(trip.driverId)
+          && (!activeCompanyId || trip.companyId === activeCompanyId)
+          && (!embeddedJob?.id || trip.jobId === embeddedJob.id)));
+      } catch { /* Keep the last local snapshot while the bridge reconnects. */ }
+    };
+    void refresh();
+    const interval = window.setInterval(() => { if (!document.hidden) void refresh(); }, 5000);
+    window.addEventListener("nvu-completed-operation-queue-cleaned", refresh);
+    return () => { active = false; window.clearInterval(interval); window.removeEventListener("nvu-completed-operation-queue-cleaned", refresh); };
+  }, [nativeDiagnosticScope]);
   const hasHistoryOverride = Array.isArray(historicoTripsOverride);
   const {
     historicoTrips: companyHistoryTripsFromHook = [],
     loading: historyLoadingFromHook,
     error: historyErrorFromHook,
+    coverage: historyCoverageFromHook = "unknown",
+    readCoverage: historyReadCoverageFromHook,
+    historyReady: historyReadyFromHook,
   } = useTripHistory(activeCompanyId, {
     enabled: !hasHistoryOverride,
     userId: currentUser?.id,
+    diagnosticOwnerDriverIds,
   });
   const companyHistoryTrips = hasHistoryOverride
     ? historicoTripsOverride
     : companyHistoryTripsFromHook;
+  const pendingHistoryTrips = useLocalTripHistory(activeCompanyId || "", embeddedJob?.id, currentUser?.id);
   const historyLoading = hasHistoryOverride
     ? Boolean(historyLoadingOverride)
     : historyLoadingFromHook;
   const historyError = hasHistoryOverride
     ? historyErrorOverride
     : historyErrorFromHook;
+  const historyCoverage = hasHistoryOverride ? "unknown" : historyCoverageFromHook;
+  const historyReadCoverage = hasHistoryOverride ? null : historyReadCoverageFromHook;
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
   const [editingTrip, setEditingTrip] = useState<TripRecord | null>(null);
   const [deletingTrip, setDeletingTrip] = useState<TripRecord | null>(null);
@@ -1124,6 +1254,29 @@ export default function TripHistory({
   } | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+  const [summaryNow, setSummaryNow] = useState(Date.now);
+  const summaryId = React.useId();
+  const operationSummaryJob = embeddedJob && isRunningJobStatus(embeddedJob.status) ? embeddedJob : null;
+  const summaryScope = `${embeddedJob?.id || ""}:${embeddedJob?.status || ""}:${activeCompanyId || ""}:${currentUser?.id || ""}`;
+  const previousSummaryScope = React.useRef(summaryScope);
+  useEffect(() => {
+    if (previousSummaryScope.current === summaryScope) return;
+    previousSummaryScope.current = summaryScope;
+    setIsSummaryExpanded(false);
+  }, [summaryScope]);
+  useEffect(() => {
+    if (!isSummaryExpanded || !operationSummaryJob) return;
+    setSummaryNow(Date.now());
+    const refreshTime = () => setSummaryNow(Date.now());
+    const interval = window.setInterval(refreshTime, 60_000);
+    window.addEventListener('focus', refreshTime);
+    document.addEventListener('visibilitychange', refreshTime);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshTime);
+      document.removeEventListener('visibilitychange', refreshTime);
+    };
+  }, [isSummaryExpanded, operationSummaryJob?.id]);
   const [expandedTrips, setExpandedTrips] = useState<Set<string>>(new Set());
   const [visibleTripCount, setVisibleTripCount] = useState(30);
   const selectedTripOptionsRef = React.useRef<HTMLDivElement | null>(null);
@@ -1158,8 +1311,45 @@ export default function TripHistory({
   // Normalize the display field before filtering so an old Google name cannot
   // hide or relabel the current user's trips.
   const identityNormalizedHistoryTrips = React.useMemo(
-    () =>
-      companyHistoryTrips
+    () => {
+      const pendingRows = pendingProTrips
+        .filter((pending) =>
+          diagnosticOwnerDriverIds.includes(pending.driverId)
+          && (!activeCompanyId || pending.companyId === activeCompanyId)
+          && (!embeddedJob?.id || pending.jobId === embeddedJob.id),
+        )
+        .map((pending) => ({
+          id: `pending-pro-${pending.attemptId}`,
+          tripId: `pending-pro-${pending.attemptId}`,
+          canonicalTripId: `pending-pro-${pending.attemptId}`,
+          jobId: pending.jobId,
+          operationId: pending.jobId,
+          companyId: pending.companyId,
+          empresaId: pending.companyId,
+          driverId: pending.driverId,
+          motoristaId: pending.driverId,
+          origem: pending.origin || "—",
+          destino: pending.destination || "—",
+          valor: Number(pending.amountCents || 0) / 100,
+          valorCents: Number(pending.amountCents || 0),
+          status: "aguardando_envio",
+          offlineSyncStatus: pending.queueStatus === "SENDING"
+            ? "syncing"
+            : (pending.queueStatus === "FAILED" ? "validation_failed" : pending.queueStatus === "AUTH_REQUIRED" ? "auth_required" : "pending_sync"),
+          createdAt: pending.queuedAt || Date.now(),
+          completedAt: pending.queuedAt || Date.now(),
+          createdAtLocal: new Date(pending.queuedAt || Date.now()).toISOString(),
+          completedAtLocal: new Date(pending.queuedAt || Date.now()).toISOString(),
+          pendingNativePro: true,
+          localPendingRegistration: true,
+          historyLocalCommandOnly: true,
+          currency: pending.currency,
+        }));
+      const pendingIds = new Set(pendingRows.map((trip) => trip.id));
+      const observedAttempts = new Set(companyHistoryTrips.map((trip: any) => String(trip.simpleReceiptCaptureAttemptId || "")).filter(Boolean));
+      return mergePendingHistoryTrips(companyHistoryTrips, [...pendingHistoryTrips,
+        ...pendingRows.filter((trip: any) => !observedAttempts.has(trip.id.slice("pending-pro-".length)))])
+        .filter((trip: any) => !pendingIds.has(trip.id) || trip.pendingNativePro)
         .filter((trip: any) => !deletedTripIds.has(trip.id))
         .map((trip: any) => {
         const driverId = getCanonicalTripDriverId(trip);
@@ -1169,8 +1359,10 @@ export default function TripHistory({
         return canonicalName
           ? { ...trip, motoristaNome: canonicalName, driverName: canonicalName }
           : trip;
-      }),
-    [canonicalDriverNames, companyHistoryTrips, deletedTripIds],
+        });
+    },
+    [activeCompanyId, canonicalDriverNames, companyHistoryTrips, currentUser?.id, diagnosticOwnerDriverIds,
+      deletedTripIds, embeddedJob?.id, pendingProTrips, pendingHistoryTrips],
   );
 
   const toggleExpand = React.useCallback((tripId: string) => {
@@ -1231,7 +1423,7 @@ export default function TripHistory({
 
     let cancelled = false;
     const runBackfill = () => {
-      if (!cancelled) void TripsRepository.runBackfill(activeCompanyId);
+      if (!cancelled) void canonicalTripMigrationService.runBackfill(activeCompanyId);
     };
     const idleApi = window as Window & {
       requestIdleCallback?: (
@@ -1257,15 +1449,27 @@ export default function TripHistory({
   }, [activeCompanyId, historyLoading, needsLegacyEnrichment]);
 
   const canonicalHistoryTrips = React.useMemo(
-    () =>
-      filterAndSortTripHistory(identityNormalizedHistoryTrips, {
+    () => {
+      // The embedded "Viagens da operação" surface consumes the exact same
+      // canonical projection as the operation counter.  It must never infer
+      // membership again from legacy contract/date heuristics, otherwise the
+      // card can show 0/N while the list manufactures 1/N, 2/N, ... labels.
+      if (embeddedJob && Array.isArray(canonicalOperationTripsOverride)) {
+        return filterAndSortTripHistory(mergePendingHistoryTrips(canonicalOperationTripsOverride, pendingHistoryTrips),
+          { periodPreset: "todos", embeddedJob, includePending: true })
+          .map((trip) => applySimulatorCurrencyContext(trip, companies, simulators));
+      }
+
+      return filterAndSortTripHistory(identityNormalizedHistoryTrips, {
+        includePending: true,
         periodPreset: embeddedJob ? "todos" : appliedFilters.periodoPreset,
         customStartDate: appliedFilters.periodoInicio,
         customEndDate: appliedFilters.periodoFim,
         driverId: embeddedJob ? undefined : appliedFilters.motoristaId,
         driverName: embeddedJob ? undefined : appliedFilters.motorista,
         embeddedJob,
-      }),
+      }).map((trip) => applySimulatorCurrencyContext(trip as NormalizedTrip, companies, simulators));
+    },
     [
       appliedFilters.motorista,
       appliedFilters.motoristaId,
@@ -1273,23 +1477,25 @@ export default function TripHistory({
       appliedFilters.periodoInicio,
       appliedFilters.periodoPreset,
       embeddedJob,
+      canonicalOperationTripsOverride,
+      companies,
       identityNormalizedHistoryTrips,
+      simulators,
       deletedTripIds,
+      pendingHistoryTrips,
     ],
   );
 
+  const listScope = JSON.stringify([activeCompanyId, appliedFilters.motorista, appliedFilters.motoristaId, appliedFilters.periodoFim, appliedFilters.periodoInicio, appliedFilters.periodoPreset, embeddedJob?.id]);
+  const previousListScope = React.useRef(listScope);
   useEffect(() => {
+    // Activity re-runs effects on reveal. Back must not reset pagination or
+    // expanded receipts unless the actual company/filter/operation changed.
+    if (previousListScope.current === listScope) return;
+    previousListScope.current = listScope;
     setVisibleTripCount(30);
     setExpandedTrips(new Set());
-  }, [
-    activeCompanyId,
-    appliedFilters.motorista,
-    appliedFilters.motoristaId,
-    appliedFilters.periodoFim,
-    appliedFilters.periodoInicio,
-    appliedFilters.periodoPreset,
-    embeddedJob?.id,
-  ]);
+  }, [listScope]);
 
   const finalTrips = React.useMemo(
     () => canonicalHistoryTrips.slice(0, visibleTripCount),
@@ -1435,14 +1641,106 @@ export default function TripHistory({
 
   const hasMore = visibleTripCount < canonicalHistoryTrips.length;
   const loading = historyLoading;
-  const { totalViagens, faturamentoTotal } = React.useMemo(
+  const { totalViagens } = React.useMemo(
     () => summarizeTripHistory(canonicalHistoryTrips),
     [canonicalHistoryTrips],
   );
 
   useEffect(() => {
+    const capture = () => {
+      const activeMembers = (allCompanyMembers || []).filter(
+        (member) => member.companyId === activeCompanyId && member.status === "active",
+      );
+      const allowedPeriods = ["todos", "hoje", "semana", "mes", "data"] as const;
+      const requestedPeriod = appliedFilters.periodoPreset;
+      const period = allowedPeriods.includes(requestedPeriod as (typeof allowedPeriods)[number])
+        ? requestedPeriod as (typeof allowedPeriods)[number]
+        : "mes";
+
+      emitHistoryScopeDiagnostic({
+        view: "history",
+        authenticatedUserPresent: Boolean(currentUser?.id),
+        activeCompanySelected: Boolean(activeCompanyId),
+        currentUserActiveCompanyMember: activeMembers.some(
+          (member) => member.userId === currentUser?.id,
+        ),
+        activeCompanyMemberCount: activeMembers.length,
+        role: activeRole === "admin" || activeRole === "driver" || activeRole === "manager"
+          ? activeRole
+          : "other",
+        period,
+        mode: mode || "driver",
+        driverFilterActive: Boolean(appliedFilters.motoristaId || appliedFilters.motorista),
+        simulatorFilter: "all",
+        sourceRows: companyHistoryTrips.length,
+        identityRows: identityNormalizedHistoryTrips.length,
+        eligibleRows: filterAndSortTripHistory(identityNormalizedHistoryTrips, { periodPreset: "todos" }).length,
+        filteredRows: canonicalHistoryTrips.length,
+        visibleRows: finalTrips.length,
+        sourceKind: hasHistoryOverride ? "override" : "hook",
+        embeddedOperation: Boolean(embeddedJob),
+        loading: historyLoading,
+        hasError: Boolean(historyError),
+        cacheMetadata: historyReadCoverage ? "exposed" : "not_exposed_by_history_hook",
+        selectedCompanyId: activeCompanyId,
+        selectedDriverId: appliedFilters.motoristaId,
+        authenticatedUserId: currentUser?.id,
+        customStartDate: appliedFilters.periodoInicio,
+        customEndDate: appliedFilters.periodoFim,
+        coverage: historyCoverage,
+        readCoverage: historyReadCoverage,
+      });
+    };
+
+    capture();
+    window.addEventListener("nvu:history-scope-diagnostic-request", capture);
+    return () => window.removeEventListener("nvu:history-scope-diagnostic-request", capture);
+  }, [
+    activeCompanyId,
+    activeRole,
+    allCompanyMembers,
+    appliedFilters.motoristaId,
+    appliedFilters.motorista,
+    appliedFilters.periodoFim,
+    appliedFilters.periodoInicio,
+    appliedFilters.periodoPreset,
+    canonicalHistoryTrips.length,
+    companyHistoryTrips.length,
+    currentCompany?.simulatorName,
+    currentUser?.id,
+    embeddedJob?.id,
+    finalTrips.length,
+    hasHistoryOverride,
+    historyError,
+    historyLoading,
+    historyCoverage,
+    historyReadCoverage,
+    identityNormalizedHistoryTrips.length,
+    mode,
+  ]);
+
+  const ganhosPorMoeda = React.useMemo(() => summarizeTripMoney(canonicalHistoryTrips.filter(trip => trip.isValid)), [canonicalHistoryTrips]);
+  const operationSummaryData = React.useMemo(() => {
+    if (!operationSummaryJob || !isSummaryExpanded) return null;
+    const contract = contractsById.get(String(operationSummaryJob.contractId || ''));
+    const vehicle = vehicles.find((item) => item.id === operationSummaryJob.vehicleId);
+    const trailer = trailers.find((item) => item.id === (operationSummaryJob.trailerId || contract?.trailerId));
+    const company = companies.find((item) => item.id === operationSummaryJob.companyId);
+    return buildOperationInProgressSummary({
+      job: operationSummaryJob,
+      contract,
+      totalViagens,
+      moneyGroups: ganhosPorMoeda,
+      vehicleName: vehicle?.name,
+      trailerName: trailer?.name,
+      showTrailer: !isTrailerlessSimulator(contract || company || operationSummaryJob, simulators),
+      now: summaryNow,
+    });
+  }, [companies, contractsById, ganhosPorMoeda, isSummaryExpanded, operationSummaryJob, simulators, summaryNow, totalViagens, trailers, vehicles]);
+
+  useEffect(() => {
     const target = observerTarget.current;
-    if (!target || !hasMore || loading) return;
+    if (!target || !hasMore || loading || compactDriverView) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -1456,7 +1754,7 @@ export default function TripHistory({
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [canonicalHistoryTrips.length, hasMore, loading]);
+  }, [canonicalHistoryTrips.length, hasMore, loading, compactDriverView]);
 
   // Motoristas disponíveis = membros atuais + qualquer motorista que tenha
   // viagem válida no histórico. Assim ex-membros continuam selecionáveis.
@@ -1534,6 +1832,7 @@ export default function TripHistory({
 
   const distanciaTotal = React.useMemo(() => {
     return canonicalHistoryTrips.reduce((total, trip) => {
+      if (!trip.isValid) return total;
       const distance = getVisibleTripDistance(trip as unknown as TripRecord);
       return total + (distance || 0);
     }, 0);
@@ -1556,6 +1855,15 @@ export default function TripHistory({
     () => getTripReceiptOriginalTitle(selectedTrip),
     [selectedTrip],
   );
+  const selectedTripReceiptUrl = useLocalTripReceipt(selectedTrip);
+  // Keep an open detail sheet on the same row as its pending status changes.
+  useEffect(() => {
+    if (!selectedTrip) return;
+    const current = canonicalHistoryTrips.find(trip => trip.id === selectedTrip.id);
+    if (current && (current.offlineSyncStatus !== selectedTrip.offlineSyncStatus ||
+      current.serverValidatedAt !== selectedTrip.serverValidatedAt || current.comprovanteUrl !== selectedTrip.comprovanteUrl))
+      setSelectedTrip(current as unknown as TripRecord);
+  }, [canonicalHistoryTrips, selectedTrip]);
   const selectedTripReceiptExpired = selectedTrip
     ? isTripReceiptExpired(selectedTrip)
     : false;
@@ -1647,11 +1955,8 @@ export default function TripHistory({
   }, [selectedTripOptionsOpen]);
   // ------------------------------
 
-  const formatCurrency = React.useCallback((value: number) => {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
+  const formatCurrency = React.useCallback((value: number | null, currency?: string, status?: TripCurrencyStatus) => {
+    return formatHistoryMoney(value, currency, status);
   }, []);
 
   const formatDate = React.useCallback((timestamp: any) => {
@@ -1681,6 +1986,7 @@ export default function TripHistory({
   // manage trips in the active company, and Senior retains global access.
   // The edit flow below sends only origem/destino; valor is never exposed.
   const canEditTrip = React.useCallback((trip: TripRecord) => {
+    if (isPendingHistoryTrip(trip)) return false;
     if (!currentUser || !trip.id) return false;
     if (isSeniorAccess) return true;
     if (getCanonicalTripDriverId(trip) === currentUser.id) return true;
@@ -1691,6 +1997,7 @@ export default function TripHistory({
   }, [currentUser, isSeniorAccess, activeRole, activeCompanyId]);
 
   const canDeleteTrip = React.useCallback((trip: TripRecord) => {
+    if (isPendingHistoryTrip(trip)) return false;
     if (!currentUser) return false;
     if (isSeniorAccess) return true;
     if (activeRole === "admin") {
@@ -1825,7 +2132,10 @@ export default function TripHistory({
           tripDateLabel: formatDate(
             (tripToDelete as any).metricDate || getTripDisplayDate(tripToDelete as any),
           ),
-          tripValue: parseTripValue(tripToDelete.valor),
+          tripValue: Number((tripToDelete as any).normalizedValor ?? parseTripValue(tripToDelete.valor)),
+          tripCurrency: (tripToDelete as any).normalizedCurrency || (tripToDelete as any).currency,
+          tripCurrencyStatus: (tripToDelete as any).currencyStatus,
+          tripCurrencySource: (tripToDelete as any).currencySource,
           reasons: deletionReasons,
           suspension: suspendWithDeletion
             ? {
@@ -1839,10 +2149,10 @@ export default function TripHistory({
             : null,
         });
       } else {
-        await TripsRepository.deleteTrip(tripToDelete.id);
+        await canonicalTripCommandService.deleteTrip(tripToDelete.id);
       }
 
-      TripsRepository.markTripDeleted(tripToDelete.id);
+      await canonicalTripCommandService.markTripDeleted(tripToDelete.id);
       removeTripHistoryOptimistically(
         { userId: driverId, companyId },
         tripToDelete.id,
@@ -1850,7 +2160,7 @@ export default function TripHistory({
 
       if (tripToDelete.jobId) {
         try {
-          await TripsRepository.syncJobProgress(tripToDelete.jobId);
+          await canonicalTripOperationService.syncJobProgress(tripToDelete.jobId);
         } catch (progressError) {
           console.warn(
             "A exclusão foi concluída, mas o progresso da operação não pôde ser reconciliado imediatamente.",
@@ -1874,12 +2184,12 @@ export default function TripHistory({
         next.delete(tripToDelete.id);
         return next;
       });
-      toast.error(
-        error?.message ||
-          (isModeratedDeletion
-            ? "Não foi possível excluir a viagem e concluir a notificação."
-            : "Não foi possível excluir a viagem."),
-      );
+      const denied = String(error?.code || error?.message || "").includes("permission-denied");
+      toast.error(denied
+        ? "Exclusão negada pelo servidor. A viagem foi preservada; verifique as regras de acesso publicadas."
+        : error?.message || (isModeratedDeletion
+          ? "Não foi possível excluir a viagem e concluir a notificação."
+          : "Não foi possível excluir a viagem."));
     } finally {
       setModerationBusy(false);
     }
@@ -1921,15 +2231,42 @@ export default function TripHistory({
     }
   };
 
+  const activityMonths = React.useMemo(() => compactDriverView
+    ? driverMonthOptions(filterAndSortTripHistory(identityNormalizedHistoryTrips, { periodPreset: "todos", includePending: true }), new Date(), { includePending: true }) : [],
+    [compactDriverView, identityNormalizedHistoryTrips]);
+  const activityDays = React.useMemo(() => compactDriverView ? groupDriverTripsByDay(finalTrips, { includePending: true }) : [], [compactDriverView, finalTrips]);
+  const currentMonth = driverDayKey(new Date()).slice(0, 7);
+  const appliedMonth = appliedFilters.periodoInicio.slice(0, 7);
+  const appliedMonthRange = driverMonthRange(appliedMonth);
+  const selectedActivityMonth = appliedFilters.periodoPreset === "mes" ? currentMonth
+    : appliedFilters.periodoPreset === "todos" ? "all"
+    : appliedFilters.periodoPreset === "data" && appliedMonthRange?.start === appliedFilters.periodoInicio && appliedMonthRange?.end === appliedFilters.periodoFim
+      ? appliedMonth : "custom";
+
   return (
     <div
       className={cn(
         "flex flex-col w-full relative",
-        !embeddedJob && !isInsideAdminTab
-          ? "w-full max-w-7xl mx-auto min-h-[calc(100vh-64px)] bg-gray-50/50 dark:bg-[#09090b] pb-6"
+        compactDriverView || hideFloatingSummary ? "pb-0" : !embeddedJob && !isInsideAdminTab
+          ? "w-full max-w-7xl mx-auto min-h-[calc(100vh-64px)] bg-gray-50/50 dark:bg-nvu-page pb-6"
           : "pb-24" // Extra padding for the fixed footer in tab view
       )}
     >
+      {compactDriverView && <div className="nvu-driver-activity-controls">
+        <ModalSelect title="Período das viagens" description="Escolha um mês ou consulte todo o histórico."
+          className="nvu-driver-period-select" icon={<CalendarIcon size={16} aria-hidden="true" />}
+          value={selectedActivityMonth} onChange={event => {
+            const range = driverMonthRange(event.target.value);
+            const filters = { ...appliedFilters, periodoPreset: range ? "data" : "todos", periodoInicio: range?.start || "", periodoFim: range?.end || "" };
+            setPendingFilters(filters); setAppliedFilters(filters);
+          }}>
+            <option value="all">Todo o período</option>
+            {selectedActivityMonth === "custom" && <option value="custom" disabled>Filtro personalizado</option>}
+            {activityMonths.map(month => <option value={month.id} key={month.id}>{month.label}</option>)}
+        </ModalSelect>
+        <button type="button" className="nvu-driver-filter-toggle" aria-expanded={showFilters}
+          onClick={() => { setPendingFilters(appliedFilters); setShowFilters(value => !value); }}><Settings2 size={17} />Filtros</button>
+      </div>}
       {/* Header Section */}
       {(!hideHeader || !hideHeaderActions) && (
       <div className={cn("flex items-start mb-4 pt-2", hideHeader ? "justify-end" : "justify-between")}>
@@ -1943,7 +2280,7 @@ export default function TripHistory({
                       profileTab: "operations",
                     })
                   }
-                  className="p-1 -ml-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-1 -ml-1 text-gray-700 dark:text-nvu-text-soft hover:bg-gray-100 dark:hover:bg-nvu-surface rounded-lg transition-colors"
                 >
                   <ArrowLeft size={20} className="stroke-[2.5]" />
                 </button>
@@ -1954,8 +2291,8 @@ export default function TripHistory({
             </div>
             {!hideDriverFilter && (
               <div className="flex items-center pl-8 mt-1.5">
-                <div className="flex items-center bg-transparent border border-gray-200 dark:border-gray-800 rounded-lg px-2 py-0.5 hover:bg-gray-50 dark:hover:bg-[#1A1F26] transition-colors max-w-[160px] sm:max-w-[200px]">
-                  <select
+                <div className="flex items-center bg-transparent border border-gray-200 dark:border-nvu-line rounded-lg px-2 py-0.5 hover:bg-gray-50 dark:hover:bg-nvu-surface transition-colors max-w-[160px] sm:max-w-[200px]">
+                  <ModalSelect title="Filtrar por motorista"
                     value={pendingFilters.motoristaId}
                     onChange={(e) => {
                       const selectedId = e.target.value;
@@ -1964,27 +2301,21 @@ export default function TripHistory({
                       setPendingFilters({ ...pendingFilters, motoristaId: selectedId, motorista: selectedName });
                       setAppliedFilters({ ...appliedFilters, motoristaId: selectedId, motorista: selectedName });
                     }}
-                    className="bg-transparent text-[11px] sm:text-[12px] font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer pr-4 appearance-none truncate w-full"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3Csvg stroke='currentColor' fill='none' stroke-width='2' viewBox='0 0 24 24' stroke-linecap='round' stroke-linejoin='round' height='1em' width='1em' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "right center",
-                      backgroundSize: "12px",
-                    }}
+                    className="border-0 bg-transparent p-0 text-[11px] sm:text-[12px] font-semibold text-gray-700 dark:bg-transparent dark:text-nvu-text-soft outline-none cursor-pointer truncate w-full"
                   >
-                    <option value="" className="bg-white dark:bg-[#121213]">
+                    <option value="" className="bg-white dark:bg-nvu-surface">
                       Todos os Motoristas
                     </option>
                     {uniqueMotoristas.map((m) => (
                       <option
                         key={m.id}
                         value={m.id}
-                        className="bg-white dark:bg-[#121213]"
+                        className="bg-white dark:bg-nvu-surface"
                       >
                         {m.name}
                       </option>
                     ))}
-                  </select>
+                  </ModalSelect>
                 </div>
               </div>
             )}
@@ -2001,7 +2332,7 @@ export default function TripHistory({
               }
             }}
             title={expandedTrips.size > 0 ? "Recolher Todos" : "Expandir Todos"}
-            className="flex justify-center items-center text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors"
+            className="flex justify-center items-center text-gray-400 hover:text-gray-600 dark:text-nvu-muted dark:hover:text-nvu-text-soft transition-colors"
           >
             {expandedTrips.size > 0 ? (
               <ChevronsDownUp size={18} className="stroke-[2.5]" />
@@ -2016,7 +2347,7 @@ export default function TripHistory({
                 "flex justify-center items-center transition-colors",
                 showFilters
                   ? "text-blue-600 dark:text-blue-400"
-                  : "text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300",
+                  : "text-gray-400 hover:text-gray-600 dark:text-nvu-muted dark:hover:text-nvu-text-soft",
               )}
             >
               <Settings2 size={18} className="stroke-[2.5]" />
@@ -2029,12 +2360,12 @@ export default function TripHistory({
 
       {/* Filter Card inline */}
       {showFilters && !embeddedJob && (
-        <div className="bg-white dark:bg-[#121213] border border-gray-200 dark:border-gray-800 rounded-xl p-3 mb-5 shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-xl p-3 mb-5 shadow-sm flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
           <div>
             <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1 block">
               Período
             </label>
-            <div className="flex bg-gray-100/80 dark:bg-gray-800/80 p-0.5 rounded-lg overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex bg-gray-100/80 dark:bg-nvu-surface/80 p-0.5 rounded-lg overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {[
                 { id: "todos", label: "Tudo" },
                 { id: "hoje", label: "Hoje" },
@@ -2050,8 +2381,8 @@ export default function TripHistory({
                   className={cn(
                     "flex-1 px-2 py-1 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap",
                     pendingFilters.periodoPreset === preset.id
-                      ? "bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm"
-                      : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5",
+                      ? "bg-white dark:bg-nvu-strip text-gray-900 dark:text-white shadow-sm"
+                      : "text-gray-500 dark:text-nvu-muted hover:text-gray-700 dark:hover:text-nvu-text hover:bg-black/5 dark:hover:bg-white/5",
                   )}
                 >
                   {preset.label}
@@ -2098,23 +2429,67 @@ export default function TripHistory({
       )}
 
       {/* List Section */}
+      {pendingProTrips.some(trip => ["FAILED", "AUTH_REQUIRED", "PERMISSION_PAUSED"].includes(trip.queueStatus)) && (
+        <section className="mb-4 rounded-2xl border border-amber-300/70 bg-amber-50 p-4 text-slate-800 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-nvu-text" aria-label="Viagens Pro salvas neste aparelho">
+          <h3 className="text-sm font-bold">Viagens Pro salvas neste aparelho</h3>
+          <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">Há {pendingProTrips.length} {pendingProTrips.length === 1 ? "viagem salva" : "viagens salvas"} neste aparelho. O ranking será atualizado após a confirmação do servidor.</p>
+          {pendingProTrips.filter(trip => ["FAILED", "AUTH_REQUIRED", "PERMISSION_PAUSED"].includes(trip.queueStatus)).map((trip) => {
+            const diagnostic = buildSafeProAttemptDiagnostic(trip, currentUser?.id, pendingProOwnerAuthenticated, diagnosticOwnerDriverIds);
+            const presentation = presentProPendingTrip(trip);
+            return (
+              <div key={trip.attemptId} className="mt-3 rounded-xl bg-white/80 px-3 py-2 dark:bg-nvu-page/70">
+                <div className="text-sm font-semibold">{trip.origin} → {trip.destination}</div>
+                <div className="text-xs">Ganhos {formatHistoryMoney(trip.amountCents / 100, trip.currency)}</div>
+                <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">{presentation.blocked ? "Envio bloqueado; recibo preservado" : trip.queueStatus === "FAILED" ? "Registro exige revisão; recibo preservado" : trip.queueStatus === "PERMISSION_PAUSED" ? "Envio pausado por permissão; evidência local disponível" : trip.queueStatus === "AUTH_REQUIRED" ? "Autenticação Google necessária" : trip.queueStatus === "SENDING" ? "Enviando sua viagem…" : navigator.onLine ? "Aguardando nova tentativa automática" : "Aguardando rede para o registro"}</div>
+                {presentation.failureMessage && <div className="mt-1 text-[11px] text-slate-600 dark:text-nvu-muted">Motivo da última tentativa: {presentation.failureMessage}</div>}
+                {presentation.hint && <div className="mt-1 text-[11px] text-amber-800 dark:text-amber-200">{presentation.hint}</div>}
+                {diagnostic && <ProAttemptDiagnosticDetails diagnostic={diagnostic} onCopy={(safeDiagnostic) => {
+                  void copySafeDiagnosticToClipboard(safeDiagnostic)
+                    .then(() => toast.success("Diagnóstico seguro copiado."))
+                    .catch(() => toast.error("Não foi possível copiar o diagnóstico seguro."));
+                }} />}
+                {(trip.queueStatus === "AUTH_REQUIRED" || String(trip.lastQueueError || "").includes("Autenticação nativa não corresponde")) && currentUser?.id === trip.driverId && <ProPendingAuthButton driverId={trip.driverId} />}
+                {canShowProPendingRetry(trip, currentUser?.id, navigator.onLine)
+                  && <ProPendingRetryButton attemptId={trip.attemptId} recoverContract={presentation.recoveryAvailable} />}
+              </div>
+            );
+          })}
+        </section>
+      )}
       <div
         className={cn(
           "flex flex-col gap-3 w-full",
-          !embeddedJob ? "pb-12 px-0" : "pb-4 px-0"
+          compactDriverView || hideFloatingSummary ? "pb-0 px-0" : "pb-4 px-0"
         )}
       >
-        {historyError && !loading && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 mb-2 text-[13px] text-red-700 dark:text-red-300">
-            Não foi possível sincronizar o histórico completo. Tente atualizar a página.
-          </div>
-        )}
+        {!embeddedJob && !compactDriverView && <HistoryReadCoverageNotice
+          coverage={historyCoverage} hasError={Boolean(historyError)} error={historyError}
+          backgroundRefresh={Boolean(historyReadyFromHook || hasHistoryOverride)}
+          readCoverage={historyReadCoverage} nativeQueueDiagnostics={nativeQueueDiagnostics}
+          nativeOwnerAuthenticated={pendingProOwnerAuthenticated}
+          authenticatedUserId={currentUser?.id}
+          authorizedDriverIds={diagnosticOwnerDriverIds}
+        />}
+        {(embeddedJob || !hasHistoryOverride) && activeCompanyId && <FailedHistoryRegistrationRecovery companyId={activeCompanyId} jobId={embeddedJob?.id} refreshKey={historyReadCoverage} onlyFailures />}
 
         {loading && finalTrips.length === 0 ? (
           <TripHistorySkeleton />
         ) : finalTrips.length === 0 ? (
-          <div className="text-center p-8 text-gray-500 bg-white dark:bg-[#121213] rounded-2xl border border-gray-100 dark:border-gray-800">
-            Nenhum histórico de viagens encontrado.
+          <div className="text-center p-8 text-gray-500 bg-white dark:bg-nvu-surface rounded-2xl border border-gray-100 dark:border-nvu-line">
+            {pendingProTrips.length > 0
+              ? "As viagens acima estão salvas no aparelho e aguardam confirmação do servidor."
+              : "Nenhum histórico de viagens encontrado."}
+          </div>
+        ) : compactDriverView ? (
+          <div className="nvu-driver-activity-list">
+            {activityDays.map(day => <React.Fragment key={day.id}>
+              <h2 className="nvu-driver-activity-day">{driverDateLabel(day.date, { day: "numeric", month: "short" })}</h2>
+              {day.trips.map(trip => <DriverActivityRow key={trip.id} trip={trip}
+                company={companiesMap.get(String(trip.empresaId || (trip as any).companyId || (trip as any).company_id || ""))}
+                number={tripNumberById.get(String(trip.id))} simulatorLabel={resolveTripSimulatorCode(trip, simulators)} onDetails={() => setSelectedTrip(trip as any)}
+                onEdit={canEditTrip(trip as any) ? () => setEditingTrip(trip as any) : undefined}
+                onDelete={canDeleteTrip(trip as any) ? () => { resetModerationForm(); setDeletingTrip(trip as any); } : undefined} />)}
+            </React.Fragment>)}
           </div>
         ) : (
           <>
@@ -2167,43 +2542,60 @@ export default function TripHistory({
             })}
           </>
         )}
-        <div ref={observerTarget} className="h-10 w-full shrink-0" />
+        {compactDriverView ? <>
+          {hasMore && <button type="button" className="nvu-driver-more-trips"
+            onClick={() => setVisibleTripCount(value => Math.min(value + 30, canonicalHistoryTrips.length))}>Ver mais viagens</button>}
+          {totalViagens > 0 && <p className="nvu-driver-trip-count">{finalTrips.length} de {totalViagens} viagens no período</p>}
+        </> : <div ref={observerTarget} className="h-10 w-full shrink-0" />}
       </div>
 
       {/* Fixed Bottom Summary Bar */}
-      {(!hideHeader || embeddedJob || isInsideAdminTab) && (
+      {!hideFloatingSummary && !compactDriverView && (!hideHeader || embeddedJob || isInsideAdminTab) && (
         <div className="fixed bottom-6 md:bottom-8 z-30 flex flex-col items-end pointer-events-none right-4 md:right-8 pb-[env(safe-area-inset-bottom,0px)]">
+          {operationSummaryJob && (
+            <OperationResultModal
+              id={summaryId}
+              status="in_progress"
+              isOpen={isSummaryExpanded}
+              onClose={() => setIsSummaryExpanded(false)}
+              resultData={operationSummaryData}
+            />
+          )}
           {/* Expanded Summary Card */}
-          <div
+          {!operationSummaryJob && <div
+            id={summaryId}
+            role="region"
+            aria-label="Resumo financeiro e de viagens"
+            aria-hidden={!isSummaryExpanded}
             className={cn(
-              "bg-white dark:bg-[#20252D] rounded-xl border border-gray-100 dark:border-gray-700 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.15)] transition-all duration-300 overflow-hidden pointer-events-auto origin-bottom-right mb-3",
+              "bg-white dark:bg-nvu-strip rounded-xl border border-gray-100 dark:border-nvu-line shadow-[0_8px_24px_-8px_rgba(0,0,0,0.15)] transition-all duration-300 overflow-hidden pointer-events-auto origin-bottom-right mb-3",
               isSummaryExpanded
-                ? "max-w-sm max-h-[500px] opacity-100 scale-100"
+                ? "w-[min(78vw,15rem)] max-h-[min(70vh,500px)] overflow-y-auto opacity-100 scale-100"
                 : "max-w-0 max-h-0 opacity-0 scale-95",
             )}
           >
-            <div className="grid grid-cols-2 gap-px bg-gray-100 dark:bg-gray-800/80">
-              <div className="bg-gray-50/50 dark:bg-[#20252D] p-3 sm:p-3.5 flex flex-col min-w-[120px] sm:min-w-[140px]">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-0.5">
+            <div className="flex flex-col gap-px bg-gray-100 dark:bg-nvu-surface/80">
+              <div className="bg-gray-50/50 dark:bg-nvu-strip px-3.5 py-2.5 flex flex-col min-w-0">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-nvu-muted mb-0.5">
                   Viagens
                 </span>
                 <span className="text-[16px] font-bold text-gray-900 dark:text-white leading-tight">
                   {totalViagens}
                 </span>
               </div>
-              <div className="bg-gray-50/50 dark:bg-[#20252D] p-3 sm:p-3.5 flex flex-col min-w-[120px] sm:min-w-[140px]">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400 mb-0.5">
+              <div className="bg-gray-50/50 dark:bg-nvu-strip px-3.5 py-2.5 flex flex-col min-w-0">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-nvu-muted mb-0.5">
                   Ganhos
                 </span>
-                <span className="text-[16px] font-bold text-green-600 dark:text-green-400 leading-tight">
-                  {formatCurrency(faturamentoTotal)}
-                </span>
+                <div className="text-[16px] leading-tight">
+                  <HistoryMoneySummary groups={ganhosPorMoeda} totalEligibleTrips={totalViagens} />
+                </div>
               </div>
               {distanciaTotal > 0 && (
-                <div className="col-span-2 bg-gray-50/50 dark:bg-[#20252D] px-3 py-2.5 flex flex-row items-center gap-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="bg-gray-50/50 dark:bg-nvu-strip px-3 py-2.5 flex flex-row items-center gap-3 border-t border-gray-100 dark:border-nvu-line">
                   <Route size={18} className="text-gray-500" />
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-gray-400">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500 dark:text-nvu-muted">
                       Distância percorrida
                     </span>
                     <span className="text-[15px] font-bold text-gray-900 dark:text-white">
@@ -2213,12 +2605,20 @@ export default function TripHistory({
                 </div>
               )}
             </div>
-          </div>
+          </div>}
 
           {/* Toggle Button */}
           <button
-            onClick={() => setIsSummaryExpanded(!isSummaryExpanded)}
-            className="w-10 h-10 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.12)] flex items-center justify-center transition-all pointer-events-auto bg-white dark:bg-[#2A313C] text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#323945] border border-gray-200/60 dark:border-gray-700"
+            type="button"
+            aria-expanded={isSummaryExpanded}
+            aria-controls={summaryId}
+            aria-haspopup={operationSummaryJob ? "dialog" : undefined}
+            aria-label={operationSummaryJob ? (isSummaryExpanded ? "Fechar resumo da operação" : "Abrir resumo da operação em andamento") : (isSummaryExpanded ? "Recolher resumo de viagens e ganhos" : "Expandir resumo de viagens e ganhos")}
+            onClick={() => {
+              setSummaryNow(Date.now());
+              setIsSummaryExpanded((expanded) => !expanded);
+            }}
+            className="w-10 h-10 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.12)] flex items-center justify-center transition-all pointer-events-auto bg-white dark:bg-nvu-strip text-gray-700 dark:text-nvu-text hover:bg-gray-50 dark:hover:bg-nvu-strip border border-gray-200/60 dark:border-nvu-line"
           >
             <ChevronUp
               size={20}
@@ -2285,16 +2685,16 @@ export default function TripHistory({
           };
 
           return (
-            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 md:p-4 bg-gray-900/40 backdrop-blur-sm sm:pb-8">
+            <ModalPortal label="Detalhes da viagem" onClose={() => { setSelectedTrip(null); }}><div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 md:p-4 bg-gray-900/40 backdrop-blur-sm sm:pb-8">
               <div
-                className="bg-white dark:bg-[#121213] w-full max-w-md rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
+                className="nvu-viewport-modal-card bg-white dark:bg-nvu-surface w-full max-w-md rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]"
                 style={{ touchAction: "pan-y" }}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onTouchCancel={handleTouchCancel}
               >
-                <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 sticky top-0 bg-white dark:bg-[#121213] z-10">
+                <div className="px-5 py-4 border-b border-gray-100 dark:border-nvu-line sticky top-0 bg-white dark:bg-nvu-surface z-10">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                     <h3 className="font-bold text-gray-900 dark:text-white text-[14px] sm:text-[15px] shrink-0">
@@ -2302,7 +2702,7 @@ export default function TripHistory({
                     </h3>
                     {selectedTripNumber !== undefined && (
                       <div
-                        className="flex items-center justify-center min-w-8 h-8 px-2 rounded-lg bg-gray-100 dark:bg-gray-800/80 text-[12px] font-bold text-gray-700 dark:text-gray-300 border border-gray-200/70 dark:border-gray-700 shrink-0"
+                        className="flex items-center justify-center min-w-8 h-8 px-2 rounded-lg bg-gray-100 dark:bg-nvu-surface/80 text-[12px] font-bold text-gray-700 dark:text-nvu-text-soft border border-gray-200/70 dark:border-nvu-line shrink-0"
                         aria-label={`Viagem número ${selectedTripNumber}`}
                         title={`Viagem ${selectedTripNumber}`}
                       >
@@ -2320,21 +2720,21 @@ export default function TripHistory({
                           aria-haspopup="menu"
                           aria-expanded={selectedTripOptionsOpen}
                           title="Opções da viagem"
-                          className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#121213] text-gray-600 dark:text-gray-300 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                          className="w-8 h-8 rounded-lg border border-gray-200 dark:border-nvu-line bg-white dark:bg-nvu-surface text-gray-600 dark:text-nvu-text-soft flex items-center justify-center hover:bg-gray-50 dark:hover:bg-nvu-surface transition-colors"
                         >
                           <MoreVertical size={16} />
                         </button>
                         {selectedTripOptionsOpen && (
                           <div
                             role="menu"
-                            className="absolute left-0 top-10 z-20 w-48 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#18181b] shadow-lg"
+                            className="absolute left-0 top-10 z-20 w-48 overflow-hidden rounded-xl border border-gray-200 dark:border-nvu-line bg-white dark:bg-nvu-surface shadow-lg"
                           >
                             {canEditSelectedTrip && (
                               <button
                                 type="button"
                                 role="menuitem"
                                 onClick={handleEditSelectedTrip}
-                                className="w-full px-3 py-2.5 text-left text-[13px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                                className="w-full px-3 py-2.5 text-left text-[13px] font-semibold text-gray-700 dark:text-nvu-text hover:bg-gray-50 dark:hover:bg-nvu-surface flex items-center gap-2 transition-colors"
                               >
                                 <Pencil size={13} />
                                 Editar rota
@@ -2374,8 +2774,8 @@ export default function TripHistory({
                       className={cn(
                         "p-1.5 rounded-lg border transition-colors",
                         selectedTripIndex <= 0
-                          ? "text-gray-300 border-gray-100 bg-gray-50/50 dark:border-gray-800/50 dark:text-gray-700" 
-                          : "text-gray-600 border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                          ? "text-gray-300 border-gray-100 bg-gray-50/50 dark:border-nvu-line/50 dark:text-gray-700" 
+                          : "text-gray-600 border-gray-200 hover:bg-gray-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-surface"
                       )}
                     >
                       <ChevronLeft size={16} />
@@ -2386,8 +2786,8 @@ export default function TripHistory({
                       className={cn(
                         "p-1.5 rounded-lg border transition-colors",
                         selectedTripIndex === -1 || selectedTripIndex >= canonicalHistoryTrips.length - 1
-                          ? "text-gray-300 border-gray-100 bg-gray-50/50 dark:border-gray-800/50 dark:text-gray-700" 
-                          : "text-gray-600 border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                          ? "text-gray-300 border-gray-100 bg-gray-50/50 dark:border-nvu-line/50 dark:text-gray-700" 
+                          : "text-gray-600 border-gray-200 hover:bg-gray-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-surface"
                       )}
                     >
                       <ChevronRight size={16} />
@@ -2398,7 +2798,7 @@ export default function TripHistory({
                         setSelectedTripTransition(null);
                         setSelectedTrip(null);
                       }}
-                      className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-full transition-colors"
+                      className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-nvu-text hover:bg-gray-50 dark:hover:bg-nvu-surface rounded-full transition-colors"
                     >
                       <X size={20} />
                     </button>
@@ -2406,13 +2806,13 @@ export default function TripHistory({
                   </div>
                   {canonicalHistoryTrips.length > 1 && selectedTripIndex >= 0 && (
                     <div className="mt-3" aria-live="polite">
-                      <div className="flex items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">
+                      <div className="flex items-center justify-between gap-3 text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400 dark:text-nvu-muted">
                         <span
                           className={cn(
                             "inline-flex items-center gap-1 transition-colors duration-200",
                             selectedTripTransition
-                              ? "text-gray-700 dark:text-gray-200"
-                              : "text-gray-400 dark:text-gray-500",
+                              ? "text-gray-700 dark:text-nvu-text"
+                              : "text-gray-400 dark:text-nvu-muted",
                           )}
                         >
                           {selectedTripTransition?.direction === -1 && <ChevronLeft size={12} />}
@@ -2427,7 +2827,7 @@ export default function TripHistory({
                           Viagem {selectedTripIndex + 1} de {canonicalHistoryTrips.length}
                         </span>
                       </div>
-                      <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                      <div className="relative mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-nvu-surface">
                         <div
                           className={cn(
                             "h-full rounded-full transition-[width,background-color] duration-300 ease-out",
@@ -2442,7 +2842,7 @@ export default function TripHistory({
                   )}
                 </div>
 
-                <div className="p-3 sm:p-4 overflow-y-auto w-full">
+                <div className="nvu-modal-body p-3 sm:p-4 overflow-y-auto w-full">
                   {/* Trip General Information Compact */}
                   <div className="mb-4">
                     {/* Header Row (Company, Driver, Date) */}
@@ -2456,84 +2856,84 @@ export default function TripHistory({
                         </div>
                         <div className="flex items-center gap-1.5">
                           <User size={12} className="text-gray-400" />
-                          <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400">
+                          <span className="text-[11px] font-medium text-gray-600 dark:text-nvu-muted">
                             {selectedTrip.motoristaNome}
                           </span>
                         </div>
                       </div>
                       
                       <div className="flex flex-col items-end">
-                        <div className="flex items-center justify-center gap-1 bg-gray-100/80 dark:bg-gray-800/80 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded text-[10px] font-semibold mb-1 border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-center gap-1 bg-gray-100/80 dark:bg-nvu-surface/80 text-gray-600 dark:text-nvu-text-soft px-1.5 py-0.5 rounded text-[10px] font-semibold mb-1 border border-gray-200 dark:border-nvu-line">
                           <CalendarIcon size={11} className="shrink-0" />
                           <span className="whitespace-nowrap">
                             {formatDate(getTripDisplayDate(selectedTrip))}
                           </span>
                         </div>
-                        <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                        <span className="text-[10px] text-gray-500 dark:text-nvu-muted font-medium">
                           {formatTime(getTripDisplayDate(selectedTrip))}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col rounded-lg border border-gray-200 dark:border-gray-800/80 bg-white dark:bg-[#1A1F26] overflow-hidden shadow-sm">
+                    <div className="flex flex-col rounded-lg border border-gray-200 dark:border-nvu-line/80 bg-white dark:bg-nvu-surface overflow-hidden shadow-sm">
                       {/* Grid details */}
                       <div className="grid grid-cols-2 relative">
                         {/* Contract */}
-                        <div className="flex items-center gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-[#1A1F26]">
+                        <div className="flex items-center gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-nvu-surface">
                           <div className="w-7 h-7 rounded-md bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-500/20">
                             <FileText size={12} className="text-indigo-600 dark:text-indigo-400" />
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight mb-[2px]">
+                            <span className="text-[9px] text-gray-500 dark:text-nvu-muted font-medium leading-tight mb-[2px]">
                               Contrato
                             </span>
-                            <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            <span className="text-[11px] font-semibold text-gray-800 dark:text-nvu-text truncate">
                               {selectedTrip.contratoNumero || "-"}
                             </span>
                           </div>
                         </div>
 
-                        <div className="absolute left-[50%] top-2 bottom-2 w-px bg-gray-100 dark:bg-gray-800/60" />
+                        <div className="absolute left-[50%] top-2 bottom-2 w-px bg-gray-100 dark:bg-nvu-line" />
 
                         {/* Simulator */}
-                        <div className="flex items-center justify-between gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-[#1A1F26]">
+                        <div className="flex items-center justify-between gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-nvu-surface">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="w-7 h-7 rounded-md bg-orange-50 dark:bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-100 dark:border-orange-500/20">
                               <Gamepad2 size={12} className="text-orange-600 dark:text-orange-400" />
                             </div>
                             <div className="flex flex-col min-w-0">
-                              <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight mb-[2px]">
+                              <span className="text-[9px] text-gray-500 dark:text-nvu-muted font-medium leading-tight mb-[2px]">
                                 Simulador
                               </span>
-                              <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200 truncate">
+                              <span className="text-[11px] font-semibold text-gray-800 dark:text-nvu-text truncate">
                                 {displayTripSimulatorName(selectedTrip as Record<string, any>)}
                               </span>
                             </div>
                           </div>
                           {selectedOperationCounter?.label && (
-                            <div className="min-w-[44px] h-7 px-2 rounded-md bg-gray-100 dark:bg-gray-800/80 text-[11px] font-bold text-gray-700 dark:text-gray-300 flex items-center justify-center shrink-0">
+                            <div className="min-w-[44px] h-7 px-2 rounded-md bg-gray-100 dark:bg-nvu-surface/80 text-[11px] font-bold text-gray-700 dark:text-nvu-text-soft flex items-center justify-center shrink-0">
                               {selectedOperationCounter.label}
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="w-full h-px bg-gray-100 dark:bg-gray-800/60" />
+                      <div className="w-full h-px bg-gray-100 dark:bg-nvu-line" />
 
                       <div className={cn(
                         "grid relative",
                         selectedTripTrailerlessSimulator ? "grid-cols-1" : "grid-cols-2",
                       )}>
                         {/* Vehicle */}
-                        <div className="flex items-center gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-[#1A1F26]">
+                        <div className="flex items-center gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-nvu-surface">
                           <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-500/20">
                             <Truck size={12} className="text-blue-600 dark:text-blue-400" />
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight mb-[2px]">
+                            <span className="text-[9px] text-gray-500 dark:text-nvu-muted font-medium leading-tight mb-[2px]">
                               Veículo
                             </span>
-                            <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200 truncate">
+                            <span className="text-[11px] font-semibold text-gray-800 dark:text-nvu-text truncate">
                               {selectedTrip.veiculoNome || "-"}
                             </span>
                           </div>
@@ -2541,18 +2941,18 @@ export default function TripHistory({
 
                         {!selectedTripTrailerlessSimulator && (
                           <>
-                            <div className="absolute left-[50%] top-2 bottom-2 w-px bg-gray-100 dark:bg-gray-800/60" />
+                            <div className="absolute left-[50%] top-2 bottom-2 w-px bg-gray-100 dark:bg-nvu-line" />
 
                             {/* Trailer */}
-                            <div className="flex items-center gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-[#1A1F26]">
+                            <div className="flex items-center gap-2.5 p-2 sm:p-2.5 min-w-0 bg-slate-50/50 dark:bg-nvu-surface">
                               <div className="w-7 h-7 rounded-md bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center shrink-0 border border-purple-100 dark:border-purple-500/20">
                                 <Package size={12} className="text-purple-600 dark:text-purple-400" />
                               </div>
                               <div className="flex flex-col min-w-0">
-                                <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight mb-[2px]">
+                                <span className="text-[9px] text-gray-500 dark:text-nvu-muted font-medium leading-tight mb-[2px]">
                                   Reboque
                                 </span>
-                                <span className="text-[11px] font-semibold text-gray-800 dark:text-gray-200 truncate">
+                                <span className="text-[11px] font-semibold text-gray-800 dark:text-nvu-text truncate">
                                   {selectedTripTrailerName || "-"}
                                 </span>
                               </div>
@@ -2561,52 +2961,52 @@ export default function TripHistory({
                         )}
                       </div>
 
-                      <div className="w-full h-px bg-gray-100 dark:bg-gray-800/60" />
+                      <div className="w-full h-px bg-gray-100 dark:bg-nvu-line" />
 
                       {/* Route */}
-                      <div className="flex items-center justify-between p-2 sm:p-2.5 bg-slate-50/50 dark:bg-[#1A1F26]">
+                      <div className="flex items-center justify-between p-2 sm:p-2.5 bg-slate-50/50 dark:bg-nvu-surface">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <MapPin size={14} className="text-green-500 shrink-0" />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight mb-[2px]">
+                            <span className="text-[9px] text-gray-500 dark:text-nvu-muted font-medium leading-tight mb-[2px]">
                               Origem
                             </span>
-                            <span className="text-[11px] font-semibold text-gray-900 dark:text-gray-100 truncate">{selectedTrip.origem || selectedTrip.gtoOriginCompany || "-"}</span>
+                            <span className="text-[11px] font-semibold text-gray-900 dark:text-nvu-text truncate">{selectedTrip.origem || selectedTrip.gtoOriginCompany || "-"}</span>
                           </div>
                         </div>
                         <ArrowRight size={12} className="text-gray-400 shrink-0 mx-1.5" />
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <MapPin size={14} className="text-blue-500 shrink-0" />
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-tight mb-[2px]">Destino</span>
-                            <span className="text-[11px] font-semibold text-gray-900 dark:text-gray-100 truncate">{selectedTrip.destino}</span>
+                            <span className="text-[9px] text-gray-500 dark:text-nvu-muted font-medium leading-tight mb-[2px]">Destino</span>
+                            <span className="text-[11px] font-semibold text-gray-900 dark:text-nvu-text truncate">{selectedTrip.destino}</span>
                           </div>
                         </div>
                       </div>
 
                       {selectedTripDistance !== undefined && (
                         <>
-                          <div className="w-full h-px bg-gray-100 dark:bg-gray-800/60" />
-                          <div className="flex items-center justify-between p-2.5 sm:p-3 bg-slate-50/50 dark:bg-[#1A1F26]">
-                            <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                          <div className="w-full h-px bg-gray-100 dark:bg-nvu-line" />
+                          <div className="flex items-center justify-between p-2.5 sm:p-3 bg-slate-50/50 dark:bg-nvu-surface">
+                            <span className="text-[11px] font-medium text-gray-500 dark:text-nvu-muted">
                               Distância percorrida
                             </span>
-                            <span className="text-[12px] font-bold text-gray-900 dark:text-gray-100">
+                            <span className="text-[12px] font-bold text-gray-900 dark:text-nvu-text">
                               {formatTripDistance(selectedTripDistance)} km
                             </span>
                           </div>
                         </>
                       )}
 
-                      <div className="w-full h-px bg-gray-100 dark:bg-gray-800/60" />
+                      <div className="w-full h-px bg-gray-100 dark:bg-nvu-line" />
 
                       {/* Earnings */}
-                      <div className="flex items-center justify-between p-2.5 sm:p-3 bg-white dark:bg-[#1A1F26]">
-                        <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">Valor Recebido</span>
+                      <div className="flex items-center justify-between p-2.5 sm:p-3 bg-white dark:bg-nvu-surface">
+                        <span className="text-[11px] font-medium text-gray-500 dark:text-nvu-muted">Valor Recebido</span>
                         <div className="flex items-center gap-1 bg-green-50 dark:bg-green-500/10 px-2 py-1.5 rounded-md border border-green-100 dark:border-transparent">
                           <DollarSign size={12} className="stroke-[3] text-green-500" />
                           <span className="text-[13px] font-bold text-gray-900 dark:text-green-400 tracking-tight">
-                            {formatCurrency(selectedTrip.valor)}
+                            {formatTripHistoryMoney(selectedTrip)}
                           </span>
                         </div>
                       </div>
@@ -2614,19 +3014,20 @@ export default function TripHistory({
                   </div>
 
                   {/* Receipt Image / retention notice */}
-                  {selectedTrip.comprovanteUrl && (
+                  <TripSendStatus trip={selectedTrip} showConfirmed />
+                  {selectedTripReceiptUrl && (
                     <div className="mt-4 mb-2">
                       {selectedTripReceiptExpired ? (
                         <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-4 dark:border-emerald-900/40 dark:bg-emerald-500/5">
                           <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 dark:border-emerald-800 dark:bg-[#121213] dark:text-emerald-400">
+                            <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 dark:border-emerald-800 dark:bg-nvu-surface dark:text-emerald-400">
                               <Check size={15} strokeWidth={2.5} />
                             </div>
                             <div className="min-w-0">
                               <p className="text-[12px] font-bold text-gray-900 dark:text-white">
                                 Viagem verificada
                               </p>
-                              <p className="mt-1 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
+                              <p className="mt-1 text-[11px] leading-relaxed text-gray-600 dark:text-nvu-muted">
                                 A validação desta viagem foi concluída. Após {TRIP_RECEIPT_RETENTION_DAYS} dias, o print deixa de ser necessário e é removido da consulta, enquanto os dados da viagem permanecem preservados no histórico.
                               </p>
                             </div>
@@ -2635,18 +3036,18 @@ export default function TripHistory({
                       ) : (
                         <>
                           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 mb-2">
-                            <span className="text-[12px] font-semibold text-gray-800 dark:text-gray-200">
+                            <span className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text">
                               Comprovante da Viagem
                             </span>
                             {selectedTripReceiptTitle && (
-                              <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-gray-400 leading-tight break-all">
+                              <span className="text-[10px] sm:text-[11px] font-medium text-gray-500 dark:text-nvu-muted leading-tight break-all">
                                 {selectedTripReceiptTitle}
                               </span>
                             )}
                           </div>
-                          <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 z-0 relative flex justify-center items-center min-h-[180px]">
+                          <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-page z-0 relative flex justify-center items-center min-h-[180px]">
                             <CachedImageViewer
-                              url={selectedTrip.comprovanteUrl}
+                              url={selectedTripReceiptUrl}
                               alt={selectedTripReceiptTitle || "Comprovante da Viagem"}
                               className="w-full h-auto object-contain max-h-[180px] cursor-pointer"
                             />
@@ -2657,24 +3058,24 @@ export default function TripHistory({
                   )}
                 </div>
 
-                <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-[#09090b]">
+                <div className="p-4 border-t border-gray-100 dark:border-nvu-line bg-gray-50 dark:bg-nvu-page">
                   <button
                     onClick={() => setSelectedTrip(null)}
-                    className="w-full bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white font-semibold py-3 rounded-xl transition-colors"
+                    className="w-full bg-white dark:bg-nvu-surface hover:bg-gray-100 dark:hover:bg-nvu-strip border border-gray-200 dark:border-nvu-line text-gray-800 dark:text-white font-semibold py-3 rounded-xl transition-colors"
                   >
                     Fechar Detalhes
                   </button>
                 </div>
               </div>
-            </div>
+            </div></ModalPortal>
           );
         })()}
 
       {/* Driver Suspension Modal */}
       {suspendingTrip && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-gray-900/45 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#121213] w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <ModalPortal label="Suspender atividades" onClose={() => { setSuspendingTrip(null); resetModerationForm(); }} busy={moderationBusy}><div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-gray-900/45 backdrop-blur-sm">
+          <div className="nvu-viewport-modal-card bg-white dark:bg-nvu-surface w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-nvu-line flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 flex items-center justify-center shrink-0">
                   <ShieldAlert size={18} />
@@ -2683,7 +3084,7 @@ export default function TripHistory({
                   <h3 className="font-bold text-gray-900 dark:text-white text-[15px]">
                     Suspender atividades
                   </h3>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                  <p className="text-[11px] text-gray-500 dark:text-nvu-muted truncate">
                     {suspendingTrip.motoristaNome || "Motorista"}
                   </p>
                 </div>
@@ -2695,14 +3096,14 @@ export default function TripHistory({
                   setSuspendingTrip(null);
                   resetModerationForm();
                 }}
-                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50"
+                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-nvu-text disabled:opacity-50"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto">
-              <p className="mb-4 text-[12px] leading-relaxed text-gray-600 dark:text-gray-300">
+            <div className="nvu-modal-body p-5 overflow-y-auto">
+              <p className="mb-4 text-[12px] leading-relaxed text-gray-600 dark:text-nvu-text-soft">
                 O motorista ficará impedido de solicitar trabalhos e lançar viagens até o término automático da suspensão.
               </p>
               <SuspensionFields
@@ -2715,7 +3116,7 @@ export default function TripHistory({
               />
             </div>
 
-            <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex gap-3 bg-gray-50 dark:bg-[#09090b]">
+            <div className="p-4 border-t border-gray-100 dark:border-nvu-line flex gap-3 bg-gray-50 dark:bg-nvu-page">
               <button
                 type="button"
                 disabled={moderationBusy}
@@ -2723,7 +3124,7 @@ export default function TripHistory({
                   setSuspendingTrip(null);
                   resetModerationForm();
                 }}
-                className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white font-semibold py-2.5 px-3 text-[14px] rounded-xl disabled:opacity-50"
+                className="flex-1 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-800 dark:text-white font-semibold py-2.5 px-3 text-[14px] rounded-xl disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -2737,14 +3138,14 @@ export default function TripHistory({
               </button>
             </div>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* Delete Confirmation Modal */}
       {deletingTrip && (
-        <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-gray-900/45 backdrop-blur-sm">
-          <div className="bg-white dark:bg-[#121213] w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <ModalPortal label="Excluir viagem" onClose={() => { setDeletingTrip(null); resetModerationForm(); }} busy={moderationBusy}><div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-gray-900/45 backdrop-blur-sm">
+          <div className="nvu-viewport-modal-card bg-white dark:bg-nvu-surface w-full max-w-lg rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-nvu-line flex items-center justify-between">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300 flex items-center justify-center shrink-0">
                   <Trash2 size={18} />
@@ -2753,8 +3154,8 @@ export default function TripHistory({
                   <h3 className="font-bold text-gray-900 dark:text-white text-[15px]">
                     Excluir viagem
                   </h3>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                    {deletingTrip.motoristaNome || "Motorista"} • {formatCurrency(parseTripValue(deletingTrip.valor))}
+                  <p className="text-[11px] text-gray-500 dark:text-nvu-muted truncate">
+                    {deletingTrip.motoristaNome || "Motorista"} • {formatTripHistoryMoney(deletingTrip)}
                   </p>
                 </div>
               </div>
@@ -2765,19 +3166,19 @@ export default function TripHistory({
                   setDeletingTrip(null);
                   resetModerationForm();
                 }}
-                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50"
+                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-nvu-text disabled:opacity-50"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-5">
+            <div className="nvu-modal-body p-5 overflow-y-auto space-y-5">
               {canModerateTrip(deletingTrip) ? (
                 <div>
-                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-nvu-muted">
                     Motivo da exclusão
                   </p>
-                  <p className="mb-3 text-[12px] leading-relaxed text-gray-600 dark:text-gray-300">
+                  <p className="mb-3 text-[12px] leading-relaxed text-gray-600 dark:text-nvu-text-soft">
                     Selecione uma ou mais opções. Os motivos serão enviados ao motorista na Central de Notificações.
                   </p>
                   <CompactMultiSelect
@@ -2787,7 +3188,7 @@ export default function TripHistory({
                   />
                 </div>
               ) : (
-                <p className="text-[12px] leading-relaxed text-gray-600 dark:text-gray-300">
+                <p className="text-[12px] leading-relaxed text-gray-600 dark:text-nvu-text-soft">
                   Confirme a exclusão permanente desta viagem do seu histórico.
                 </p>
               )}
@@ -2805,7 +3206,7 @@ export default function TripHistory({
                         "mt-0.5 w-5 h-5 rounded-md border flex items-center justify-center shrink-0",
                         suspendWithDeletion
                           ? "border-amber-600 bg-amber-600 text-white"
-                          : "border-amber-300 bg-white dark:border-amber-500/40 dark:bg-[#18181b]",
+                          : "border-amber-300 bg-white dark:border-amber-500/40 dark:bg-nvu-surface",
                       )}
                     >
                       {suspendWithDeletion && <Check size={13} strokeWidth={3} />}
@@ -2842,7 +3243,7 @@ export default function TripHistory({
               </div>
             </div>
 
-            <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex gap-3 bg-gray-50 dark:bg-[#09090b]">
+            <div className="p-4 border-t border-gray-100 dark:border-nvu-line flex gap-3 bg-gray-50 dark:bg-nvu-page">
               <button
                 type="button"
                 disabled={moderationBusy}
@@ -2850,7 +3251,7 @@ export default function TripHistory({
                   setDeletingTrip(null);
                   resetModerationForm();
                 }}
-                className="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white font-semibold py-2.5 px-3 text-[14px] rounded-xl disabled:opacity-50"
+                className="flex-1 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-800 dark:text-white font-semibold py-2.5 px-3 text-[14px] rounded-xl disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -2870,26 +3271,26 @@ export default function TripHistory({
               </button>
             </div>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
 
       {/* Edit Modal */}
       {editingTrip && canEditTrip(editingTrip) && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 md:p-4 bg-gray-900/40 backdrop-blur-sm sm:pb-8">
-          <div className="bg-white dark:bg-[#121213] w-full max-w-md rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col">
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <ModalPortal label="Editar viagem" onClose={() => { setEditingTrip(null); }}><div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 md:p-4 bg-gray-900/40 backdrop-blur-sm sm:pb-8">
+          <div className="nvu-viewport-modal-card bg-white dark:bg-nvu-surface w-full max-w-md rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-nvu-line flex items-center justify-between">
               <h3 className="font-bold text-gray-900 dark:text-white text-[15px]">
                 Editar Viagem
               </h3>
               <button
                 onClick={() => setEditingTrip(null)}
-                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-nvu-text transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form
+            <form className="nvu-modal-form"
               onSubmit={async (e: any) => {
                 e.preventDefault();
                 if (!editingTrip || !canEditTrip(editingTrip)) {
@@ -2929,52 +3330,56 @@ export default function TripHistory({
                     };
                   }
 
-                  await TripsRepository.updateTrip(editingTrip.id, updateData);
+                  const savedTrip = await canonicalTripCommandService.update(editingTrip.id, updateData);
+                  const confirmed = savedTrip.editPending !== true;
                   const driverId = getCanonicalTripDriverId(editingTrip);
                   const companyId =
                     getCanonicalTripCompanyId(editingTrip) || activeCompanyId || "";
-                  if (driverId && companyId) {
+                  if (driverId && companyId && confirmed) {
                     updateTripHistoryOptimistically(
                       { userId: driverId, companyId },
                       editingTrip.id,
                       optimisticUpdate,
                     );
                   }
-                  toast.success(isSeniorAccess ? "Viagem atualizada pelo painel Senior." : "Rota atualizada.");
+                  if (confirmed) toast.success(isSeniorAccess ? "Viagem confirmada pelo servidor." : "Rota confirmada pelo servidor.");
+                  else toast.message("Edição salva neste dispositivo. Aguardando confirmação do servidor.");
 
                   setEditingTrip(null);
                 } catch (error) {
                   console.error("Erro ao editar viagem:", error);
-                  alert("Erro ao editar viagem. Verifique suas permissões.");
+                  toast.error("A edição não foi confirmada. Verifique a conexão e suas permissões.", {
+                    id: `trip-edit-${editingTrip?.id || "unknown"}`,
+                  });
                 }
               }}
             >
-              <div className="p-5 space-y-4">
+              <div className="nvu-modal-body p-5 space-y-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-nvu-text-soft block mb-1">
                     Origem
                   </label>
                   <input
                     name="origem"
                     defaultValue={editingTrip.origem}
                     required
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 text-gray-900 dark:text-white outline-none"
+                    className="w-full border border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface rounded-xl px-3 py-2 text-gray-900 dark:text-white outline-none"
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+                  <label className="text-sm font-medium text-gray-700 dark:text-nvu-text-soft block mb-1">
                     Destino
                   </label>
                   <input
                     name="destino"
                     defaultValue={editingTrip.destino}
                     required
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-xl px-3 py-2 text-gray-900 dark:text-white outline-none"
+                    className="w-full border border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface rounded-xl px-3 py-2 text-gray-900 dark:text-white outline-none"
                   />
                 </div>
                 {isSeniorAccess && (
                   <div>
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-nvu-text-soft block mb-1">
                       Valor recebido
                     </label>
                     <input
@@ -2997,11 +3402,11 @@ export default function TripHistory({
                 </p>
               </div>
 
-              <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex gap-3 bg-gray-50 dark:bg-[#09090b]">
+              <div className="p-4 border-t border-gray-100 dark:border-nvu-line flex gap-3 bg-gray-50 dark:bg-nvu-page">
                 <button
                   type="button"
                   onClick={() => setEditingTrip(null)}
-                  className="flex-1 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white font-semibold py-2.5 rounded-xl transition-colors"
+                  className="flex-1 bg-white dark:bg-nvu-surface hover:bg-gray-100 dark:hover:bg-nvu-strip border border-gray-200 dark:border-nvu-line text-gray-800 dark:text-white font-semibold py-2.5 rounded-xl transition-colors"
                 >
                   Cancelar
                 </button>
@@ -3014,7 +3419,7 @@ export default function TripHistory({
               </div>
             </form>
           </div>
-        </div>
+        </div></ModalPortal>
       )}
     </div>
   );

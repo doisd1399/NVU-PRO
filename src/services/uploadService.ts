@@ -1,6 +1,10 @@
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
+import { httpsCallable } from "firebase/functions";
+import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
+import { prepareTripReceipt } from "../lib/prepareTripReceipt";
 import imageCompression from "browser-image-compression";
-import { auth, storage } from "../lib/firebase";
+import { localImageCompressionWorkerUrl } from "../lib/localImageCompressionWorker";
+import { auth, storage, functions } from "../lib/firebase";
+import type { ProfileCoverTarget } from "../lib/profileCover";
 import { isAsyncTimeoutError, withTimeout } from "../lib/asyncTimeout";
 import {
   FILE_ACCESS_ERROR_CODE,
@@ -20,7 +24,8 @@ export interface UploadOptions {
   compressionMaxSizeMB?: number;
   maxWidthOrHeight?: number;
   maxOutputBytes?: number;
-  storageScope?: "default" | "trip-receipt";
+  storageScope?: "default" | "trip-receipt" | "profile-cover" | "profile-photo" | "company-logo-draft";
+  coverTarget?: ProfileCoverTarget;
   authTimeoutMs?: number;
   compressionTimeoutMs?: number;
   uploadTimeoutMs?: number;
@@ -28,11 +33,15 @@ export interface UploadOptions {
 
 export class UploadError extends Error {
   code?: string;
+  serverResponse?: string;
+  httpStatus?: number;
 
-  constructor(message: string, code?: string) {
+  constructor(message: string, code?: string, serverResponse?: string, httpStatus?: number) {
     super(message);
     this.name = "UploadError";
     this.code = code;
+    this.serverResponse = serverResponse;
+    this.httpStatus = httpStatus;
   }
 }
 
@@ -57,7 +66,7 @@ const supportedSourceTypes = new Set([
   "image/heif",
 ]);
 
-const normalizeFirebaseStorageError = (error: unknown): UploadError => {
+const normalizeFirebaseStorageError = (error: unknown, receipt = false): UploadError => {
   if (isFileAccessError(error)) {
     const fileError = normalizeFileAccessError(error);
     return new UploadError(fileError.message, FILE_ACCESS_ERROR_CODE);
@@ -69,16 +78,35 @@ const normalizeFirebaseStorageError = (error: unknown): UploadError => {
     serverResponse?: unknown;
   };
   const code = typeof rawError?.code === "string" ? rawError.code : "";
+  const serverResponse = typeof rawError?.serverResponse === "string"
+    ? rawError.serverResponse.trim().slice(0, 500)
+    : "";
+  let httpStatus: number | undefined;
+  if (serverResponse) {
+    try {
+      const parsed = JSON.parse(serverResponse) as { error?: { code?: unknown }; code?: unknown };
+      const value = Number(parsed.error?.code ?? parsed.code);
+      if (Number.isInteger(value) && value >= 400 && value <= 599) httpStatus = value;
+    } catch {
+      // Keep only a bounded response for diagnostics; never parse it as a cause.
+    }
+  }
 
   const messages: Record<string, string> = {
     "storage/unauthenticated":
       "Sua sessão do Firebase não está ativa. Entre novamente e tente enviar a imagem.",
     "storage/unauthorized":
-      "O Firebase Storage recusou o envio pelas regras publicadas. Publique o arquivo storage.rules deste projeto e tente novamente.",
+      receipt
+        ? "Não foi possível autorizar o envio para esta empresa. O comprovante será preservado; confira seu vínculo e tente novamente após a regularização."
+        : "Não foi possível autorizar o envio da imagem. Confira sua sessão e as permissões deste perfil.",
     "storage/quota-exceeded":
       "A cota ou o faturamento do Firebase Storage impediu o envio.",
     "storage/retry-limit-exceeded":
       "O envio excedeu o tempo de tentativa. Verifique a conexão e tente novamente.",
+    "storage/unknown":
+      receipt
+        ? "O Firebase Storage retornou um erro temporário ou não identificado. O comprovante será preservado para nova tentativa."
+        : "Não foi possível enviar a imagem agora. Ela continua selecionada; verifique a conexão e tente novamente.",
     "storage/canceled": "O envio da imagem foi cancelado.",
     "storage/bucket-not-found":
       "O bucket do Firebase Storage não foi encontrado. Verifique a configuração do projeto.",
@@ -95,6 +123,8 @@ const normalizeFirebaseStorageError = (error: unknown): UploadError => {
   return new UploadError(
     code ? `${message} (${code})` : message,
     code || undefined,
+    serverResponse || undefined,
+    httpStatus,
   );
 };
 
@@ -118,6 +148,7 @@ export const uploadService = {
     maxWidthOrHeight = 1920,
     maxOutputBytes = DEFAULT_UPLOAD_MAX_BYTES,
     storageScope = "default",
+    coverTarget,
     authTimeoutMs = 12_000,
     compressionTimeoutMs = 30_000,
     uploadTimeoutMs = 90_000,
@@ -160,19 +191,45 @@ export const uploadService = {
       );
     }
 
-    let finalFile = file;
+    const uploaderUid = auth.currentUser.uid;
+
+    if (storageScope === "profile-cover" && (!coverTarget?.profileId || !["driver", "company"].includes(coverTarget.scope)
+      || /[\/]/.test(coverTarget.profileId) || (coverTarget.scope === "driver" && coverTarget.profileId !== auth.currentUser.uid))) {
+      throw new UploadError("Perfil inválido para salvar a capa.");
+    }
+
+    if (String(userId || auth.currentUser.uid) !== auth.currentUser.uid) {
+      throw new UploadError("A conta da imagem não corresponde à sessão atual.", "storage/unauthorized");
+    }
+    // Heal a missing derived index from canonical server membership before touching Storage.
+    // Driver covers are personal media and do not depend on a company relationship.
+    if (storageScope === "default" ||
+        (storageScope === "profile-cover" && coverTarget?.scope === "company")) {
+      const targetCompanyId = storageScope === "profile-cover" ? coverTarget!.profileId : companyId;
+      try {
+        const ensure = httpsCallable(functions, "ensureCompanyAccess", { timeout: 12_000 });
+        await withTimeout(ensure({ companyId: targetCompanyId }), 13_000, "A verificação do vínculo demorou demais.");
+      } catch (error) {
+        const code = String((error as { code?: string })?.code || "");
+        if (code.includes("permission-denied")) throw normalizeFirebaseStorageError({ code: "storage/unauthorized" });
+        throw error;
+      }
+    }
+
+    let finalFile = storageScope === "trip-receipt" ? await prepareTripReceipt(file) : file;
 
     // Do not spend CPU/RAM recompressing screenshots that already satisfy the
     // authenticated Storage ceiling. This is especially important for older
     // Android WebViews where starting the compression worker can be slower than
     // the upload itself.
-    if (file.size >= maxOutputBytes) {
+    if (finalFile.size >= maxOutputBytes) {
       try {
         const compressedBlob = await withTimeout(
-          imageCompression(file, {
+          imageCompression(finalFile, {
             maxSizeMB: compressionMaxSizeMB,
             maxWidthOrHeight,
             useWebWorker: true,
+            libURL: localImageCompressionWorkerUrl(),
             fileType: "image/webp",
           }),
           compressionTimeoutMs,
@@ -210,6 +267,10 @@ export const uploadService = {
       );
     }
 
+    if (auth.currentUser?.uid !== uploaderUid) {
+      throw new UploadError("A conta autenticada mudou durante o preparo da imagem.", "storage/unauthenticated");
+    }
+
     const timestamp = Date.now();
     const sanitizedName = finalFile.name.replace(/[^a-zA-Z0-9.\-_]/g, "");
     const cleanFileName = sanitizedName || `imagem-${timestamp}.webp`;
@@ -226,11 +287,37 @@ export const uploadService = {
       "",
     );
     const path =
-      storageScope === "trip-receipt"
+      storageScope === "profile-photo"
+        ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}`
+        : storageScope === "company-logo-draft"
+        ? `company-logo-drafts/${uploaderUid}/${timestamp}_${cleanFileName}`
+        : storageScope === "profile-cover"
+        ? `profile-covers/${coverTarget!.scope}/${coverTarget!.profileId}/${auth.currentUser.uid}/${timestamp}_${cleanFileName}`
+        : storageScope === "trip-receipt"
         ? `trip-receipts/${cleanCompanyId || "Geral"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}`
         : `empresas/${cleanCompanyId || "Geral"}/${cleanFolder || "uploads"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}`;
     const storageRef = ref(storage, path);
 
+    const performUpload = () => {
+    // Small, already durable receipts need no resumable-session handshake.
+    // Failure/retry still uses the same owned Storage object and the local original.
+    if (storageScope === "trip-receipt") {
+      onProgress?.(0);
+      return withTimeout((async () => {
+        const snapshot = await uploadBytes(storageRef, finalFile, {
+          contentType: finalFile.type || sourceType || "image/webp",
+          cacheControl: "public,max-age=31536000,immutable",
+          customMetadata: { originalFileName: file.name, uploadedBy: uploaderUid },
+        });
+        const url = await getDownloadURL(snapshot.ref);
+        onProgress?.(100);
+        return url;
+      })(), uploadTimeoutMs, "O envio demorou demais. O comprovante permanece salvo para nova tentativa.")
+        .catch(error => {
+          if (isAsyncTimeoutError(error)) throw new UploadError("O envio excedeu o tempo de tentativa. O comprovante permanece salvo.", "storage/retry-limit-exceeded");
+          throw normalizeFirebaseStorageError(error, true);
+        });
+    }
     const uploadTask = uploadBytesResumable(storageRef, finalFile, {
       contentType: finalFile.type || sourceType || "image/webp",
       cacheControl: "public,max-age=31536000,immutable",
@@ -240,7 +327,7 @@ export const uploadService = {
       },
     });
 
-    return new Promise((resolve, reject) => {
+    return new Promise<string>((resolve, reject) => {
       let settled = false;
       let timeoutId: ReturnType<typeof setTimeout>;
 
@@ -287,6 +374,7 @@ export const uploadService = {
           console.error("Erro no upload para o Firebase Storage:", {
             code: (error as { code?: string })?.code,
             message: (error as { message?: string })?.message,
+            httpStatus: normalizeFirebaseStorageError(error).httpStatus,
             path,
             bytes: finalFile.size,
             contentType: finalFile.type,
@@ -304,5 +392,16 @@ export const uploadService = {
         },
       );
     });
+    };
+    try { return await performUpload(); }
+    catch (error) {
+      if (storageScope !== "trip-receipt" || (error as UploadError)?.code !== "storage/unauthorized") throw error;
+      if (auth.currentUser?.uid !== uploaderUid) throw error;
+      // A repair is exceptional. Storage rules still validate every attempt.
+      const ensure = httpsCallable(functions, "ensureCompanyAccess", { timeout: 12_000 });
+      await ensure({ companyId });
+      if (auth.currentUser?.uid !== uploaderUid) throw error;
+      return performUpload();
+    }
   },
 };

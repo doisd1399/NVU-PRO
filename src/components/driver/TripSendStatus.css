@@ -1,0 +1,7 @@
+.nvu-trip-send-status, .nvu-driver-activity-value .nvu-trip-send-status { color: #946000; }
+.nvu-trip-send-status[data-send-status="confirmed"], .nvu-driver-activity-value .nvu-trip-send-status[data-send-status="confirmed"] { color: #187248; }
+.nvu-trip-send-status[data-send-status="failed"], .nvu-driver-activity-value .nvu-trip-send-status[data-send-status="failed"] { color: #ba3038; }
+.dark .nvu-trip-send-status, .dark .nvu-driver-activity-value .nvu-trip-send-status { color: #f2c66f; }
+.dark .nvu-trip-send-status[data-send-status="confirmed"], .dark .nvu-driver-activity-value .nvu-trip-send-status[data-send-status="confirmed"] { color: #80d9b1; }
+.dark .nvu-trip-send-status[data-send-status="failed"], .dark .nvu-driver-activity-value .nvu-trip-send-status[data-send-status="failed"] { color: #f4a5aa; }
+.nvu-trip-card .nvu-trip-send-status svg { color: inherit; }

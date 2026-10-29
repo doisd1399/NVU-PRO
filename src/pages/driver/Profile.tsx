@@ -1,13 +1,33 @@
+import { ProfileHero } from "../../components/common/ProfileHero";
+import { ProfileCoverHero } from "../../components/common/ProfileCoverHero";
+import { DriverProfileToolbar } from "../../components/driver/DriverProfileToolbar";
+import type { DriverProfileView } from "../../components/driver/DriverProfileSummary";
+import type { RankingAggregatePeriodType } from "../../lib/rankingAggregates";
+import { ModalSelect } from "../../components/ui/ModalSelect";
+import { assertWorkModeEntryAllowed, prefetchWorkModeAvailability } from "../../services/workModeAvailabilityService";
+import { isWorkModeMaintenanceError } from "../../lib/workModeMaintenanceError";
+import { WorkModeMaintenanceDialog } from "../../components/WorkModeMaintenanceDialog";
 import { resolveDriverPhoto } from '../../lib/resolveDriverPhoto';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
 import Dashboard from "./Dashboard";
+import TripHistory from "./TripHistory";
+import { DriverResults } from "../../components/driver/DriverResults";
+import { filterAndSortTripHistory } from "../../lib/tripHistoryEngine";
+import { applySimulatorCurrencyContext } from "../../lib/metricsEngine";
+import "../../components/driver/DriverWorkspace.css";
+import "../../components/driver/DriverLandscape.css";
+import { resolveOperationContract } from "../../lib/operationResultSummary";
 import { useOperationalStore, useSessionStore, type User } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { Button } from "../../components/ui/Button";
 import { StableImage } from "../../components/common/StableImage";
-import { OperationProgressBar } from "../../components/common/OperationProgressBar";
-import { cn, getJobRealTimestamp, getNomeContratoHistorico } from "../../lib/utils";
+import { RetainedPanel } from "../../components/common/RetainedPanel";
+import { useVehiclePhoto } from "../../hooks/useVehiclePhoto";
+import { resolveVehiclePhotoOperationSimulatorId } from "../../lib/vehiclePhotoIdentity";
+import { cn, getNomeContratoHistorico } from "../../lib/utils";
+import { indexConfirmedOperationTripDates, operationJobTimestamp } from "../../lib/operationResultSummary";
 import { getDriverLevelData } from "../../lib/levelUtils";
 import { getFilteredTrips, getTodayRange, getWeeklyRange, getMonthlyRange } from "../../lib/metricsEngine";
 import { normalizeTrip, NormalizedTrip } from "../../lib/tripNormalizer";
@@ -58,10 +78,13 @@ import {
   CalendarDays,
   Banknote,
 } from "lucide-react";
-import { createPortal } from "react-dom";
 import { ProfileModal } from "../../components/ProfileModal";
+import { SimulatorSelectionModal } from "../../components/SimulatorSelectionModal";
 import { DriverPerformanceCard } from "../../components/DriverPerformanceCard";
 import { useDriverTrips } from "../../hooks/useDriverTrips";
+import { HistoryReadCoverageNotice } from "../../components/common/HistoryReadCoverageNotice";
+import { HistoryMoneySummary } from "../../components/common/HistoryMoneySummary";
+import { summarizeTripMoney } from "../../lib/tripMoneySummary";
 import { resolveCompanySimulatorFilterValue, resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { prepareAndCommitNavigation } from "../../lib/navigationTransition";
 import { preloadRoute } from "../../lib/routePreload";
@@ -71,22 +94,25 @@ import { isClosedJobStatus, isRunningJobStatus, isTripRecordableJobStatus } from
 import { getProLaunchAvailability } from "../../lib/proLaunchAvailability";
 import {
   deriveCurrentOperationProgress,
+  selectCanonicalOperationTrips,
   selectCurrentOperationJob,
+  type CurrentOperationJob,
 } from "../../lib/currentOperation";
 import { resolveTripSimulatorCode } from "../../lib/tripDistance";
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
 import { launchGtoWork } from "../../services/gtoWorkLauncher";
 import { GtoWorkModeDialog, type GtoWorkMode } from "../../components/GtoWorkModeDialog";
 import { getSimpleAutomationSimulator, type SimpleAutomationCity } from "../../lib/simpleAutomation";
-import { loadSimpleAutomationCities } from "../../services/simpleAutomationCityService";
+import { getCachedSimpleAutomationCities, loadSimpleAutomationCities } from "../../services/simpleAutomationCityService";
 import { launchSimpleAutomation, simpleAutomationStatusMessage } from "../../services/simpleAutomationLauncher";
+import { ensureOperationIntegrity } from "../../services/operationIntegrityGuard";
 import {
   clearActiveOperationSnapshot,
   readActiveOperationSnapshot,
   writeActiveOperationSnapshot,
 } from "../../lib/activeOperationSnapshot";
 
-type DriverProfileTab = "dashboard" | "profile" | "operations";
+type DriverProfileTab = "dashboard" | "profile" | "operations" | "activity" | "results";
 
 const getDriverProfileTab = (state: unknown): DriverProfileTab => {
   if (state && typeof state === "object" && "profileTab" in state) {
@@ -94,7 +120,9 @@ const getDriverProfileTab = (state: unknown): DriverProfileTab => {
     if (
       profileTab === "dashboard" ||
       profileTab === "profile" ||
-      profileTab === "operations"
+      profileTab === "operations" ||
+      profileTab === "activity" ||
+      profileTab === "results"
     ) {
       return profileTab;
     }
@@ -140,10 +168,16 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   const driverTripsLoading = driverTripState.loading;
   const [isSimulatorMenuOpen, setIsSimulatorMenuOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
+  const [profileRankingScope, setProfileRankingScope] = useState<"internal" | "global">("global");
+  const [profileView, setProfileView] = useState<DriverProfileView>("summary");
+  const [profilePeriodType, setProfilePeriodType] = useState<RankingAggregatePeriodType>("mes");
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isConfigMenuOpen, setIsConfigMenuOpen] = useState(false);
   const [isGtoModeDialogOpen, setIsGtoModeDialogOpen] = useState(false);
+  const [maintenanceMode, setMaintenanceMode] = useState<GtoWorkMode | null>(null);
   const [isSimpleAutomationStarting, setIsSimpleAutomationStarting] = useState(false);
+  const [isWorkModeChecking, setIsWorkModeChecking] = useState(false);
+  const workModePendingRef = useRef(false);
   const [simpleAutomationCities, setSimpleAutomationCities] = useState<SimpleAutomationCity[]>([]);
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
   const [periodFilter, setPeriodFilter] = useState<
@@ -155,9 +189,10 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [isPageSelectorOpen, setIsPageSelectorOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<DriverProfileTab>(() =>
-    getDriverProfileTab(location.state),
-  );
+  const activeTab = getDriverProfileTab(location.state);
+  // Horizontal screens use the cover layout of "Painel do motorista"; portrait is untouched.
+  const landscapeWorkspace = useLandscapeWorkspace();
+  const landscapeDashboard = activeTab === "dashboard" && landscapeWorkspace;
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set([activeTab]));
   // The operational panel is the first view of this route. Keep profile
   // metrics/history out of that first render; they are only needed after the
@@ -206,16 +241,19 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   // Profile, dashboard and operations are views inside one route. Store the
   // selected view in React Router so browser/WebView Back restores the
   // previous view instead of leaving the profile or closing the APK.
-  useEffect(() => {
-    const nextTab = getDriverProfileTab(location.state);
-    setVisitedTabs((previous) =>
-      previous.has(nextTab) ? previous : new Set(previous).add(nextTab),
-    );
-    setActiveTab(nextTab);
-  }, [location.state]);
-
   const selectProfilePage = (pageId: string) => {
     setIsPageSelectorOpen(false);
+
+    if (pageId === "news" || pageId === "ranking") {
+      const path = pageId === "news" ? "/driver/news" : "/ranking";
+      void prepareAndCommitNavigation(
+        () => preloadRoute(path),
+        () => navigate(path, pageId === "ranking"
+          ? { state: { backgroundLocation: location } }
+          : undefined),
+      );
+      return;
+    }
 
     if (pageId === "history") {
       void prepareAndCommitNavigation(
@@ -233,6 +271,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
       return;
     }
 
+    if (!["dashboard", "profile", "operations", "activity", "results"].includes(pageId)) return;
     const nextTab = pageId as DriverProfileTab;
     if (nextTab === activeTab) return;
 
@@ -247,14 +286,14 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         setVisitedTabs((previous) =>
           previous.has(nextTab) ? previous : new Set(previous).add(nextTab),
         );
-        setActiveTab(nextTab);
         navigate(location.pathname, {
           state: {
             ...currentState,
             profileTab: nextTab,
           },
-          replace: true
+          replace: false
         });
+        window.scrollTo({ top: 0, behavior: "instant" });
       }
     );
   };
@@ -279,9 +318,10 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     () => selectCurrentOperationJob(jobs, currentUser.id, activeCompanyId),
     [activeCompanyId, currentUser.id, jobs],
   );
-  const activeContract = activeJob
-    ? contractsMap.get(activeJob.contractId)
-    : null;
+  const activeContract = useMemo(
+    () => resolveOperationContract(activeJob, contracts),
+    [activeJob, contracts],
+  );
   const [cachedOperationSnapshot, setCachedOperationSnapshot] = useState(() =>
     readActiveOperationSnapshot(currentUser.id, activeCompanyId),
   );
@@ -310,13 +350,35 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   const activeVehicle =
     displayActiveJob && displayActiveJob.vehicleId
       ? vehiclesMap.get(String(displayActiveJob.vehicleId))
+        || (cachedOperationSnapshot?.vehicle as any)
+        || (displayJobData.vehicleName
+          ? ({
+              id: String(displayActiveJob.vehicleId),
+              name: String(displayJobData.vehicleName),
+              plate: String(displayJobData.vehiclePlate || ""),
+              companyId: activeCompanyId || "",
+            } as any)
+          : null)
       : null;
   const activeTrailerId = trailerlessSimulator
     ? ""
     : displayActiveJob?.trailerId || displayActiveContract?.trailerId;
   const activeTrailer = activeTrailerId
     ? trailersMap.get(String(activeTrailerId))
+      || (cachedOperationSnapshot?.trailer as any)
+      || (displayJobData.trailerName
+        ? ({
+            id: String(activeTrailerId),
+            name: String(displayJobData.trailerName),
+            companyId: activeCompanyId || "",
+          } as any)
+        : null)
     : null;
+  const activeSnapshotSimulator =
+    getSimpleAutomationSimulator(
+      displayActiveContract || companies.find((company) => company.id === activeCompanyId),
+      simulators as unknown[],
+    ) || (cachedOperationSnapshot?.simulator as any) || null;
   const activeOperationName = String(
       displayContractData.name ||
       displayJobData.contractName ||
@@ -335,14 +397,6 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   // projection may paint the operation while contract/catalog details refresh.
   const activeOperationResolved =
     jobsReady && (!activeJob || Boolean(activeContract) || contractsReady);
-  const activeOperationCardJob =
-    displayActiveJob &&
-    displayActiveContract &&
-    activeOperationResolved &&
-    isRunningJobStatus(displayActiveJob.status) &&
-    displayActiveContract.status !== "completed"
-      ? displayActiveJob
-      : null;
 
   useEffect(() => {
     setCachedOperationSnapshot(
@@ -358,9 +412,11 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         activeCompanyId,
         activeJob as unknown as Record<string, unknown>,
         activeContract as unknown as Record<string, unknown> | null,
-      );
-      setCachedOperationSnapshot(
-        readActiveOperationSnapshot(currentUser.id, activeCompanyId),
+        {
+          vehicle: activeVehicle as unknown as Record<string, unknown> | null,
+          trailer: activeTrailer as unknown as Record<string, unknown> | null,
+          simulator: activeSnapshotSimulator as unknown as Record<string, unknown> | null,
+        },
       );
       return;
     }
@@ -372,8 +428,11 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     activeCompanyId,
     activeContract,
     activeJob,
+    activeTrailer,
+    activeVehicle,
     currentUser.id,
     jobsReady,
+    activeSnapshotSimulator,
   ]);
 
   // Historical jobs logic (xp calculation only looks at completed)
@@ -394,13 +453,12 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
 
   const filteredHistoryJobs = useMemo(() => {
     if (!needsOperationsHistory) return [];
+    const dates = indexConfirmedOperationTripDates(historicoTrips, currentUser.id);
     return pastJobs
       .filter((job) => {
         if (periodFilter === "all") return true;
 
-        const dateStr =
-          job.completedAt || job.createdAt || new Date().toISOString();
-        const jobDate = new Date(dateStr);
+        const jobDate = new Date(operationJobTimestamp(job, dates));
 
         if (periodFilter === "hoje") {
           const { start, end } = getTodayRange();
@@ -431,8 +489,8 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         return true;
       })
       .sort((a, b) => {
-        const tsA = getJobRealTimestamp(a, historicoTrips);
-        const tsB = getJobRealTimestamp(b, historicoTrips);
+        const tsA = operationJobTimestamp(a, dates);
+        const tsB = operationJobTimestamp(b, dates);
 
         const contractA = getNomeContratoHistorico(
           a,
@@ -448,6 +506,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
       });
   }, [
     contractsMap,
+    currentUser.id,
     customEndDate,
     customStartDate,
     historicoTrips,
@@ -456,9 +515,19 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     periodFilter,
   ]);
 
+  // History cards must never trust the denormalized job counter. Use the same
+  // confirmed canonical trip set as the active-operation card.
+  const canonicalProgressByJobId = useMemo(() => {
+    const result = new Map<string, number>();
+    for (const job of [...filteredHistoryJobs, ...(activeJob ? [activeJob] : [])]) {
+      result.set(String(job.id), selectCanonicalOperationTrips(job, historicoTrips, String(currentUser.id || job.driverId || "")).length);
+    }
+    return result;
+  }, [activeJob, filteredHistoryJobs, historicoTrips]);
+
   const displayDeliveries =
-    filteredHistoryJobs.reduce((acc, job) => acc + job.progress, 0) +
-    (periodFilter === "all" && activeJob ? activeJob.progress : 0);
+    filteredHistoryJobs.reduce((acc, job) => acc + (canonicalProgressByJobId.get(String(job.id)) || 0), 0) +
+    (periodFilter === "all" && activeJob ? (canonicalProgressByJobId.get(String(activeJob.id)) || 0) : 0);
   const displayCompleted = filteredHistoryJobs.filter(
     (j) => j.status === "completed",
   ).length;
@@ -488,12 +557,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     [historicoTrips, needsOperationsHistory, needsProfileMetrics],
   );
   
-  const filteredDriverTrips = useMemo(() => {
-    if (!needsProfileMetrics) return [];
-    return getFilteredTrips(normalizedAllTrips, undefined, undefined, undefined, undefined, companies, currentUser.id);
-  }, [normalizedAllTrips, currentUser.id, companies, needsProfileMetrics]);
-
-    const activeJobProgress = useMemo(
+  const activeJobProgress = useMemo(
     () =>
       deriveCurrentOperationProgress(
         displayActiveJob as any,
@@ -506,19 +570,9 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   const activeGtoDelivery = (() => {
     const deliveries = activeContract?.deliveries || [];
     if (!deliveries.length) return undefined;
-    const progress = Math.max(0, Number(activeJob?.progress) || 0);
+    const progress = activeJobProgress;
     return deliveries[Math.min(progress, deliveries.length - 1)];
   })();
-
-  const totalGanhos = useMemo(
-    () =>
-      filteredDriverTrips.reduce(
-        (total, trip) => total + trip.normalizedValor,
-        0,
-      ),
-    [filteredDriverTrips],
-  );
-  const totalViagens = filteredDriverTrips.length;
 
   const currentActiveCompany = useMemo(
     () =>
@@ -527,18 +581,40 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         : null,
     [activeCompanyId, companies],
   );
-  const simpleAutomationSimulator = useMemo(
-    () =>
-      getSimpleAutomationSimulator(currentActiveCompany, simulators as unknown[]) ||
-      getSimpleAutomationSimulator(activeContract, simulators as unknown[]) ||
-      getSimpleAutomationSimulator(activeJob, simulators as unknown[]),
-    [currentActiveCompany, activeContract, activeJob, simulators],
+  const vehiclePhotoSimulatorId = resolveVehiclePhotoOperationSimulatorId(
+    displayActiveJob, currentActiveCompany, "",
+    simulators as unknown as Record<string, unknown>[],
+    companies as unknown as Record<string, unknown>[], [displayActiveContract],
   );
+  // This profile owns the visible start-work button. Share one controller
+  // with its integrated Dashboard so the modal and card always use the same
+  // photo, including a newly selected local/offline preview.
+  const vehiclePhoto = useVehiclePhoto(
+    currentUser.id && displayActiveJob?.vehicleId && vehiclePhotoSimulatorId
+      ? { userId: currentUser.id, simulatorId: vehiclePhotoSimulatorId,
+          vehicleId: String(displayActiveJob.vehicleId), vehicleName: activeVehicle?.name || "Veículo atual" }
+      : null,
+    String(displayActiveJob?.companyId || activeCompanyId || ""),
+    true,
+  );
+  const simulatorCompanies = useMemo(() => {
+    const membershipCompanyIds = new Set(memberships?.map((membership) => membership.companyId) || []);
+    return companies.filter((company) => membershipCompanyIds.has(company.id));
+  }, [companies, memberships]);
   const isGtoWork =
     resolveTripSimulatorCode(currentActiveCompany as any, simulators as any[]) === "GTO" ||
     resolveTripSimulatorCode(activeContract as any, simulators as any[]) === "GTO" ||
     resolveTripSimulatorCode(activeJob as any, simulators as any[]) === "GTO";
-  // GTO exposes both automatic modes: simple without projection and Max with projection.
+  const simpleAutomationSimulator = useMemo(
+    () =>
+      isGtoWork
+        ? getSimpleAutomationSimulator("GTO")
+        : getSimpleAutomationSimulator(currentActiveCompany, simulators as unknown[]) ||
+          getSimpleAutomationSimulator(activeContract, simulators as unknown[]) ||
+          getSimpleAutomationSimulator(activeJob, simulators as unknown[]),
+    [currentActiveCompany, activeContract, activeJob, simulators, isGtoWork],
+  );
+  // An operation resolved as GTO must also have the Pro service identity.
   const isSimpleAutomationWork = Boolean(simpleAutomationSimulator);
 
   useEffect(() => {
@@ -549,29 +625,31 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         cancelled = true;
       };
     }
+    setSimpleAutomationCities(getCachedSimpleAutomationCities(simpleAutomationSimulator.key));
     void loadSimpleAutomationCities(simpleAutomationSimulator.key)
       .then((cities) => {
         if (!cancelled) setSimpleAutomationCities(cities);
       })
       .catch((error) => {
         console.error("[NVU] Falha ao carregar cidades do modo Pro no perfil", error);
-        if (!cancelled) setSimpleAutomationCities([]);
+        // Keep the last known cities available when a refresh fails offline.
       });
     return () => {
       cancelled = true;
     };
-  }, [simpleAutomationSimulator]);
+  }, [simpleAutomationSimulator?.key]);
 
   const handleTripAction = async () => {
     const proAvailability = getProLaunchAvailability({
       job: activeJob,
+      confirmedTripCount: activeJobProgress,
       totalDeliveries: activeOperationTotalDeliveries,
       hasContract: Boolean(activeContract),
       hasUser: Boolean(currentUser),
       hasCompany: Boolean(currentActiveCompany),
     });
 
-    if (isSimpleAutomationWork && !proAvailability.canLaunch) {
+    if ((isSimpleAutomationWork || activeJob?.operationSyncState === "pending_finish" || activeJob?.operationSyncState === "start_rejected") && !proAvailability.canLaunch) {
       alert(proAvailability.message);
       return;
     }
@@ -586,6 +664,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     }
 
     if (isSimpleAutomationWork || isGtoWork) {
+      prefetchWorkModeAvailability();
       setIsGtoModeDialogOpen(true);
       return;
     }
@@ -593,10 +672,17 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     navigate("/driver/trip");
   };
 
-  const startSimpleAutomation = async () => {
+  const startSimpleAutomation = async (entryCheck: Promise<void>) => {
     if (!simpleAutomationSimulator) return;
+    if (activeJob && activeJob.operationSyncState !== "pending_start" && typeof navigator !== "undefined" && navigator.onLine) {
+      void ensureOperationIntegrity(activeJob.id, activeOperationTotalDeliveries, "pro-entry").catch((error) =>
+        console.warn("[NVU] Integrity Guard do Modo Pro não concluiu; o fluxo continuará protegido pelo ACK:", error),
+      );
+    }
+    const operationTripsForPro = activeJob ? selectCanonicalOperationTrips(activeJob, historicoTrips, String(currentUser?.id || activeJob.driverId || "")) : [];
     const proAvailability = getProLaunchAvailability({
       job: activeJob,
+      confirmedTripCount: activeJobProgress,
       totalDeliveries: activeOperationTotalDeliveries,
       hasContract: Boolean(activeContract),
       hasUser: Boolean(currentUser),
@@ -606,15 +692,12 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
       alert(proAvailability.message);
       return;
     }
-    if (!simpleAutomationCities.length) {
-      alert(`Nenhuma cidade cadastrada para ${simpleAutomationSimulator.shortLabel}. Peça ao Painel Sênior para usar Gerenciar cidades.`);
-      return;
-    }
     setIsSimpleAutomationStarting(true);
     try {
+      const cachedCities = getCachedSimpleAutomationCities(simpleAutomationSimulator.key);
       const result = await launchSimpleAutomation(
         simpleAutomationSimulator.key,
-        simpleAutomationCities,
+        cachedCities.length ? cachedCities : simpleAutomationCities,
         currentActiveCompany.companyName || currentActiveCompany.name || "Empresa",
         {
           companyId: currentActiveCompany.id,
@@ -623,6 +706,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
           contractId: String(displayActiveContract?.id || ""),
           operationName: activeOperationName,
           contractName: String(displayContractData.name || displayJobData.contractName || ""),
+          confirmedTripCount: activeJobProgress,
           jobProgress: activeJobProgress,
           jobTotalDeliveries: activeOperationTotalDeliveries,
           jobStatus: String(displayActiveJob?.status || activeJob?.status || ""),
@@ -633,7 +717,11 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
           ),
           vehicleName: activeVehicle?.name || "",
           trailerName: activeTrailer?.name || "",
+          historyTrips: operationTripsForPro,
+          historyReady: driverTripState.historyReady
+            && (!driverTripState.error || operationTripsForPro.length > 0),
         },
+        entryCheck,
       );
       if (result.status === "opened") {
         setIsGtoModeDialogOpen(false);
@@ -652,6 +740,9 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     }
 
     try {
+      if (activeJob.operationSyncState !== "pending_start") void ensureOperationIntegrity(activeJob.id, activeOperationTotalDeliveries, "pro-entry").catch((error) =>
+        console.warn("[NVU] Integrity Guard do GTO não concluiu; o fluxo continuará protegido pelo ACK:", error),
+      );
       const result = await launchGtoWork({
         driverId: currentUser.id,
         driverName: currentUser.name,
@@ -660,7 +751,8 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
           currentActiveCompany.companyName || currentActiveCompany.name || "Empresa",
         jobId: activeJob.id,
         jobStatus: activeJob.status,
-        jobProgress: activeJob.progress || 0,
+        confirmedTripCount: activeJobProgress,
+        jobProgress: activeJobProgress,
         jobTotalDeliveries: activeContract.totalDeliveries || 0,
         contractId: activeContract.id,
         contractName: activeContract.name || "",
@@ -689,21 +781,62 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
       }
     } catch (error) {
       console.error("Falha ao iniciar trabalho GTO:", error);
-      alert("Não foi possível abrir o trabalho GTO. Tente novamente.");
+      alert(error instanceof Error ? error.message : "Não foi possível abrir o trabalho GTO. Tente novamente.");
     }
   };
 
-  const handleGtoModeSelect = async (mode: GtoWorkMode) => {
-    setIsGtoModeDialogOpen(false);
+  const selectWorkMode = async (mode: GtoWorkMode) => {
+    if (["pending_finish", "start_rejected"].includes(activeJob?.operationSyncState || "")) {
+      setIsGtoModeDialogOpen(false);
+      alert("A ação da operação aguarda sincronização. Os registros locais foram preservados.");
+      return;
+    }
+    const simulatorKey = isGtoWork ? "GTO" : simpleAutomationSimulator?.key || "GTO";
     if (mode === "print") {
+      try {
+        await assertWorkModeEntryAllowed("print", simulatorKey);
+      } catch (error) {
+        if (isWorkModeMaintenanceError(error)) {
+          setIsGtoModeDialogOpen(false);
+          setMaintenanceMode(mode);
+          return;
+        }
+        alert(error instanceof Error ? error.message : "Não foi possível verificar a disponibilidade do modo.");
+        return;
+      }
+      setIsGtoModeDialogOpen(false);
       navigate("/driver/trip?mode=print");
       return;
     }
+    const entryCheck = assertWorkModeEntryAllowed(mode === "simple" ? "pro" : "max", simulatorKey);
+    try {
+      await entryCheck;
+    } catch (error) {
+      if (isWorkModeMaintenanceError(error)) {
+        setIsGtoModeDialogOpen(false);
+        setMaintenanceMode(mode);
+        return;
+      }
+      alert(error instanceof Error ? error.message : "Não foi possível verificar o controle de viagens.");
+      return;
+    }
+    setIsGtoModeDialogOpen(false);
     if (mode === "simple") {
-      await startSimpleAutomation();
+      await startSimpleAutomation(entryCheck);
       return;
     }
     await startGtoAutomatic();
+  };
+
+  const handleGtoModeSelect = async (mode: GtoWorkMode) => {
+    if (workModePendingRef.current) return;
+    workModePendingRef.current = true;
+    setIsWorkModeChecking(true);
+    try { await selectWorkMode(mode); }
+    finally {
+      workModePendingRef.current = false;
+      setIsWorkModeChecking(false);
+    }
   };
 
   const getSimulatorLabel = (company: any) =>
@@ -712,90 +845,6 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
       simulators as any[],
       companies as any[],
     ) || company?.simulatorName || "";
-
-  const [globalRank, setGlobalRank] = useState<{
-    position: number;
-    total: number;
-    diffToNext: number | null;
-  } | null>(null);
-
-  const simulatorCompanies = useMemo(() => {
-    const membershipCompanyIds = new Set(memberships?.map(m => m.companyId) || []);
-    return companies.filter((c) => membershipCompanyIds.has(c.id));
-  }, [companies, memberships]);
-
-  const currencyFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat("pt-BR", {
-        style: "currency",
-        currency: "BRL",
-      }),
-    [],
-  );
-
-  useEffect(() => {
-    if (!needsProfileMetrics) {
-      setGlobalRank(null);
-      return;
-    }
-    if (!currentActiveCompany?.id || !currentUser?.id) {
-      setGlobalRank(null);
-      return;
-    }
-
-    // Reutiliza os dados que já chegam pelo AppContext/useTripHistory.
-    // Antes deste ajuste, esta tela abria um segundo listener de viagens da
-    // empresa e outro listener de companyMembers para calcular o mesmo ranking.
-    const earningsByDriver: Record<string, number> = {};
-
-    historicoTrips.forEach((data) => {
-      const mId = data.motoristaId;
-      if (!mId) return;
-      const valor = Number(data.valor) || 0;
-      earningsByDriver[mId] = (earningsByDriver[mId] || 0) + valor;
-    });
-
-    const driversInCompany = new Set<string>();
-    allCompanyMembers
-      .filter((member) => member.companyId === currentActiveCompany.id)
-      .forEach((member) => {
-        if (member.userId) driversInCompany.add(member.userId);
-      });
-
-    Object.keys(earningsByDriver).forEach((driverId) =>
-      driversInCompany.add(driverId),
-    );
-    driversInCompany.add(currentUser.id);
-
-    const leaderboard = Array.from(driversInCompany).map((driverId) => ({
-      id: driverId,
-      ganhos: earningsByDriver[driverId] || 0,
-    }));
-
-    leaderboard.sort((a, b) => b.ganhos - a.ganhos);
-
-    const position =
-      leaderboard.findIndex((item) => item.id === currentUser.id) + 1;
-
-    let diffToNext: number | null = null;
-    if (position > 1) {
-      const nextPerson = leaderboard[position - 2];
-      const currentGanhos = earningsByDriver[currentUser.id] || 0;
-      diffToNext = nextPerson.ganhos - currentGanhos;
-    }
-
-    setGlobalRank({
-      position: position > 0 ? position : leaderboard.length,
-      total: leaderboard.length,
-      diffToNext,
-    });
-  }, [
-    currentActiveCompany?.id,
-    currentUser?.id,
-    historicoTrips,
-    allCompanyMembers,
-    needsProfileMetrics,
-  ]);
 
   const handleRequestWork = async () => {
     try {
@@ -821,305 +870,99 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     ? new Date((currentMembership as any).joinedAt).toLocaleDateString("pt-BR")
     : "Recente";
 
-  const pageOptions = [
-    { id: "dashboard", label: "Painel Operacional", icon: LayoutDashboard },
-    { id: "profile", label: "Meu Perfil", icon: UserIcon },
-    { id: "history", label: "Histórico de Viagens", icon: History },
-    { id: "operations", label: "Histórico de Operações", icon: Package },
-    { id: "reports", label: "Relatórios", icon: Activity },
-  ];
+  const resultTrips = useMemo(() =>
+    visitedTabs.has("results") || activeTab === "results"
+      ? filterAndSortTripHistory(historicoTrips, { periodPreset: "todos" })
+          .map(trip => applySimulatorCurrencyContext(trip, companies, simulators))
+      : [], [activeTab, visitedTabs, historicoTrips, companies, simulators]);
 
-  const activePageDetails =
-    pageOptions.find((p) => p.id === activeTab) || pageOptions[0];
-  const ActiveIcon = activePageDetails.icon;
-
-  const renderPageSelector = () => (
-    <div className="nvu-profile-company-bar w-full flex flex-col gap-2 sm:gap-3 mt-1 sm:mt-2 mb-2 sm:mb-3 z-20">
-      <div className="w-full flex flex-row items-stretch justify-between gap-2 sm:gap-4">
-        <div
-          className={cn(
-            "min-w-0 sm:flex-1",
-            activeTab === "dashboard" ? "flex-[4.5]" : "flex-1",
-          )}
-        >
-          <button
-            onClick={() => setIsPageSelectorOpen(!isPageSelectorOpen)}
-            className="w-full h-9 sm:h-[56px] bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-lg sm:rounded-[12px] px-2 sm:px-4 flex items-center justify-center gap-1.5 sm:gap-[12px] shadow-sm active:scale-[0.99] transition-transform"
-          >
-            <ActiveIcon
-              size={14}
-              className="text-slate-600 dark:text-slate-400 shrink-0 sm:!w-[20px] sm:!h-[20px]"
-            />
-            <span className="text-[11px] sm:text-[16px] font-semibold text-slate-800 dark:text-slate-200 truncate leading-none sm:leading-none">
-              {activePageDetails.label}
-            </span>
-            <ChevronDown
-              size={14}
-              className={cn(
-                "text-slate-400 shrink-0 transition-transform sm:!w-[20px] sm:!h-[20px]",
-                isPageSelectorOpen && "rotate-180",
-              )}
-            />
-          </button>
+  const renderWorkspaceHeading = () => (
+    <>
+      {activeTab === "profile" ? <DriverProfileToolbar view={profileView} onViewChange={setProfileView}
+        infoOpen={isInfoOpen} onInfo={() => setIsInfoOpen(value => !value)} onEdit={() => setIsEditProfileOpen(true)}/> :
+      (activeTab !== "dashboard" || displayActiveJob) && <header className="nvu-driver-page-heading" data-page={activeTab}>
+        <div>
+          <h1>{activeTab === "dashboard" ? (landscapeWorkspace ? "Painel do motorista" : "Operação atual") : activeTab === "results" ? "Resultados" : "Atividade"}</h1>
+          {activeTab === "dashboard" && <p>Acompanhe suas entregas e o prazo.</p>}
+          {activeTab === "results" && <p>Ganhos e relatórios</p>}
+          {(activeTab === "activity" || activeTab === "operations") && <p>Suas viagens e operações</p>}
         </div>
-
-        {activeTab === "dashboard" && (
-          <div className="min-w-0 sm:flex-1 flex-[5.5]">
-            <button
-              onClick={() => void handleTripAction()}
-              className={cn(
-                "w-full h-9 sm:h-[56px] rounded-lg sm:rounded-[12px] shadow-sm flex items-center justify-center gap-1.5 sm:gap-[12px] transition-colors",
-                activeJob && isTripRecordableJobStatus(activeJob.status)
-                  ? "bg-[#1f242d] hover:bg-[#2a303c] active:bg-[#151921] text-white dark:bg-slate-200 dark:hover:bg-slate-300 dark:text-slate-800"
-                  : "bg-gray-400 dark:bg-gray-600 text-white cursor-not-allowed opacity-80",
-              )}
-            >
-              {activeJob && isTripRecordableJobStatus(activeJob.status) ? (
-                <Navigation
-                  size={14}
-                  className="shrink-0 sm:!w-[20px] sm:!h-[20px]"
-                />
-              ) : (
-                <Lock
-                  size={14}
-                  className="shrink-0 sm:!w-[20px] sm:!h-[20px]"
-                />
-              )}
-              <span className="text-[11px] sm:text-[16px] font-semibold tracking-wide sm:tracking-normal leading-none sm:leading-none">
-                Iniciar trabalho
-              </span>
-            </button>
-          </div>
-        )}
-
-        {activeTab === "profile" && (
-          <div className="shrink-0 relative">
-            <button
-              onClick={() => setIsConfigMenuOpen(!isConfigMenuOpen)}
-              className="w-9 h-9 sm:w-[56px] sm:h-[56px] bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-lg sm:rounded-[12px] flex items-center justify-center shadow-sm active:scale-[0.99] transition-transform hover:bg-slate-50 dark:hover:bg-[#2A2F3A]"
-            >
-              <Settings
-                size={16}
-                className="text-slate-600 dark:text-slate-400 sm:!w-[22px] sm:!h-[22px]"
-              />
-            </button>
-
-            {isConfigMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-lg shadow-lg overflow-hidden z-30 animate-in fade-in zoom-in-95">
-                <button
-                  onClick={() => {
-                    setIsConfigMenuOpen(false);
-                    setIsEditProfileOpen(true);
-                  }}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-[13px] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors"
-                >
-                  <Edit size={16} className="text-slate-500" />
-                  Editar Perfil
-                </button>
-                <button
-                  onClick={() => {
-                    setIsConfigMenuOpen(false);
-                    setIsInfoOpen(!isInfoOpen);
-                  }}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-[13px] text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors border-t border-slate-100 dark:border-slate-800/60"
-                >
-                  <Info size={16} className="text-slate-500" />
-                  {isInfoOpen ? "Ocultar Info" : "Ver Informações"}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {isPageSelectorOpen && (
-        <div className="w-full bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-lg shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2">
-          {pageOptions.map((opt) => {
-            const Icon = opt.icon;
-            return (
-              <button
-                key={opt.id}
-                onClick={() => selectProfilePage(opt.id)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 sm:px-4 sm:py-3 border-b border-slate-100 dark:border-[#2A2F3A] last:border-0 hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors text-left",
-                  activeTab === opt.id ? "bg-slate-50 dark:bg-[#2A2F3A]" : "",
-                )}
-              >
-                <Icon
-                  size={16}
-                  className={cn(
-                    activeTab === opt.id
-                      ? "text-blue-600 dark:text-[#0cb49f]"
-                      : "text-slate-500",
-                  )}
-                />
-                <span
-                  className={cn(
-                    "text-[13px] sm:text-[14px] font-semibold",
-                    activeTab === opt.id
-                      ? "text-blue-700 dark:text-[#0cb49f]"
-                      : "text-slate-600 dark:text-slate-300",
-                  )}
-                >
-                  {opt.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
+      </header>}
+      {(activeTab === "activity" || activeTab === "operations") &&
+        <div className="nvu-driver-tabs" aria-label="Tipo de atividade">
+          <button type="button" aria-pressed={activeTab === "activity"} onClick={() => selectProfilePage("activity")}>Viagens</button>
+          <button type="button" aria-pressed={activeTab === "operations"} onClick={() => selectProfilePage("operations")}>Operações</button>
+        </div>}
+    </>
   );
 
   return (
-    <div className="w-full flex flex-col gap-3 sm:gap-4 pb-8">
+    <div className="nvu-driver-workspace w-full flex flex-col gap-3 sm:gap-4" data-profile-page={activeTab} data-landscape-dashboard={landscapeDashboard ? "true" : undefined}>
+      {maintenanceMode && (
+        <WorkModeMaintenanceDialog
+          mode={maintenanceMode === "simple" ? "pro" : maintenanceMode}
+          simulator={isGtoWork ? "GTO" : simpleAutomationSimulator?.key || "GTO"}
+          onClose={() => setMaintenanceMode(null)}
+        />
+      )}
       <GtoWorkModeDialog
         open={isGtoModeDialogOpen}
         variant={isGtoWork ? "gto" : "simple"}
         simulatorLabel={simpleAutomationSimulator?.shortLabel}
-        busy={isSimpleAutomationStarting}
+        vehiclePhoto={vehiclePhoto.src}
+        vehicleName={activeVehicle?.name || "Veículo atual"}
+        vehiclePhotoPending={vehiclePhoto.pending}
+        busy={isWorkModeChecking || isSimpleAutomationStarting}
         onClose={() => setIsGtoModeDialogOpen(false)}
         onSelect={handleGtoModeSelect}
       />
 
-      {/* iOS Style Nav Bar Content */}
-      <div className="flex items-center justify-center px-4 py-0 sm:py-2"></div>
-
-      <div className="nvu-profile-stack space-y-3 sm:space-y-4 w-full box-border">
+      <div className={cn("nvu-profile-stack space-y-3 sm:space-y-4 w-full box-border", (activeTab !== "dashboard" || landscapeDashboard) && "nvu-profile-cover-stack")}>
         {/* Action Buttons */}
 
         {/* Profile Header — hero visual inspirado na referência; handlers preservados. */}
-        <section
-          data-nvu-profile-banner
-          className="nvu-profile-hero relative isolate -mx-2 -mt-2 h-[300px] min-h-0 overflow-hidden rounded-b-[18px] bg-[#0e1d29] shadow-[0_18px_45px_rgba(7,23,37,0.18)] sm:-mx-4 sm:-mt-4 sm:h-[320px] sm:rounded-b-[22px]"
-          onClick={() => window.dispatchEvent(new CustomEvent("nvu-profile-banner-tapped", { detail: { scope: "driver" } }))}
-        >
-          <div className="absolute inset-0 overflow-hidden rounded-b-[18px] sm:rounded-b-[22px]">
-            {resolveDriverPhoto(currentUser) ? (
-              <StableImage
-                src={resolveDriverPhoto(currentUser)}
-                alt=""
-                loading="eager"
-                decoding="async"
-                fetchPriority="high"
-                wrapperClassName="absolute inset-0 h-full w-full"
-                className="object-cover object-[center_30%] opacity-100"
-                referrerPolicy="no-referrer"
-                fallback={<span className="h-full w-full bg-[radial-gradient(circle_at_72%_22%,#1a5362_0%,#102839_46%,#07131e_100%)]" />}
-              />
-            ) : (
-              <div className="h-full w-full bg-[radial-gradient(circle_at_72%_22%,#1a5362_0%,#102839_46%,#07131e_100%)]" />
-            )}
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,16,28,0.02)_0%,rgba(4,16,28,0.06)_42%,rgba(4,16,28,0.40)_100%)]" />
-            <div className="absolute inset-y-0 left-0 w-2/3 bg-[linear-gradient(90deg,rgba(4,16,28,0.26)_0%,rgba(4,16,28,0.18)_62%,transparent_100%)]" />
-          </div>
+        {activeTab === "dashboard" && !landscapeDashboard ? <ProfileHero compactIdentity scope="driver" name={currentUser.name} description={currentUser.roles?.includes("admin") ? "Administrador" : "Motorista Parceiro"}
+          image={resolveDriverPhoto(currentUser)} viewerId={currentUser.id} assetId={`driver-profile:${currentUser.id}`}
+          simulator={getSimulatorLabel(currentActiveCompany)} simulatorOpen={isSimulatorMenuOpen} onSimulator={() => setIsSimulatorMenuOpen(!isSimulatorMenuOpen)} /> :
+          <ProfileCoverHero scope="driver" profileId={currentUser.id} profile={currentUser} name={currentUser.name} description="Motorista Parceiro"
+            avatar={resolveDriverPhoto(currentUser)} viewerId={currentUser.id} canEdit
+            simulator={getSimulatorLabel(currentActiveCompany)} simulatorOpen={isSimulatorMenuOpen} onSimulator={() => setIsSimulatorMenuOpen(true)} />}
 
-          <div className="relative z-10 flex h-full min-h-0 flex-col justify-end p-4 pb-5 pt-[calc(env(safe-area-inset-top)+3.75rem)] sm:p-6 sm:pb-6 sm:pt-[calc(env(safe-area-inset-top)+3.75rem)]">
-            <div className="flex items-end justify-between gap-4 sm:gap-6">
-              <div className="flex min-w-0 flex-1 items-end gap-3 sm:gap-4">
-                <div className="flex h-11 w-1 shrink-0 items-center justify-center rounded-full bg-[#13c9b4] shadow-[0_0_18px_rgba(19,201,180,0.55)] sm:h-16" />
-                <div className="min-w-0 text-white">
-                  <div className="flex items-center gap-2">
-                    <UserIcon size={19} className="shrink-0 text-white/95 sm:h-6 sm:w-6" />
-                    <h2 className="truncate text-[18px] font-extrabold leading-tight tracking-[-0.02em] text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.65)] sm:text-[22px]">{currentUser.name}</h2>
-                  </div>
-                  <p className="mt-1 text-[12px] font-medium text-white/90 sm:text-[14px]">
-                    {currentUser.roles?.includes("admin") ? "Administrador" : "Motorista Parceiro"}
-                  </p>
-                </div>
-              </div>
+        <SimulatorSelectionModal
+          open={isSimulatorMenuOpen}
+          items={simulatorCompanies.map((company) => ({ id: company.id, label: getSimulatorLabel(company) || "Global Truck" }))}
+          selectedId={activeCompanyId}
+          onSelect={setActiveCompanyId}
+          onClose={() => setIsSimulatorMenuOpen(false)}
+        />
 
-              <div className="relative w-[118px] shrink-0 self-end rounded-xl border border-white/25 bg-slate-950/12 p-1 shadow-[0_6px_18px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:w-[134px] sm:rounded-2xl sm:p-1.5">
-                <span className="block px-1 text-[8px] font-bold uppercase tracking-[0.17em] text-white/75 sm:text-[9px]">Simulador</span>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsSimulatorMenuOpen(!isSimulatorMenuOpen);
-                  }}
-                  className="mt-0.5 flex w-full items-center justify-between gap-1 rounded-lg border border-white/35 bg-white/8 px-1.5 py-1 text-left transition-colors hover:bg-white/15 active:scale-[0.98] sm:px-2 sm:py-1.5"
-                  aria-expanded={isSimulatorMenuOpen}
-                  aria-haspopup="listbox"
-                >
-                  <span className="flex min-w-0 items-center gap-1 text-[10px] font-bold text-white sm:text-[11px]">
-                    <Truck size={15} className="shrink-0 text-white/95 sm:h-4 sm:w-4" />
-                    <span className="truncate">{getSimulatorLabel(currentActiveCompany) || "G. Truck"}</span>
-                  </span>
-                  <ChevronDown size={15} className={cn("shrink-0 text-white/90 transition-transform", isSimulatorMenuOpen && "rotate-180")} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
+        <div className="nvu-driver-surface" data-page={activeTab}>
+        {renderWorkspaceHeading()}
 
-        {isSimulatorMenuOpen && createPortal(
-          <div
-            className="nvu-simulator-modal-overlay nvu-simulator-modal-overlay-native fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-[2px]"
-            role="presentation"
-            onClick={(event) => {
-              if (event.target === event.currentTarget) setIsSimulatorMenuOpen(false);
-            }}
-          >
-            <div
-              className="nvu-simulator-modal w-full max-w-[380px] max-h-[min(72vh,520px)] overflow-y-auto rounded-[28px] border border-slate-200 bg-white p-3 shadow-[0_24px_80px_rgba(15,23,42,0.30)] animate-in fade-in zoom-in-95 dark:border-[#2A2F3A] dark:bg-[#1A1F26]"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="profile-simulator-modal-title"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-1">
-                <div>
-                  <p id="profile-simulator-modal-title" className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">Selecione o simulador</p>
-                  <p className="mt-1 text-[12px] text-slate-400 dark:text-slate-500">Escolha o ambiente de trabalho do motorista.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsSimulatorMenuOpen(false)}
-                  className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-[#2A2F3A] dark:hover:text-white"
-                  aria-label="Fechar seletor de simulador"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="grid gap-1.5 pt-1" role="listbox" aria-label="Simuladores disponíveis">
-                {simulatorCompanies.map((c) => {
-                  const isSelected = c.id === activeCompanyId;
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => {
-                        setActiveCompanyId(c.id);
-                        setIsSimulatorMenuOpen(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-2xl border px-3.5 py-3 text-left transition-colors active:scale-[0.99]",
-                        isSelected
-                          ? "border-teal-300 bg-teal-50 text-slate-900 dark:border-teal-500/40 dark:bg-teal-500/10 dark:text-white"
-                          : "border-transparent text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-[#2A2F3A]",
-                      )}
-                      role="option"
-                      aria-selected={isSelected}
-                    >
-                      <span className="truncate text-[13px] font-semibold">{getSimulatorLabel(c) || "Global Truck"}</span>
-                      {isSelected && <Check size={17} className="shrink-0 text-teal-600 dark:text-teal-300" />}
-                    </button>
-                  );
-                })}
-                {simulatorCompanies.length === 0 && (
-                  <div className="px-3 py-4 text-center text-[12px] text-slate-500">Nenhum simulador disponível</div>
-                )}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+        {(visitedTabs.has("activity") || activeTab === "activity") &&
+          <RetainedPanel active={activeTab === "activity"}>
+            <HistoryReadCoverageNotice coverage={driverTripState.coverage} hasError={Boolean(driverTripState.error)} error={driverTripState.error} readCoverage={driverTripState.readCoverage} />
+            <TripHistory key={`${currentUser.id}:${activeCompanyId}:activity`}
+              compactDriverView hideHeader hideHeaderActions hideDriverFilter mode="driver"
+              defaultDriverId={currentUser.id} defaultDriverName={currentUser.name}
+              historicoTripsOverride={historicoTrips}
+              historyLoadingOverride={driverTripsLoading} historyErrorOverride={driverTripState.error} />
+          </RetainedPanel>}
 
-        {renderPageSelector()}
+        {(visitedTabs.has("results") || activeTab === "results") &&
+          <RetainedPanel active={activeTab === "results"}>
+            <HistoryReadCoverageNotice coverage={driverTripState.coverage} hasError={Boolean(driverTripState.error)} error={driverTripState.error} readCoverage={driverTripState.readCoverage} />
+            <DriverResults key={`${currentUser.id}:${activeCompanyId}:results`} trips={resultTrips}
+              loading={driverTripsLoading} onTripsReport={() => selectProfilePage("reports")}
+              onOperationReport={() => selectProfilePage("operations")} />
+          </RetainedPanel>}
 
         {(visitedTabs.has("profile") || activeTab === "profile") && (
-          <div className={cn(activeTab !== "profile" && "hidden", "space-y-6 sm:space-y-8")}>
+          <RetainedPanel active={activeTab === "profile"} className="space-y-6 sm:space-y-8">
+            <HistoryReadCoverageNotice coverage={driverTripState.coverage} hasError={Boolean(driverTripState.error)} error={driverTripState.error} readCoverage={driverTripState.readCoverage} />
             {/* Driver Details Info Card */}
             {isInfoOpen && (
-              <div className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[16px] p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2">
+              <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[16px] p-4 sm:p-5 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/10 dark:border-blue-500/20 flex items-center justify-center shrink-0">
@@ -1181,6 +1024,28 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
             {showSecondary && (
               needsProfileMetrics ? (
                 <DriverPerformanceCard
+                  rankingScope={profileRankingScope}
+                  hideScopeSelector
+                  profilePresentation={{
+                    view: profileView,
+                    periodType: profilePeriodType,
+                    onPeriodChange: setProfilePeriodType,
+                    onScopeChange: setProfileRankingScope,
+                    viewerId: currentUser.id,
+                    company: currentActiveCompany ? {
+                      id: currentActiveCompany.id,
+                      name: currentActiveCompany.companyName || currentActiveCompany.name || currentActiveCompany.fleetName || "Empresa vinculada",
+                      logo: currentActiveCompany.logoUrl || currentActiveCompany.logoURL || currentActiveCompany.companyLogoURL,
+                    } : null,
+                    companyLoading: Boolean(activeCompanyId && companiesLoading),
+                    vehicle: displayActiveJob?.vehicleId ? {
+                      id: String(displayActiveJob.vehicleId),
+                      name: activeVehicle?.name || displayJobData.vehicleName || "Veículo atual",
+                      photo: vehiclePhoto.src,
+                      onPhotoLoad: vehiclePhoto.onImageLoad,
+                      onPhotoError: vehiclePhoto.onImageError,
+                    } : null,
+                  }}
                   historicoTrips={historicoTrips}
                   driverId={currentUser?.id}
                   activeCompanyId={activeCompanyId}
@@ -1209,12 +1074,11 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                 <div className="min-h-[220px]" aria-hidden="true" />
               )
             )}
-          </div>
+          </RetainedPanel>
         )}
 
         {(visitedTabs.has("operations") || activeTab === "operations") && (
-          <div className={cn(activeTab !== "operations" && "hidden", "space-y-6 sm:space-y-8")}>
-            <div className="flex flex-col gap-3">
+          <RetainedPanel active={activeTab === "operations"} className="space-y-3">
               {!activeJob && activeOperationResolved && currentUser.isOnline && (
                 <Button
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-12 font-bold text-[14px] shadow-sm tracking-tight transition-all"
@@ -1224,31 +1088,18 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                   Solicitar Nova Operação
                 </Button>
               )}
-            </div>
 
-            {/* Date Filter */}
-            <div className="flex flex-col gap-3">
-              <div className="relative group w-full">
-                <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-gray-400">
-                  <Calendar size={16} />
-                </div>
-                <select
-                  value={periodFilter}
-                  onChange={(e) => setPeriodFilter(e.target.value as any)}
-                  className="w-full appearance-none bg-slate-50 dark:bg-[#1A1F26] border border-slate-200/80 dark:border-white/5 rounded-[14px] pl-10 pr-10 py-3 text-[13px] font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-teal-500/20 cursor-pointer hover:bg-slate-100 dark:hover:bg-white/5 transition-colors shadow-sm"
-                >
-                  <option value="all">Tudo</option>
-                  <option value="hoje">Hoje</option>
-                  <option value="semana">Semana Atual</option>
-                  <option value="mes">Mês Atual</option>
-                  <option value="custom">
-                    Personalizado
-                  </option>
-                </select>
-                <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400">
-                  <ChevronDown size={16} />
-                </div>
-              </div>
+            {/* Compact period picker, shared with trips and results. */}
+            <div className="nvu-driver-operation-filters">
+              <ModalSelect title="Período das operações" description="Escolha o período do histórico de operações."
+                value={periodFilter} onChange={event => setPeriodFilter(event.target.value as typeof periodFilter)}
+                className="nvu-driver-period-select" icon={<CalendarDays size={16} aria-hidden="true" />}>
+                <option value="all">Todo o período</option>
+                <option value="hoje">Hoje</option>
+                <option value="semana">Esta semana</option>
+                <option value="mes">Este mês</option>
+                <option value="custom">Personalizado</option>
+              </ModalSelect>
 
               {periodFilter === "custom" && (
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 animate-in slide-in-from-top-2 duration-200">
@@ -1259,9 +1110,10 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                       </div>
                       <input
                         type="date"
+                        aria-label="Início do período das operações"
                         value={customStartDate}
                         onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="w-full bg-gray-100 dark:bg-[#18181b] text-gray-700 dark:text-[#d4d4d8] text-[12px] sm:text-[13px] font-medium border border-transparent rounded-xl pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 sm:py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 shadow-sm dark:shadow-none transition-all"
+                        className="w-full bg-gray-100 dark:bg-nvu-surface text-gray-700 dark:text-nvu-text-soft text-[12px] sm:text-[13px] font-medium border border-transparent rounded-xl pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 sm:py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 shadow-sm dark:shadow-none transition-all"
                       />
                     </div>
                   </div>
@@ -1272,9 +1124,10 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                       </div>
                       <input
                         type="date"
+                        aria-label="Fim do período das operações"
                         value={customEndDate}
                         onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="w-full bg-gray-100 dark:bg-[#18181b] text-gray-700 dark:text-[#d4d4d8] text-[12px] sm:text-[13px] font-medium border border-transparent rounded-xl pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 sm:py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 shadow-sm dark:shadow-none transition-all"
+                        className="w-full bg-gray-100 dark:bg-nvu-surface text-gray-700 dark:text-nvu-text-soft text-[12px] sm:text-[13px] font-medium border border-transparent rounded-xl pl-8 sm:pl-9 pr-2 sm:pr-3 py-2 sm:py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:focus:ring-white/10 shadow-sm dark:shadow-none transition-all"
                       />
                     </div>
                   </div>
@@ -1282,231 +1135,31 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
               )}
             </div>
 
-            {/* Active Job Section */}
-            <div>
-              <h3 className="text-[11px] font-bold text-slate-500 dark:text-slate-400/80 uppercase tracking-[0.15em] mb-4 px-1">
-                Operação Ativa
-              </h3>
-              {activeOperationCardJob ? (
-                <div className="order-3 flex flex-col bg-white dark:bg-[#1A1F26] rounded-2xl sm:rounded-[24px] shadow-sm dark:shadow-none border border-gray-200 dark:border-[#2A2F3A] overflow-hidden mb-3 sm:mb-4">
-                  {/* Header */}
-                  <div className="relative overflow-hidden bg-[#1f242d] dark:bg-[#151921] p-3 sm:p-4 w-full">
-                    {/* Subtle glow effect */}
-                    <div className="absolute top-[-50%] right-[-10%] w-[150px] h-[150px] bg-white/5 rounded-full blur-[40px] pointer-events-none"></div>
+          </RetainedPanel>
+        )}
 
-                    <div className="flex justify-between items-start z-10 relative gap-3">
-                      <div className="flex flex-col pr-2 min-w-0">
-                        <span className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1 mt-0.5">
-                          Operação atual
-                        </span>
-                        <h3 className="font-bold text-white text-[22px] sm:text-[26px] tracking-tight leading-none mb-1.5">
-                          {activeOperationName}
-                        </h3>
-                        <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium leading-none truncate whitespace-nowrap">
-                          Siga as especificações do transporte.
-                        </p>
-                      </div>
+        {(visitedTabs.has("dashboard") || activeTab === "dashboard" || visitedTabs.has("operations") || activeTab === "operations") && (
+          <RetainedPanel active={activeTab === "dashboard" || activeTab === "operations"}>
+            {showSecondary && <>
+              {activeTab === "operations" && <h2 className="nvu-driver-section-title">Operação ativa</h2>}
+              <Dashboard
+                isIntegrated={true}
+                operationCardOnly={activeTab === "operations"}
+                tripHistoryOverride={driverTripState.trips}
+                tripHistoryLoadingOverride={driverTripsLoading}
+                tripHistoryReadyOverride={driverTripState.historyReady}
+                progressAnimationKey={`${location.key}:${activeTab}:dashboard`}
+                vehiclePhotoOverride={vehiclePhoto}
+              />
+            </>}
+          </RetainedPanel>
+        )}
 
-                      <div className="shrink-0 flex pt-0.5">
-                        <span className="px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold border border-[#0cb49f]/20 bg-[#0cb49f]/10 text-[#0cb49f] rounded-full flex items-center gap-1 whitespace-nowrap tracking-wide">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#0cb49f]"></span>
-                          TRABALHO ATIVO
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="p-3 pb-2 sm:p-4 sm:pb-3 flex flex-col gap-2.5">
-                    {/* Buttons Row (Vehicles and Trailer) */}
-                    <div className="flex flex-col gap-1.5">
-                      <button className="flex items-center justify-between border border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1f242d] rounded-[10px] py-1.5 px-3 text-left group shadow-sm dark:shadow-none cursor-default">
-                        <div className="flex flex-col w-full justify-center">
-                          <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-0.5">
-                            Veículo
-                          </span>
-                          <span className="text-[11px] sm:text-[12px] font-bold text-slate-800 dark:text-[#fafafa] leading-tight break-words">
-                            {activeVehicle?.name || "Nenhum"}
-                          </span>
-                        </div>
-                        <ChevronRight
-                          size={14}
-                          className="text-gray-300 dark:text-gray-600 shrink-0 ml-2"
-                        />
-                      </button>
-
-                      {!trailerlessSimulator && (
-                        <button className="flex items-center justify-between border border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1f242d] rounded-[10px] py-1.5 px-3 text-left group shadow-sm dark:shadow-none cursor-default">
-                          <div className="flex flex-col w-full justify-center">
-                            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider leading-none mb-0.5">
-                              Reboque
-                            </span>
-                            <span className="text-[11px] sm:text-[12px] font-bold text-slate-800 dark:text-[#fafafa] leading-tight break-words">
-                              {activeTrailer?.name || "Nenhum"}
-                            </span>
-                          </div>
-                          <ChevronRight
-                            size={14}
-                            className="text-gray-300 dark:text-gray-600 shrink-0 ml-2"
-                          />
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Metrics */}
-                    <div className="border border-gray-100 dark:border-[#2A2F3A] bg-gray-50/50 dark:bg-[#1f242d] rounded-[8px] flex items-center shadow-sm dark:shadow-none mt-0.5">
-                      <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-gray-100 leading-none tracking-tight mb-0.5">
-                            {activeJobProgress}/{activeOperationTotalDeliveries || "—"}
-                        </span>
-                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
-                          Entregas
-                        </span>
-                      </div>
-
-                      <div className="w-px h-6 bg-gray-200/60 dark:bg-[#2A2F3A] shrink-0"></div>
-
-                      <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-gray-100 leading-none tracking-tight mb-0.5">
-                          {activeOperationTotalDeliveries > 0
-                            ? Math.max(
-                                0,
-                                activeOperationTotalDeliveries - activeJobProgress,
-                              )
-                            : "—"}
-                        </span>
-                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
-                          Faltam
-                        </span>
-                      </div>
-
-                      <div className="w-px h-6 bg-gray-200/60 dark:bg-[#2A2F3A] shrink-0"></div>
-
-                      <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                        <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-gray-100 leading-none tracking-tight mb-0.5">
-                          {activeOperationTotalDeliveries > 0
-                            ? `${Math.round(
-                                (activeJobProgress /
-                                  activeOperationTotalDeliveries) *
-                                  100,
-                              )}%`
-                            : "—"}
-                        </span>
-                        <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-gray-500 uppercase tracking-wider font-semibold">
-                          Concluído
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Compact Progress bar */}
-                    <div className="flex flex-col gap-1.5 mt-1 mb-0.5">
-                      <OperationProgressBar
-                        percent={
-                          activeOperationTotalDeliveries > 0
-                            ? Math.round(
-                                (activeJobProgress /
-                                  activeOperationTotalDeliveries) *
-                                  100,
-                              )
-                            : 0
-                        }
-                        replayKey={`${location.key}:${activeTab}:${activeOperationCardJob.id}`}
-                      />
-                      <p className="text-[8px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-500 text-center">
-                        Progresso da operação
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Footer - Limit/Time */}
-                  <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1A1F26] px-3 py-2 sm:px-4 sm:py-2.5 shrink-0 w-full overflow-hidden">
-                    <div className="flex flex-1 items-center gap-2 min-w-0 pr-1">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-gray-50 dark:bg-[#2A2F3A] flex flex-shrink-0 items-center justify-center border border-gray-100 dark:border-transparent">
-                        <CalendarDays
-                          size={12}
-                          className="text-gray-600 dark:text-gray-400"
-                        />
-                      </div>
-                      <div className="flex flex-col min-w-0 overflow-hidden text-left">
-                        <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">
-                          Prazo limite
-                        </span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 dark:text-gray-200 whitespace-nowrap overflow-visible leading-none">
-                          {activeJob.deadlineDate
-                            ? new Date(
-                                activeJob.deadlineDate,
-                              ).toLocaleDateString("pt-BR")
-                            : "Não definido"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="w-px h-5 bg-gray-100 dark:bg-[#2A2F3A] shrink-0 mx-1"></div>
-
-                    <div className="flex flex-1 items-center justify-end gap-2 min-w-0 pl-1 text-right">
-                      <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-gray-50 dark:bg-[#2A2F3A] flex flex-shrink-0 items-center justify-center order-1 border border-gray-100 dark:border-transparent">
-                        <Clock
-                          size={12}
-                          className="text-gray-600 dark:text-gray-400"
-                        />
-                      </div>
-                      <div className="flex flex-col min-w-0 overflow-hidden order-0">
-                        <span className="text-[7px] sm:text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">
-                          Tempo restante
-                        </span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-slate-800 dark:text-gray-200 whitespace-nowrap overflow-visible leading-none truncate">
-                          {(() => {
-                            if (!displayJobData.deadlineDate) return "Não definido";
-                            const diffMs =
-                              new Date(displayJobData.deadlineDate).getTime() -
-                              new Date().getTime();
-                            if (diffMs <= 0) return "Vencido";
-                            const d = Math.floor(
-                              diffMs / (1000 * 60 * 60 * 24),
-                            );
-                            const h = Math.floor(
-                              (diffMs / (1000 * 60 * 60)) % 24,
-                            );
-                            const m = Math.floor((diffMs / 1000 / 60) % 60);
-                            return `${d} dias - ${h}h - ${m}min`;
-                          })()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : !activeOperationResolved ? (
-                <div
-                  className="min-h-[160px] bg-white dark:bg-[#1A1F26] border border-slate-200/80 dark:border-white/5 rounded-[24px] p-5 shadow-sm"
-                  aria-live="polite"
-                >
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/5 animate-pulse" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-3 w-36 rounded bg-slate-100 dark:bg-white/5 animate-pulse" />
-                      <div className="h-2.5 w-24 rounded bg-slate-100 dark:bg-white/5 animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="space-y-2.5">
-                    <div className="h-10 rounded-xl bg-slate-50 dark:bg-white/[0.035] animate-pulse" />
-                    <div className="h-10 rounded-xl bg-slate-50 dark:bg-white/[0.035] animate-pulse" />
-                  </div>
-                  <p className="mt-4 text-[12px] text-slate-500 dark:text-slate-400 font-medium text-center">
-                    Sincronizando operação atual
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-white dark:bg-[#1A1F26] border border-slate-200/80 dark:border-white/5 border-dashed rounded-[24px] p-8 text-center shadow-sm">
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 font-medium">
-                    Nenhuma operação em andamento
-                  </p>
-                </div>
-              )}
-            </div>
-
+        {(visitedTabs.has("operations") || activeTab === "operations") && (
+          <RetainedPanel active={activeTab === "operations"}>
             {/* Job History */}
             <div className="pb-6">
-              <h3 className="text-[13px] font-bold text-gray-900 dark:text-[#fafafa] mb-3 px-1">
+              <h3 className="text-[13px] font-bold text-gray-900 dark:text-nvu-text mb-3 px-1">
                 Histórico
               </h3>
               {filteredHistoryJobs.length > 0 ? (
@@ -1542,29 +1195,17 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                     );
                     const isExpanded = expandedJobId === job.id;
 
-                    const jobTrips = normalizedAllTrips.filter((trip) => {
-                      if (!trip.isValid) return false;
-                      if (trip.jobId && trip.jobId === job.id) return true;
-                      if (trip.contratoId !== job.contractId) return false;
-                      if (trip.motoristaId !== currentUser.id) return false;
-
-                      const tripTime = trip.metricDate.getTime();
-                      const assignedTime = rawAssignedAt
-                        ? rawAssignedAt.getTime()
-                        : 0;
-                      const completedTime = rawCompletedAt
-                        ? rawCompletedAt.getTime()
-                        : Date.now() + 86400000;
-
-                      return (
-                        tripTime >= assignedTime && tripTime <= completedTime
-                      );
-                    });
-
-                    const totalGanhos = jobTrips.reduce(
-                      (acc, trip) => acc + trip.normalizedValor,
-                      0,
+                    const jobTrips = getFilteredTrips(
+                      selectCanonicalOperationTrips(job, historicoTrips, currentUser.id).map(normalizeTrip),
+                      undefined,
+                      undefined,
+                      undefined,
+                      undefined,
+                      allCompanies,
+                      undefined,
+                      simulators,
                     );
+                    const jobMoneyGroups = summarizeTripMoney(jobTrips);
 
                     let tempoExecucao = "-";
                     let tempoRestanteOuAtraso = "-";
@@ -1620,7 +1261,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                       <div
                         key={job.id}
                         className={cn(
-                          "bg-slate-50 dark:bg-[#1A1F26] border rounded-2xl transition-all shadow-sm overflow-hidden",
+                          "bg-slate-50 dark:bg-nvu-surface border rounded-2xl transition-all shadow-sm overflow-hidden",
                           isExpanded
                             ? "border-slate-300 dark:border-white/20 ring-1 ring-slate-200 dark:ring-white/10"
                             : "border-slate-200/80 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10",
@@ -1677,7 +1318,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                                 </span>
                               </div>
                             </div>
-                            <div className="text-slate-400 dark:text-slate-500 shrink-0 ml-2">
+                            <div className="text-slate-400 dark:text-nvu-muted shrink-0 ml-2">
                               <ChevronRight
                                 size={18}
                                 className={cn(
@@ -1696,38 +1337,38 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                             <div className="flex items-center gap-1.5 shrink-0">
                               <Package
                                 size={13}
-                                className="text-gray-500 dark:text-gray-400 shrink-0"
+                                className="text-gray-500 dark:text-nvu-muted shrink-0"
                               />
-                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                                {job.progress}{" "}
-                                {job.progress === 1 ? "viagem" : "viagens"}
+                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-nvu-text-soft whitespace-nowrap">
+                                {canonicalProgressByJobId.get(String(job.id)) || 0}{" "}
+                                {(canonicalProgressByJobId.get(String(job.id)) || 0) === 1 ? "viagem" : "viagens"}
                               </span>
                             </div>
 
                             {!jobTrailerlessSimulator && (
                               <>
-                                <div className="w-px h-3.5 bg-gray-200 dark:bg-gray-700/60 shrink-0"></div>
+                                <div className="w-px h-3.5 bg-gray-200 dark:bg-nvu-line shrink-0"></div>
 
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   <Truck
                                     size={13}
-                                    className="text-gray-500 dark:text-gray-400 shrink-0"
+                                    className="text-gray-500 dark:text-nvu-muted shrink-0"
                                   />
-                                  <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                  <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-nvu-text-soft whitespace-nowrap">
                                     {trailer?.name || "Nenhum"}
                                   </span>
                                 </div>
 
-                                <div className="w-px h-3.5 bg-gray-200 dark:bg-gray-700/60 shrink-0"></div>
+                                <div className="w-px h-3.5 bg-gray-200 dark:bg-nvu-line shrink-0"></div>
                               </>
                             )}
 
                             <div className="flex items-center gap-1.5 shrink-0 pr-1">
                               <Truck
                                 size={13}
-                                className="text-gray-500 dark:text-gray-400 shrink-0"
+                                className="text-gray-500 dark:text-nvu-muted shrink-0"
                               />
-                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                              <span className="text-[11px] sm:text-[11.5px] font-medium text-gray-700 dark:text-nvu-text-soft whitespace-nowrap">
                                 {vehicle?.name || "Nenhum"}
                               </span>
                             </div>
@@ -1736,7 +1377,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
 
                         {isExpanded && (
                           <div className="px-4 pb-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                            <div className="bg-gray-50 dark:bg-[#202024] rounded-xl border border-gray-100 dark:border-gray-800/60 p-2.5 mb-3 space-y-2">
+                            <div className="bg-gray-50 dark:bg-nvu-strip rounded-xl border border-gray-100 dark:border-nvu-line/60 p-2.5 mb-3 space-y-2">
                               {/* Total de Ganhos */}
                               <div className="flex items-center gap-2">
                                 <Banknote
@@ -1745,12 +1386,12 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                                   strokeWidth={2.5}
                                 />
                                 <div className="flex items-center gap-2 min-w-0 w-full">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted shrink-0">
                                     Total de ganhos:
                                   </span>
-                                  <span className="text-[11.5px] font-semibold text-green-600 dark:text-green-400 truncate">
-                                    {currencyFormatter.format(totalGanhos)}
-                                  </span>
+                                  <div className="text-[11.5px] font-semibold min-w-0 break-words">
+                                    <HistoryMoneySummary groups={jobMoneyGroups} />
+                                  </div>
                                 </div>
                               </div>
 
@@ -1758,14 +1399,14 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                               <div className="flex items-center gap-2">
                                 <CalendarDays
                                   size={11}
-                                  className="text-gray-400 dark:text-gray-500 shrink-0"
+                                  className="text-gray-400 dark:text-nvu-muted shrink-0"
                                   strokeWidth={2.5}
                                 />
                                 <div className="flex items-center gap-2 min-w-0 w-full">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted shrink-0">
                                     Prazo total:
                                   </span>
-                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-[#fafafa] truncate">
+                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-nvu-text truncate">
                                     {prazoTotal}
                                   </span>
                                 </div>
@@ -1775,14 +1416,14 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                               <div className="flex items-center gap-2">
                                 <Clock
                                   size={11}
-                                  className="text-gray-400 dark:text-gray-500 shrink-0"
+                                  className="text-gray-400 dark:text-nvu-muted shrink-0"
                                   strokeWidth={2.5}
                                 />
                                 <div className="flex items-center gap-2 min-w-0 w-full">
-                                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400 shrink-0">
+                                  <span className="text-[10px] font-medium text-gray-500 dark:text-nvu-muted shrink-0">
                                     Execução:
                                   </span>
-                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-[#fafafa] truncate">
+                                  <span className="text-[11.5px] font-semibold text-gray-900 dark:text-nvu-text truncate">
                                     {tempoExecucao}
                                   </span>
                                 </div>
@@ -1796,7 +1437,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                                     "shrink-0",
                                     isAtrasado
                                       ? "text-red-500 dark:text-red-400"
-                                      : "text-gray-400 dark:text-gray-500",
+                                      : "text-gray-400 dark:text-nvu-muted",
                                   )}
                                   strokeWidth={2.5}
                                 />
@@ -1806,7 +1447,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                                       "text-[10px] font-medium shrink-0",
                                       isAtrasado
                                         ? "text-red-600/80 dark:text-red-400/80"
-                                        : "text-gray-500 dark:text-gray-400",
+                                        : "text-gray-500 dark:text-nvu-muted",
                                     )}
                                   >
                                     {isAtrasado ? "Atraso:" : "Tempo restante:"}
@@ -1816,7 +1457,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                                       "text-[11.5px] font-semibold truncate",
                                       isAtrasado
                                         ? "text-red-600 dark:text-red-400"
-                                        : "text-gray-900 dark:text-[#fafafa]",
+                                        : "text-gray-900 dark:text-nvu-text",
                                     )}
                                   >
                                     {tempoRestanteOuAtraso}
@@ -1880,29 +1521,19 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                   })}
                 </div>
               ) : (
-                <div className="bg-slate-50 dark:bg-[#1A1F26] border border-slate-200/80 dark:border-white/5 border-dashed rounded-[24px] p-8 text-center shadow-sm">
-                  <p className="text-[14px] text-slate-500 dark:text-slate-400 font-medium">
+                <div className="bg-slate-50 dark:bg-nvu-surface border border-slate-200/80 dark:border-white/5 border-dashed rounded-[24px] p-8 text-center shadow-sm">
+                  <p className="text-[14px] text-slate-500 dark:text-nvu-muted font-medium">
                     Nenhum histórico disponível
                   </p>
                 </div>
               )}
             </div>
-          </div>
+          </RetainedPanel>
         )}
 
-        {(visitedTabs.has("dashboard") || activeTab === "dashboard") && (
-          <div className={cn(activeTab !== "dashboard" && "hidden", "")}>
-            {showSecondary && (
-              <Dashboard
-                isIntegrated={true}
-                tripHistoryOverride={driverTripState.trips}
-                tripHistoryLoadingOverride={driverTripsLoading}
-                progressAnimationKey={`${location.key}:${activeTab}:dashboard`}
-              />
-            )}
-          </div>
-        )}
 
+
+        </div>
         <ProfileModal
           isOpen={isEditProfileOpen}
           onClose={() => setIsEditProfileOpen(false)}
@@ -1949,7 +1580,7 @@ export default function Profile() {
   if (!authInitialized || !sessionUiReady || !currentUser) {
     return (
       <div
-        className="min-h-[45vh] bg-gray-50 dark:bg-[#09090b]"
+        className="min-h-[45vh] bg-gray-50 dark:bg-nvu-page"
         role="status"
         aria-live="polite"
       >

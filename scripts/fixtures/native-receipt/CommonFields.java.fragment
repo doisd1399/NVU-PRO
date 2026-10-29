@@ -1,0 +1,22 @@
+ android.view.WindowManager windowManager=new android.view.WindowManager();
+ FakePrefs prefs=new FakePrefs();
+ android.os.Handler mainHandler=new android.os.Handler();
+ android.view.View bubbleView, statusChipView;
+ android.widget.LinearLayout menuView;
+ android.view.WindowManager.LayoutParams bubbleParams,menuParams,statusChipParams;
+ Runnable statusChipHideRunnable;
+ boolean destroying;
+ NativeRouteReadySnapshot statusChipRouteReady;
+ NativeBubbleVisibility bubbleCardVisibility=new NativeBubbleVisibility();
+ NativeOverlayCardVisibility cardVisibility=new NativeOverlayCardVisibility(this::applyBubbleCardVisibility);
+ int errors;
+ void setup(){prefs.edit().putString("driverId","driver-a").putString("companyId","company-a")
+  .putString("jobId","job-a").apply();
+  bubbleView=new android.view.View(this);
+  bubbleParams=new android.view.WindowManager.LayoutParams(68,32,1,8,0);
+  bubbleParams.x=79;bubbleParams.y=45;windowManager.addView(bubbleView,bubbleParams);}
+ int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
+ int safeTopInsetPx(){return 0;} int safeBottomInsetPx(){return 0;}
+ int overlayType(){return 1;}
+ android.util.DisplayMetrics realDisplayMetrics(){return getResources().getDisplayMetrics();}
+ void recordOverlayFailure(Throwable e){errors++;}

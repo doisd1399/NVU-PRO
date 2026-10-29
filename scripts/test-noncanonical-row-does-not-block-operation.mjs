@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const src = fs.readFileSync(new URL('../functions/src/reconcileOperationTrips.ts', import.meta.url), 'utf8');
+const hook = fs.readFileSync(new URL('../src/hooks/useMissingOperationTrip.ts', import.meta.url), 'utf8');
+const fail = (m) => { throw new Error(m); };
+if (!src.includes('where("jobId", "==", jobId)')) fail('reconciler must query physical jobId');
+if (src.includes('where("operationId", "==", jobId)') || src.includes('where("trabalhoId", "==", jobId)')) fail('live reconciler must not query legacy execution aliases');
+if (!src.includes('const invalidActive = false;')) fail('noncanonical bound rows must not deadlock live execution');
+if (!src.includes('hasExplicitScopeContradiction')) fail('explicit scope contradictions must remain guarded');
+if (hook.includes('cached.jobId || cached.operationId') || hook.includes('?.jobId || (cached as any)?.operationId')) fail('recovery cache must use physical jobId only');
+console.log('PASS: noncanonical/legacy rows cannot deadlock or leak into another physical job execution');

@@ -228,7 +228,7 @@ function openEntry(entry: RankingUsersEntry) {
   entry.unsubscribers = chunks.map((ids, sourceIndex) =>
     onSnapshot(
       query(
-        collection(db, "users"),
+        collection(db, "public_users"),
         where(documentId(), "in", ids),
       ),
       (snapshot) => {

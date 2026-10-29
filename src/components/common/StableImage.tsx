@@ -1,3 +1,4 @@
+import { CachedImage } from "./CachedImage";
 import React, { useEffect, useState } from "react";
 import {
   isImageReady,
@@ -6,10 +7,13 @@ import {
   subscribeImageReady,
 } from "../../lib/imageCache";
 import { cn } from "../../lib/utils";
+import { usePersistentRankingImage } from "../../hooks/usePersistentRankingImage";
 
 interface StableImageProps
   extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "src"> {
   src?: string | null;
+  persistentViewerId?: string;
+  persistentAssetId?: string;
   wrapperClassName: string;
   fallback: React.ReactNode;
   preload?: boolean;
@@ -33,6 +37,8 @@ interface StableImageProps
  */
 export function StableImage({
   src,
+  persistentViewerId,
+  persistentAssetId,
   wrapperClassName,
   fallback,
   preload = true,
@@ -44,7 +50,8 @@ export function StableImage({
   onError,
   ...imageProps
 }: StableImageProps) {
-  const normalizedSrc = src?.trim() || "";
+  const persistent = usePersistentRankingImage(src?.trim() || "", persistentViewerId, persistentAssetId, imageProps.loading !== "lazy");
+  const normalizedSrc = persistent.src;
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(() =>
     isImageReady(normalizedSrc) ? normalizedSrc : null,
@@ -72,8 +79,14 @@ export function StableImage({
     return unsubscribe;
   }, [normalizedSrc, shouldPreload]);
 
+  useEffect(() => {
+    const retry = () => { setFailedSrc(null); };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, []);
+
   const fallbackHidden =
-    loaded || (hideFallbackWhenCached && isImageReady(normalizedSrc));
+    !failed && (loaded || (hideFallbackWhenCached && isImageReady(normalizedSrc)));
   const fallbackVisibilityHidden =
     fallbackHidden ||
     (hideFallbackWhileLoading && Boolean(normalizedSrc) && !failed);
@@ -96,7 +109,7 @@ export function StableImage({
       </span>
 
       {normalizedSrc && !failed && (
-        <img
+        <CachedImage
           {...imageProps}
           src={normalizedSrc}
           loading={requestedLoading ?? (shouldPreload ? "eager" : "lazy")}
@@ -107,12 +120,14 @@ export function StableImage({
             className,
           )}
           onLoad={(event) => {
+            persistent.onLoad();
             setFailedSrc(null);
             setLoadedSrc(normalizedSrc);
             rememberImageReady(normalizedSrc);
             onLoad?.(event);
           }}
           onError={(event) => {
+            persistent.onError();
             setFailedSrc(normalizedSrc);
             setLoadedSrc(null);
             onError?.(event);

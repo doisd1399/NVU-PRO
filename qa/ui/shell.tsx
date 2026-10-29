@@ -1,0 +1,11 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {signInWithEmailAndPassword} from 'firebase/auth';
+import {auth} from '../../src/lib/firebase';
+import App from '../../src/App';
+import '../../src/index.css';
+if(auth.app.options.projectId!=='demo-nvu-v36-4-staging')throw Error('QA_ONLY');
+const actor=new URL(location.href).searchParams.get('actor')||'qa-shell-owner';
+await signInWithEmailAndPassword(auth,actor+'@example.test','qa-shell-password');
+history.replaceState({},'', '/select-profile');
+createRoot(document.getElementById('root')!).render(<App/>);

@@ -26,63 +26,37 @@ import {
   getCanonicalTripDriverName,
 } from "../../lib/tripIdentity";
 import { useTripHistory } from "../../hooks/useTripHistory";
+import { emitHistoryScopeDiagnostic } from "../../lib/historyScopeDiagnostic";
+import { HistoryReadCoverageNotice } from "../../components/common/HistoryReadCoverageNotice";
+import { HistoryMoneySummary } from "../../components/common/HistoryMoneySummary";
 
-type ReportPeriod = "semanal" | "mensal";
+import { buildTripReportHistory, type ReportPeriod, type ReportHistoryItem } from "../../lib/tripReportHistory";
 
-type ReportTrip = ReturnType<typeof normalizeTrip> & {
-  parsedDate: Date;
-  val: number;
-};
-
-type ReportHistoryItem = {
-  id: string;
-  title: string;
-  subTitle: string;
-  totalValue: number;
-  tripCount: number;
-  sortDate: Date;
-  avgTicket: number;
-  variation: number;
-  hasPrevious: boolean;
-};
-
-const formatUtcDate = (date: Date) =>
-  date.toLocaleDateString("pt-BR", {
-    timeZone: "UTC",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-
-const formatUtcMonth = (date: Date) => {
-  const value = date.toLocaleDateString("pt-BR", {
-    timeZone: "UTC",
-    month: "long",
-    year: "numeric",
-  });
-  return value.charAt(0).toUpperCase() + value.slice(1);
-};
-
-const utcDateKey = (date: Date) => date.toISOString().slice(0, 10);
-const utcMonthKey = (date: Date) => date.toISOString().slice(0, 7);
+type ReportTrip = ReturnType<typeof normalizeTrip> & { parsedDate: Date };
 
 export default function Reports({
   defaultDriverId,
   hideHeader = false,
   isInsideAdminTab = false,
+  companyId,
 }: {
   defaultDriverId?: string;
   hideHeader?: boolean;
   isInsideAdminTab?: boolean;
+  companyId?: string;
 } = {}) {
   const navigate = useNavigate();
   const { activeRole, currentUser } = useSessionStore();
-  const { activeCompanyId, allCompanyMembers } = useCompanyStore();
-  const { users = [] } = useOperationalStore();
+  const { activeCompanyId: sessionCompanyId, allCompanyMembers, companies } = useCompanyStore();
+  const activeCompanyId = companyId || sessionCompanyId;
+  const { users = [], simulators = [] } = useOperationalStore();
   const {
     historicoTrips = [],
     loading: tripsLoading,
     error: tripsError,
+    coverage: tripsCoverage = "unknown",
+    readCoverage: tripsReadCoverage,
+    historyReady: tripsHistoryReady,
   } = useTripHistory(activeCompanyId, {
     userId: currentUser?.id,
   });
@@ -113,11 +87,8 @@ export default function Reports({
     setVisibleItems(5);
   }, [activeCompanyId, isDriverView]);
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
+  const formatCurrency = (value: number, currency: string) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 
   const validTrips = useMemo<ReportTrip[]>(() => {
     if (!activeCompanyId) return [];
@@ -131,6 +102,10 @@ export default function Reports({
       undefined,
       undefined,
       activeCompanyId,
+      undefined,
+      companies,
+      undefined,
+      simulators,
     )
       .filter(
         (trip) =>
@@ -140,125 +115,84 @@ export default function Reports({
       .map((trip) => ({
         ...trip,
         parsedDate: new Date(trip.metricDate),
-        val: trip.normalizedValor,
       }));
-  }, [activeCompanyId, historicoTrips]);
-
-  const generateHistory = (
-    trips: ReportTrip[],
-    currentPeriod: ReportPeriod,
-  ): ReportHistoryItem[] => {
-    const groups = new Map<
-      string,
-      Omit<ReportHistoryItem, "avgTicket" | "variation" | "hasPrevious">
-    >();
-
-    trips.forEach((trip) => {
-      const date = trip.parsedDate;
-      if (!Number.isFinite(date.getTime())) return;
-
-      const range =
-        currentPeriod === "semanal"
-          ? getWeeklyRange(date)
-          : getMonthlyRange(date);
-      const key =
-        currentPeriod === "semanal"
-          ? utcDateKey(range.start)
-          : utcMonthKey(range.start);
-      const subTitle =
-        currentPeriod === "semanal"
-          ? `${formatUtcDate(range.start)} até ${formatUtcDate(range.end)}`
-          : formatUtcMonth(range.start);
-      const currentRange =
-        currentPeriod === "semanal"
-          ? getWeeklyRange(new Date())
-          : getMonthlyRange(new Date());
-      const isCurrent = range.start.getTime() === currentRange.start.getTime();
-      const title =
-        currentPeriod === "semanal"
-          ? isCurrent
-            ? "Semana atual"
-            : `Semana de ${formatUtcDate(range.start)}`
-          : isCurrent
-            ? "Mês atual"
-            : formatUtcMonth(range.start);
-
-      const existing = groups.get(key);
-      if (existing) {
-        existing.tripCount += 1;
-        existing.totalValue += trip.val;
-        return;
-      }
-
-      groups.set(key, {
-        id: key,
-        title,
-        subTitle,
-        totalValue: trip.val,
-        tripCount: 1,
-        sortDate: range.start,
-      });
-    });
-
-    const sorted = Array.from(groups.values()).sort(
-      (a, b) => a.sortDate.getTime() - b.sortDate.getTime(),
-    );
-    const totalsByPeriod = new Map(
-      sorted.map((item) => [item.id, item.totalValue] as const),
-    );
-
-    return sorted
-      .map((item) => {
-        const previousReference = new Date(item.sortDate);
-        if (currentPeriod === "semanal") {
-          previousReference.setUTCDate(previousReference.getUTCDate() - 7);
-        } else {
-          previousReference.setUTCMonth(previousReference.getUTCMonth() - 1);
-        }
-        const previousKey =
-          currentPeriod === "semanal"
-            ? utcDateKey(getWeeklyRange(previousReference).start)
-            : utcMonthKey(getMonthlyRange(previousReference).start);
-        const previousTotal = totalsByPeriod.get(previousKey);
-        const hasPrevious = previousTotal !== undefined;
-        let variation = 0;
-
-        if (hasPrevious) {
-          if ((previousTotal || 0) > 0) {
-            variation =
-              ((item.totalValue - (previousTotal || 0)) /
-                (previousTotal || 1)) *
-              100;
-          } else if (item.totalValue > 0) {
-            variation = 100;
-          }
-        }
-
-        return {
-          ...item,
-          avgTicket:
-            item.tripCount > 0 ? item.totalValue / item.tripCount : 0,
-          variation,
-          hasPrevious,
-        };
-      })
-      .reverse();
-  };
+  }, [activeCompanyId, companies, historicoTrips, simulators]);
 
   const companyHistory = useMemo(() => {
     if (mode !== "empresa") return [];
-    return generateHistory(validTrips, period);
+    return buildTripReportHistory(validTrips, period);
   }, [mode, period, validTrips]);
 
   const driverHistory = useMemo(() => {
     if (mode !== "funcionarios" || !selectedDriverId) return [];
-    return generateHistory(
+    return buildTripReportHistory(
       validTrips.filter(
         (trip) => getCanonicalTripDriverId(trip) === selectedDriverId,
       ),
       period,
     );
   }, [mode, period, selectedDriverId, validTrips]);
+
+  useEffect(() => {
+    const capture = () => {
+      const activeMembers = allCompanyMembers.filter(
+        (member) => member.companyId === activeCompanyId && member.status === "active",
+      );
+      const selectedGroups = mode === "empresa" ? companyHistory : driverHistory;
+      emitHistoryScopeDiagnostic({
+        view: "reports",
+        authenticatedUserPresent: Boolean(currentUser?.id),
+        activeCompanySelected: Boolean(activeCompanyId),
+        currentUserActiveCompanyMember: activeMembers.some(
+          (member) => member.userId === currentUser?.id,
+        ),
+        activeCompanyMemberCount: activeMembers.length,
+        role: activeRole === "admin" || activeRole === "driver" || activeRole === "manager"
+          ? activeRole
+          : "other",
+        period,
+        mode,
+        driverFilterActive: Boolean(selectedDriverId),
+        simulatorFilter: "all",
+        sourceRows: historicoTrips.length,
+        eligibleRows: validTrips.length,
+        filteredRows: mode === "empresa" ? validTrips.length : selectedDriverId
+          ? validTrips.filter((trip) => getCanonicalTripDriverId(trip) === selectedDriverId).length : 0,
+        visibleRows: selectedGroups.slice(0, visibleItems).reduce((sum, group) => sum + group.tripCount, 0),
+        periodGroups: selectedGroups.length,
+        visibleGroups: Math.min(selectedGroups.length, visibleItems),
+        loading: tripsLoading,
+        hasError: Boolean(tripsError),
+        cacheMetadata: tripsReadCoverage ? "exposed" : "not_exposed_by_history_hook",
+        selectedCompanyId: activeCompanyId,
+        selectedDriverId,
+        authenticatedUserId: currentUser?.id,
+        coverage: tripsCoverage,
+        readCoverage: tripsReadCoverage,
+      });
+    };
+
+    capture();
+    window.addEventListener("nvu:history-scope-diagnostic-request", capture);
+    return () => window.removeEventListener("nvu:history-scope-diagnostic-request", capture);
+  }, [
+    activeCompanyId,
+    activeRole,
+    allCompanyMembers,
+    companyHistory,
+    currentUser?.id,
+    driverHistory,
+    historicoTrips.length,
+    mode,
+    period,
+    selectedDriverId,
+    tripsError,
+    tripsLoading,
+    tripsCoverage,
+    tripsReadCoverage,
+    validTrips.length,
+    visibleItems,
+  ]);
 
   const activeDrivers = useMemo(() => {
     const namesById = new Map<string, string>();
@@ -346,8 +280,8 @@ export default function Reports({
   const renderHistoryList = (list: ReportHistoryItem[]) => {
     if (tripsLoading && list.length === 0) {
       return (
-        <div className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[12px] shadow-sm px-4 py-8 flex items-center justify-center">
-          <span className="text-[14px] font-medium text-slate-500 dark:text-slate-400">
+        <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm px-4 py-8 flex items-center justify-center">
+          <span className="text-[14px] font-medium text-slate-500 dark:text-nvu-muted">
             Atualizando resultados...
           </span>
         </div>
@@ -356,8 +290,8 @@ export default function Reports({
 
     if (list.length === 0) {
       return (
-        <div className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[12px] shadow-sm px-4 py-8 flex flex-col items-center justify-center text-center">
-          <span className="text-[15px] font-medium text-slate-600 dark:text-slate-400">
+        <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm px-4 py-8 flex flex-col items-center justify-center text-center">
+          <span className="text-[15px] font-medium text-slate-600 dark:text-nvu-muted">
             Nenhum dado encontrado para o histórico {period}.
           </span>
         </div>
@@ -367,12 +301,12 @@ export default function Reports({
     return (
         <div className="space-y-2.5">
           {list.slice(0, visibleItems).map((item) => (
-            <div key={item.id} className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[12px] shadow-sm p-3.5 flex flex-col gap-3">
+            <div key={item.id} className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm p-3.5 flex flex-col gap-3">
               <div className="flex flex-col gap-0.5">
                 <span className="text-[15px] font-semibold text-slate-900 dark:text-white leading-tight">
                   {item.title}
                 </span>
-                <span className="text-[12px] font-normal text-slate-500 dark:text-slate-400 leading-none">
+                <span className="text-[12px] font-normal text-slate-500 dark:text-nvu-muted leading-none">
                   {item.subTitle.includes(' até ') ? (
                     `${item.subTitle.split(' até ')[0]} até ${item.subTitle.split(' até ')[1]}`
                   ) : (
@@ -382,35 +316,35 @@ export default function Reports({
               </div>
               
               <div className="grid grid-cols-2 gap-2">
-                <div className="bg-slate-50 dark:bg-black/20 rounded-[8px] p-2 flex flex-col items-center justify-center border border-slate-100 dark:border-[#2A2F3A]/50 text-center">
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center leading-none uppercase tracking-wider break-normal">Ganhos</span>
-                  <span className="text-[13px] sm:text-[14px] font-bold text-emerald-600 dark:text-emerald-400 leading-tight break-all">
-                    {formatCurrency(item.totalValue)}
-                  </span>
+                <div className="bg-slate-50 dark:bg-black/20 rounded-[8px] p-2 flex flex-col items-center justify-center border border-slate-100 dark:border-nvu-line/50 text-center">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-nvu-muted mb-1 flex items-center leading-none uppercase tracking-wider break-normal">Ganhos</span>
+                  <div className="text-[13px] sm:text-[14px] leading-tight">
+                    <HistoryMoneySummary groups={item.moneyGroups} />
+                  </div>
                 </div>
                 
-                <div className="bg-slate-50 dark:bg-black/20 rounded-[8px] p-2 flex flex-col items-center justify-center border border-slate-100 dark:border-[#2A2F3A]/50 text-center">
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1 flex items-center leading-none uppercase tracking-wider break-normal">Viagens</span>
-                  <span className="text-[13px] sm:text-[14px] font-bold text-slate-800 dark:text-slate-200 leading-tight break-words flex flex-wrap items-center justify-center">
+                <div className="bg-slate-50 dark:bg-black/20 rounded-[8px] p-2 flex flex-col items-center justify-center border border-slate-100 dark:border-nvu-line/50 text-center">
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-nvu-muted mb-1 flex items-center leading-none uppercase tracking-wider break-normal">Viagens</span>
+                  <span className="text-[13px] sm:text-[14px] font-bold text-slate-800 dark:text-nvu-text leading-tight break-words flex flex-wrap items-center justify-center">
                     {item.tripCount} <span className="text-[12px] font-medium ml-1">viagens</span>
                   </span>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 dark:border-[#2A2F3A] flex justify-between items-center">
+              <div className="pt-2 border-t border-slate-100 dark:border-nvu-line flex justify-between items-center">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-none mt-0.5">Ticket Médio:</span>
-                  <span className="text-[12px] font-semibold text-slate-800 dark:text-slate-200 leading-none">{formatCurrency(item.avgTicket)}</span>
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-nvu-muted leading-none mt-0.5">Ticket Médio:</span>
+                  <span className="text-[12px] font-semibold text-slate-800 dark:text-nvu-text leading-none">{item.currencySummaries.length === 1 && item.unknownCurrencySummaries.length === 0 && item.currencySummaries[0].avgTicket !== null ? `${formatCurrency(item.currencySummaries[0].avgTicket, item.currencySummaries[0].currency)}` : "Separado por moeda"}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-none mt-0.5">Desempenho:</span>
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-nvu-muted leading-none mt-0.5">Desempenho:</span>
                   {item.hasPrevious ? (
-                    <div className={cn("flex items-center gap-0.5 text-[12px] font-semibold leading-none", item.variation > 0 ? "text-emerald-600 dark:text-emerald-400" : item.variation < 0 ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-400")}>
+                    <div className={cn("flex items-center gap-0.5 text-[12px] font-semibold leading-none", item.variation > 0 ? "text-emerald-600 dark:text-emerald-400" : item.variation < 0 ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-nvu-muted")}>
                       {item.variation > 0 ? <ArrowUpRight size={14} className="shrink-0" /> : item.variation < 0 ? <ArrowDownRight size={14} className="shrink-0" /> : <Minus size={14} className="shrink-0" />}
                       {Math.abs(item.variation).toFixed(1)}%
                     </div>
                   ) : (
-                    <span className="text-[12px] font-medium text-slate-400 dark:text-slate-500 leading-none">-</span>
+                    <span className="text-[12px] font-medium text-slate-400 dark:text-nvu-muted leading-none">-</span>
                   )}
                 </div>
               </div>
@@ -420,7 +354,7 @@ export default function Reports({
           {visibleItems < list.length && (
             <button 
               onClick={handleLoadMore}
-              className="w-full bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] text-emerald-600 dark:text-emerald-400 font-bold py-2.5 rounded-[12px] flex items-center justify-center gap-2 mt-4 shadow-sm hover:bg-slate-50 dark:hover:bg-[#2A2F3A] transition-colors text-[14px]"
+              className="w-full bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line text-emerald-600 dark:text-emerald-400 font-bold py-2.5 rounded-[12px] flex items-center justify-center gap-2 mt-4 shadow-sm hover:bg-slate-50 dark:hover:bg-nvu-strip transition-colors text-[14px]"
             >
               Carregar mais registros
               <ChevronDown size={16} />
@@ -431,7 +365,7 @@ export default function Reports({
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-[#09090b] font-sans pb-8 w-full box-border">
+    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-nvu-page font-sans pb-8 w-full box-border">
       <div className="max-w-[900px] mx-auto flex flex-col gap-4 pt-4 sm:pt-6 w-full px-4 sm:px-4 md:px-0 box-border">
         
         {/* Header Container */}
@@ -439,7 +373,7 @@ export default function Reports({
         <div className="px-1 mb-2 flex items-center gap-2.5">
           <button 
             onClick={() => navigate(activeRole === "admin" ? "/admin" : "/driver")}
-            className="w-7 h-7 rounded-full bg-slate-200 dark:bg-[#1A1F26] flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-[#2A2F3A] transition-colors shrink-0"
+            className="w-7 h-7 rounded-full bg-slate-200 dark:bg-nvu-surface flex items-center justify-center text-slate-600 dark:text-nvu-muted hover:bg-slate-300 dark:hover:bg-nvu-strip transition-colors shrink-0"
           >
             <ArrowLeft size={16} />
           </button>
@@ -447,7 +381,7 @@ export default function Reports({
             <h1 className="text-[16px] sm:text-[18px] font-bold text-slate-900 dark:text-white tracking-tight leading-none">
               Relatórios
             </h1>
-            <p className="text-[12px] font-medium text-slate-500 dark:text-slate-400 mt-1 leading-none">
+            <p className="nvu-page-description text-slate-500 dark:text-nvu-muted mt-1">
               Fechamento de entregas e ganhos
             </p>
           </div>
@@ -463,7 +397,7 @@ export default function Reports({
                 "flex items-center justify-center gap-1.5 py-1.5 px-3 min-h-[42px] rounded-[10px] border text-[13px] sm:text-[14px] font-bold transition-colors",
                 period === "semanal"
                   ? "bg-emerald-50/50 dark:bg-emerald-500/10 border-emerald-500/30 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                  : "bg-white dark:bg-[#1A1F26] border-slate-200 dark:border-[#2A2F3A] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2A2F3A]"
+                  : "bg-white dark:bg-nvu-surface border-slate-200 dark:border-nvu-line text-slate-600 dark:text-nvu-muted hover:bg-slate-50 dark:hover:bg-nvu-strip"
               )}
             >
               <Calendar size={15} className="shrink-0" />
@@ -475,7 +409,7 @@ export default function Reports({
                 "flex items-center justify-center gap-1.5 py-1.5 px-3 min-h-[42px] rounded-[10px] border text-[13px] sm:text-[14px] font-bold transition-colors",
                 period === "mensal"
                   ? "bg-emerald-50/50 dark:bg-emerald-500/10 border-emerald-500/30 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                  : "bg-white dark:bg-[#1A1F26] border-slate-200 dark:border-[#2A2F3A] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2A2F3A]"
+                  : "bg-white dark:bg-nvu-surface border-slate-200 dark:border-nvu-line text-slate-600 dark:text-nvu-muted hover:bg-slate-50 dark:hover:bg-nvu-strip"
               )}
             >
               <Calendar size={15} className="shrink-0" />
@@ -491,7 +425,7 @@ export default function Reports({
                 "flex items-center justify-center gap-1.5 py-1.5 px-3 min-h-[42px] rounded-[10px] border text-[13px] sm:text-[14px] font-bold transition-colors",
                 mode === "empresa"
                   ? "bg-emerald-50/50 dark:bg-emerald-500/10 border-emerald-500/30 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                  : "bg-white dark:bg-[#1A1F26] border-slate-200 dark:border-[#2A2F3A] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2A2F3A]"
+                  : "bg-white dark:bg-nvu-surface border-slate-200 dark:border-nvu-line text-slate-600 dark:text-nvu-muted hover:bg-slate-50 dark:hover:bg-nvu-strip"
               )}
             >
               <Building2 size={15} className="shrink-0" />
@@ -503,7 +437,7 @@ export default function Reports({
                 "flex items-center justify-center gap-1.5 py-1.5 px-3 min-h-[42px] rounded-[10px] border text-[13px] sm:text-[14px] font-bold transition-colors",
                 mode === "funcionarios"
                   ? "bg-emerald-50/50 dark:bg-emerald-500/10 border-emerald-500/30 dark:border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-                  : "bg-white dark:bg-[#1A1F26] border-slate-200 dark:border-[#2A2F3A] text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-[#2A2F3A]"
+                  : "bg-white dark:bg-nvu-surface border-slate-200 dark:border-nvu-line text-slate-600 dark:text-nvu-muted hover:bg-slate-50 dark:hover:bg-nvu-strip"
               )}
             >
               <Users size={15} className="shrink-0" />
@@ -513,11 +447,7 @@ export default function Reports({
           )}
         </div>
 
-        {tripsError && (
-          <div className="rounded-[12px] border border-amber-200 bg-amber-50 px-3.5 py-3 text-[12px] font-medium text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200">
-            Não foi possível atualizar os relatórios agora. O último resultado disponível foi mantido e uma nova tentativa será feita automaticamente.
-          </div>
-        )}
+        <HistoryReadCoverageNotice coverage={tripsCoverage} hasError={Boolean(tripsError)} error={tripsError} readCoverage={tripsReadCoverage} backgroundRefresh={tripsHistoryReady} />
 
         {mode === "empresa" && (
           <div className="mt-5">
@@ -539,8 +469,8 @@ export default function Reports({
             </div>
             
             {activeDrivers.length === 0 ? (
-              <div className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[12px] shadow-sm px-4 py-8 flex flex-col items-center justify-center text-center">
-                <span className="text-[15px] font-medium text-slate-600 dark:text-slate-400">Nenhum motorista ativo encontrado.</span>
+              <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm px-4 py-8 flex flex-col items-center justify-center text-center">
+                <span className="text-[15px] font-medium text-slate-600 dark:text-nvu-muted">Nenhum motorista ativo encontrado.</span>
               </div>
             ) : (
               <>
@@ -548,18 +478,18 @@ export default function Reports({
                   <div 
                     key={driver.id} 
                     onClick={() => { setSelectedDriverId(driver.id); setVisibleItems(5); }}
-                    className="bg-white dark:bg-[#1A1F26] border border-slate-200 dark:border-[#2A2F3A] rounded-[12px] shadow-sm px-4 py-3 flex items-center justify-between cursor-pointer hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-colors"
+                    className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[12px] shadow-sm px-4 py-3 flex items-center justify-between cursor-pointer hover:border-emerald-200 dark:hover:border-emerald-500/30 transition-colors"
                   >
                     <div className="flex flex-col gap-1 w-full">
                       <span className="text-[15px] font-semibold text-slate-900 dark:text-white leading-tight truncate">
                          {driver.name}
                       </span>
-                      <span className="text-[12px] font-normal text-slate-500 dark:text-slate-400 leading-snug">
+                      <span className="text-[12px] font-normal text-slate-500 dark:text-nvu-muted leading-snug">
                          Acessar relatório financeiro individual
                       </span>
                     </div>
                     <div className="shrink-0 flex items-center">
-                      <ChevronRight size={18} className="text-slate-400 dark:text-slate-500" />
+                      <ChevronRight size={18} className="text-slate-400 dark:text-nvu-muted" />
                     </div>
                   </div>
                 ))}
@@ -574,7 +504,7 @@ export default function Reports({
               {!isDriverView && (
                 <button 
                   onClick={() => setSelectedDriverId(null)}
-                  className="w-8 h-8 rounded-full bg-slate-200 dark:bg-[#1A1F26] flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-[#2A2F3A] transition-colors shrink-0"
+                  className="w-8 h-8 rounded-full bg-slate-200 dark:bg-nvu-surface flex items-center justify-center text-slate-600 dark:text-nvu-muted hover:bg-slate-300 dark:hover:bg-nvu-strip transition-colors shrink-0"
                 >
                   <ArrowLeft size={18} />
                 </button>
@@ -583,7 +513,7 @@ export default function Reports({
                 <h2 className="text-[16px] font-bold text-slate-900 dark:text-white tracking-tight">
                   {activeDrivers.find(d => d.id === selectedDriverId)?.name || "Motorista"}
                 </h2>
-                <span className="text-[12px] text-slate-500 dark:text-slate-400 leading-none mt-0.5">Histórico financeiro individual</span>
+                <span className="text-[12px] text-slate-500 dark:text-nvu-muted leading-none mt-0.5">Histórico financeiro individual</span>
               </div>
             </div>
 
@@ -595,7 +525,7 @@ export default function Reports({
         <div className="mt-5 mb-4">
           <div className="bg-[#f8fafc] dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800/30 rounded-[12px] p-3.5 flex gap-2.5 shadow-sm">
             <Info className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" size={18} />
-            <p className="text-[12px] text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+            <p className="text-[12px] text-slate-600 dark:text-nvu-text-soft font-medium leading-relaxed">
               Os dados refletem o histórico oficial e excluem entregas rejeitadas, canceladas ou viagens ainda em andamento.
             </p>
           </div>

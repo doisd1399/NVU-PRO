@@ -25,8 +25,8 @@ check("layout reserves message bottom plus a gap", layout.includes("statusChipPa
 check("card top is computed from the reserved message band", layout.includes("centeredMenuYBesideBubble(") && layout.includes("messageReservedTop, safeBottom"));
 check("card geometry records whether the message band is reserved", layout.includes("putBoolean(\"menuMessageBandReserved\", messageBandReserved)"));
 check("message removal requests normal card reflow", hide.includes("mainHandler.post(this::adjustOpenMenuLayoutAfterMeasure)"));
-check("saved bubble position is not overwritten by message reflow", layout.includes("bubbleYBeforeMenuOpen") && layout.includes("persistPreferredGtoBubblePosition") === false && service.includes("Automatic docking is intentionally NOT persisted"));
-check("normal card side/selection geometry remains unchanged", layout.includes("menuXBesideBubble") && layout.includes("bubbleXForMenuSide") && overlay.includes("centeredMenuYBesideBubble"));
+check("saved bubble position is not overwritten by message reflow", !layout.includes("bubbleParams.y =") && !layout.includes("persistPreferredGtoBubblePosition"));
+check("independent card geometry keeps safe vertical layout", layout.includes("targetMenuX = clamp") && overlay.includes("centeredMenuYBesideBubble"));
 check("message/card separation does not change detection or trip state", !chip.includes("setTripState(") && !layout.includes("setTripState("));
 
 const failed = checks.filter((ok) => !ok).length;

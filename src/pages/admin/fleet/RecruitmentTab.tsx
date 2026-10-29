@@ -1,10 +1,13 @@
+import { coalescePageRead, isOnline, isPermissionFailure, isReadFresh, pageCacheKey, readPageSnapshot, removePageSnapshot, writePageSnapshot, withReadDeadline } from "../../../lib/pageReadCache";
+import { useOnlineStatus } from "../../../hooks/useOnlineStatus";
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   collection,
   doc,
+  documentId,
   getDoc,
-  getDocs,
+  getDocsFromServer,
   limit,
   orderBy,
   query,
@@ -18,6 +21,7 @@ import {
 import { getDownloadURL, ref as storageRef } from "firebase/storage";
 import {
   useOperationalStore,
+  useSessionStore,
   RecruitmentApplication,
 } from "../../../context/AppContext";
 import { useCompanyStore } from "../../../context/CompanyContext";
@@ -54,6 +58,7 @@ import {
 } from "../../../lib/recruitmentPhoto";
 import { isCompanyRegistration } from "../../../lib/registrationImages";
 import { resolveNotifications } from "../../../services/notificationService";
+import { prepareFleetMembership } from "../../../services/fleetMembershipService";
 
 type CandidateProfile = object | null;
 
@@ -121,6 +126,23 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
     deleteRecruitmentApplication,
   } = useCompanyStore();
   const { users } = useOperationalStore();
+  const { currentUser } = useSessionStore();
+  const online = useOnlineStatus();
+  useEffect(() => {
+    if (!online || !currentUser?.id || !activeCompanyId) return;
+    const pending = recruitmentApplications.find(row => row.companyId === activeCompanyId &&
+      row.status === "pending" && row.isCurrent !== false && !isCompanyRegistration(row));
+    if (pending) void prepareFleetMembership(activeCompanyId, pending.id);
+  }, [online, currentUser?.id, activeCompanyId, recruitmentApplications]);
+  const actionFlights = React.useRef(new Set<string>());
+  const [processingApplications, setProcessingApplications] = useState<Set<string>>(new Set());
+  const historyKey = pageCacheKey(currentUser?.id || "", "recruitment-history", activeCompanyId || "");
+  const currentScopeRef = React.useRef(historyKey);
+  currentScopeRef.current = historyKey;
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  type HistoryCache = { rows: RecruitmentApplication[]; hasMore: boolean; cursor?: { createdAt: string; id: string } };
+  const historyRowsRef = React.useRef<RecruitmentApplication[]>([]);
+  const historySavedCursorRef = React.useRef<{ createdAt: string; id: string } | null>(null);
 
   const [activeTab, setActiveTab] = useState<"candidates" | "page">(
     "candidates",
@@ -136,6 +158,8 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
   >(null);
   const historyLoadingRef = React.useRef(false);
   const historyRequestRef = React.useRef(0);
+  const historyScopeRef = React.useRef<string | null>(null);
+  const historyReadAtRef = React.useRef(0);
 
   const activeCompany = companies.find((c) => c.id === activeCompanyId);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -220,24 +244,27 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
   };
 
   const handleSaveSettings = async () => {
-    if (!activeCompanyId) return;
+    if (!activeCompanyId || !isOnline()) return;
     setIsSavingSettings(true);
     try {
       await updateRecruitmentSettings(activeCompanyId, settingsForm);
+      if (currentScopeRef.current !== historyKey) return;
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (e) {
       alert("Erro ao salvar as configurações.");
     } finally {
-      setIsSavingSettings(false);
+      if (currentScopeRef.current === historyKey) setIsSavingSettings(false);
     }
   };
 
   const loadRecruitmentHistory = React.useCallback(
     async (reset = false) => {
-      if (!activeCompanyId || historyLoadingRef.current) return;
+      if (!activeCompanyId || !historyKey || historyLoadingRef.current) return;
+      if (!isOnline()) { setHistoryLoading(false); setHistoryError("Offline · exibindo dados salvos neste aparelho."); return; }
 
       historyLoadingRef.current = true;
+      setHistoryError(null);
       setHistoryLoading(true);
       const requestId = ++historyRequestRef.current;
 
@@ -245,18 +272,21 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
         const constraints: QueryConstraint[] = [
           where("companyId", "==", activeCompanyId),
           orderBy("createdAt", "desc"),
+          orderBy(documentId(), "desc"),
           limit(RECRUITMENT_HISTORY_PAGE_SIZE),
         ];
-        const cursor = reset ? null : historyCursorRef.current;
-        if (cursor) constraints.splice(2, 0, startAfter(cursor));
+        const cursor = reset ? null : historyCursorRef.current || historySavedCursorRef.current;
+        if (cursor) constraints.splice(3, 0, "createdAt" in cursor ? startAfter(cursor.createdAt, cursor.id) : startAfter(cursor));
+        let fallback = false;
 
         let snapshot: QuerySnapshot<DocumentData>;
         try {
-          snapshot = await getDocs(
+          snapshot = await coalescePageRead(`rh:${historyKey}:${reset ? "first" : cursor?.id || "next"}`, () => getDocsFromServer(
             query(collection(db, "recruitment_applications"), ...constraints),
-          );
+          ));
         } catch (optimizedError) {
-          if (!reset) throw optimizedError;
+          if (!reset || !/failed-precondition$/.test(String((optimizedError as {code?: string})?.code || ""))) throw optimizedError;
+          fallback = true;
           // Enquanto o índice composto ainda não foi publicado, preserve a
           // tela com uma consulta limitada e ordenação local. O deploy final
           // ativará a paginação por cursor sem tornar a interface dependente.
@@ -264,16 +294,16 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
             "[Recruitment] Paginação otimizada indisponível; usando fallback limitado.",
             optimizedError,
           );
-          snapshot = await getDocs(
+          snapshot = await coalescePageRead(`rh:${historyKey}:fallback`, () => getDocsFromServer(
             query(
               collection(db, "recruitment_applications"),
               where("companyId", "==", activeCompanyId),
               limit(100),
             ),
-          );
+          ));
         }
 
-        if (requestId !== historyRequestRef.current) return;
+        if (requestId !== historyRequestRef.current || currentScopeRef.current !== historyKey) return;
 
         const rows = snapshot.docs
           .map(
@@ -295,36 +325,32 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
               new Date(a.createdAt).getTime(),
           );
 
-        setHistoryApplications((current) => {
-          const merged = new Map<string, RecruitmentApplication>();
-          (reset ? [] : current).forEach((application) =>
-            merged.set(application.id, application),
-          );
-          rows.forEach((application) =>
-            merged.set(application.id, application),
-          );
-          return Array.from(merged.values()).sort(
-            (a, b) =>
-              new Date(b.createdAt).getTime() -
-              new Date(a.createdAt).getTime(),
-          );
-        });
+        const merged = new Map<string, RecruitmentApplication>();
+        (reset ? [] : historyRowsRef.current).forEach(application => merged.set(application.id, application));
+        rows.forEach(application => merged.set(application.id, application));
+        const next = Array.from(merged.values()).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        historyRowsRef.current = next;
+        setHistoryApplications(next);
+        historyCursorRef.current = snapshot.docs[snapshot.docs.length - 1] ?? null;
+        const lastCreatedAt = snapshot.docs[snapshot.docs.length - 1]?.data().createdAt;
+        historySavedCursorRef.current = typeof lastCreatedAt === "string" ? { createdAt: lastCreatedAt, id: snapshot.docs[snapshot.docs.length - 1].id } : null;
+        const hasMore = !fallback && snapshot.docs.length === RECRUITMENT_HISTORY_PAGE_SIZE;
+        setHistoryHasMore(hasMore);
+        historyReadAtRef.current = Date.now();
+        writePageSnapshot(historyKey, { rows: next, hasMore, cursor: historySavedCursorRef.current || undefined });
 
-        historyCursorRef.current =
-          snapshot.docs[snapshot.docs.length - 1] ?? null;
-        setHistoryHasMore(
-          snapshot.docs.length === RECRUITMENT_HISTORY_PAGE_SIZE,
-        );
       } catch (error) {
+        if (requestId !== historyRequestRef.current || currentScopeRef.current !== historyKey) return;
+        setHistoryError("Não foi possível atualizar o histórico. Os dados salvos continuam disponíveis.");
+        if (isPermissionFailure(error)) {
+          removePageSnapshot(historyKey); historyRowsRef.current = []; setHistoryApplications([]); setHistoryHasMore(false);
+          setHistoryError("Seu acesso a este histórico não está disponível.");
+        }
         console.warn(
           "[Recruitment] Não foi possível carregar o histórico paginado:",
           error,
         );
-        if (reset && requestId === historyRequestRef.current) {
-          setHistoryApplications([]);
-          setHistoryHasMore(false);
-          historyCursorRef.current = null;
-        }
+
       } finally {
         if (requestId === historyRequestRef.current) {
           historyLoadingRef.current = false;
@@ -332,27 +358,46 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
         }
       }
     },
-    [activeCompanyId],
+    [activeCompanyId, historyKey],
   );
 
-  useEffect(() => {
+  React.useLayoutEffect(() => {
+    historyScopeRef.current = historyKey;
     historyRequestRef.current += 1;
     historyCursorRef.current = null;
     historyLoadingRef.current = false;
-    setHistoryApplications([]);
-    setHistoryHasMore(false);
+    const cached = readPageSnapshot<HistoryCache>(historyKey);
+    const rows = Array.isArray(cached?.value?.rows) ? cached.value.rows.filter(application => application && typeof application === "object" && application.companyId === activeCompanyId) : [];
+    historyRowsRef.current = rows;
+    historySavedCursorRef.current = cached?.value?.cursor || null;
+    historyReadAtRef.current = cached?.savedAt || 0;
+    setHistoryApplications(rows);
+    setHistoryHasMore(Boolean(cached?.value?.hasMore));
     setHistoryLoading(false);
-    if (activeCompanyId) void loadRecruitmentHistory(true);
-  }, [activeCompanyId, loadRecruitmentHistory]);
+    setHistoryError(null);
+    setCandidateProfiles({}); setCandidatePhotoUrls({}); setSelectedHistoryApp(null); setAppToDelete(null); setIsSavingSettings(false); setSaveSuccess(false);
+    onFormOpen?.(false);
+    if (historyKey && !isReadFresh(cached?.savedAt)) void loadRecruitmentHistory(true);
+    return () => { historyRequestRef.current += 1; historyLoadingRef.current = false; };
+  }, [historyKey, activeCompanyId, loadRecruitmentHistory]);
+
+  useEffect(() => {
+    const refreshIfStale = () => {
+      if (document.visibilityState === "visible" && isOnline() && !isReadFresh(historyReadAtRef.current)) void loadRecruitmentHistory(true);
+    };
+    if (!online) {
+      historyRequestRef.current += 1; historyLoadingRef.current = false; setHistoryLoading(false);
+      setHistoryError("Offline · exibindo dados salvos neste aparelho.");
+    } else { setHistoryError(null); refreshIfStale(); }
+    window.addEventListener("focus", refreshIfStale);
+    document.addEventListener("visibilitychange", refreshIfStale);
+    return () => { window.removeEventListener("focus", refreshIfStale); document.removeEventListener("visibilitychange", refreshIfStale); };
+  }, [historyKey, online, loadRecruitmentHistory]);
 
   const applications = React.useMemo(() => {
     const merged = new Map<string, RecruitmentApplication>();
-    historyApplications.forEach((application) =>
-      merged.set(application.id, application),
-    );
-    recruitmentApplications.forEach((application) =>
-      merged.set(application.id, application),
-    );
+    recruitmentApplications.forEach((application) => merged.set(application.id, application));
+    historyApplications.forEach((application) => merged.set(application.id, application));
 
     return Array.from(merged.values()).filter((application) => {
       if (activeCompanyId && application.companyId !== activeCompanyId)
@@ -364,61 +409,83 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
 
   const updateHistoryApplicationStatus = React.useCallback(
     (applicationId: string, status: "approved" | "rejected") => {
+      if (currentScopeRef.current !== historyKey) return;
       const source = applications.find(
         (application) => application.id === applicationId,
       );
       if (!source) return;
       const updated = { ...source, status };
-      setHistoryApplications((current) => [
-        updated,
-        ...current.filter((application) => application.id !== applicationId),
-      ]);
+      const rows = [updated, ...historyRowsRef.current.filter(application => application.id !== applicationId)];
+      historyRowsRef.current = rows;
+      setHistoryApplications(rows);
+      const saved = readPageSnapshot<HistoryCache>(historyKey);
+      writePageSnapshot(historyKey, { rows, hasMore: saved?.value?.hasMore || false, cursor: saved?.value?.cursor }, saved?.savedAt || Date.now());
       setSelectedHistoryApp((current) =>
         current?.id === applicationId ? updated : current,
       );
     },
-    [applications],
+    [applications, historyKey],
   );
 
   const handleApproveApplication = React.useCallback(
     async (applicationId: string, closeAfter = false) => {
+      if (!isOnline() || actionFlights.current.has(applicationId)) return;
+      actionFlights.current.add(applicationId);
+      setProcessingApplications(new Set(actionFlights.current));
+      if (closeAfter) handleSetSelectedHistoryApp(null);
       try {
-        await approveRecruitmentApplication(applicationId);
+        const application = applications.find((row) => row.id === applicationId);
+        if (!application?.companyId) throw new Error("A inscrição não possui empresa válida.");
+        await approveRecruitmentApplication(applicationId, application.companyId);
+        if (currentScopeRef.current !== historyKey) return;
         updateHistoryApplicationStatus(applicationId, "approved");
         if (closeAfter) handleSetSelectedHistoryApp(null);
       } catch {
         // A ação do contexto já apresenta a mensagem adequada ao usuário.
+      } finally {
+        actionFlights.current.delete(applicationId);
+        setProcessingApplications(new Set(actionFlights.current));
       }
     },
-    [approveRecruitmentApplication, updateHistoryApplicationStatus],
+    [applications, approveRecruitmentApplication, updateHistoryApplicationStatus, historyKey],
   );
 
   const handleRejectApplication = React.useCallback(
     async (applicationId: string, closeAfter = false) => {
+      if (!isOnline() || actionFlights.current.has(applicationId)) return;
+      actionFlights.current.add(applicationId);
+      setProcessingApplications(new Set(actionFlights.current));
       try {
         await rejectRecruitmentApplication(applicationId);
+        if (currentScopeRef.current !== historyKey) return;
         updateHistoryApplicationStatus(applicationId, "rejected");
         if (closeAfter) handleSetSelectedHistoryApp(null);
       } catch {
         // A ação do contexto já apresenta a mensagem adequada ao usuário.
+      } finally {
+        actionFlights.current.delete(applicationId);
+        setProcessingApplications(new Set(actionFlights.current));
       }
     },
-    [rejectRecruitmentApplication, updateHistoryApplicationStatus],
+    [rejectRecruitmentApplication, updateHistoryApplicationStatus, historyKey],
   );
 
   const handleDeleteApplication = React.useCallback(
     async (applicationId: string) => {
+      if (!isOnline()) return;
       try {
         await deleteRecruitmentApplication(applicationId);
-        setHistoryApplications((current) =>
-          current.filter((application) => application.id !== applicationId),
-        );
+        if (currentScopeRef.current !== historyKey) return;
+        const rows = historyRowsRef.current.filter(application => application.id !== applicationId);
+        historyRowsRef.current = rows; setHistoryApplications(rows);
+        const saved = readPageSnapshot<HistoryCache>(historyKey);
+        writePageSnapshot(historyKey, { rows, hasMore: saved?.value?.hasMore || false, cursor: saved?.value?.cursor }, saved?.savedAt || Date.now());
         setAppToDelete(null);
       } catch {
         // Mantém a confirmação aberta para permitir nova tentativa.
       }
     },
-    [deleteRecruitmentApplication],
+    [deleteRecruitmentApplication, historyKey],
   );
 
   const getCandidateProfile = (app: RecruitmentApplication): CandidateProfile =>
@@ -444,6 +511,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
     let cancelled = false;
 
     const hydrateCandidatePhotos = async () => {
+      if (!isOnline()) return;
       const pendingLookups = applications.filter((app) => {
         if (candidatePhotoUrls[app.id]) return false;
         const profile = getCandidateProfile(app);
@@ -468,7 +536,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
 
           if (!profile && app.userId) {
             try {
-              const userDoc = await getDoc(doc(db, "users", app.userId));
+              const userDoc = await withReadDeadline(getDoc(doc(db, "public_users", app.userId)));
               profile = userDoc.exists() ? userDoc.data() : null;
             } catch (error) {
               console.debug(
@@ -486,7 +554,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
               profile,
             )) {
               try {
-                photo = await getDownloadURL(storageRef(storage, path));
+                photo = await withReadDeadline(getDownloadURL(storageRef(storage, path)));
                 if (photo) break;
               } catch (error) {
                 console.debug(
@@ -522,7 +590,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
     return () => {
       cancelled = true;
     };
-  }, [applications, candidatePhotoUrls, candidateProfiles, usersByEmail, usersById]);
+  }, [applications, candidatePhotoUrls, candidateProfiles, usersByEmail, usersById, online]);
 
   const filterFn = (app: RecruitmentApplication) => {
     if (!search.trim()) return true;
@@ -554,6 +622,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
   };
 
   const handleToggleHR = async () => {
+    if (!isOnline()) return;
     if (!activeCompanyId) return;
     const newIsActive = !settingsForm.isActive;
     setSettingsForm((prev) => ({ ...prev, isActive: newIsActive }));
@@ -564,9 +633,11 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
         ...settingsForm,
         isActive: newIsActive,
       });
+      if (currentScopeRef.current !== historyKey) return;
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (e) {
+      if (currentScopeRef.current !== historyKey) return;
       alert("Erro ao alterar o status.");
       // Revert on error
       setSettingsForm((prev) => ({ ...prev, isActive: !newIsActive }));
@@ -577,27 +648,28 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
     <div className="space-y-6">
       {/* Header and Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
-        <p className="text-[13px] text-gray-500 dark:text-[#a1a1aa] font-medium text-center sm:text-left leading-normal w-full sm:w-auto">
+        <p className="text-[13px] text-gray-500 dark:text-nvu-muted font-medium text-center sm:text-left leading-normal w-full sm:w-auto">
           Gerencie novos candidatos<br />e a página de recrutamento.
         </p>
 
-        <div className="flex items-center gap-2.5 bg-white dark:bg-[#1A1F26] px-3 py-1.5 rounded-xl border border-gray-200 dark:border-[#2A2F3A] shadow-sm w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 bg-white dark:bg-nvu-surface px-3 py-1.5 rounded-xl border border-gray-200 dark:border-nvu-line shadow-sm w-full sm:w-auto">
           <div className="flex flex-col text-left sm:text-right flex-1 sm:flex-none">
-            <span className="text-[12px] font-bold text-gray-900 dark:text-[#fafafa] leading-none mb-1">
+            <span className="text-[12px] font-bold text-gray-900 dark:text-nvu-text leading-none mb-1">
               Portal de Vagas
             </span>
-            <span className={`text-[10px] font-medium leading-none ${settingsForm.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-400'}`}>
+            <span className={`text-[10px] font-medium leading-none ${settingsForm.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-nvu-muted'}`}>
               {settingsForm.isActive ? "Aberto para inscrições" : "Fechado"}
             </span>
           </div>
           
-          <div className="h-6 w-[1px] bg-gray-100 dark:bg-[#2A2F3A] mx-0.5"></div>
+          <div className="h-6 w-[1px] bg-gray-100 dark:bg-nvu-strip mx-0.5"></div>
 
           <button
             type="button"
             onClick={handleToggleHR}
+            disabled={!online}
             className={`relative inline-flex h-[24px] w-[44px] shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              settingsForm.isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-[#3f3f46]'
+              settingsForm.isActive ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-nvu-strip'
             }`}
             role="switch"
             aria-checked={settingsForm.isActive}
@@ -613,10 +685,10 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-6 border-b border-gray-100 dark:border-[#2A2F3A] mt-4">
+      <div className="flex items-center gap-6 border-b border-gray-100 dark:border-nvu-line mt-4">
         <button
           onClick={() => setActiveTab("candidates")}
-          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === "candidates" ? "text-indigo-600" : "text-gray-500 dark:text-[#a1a1aa] hover:text-gray-700 dark:hover:text-[#d4d4d8]"}`}
+          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === "candidates" ? "text-indigo-600" : "text-gray-500 dark:text-nvu-muted hover:text-gray-700 dark:hover:text-nvu-text-soft"}`}
         >
           <div className="flex items-center gap-2 px-1">
             <Users2 size={16} /> Candidatos
@@ -632,7 +704,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
         </button>
         <button
           onClick={() => setActiveTab("page")}
-          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === "page" ? "text-indigo-600" : "text-gray-500 dark:text-[#a1a1aa] hover:text-gray-700 dark:hover:text-[#d4d4d8]"}`}
+          className={`pb-3 text-sm font-medium transition-colors relative ${activeTab === "page" ? "text-indigo-600" : "text-gray-500 dark:text-nvu-muted hover:text-gray-700 dark:hover:text-nvu-text-soft"}`}
         >
           <div className="flex items-center gap-2 px-1">
             <LayoutTemplate size={16} /> Página Física
@@ -657,17 +729,17 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar candidatos..."
-                className="w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none rounded-lg pl-9 pr-4 py-1.5 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm outline-none"
+                className="w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none rounded-lg pl-9 pr-4 py-1.5 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm outline-none"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3">
-            <h3 className="font-semibold text-gray-900 dark:text-[#fafafa] border-b border-gray-100 dark:border-[#2A2F3A] pb-2 text-sm">
+            <h3 className="font-semibold text-gray-900 dark:text-nvu-text border-b border-gray-100 dark:border-nvu-line pb-2 text-sm">
               Aguardando Avaliação ({pendingApps.length})
             </h3>
             {pendingApps.length === 0 ? (
-              <div className="bg-gray-50 dark:bg-[#1A1F26] rounded-xl p-6 text-center text-gray-500 dark:text-[#a1a1aa] border border-gray-100 dark:border-[#2A2F3A] text-sm">
+              <div className="bg-gray-50 dark:bg-nvu-surface rounded-xl p-6 text-center text-gray-500 dark:text-nvu-muted border border-gray-100 dark:border-nvu-line text-sm">
                 Nenhum candidato aguardando aprovação no momento.
               </div>
             ) : (
@@ -676,20 +748,20 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                   return (
                     <div
                       key={app.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white dark:bg-[#1A1F26] rounded-lg border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none cursor-pointer hover:border-indigo-200 hover:shadow-md dark:shadow-none transition-all gap-4"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white dark:bg-nvu-surface rounded-lg border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none cursor-pointer hover:border-indigo-200 hover:shadow-md dark:shadow-none transition-all gap-4"
                       onClick={() => handleSetSelectedHistoryApp(app)}
                     >
                       <div className="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
                         <CandidateAvatar
                           name={app.fullName}
                           srcCandidates={getCandidatePhotoCandidates(app)}
-                          wrapperClassName="w-9 h-9 rounded-full border border-gray-100 dark:border-[#2A2F3A] shrink-0"
+                          wrapperClassName="w-9 h-9 rounded-full border border-gray-100 dark:border-nvu-line shrink-0"
                         />
                         <div className="min-w-0 pr-2">
-                          <p className="font-medium text-gray-900 dark:text-[#fafafa] text-[13px] truncate">
+                          <p className="font-medium text-gray-900 dark:text-nvu-text text-[13px] truncate">
                             {app.fullName}
                           </p>
-                          <div className="items-center text-[11px] text-gray-500 dark:text-[#a1a1aa] truncate flex gap-1">
+                          <div className="items-center text-[11px] text-gray-500 dark:text-nvu-muted truncate flex gap-1">
                             <Clock size={10} className="shrink-0" />{" "}
                             <span className="truncate">
                               Há {getTimeSince(app.createdAt)} &middot;{" "}
@@ -698,7 +770,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-50 dark:border-[#2A2F3A] mt-1 sm:mt-0 px-1 sm:px-0">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-50 dark:border-nvu-line mt-1 sm:mt-0 px-1 sm:px-0">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-50 dark:bg-amber-500/10 text-amber-700 border border-amber-200 dark:border-amber-500/30/60 uppercase tracking-widest shrink-0">
                           <Clock size={10} className="mr-1" /> Pendente
                         </span>
@@ -707,7 +779,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                             e.stopPropagation();
                             handleSetSelectedHistoryApp(app);
                           }}
-                          className="bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#d4d4d8] hover:text-indigo-600 hover:bg-indigo-50 dark:bg-indigo-500/10 hover:border-indigo-200 dark:border-indigo-500/30 py-1 px-3 h-auto text-[11px] font-semibold flex-shrink-0"
+                          className="bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text-soft hover:text-indigo-600 hover:bg-indigo-50 dark:bg-indigo-500/10 hover:border-indigo-200 dark:border-indigo-500/30 py-1 px-3 h-auto text-[11px] font-semibold flex-shrink-0"
                         >
                           Avaliar
                         </Button>
@@ -720,17 +792,18 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
           </div>
 
           <div className="grid grid-cols-1 gap-3 mt-6">
-            <h3 className="font-semibold text-gray-900 dark:text-[#fafafa] border-b border-gray-100 dark:border-[#2A2F3A] pb-2 text-sm">
+            <h3 className="font-semibold text-gray-900 dark:text-nvu-text border-b border-gray-100 dark:border-nvu-line pb-2 text-sm">
               Histórico Recente
             </h3>
+            {historyError && <div className="flex items-center justify-between gap-3"><p role="status" className="text-xs text-gray-500 dark:text-nvu-muted">{historyError}</p>{online && <button type="button" disabled={historyLoading} onClick={() => void loadRecruitmentHistory(true)} className="shrink-0 text-xs underline">Tentar novamente</button>}</div>}
             {historyLoading && historyApps.length === 0 ? (
-              <div className="bg-gray-50 dark:bg-[#1A1F26] rounded-xl p-6 text-center text-gray-500 dark:text-[#a1a1aa] border border-gray-100 dark:border-[#2A2F3A] text-sm">
+              <div className="bg-gray-50 dark:bg-nvu-surface rounded-xl p-6 text-center text-gray-500 dark:text-nvu-muted border border-gray-100 dark:border-nvu-line text-sm">
                 <Loader2 size={18} className="mx-auto mb-2 animate-spin" />
                 Carregando histórico...
               </div>
             ) : historyApps.length === 0 ? (
-              <div className="bg-gray-50 dark:bg-[#1A1F26] rounded-xl p-6 text-center text-gray-500 dark:text-[#a1a1aa] border border-gray-100 dark:border-[#2A2F3A] text-sm">
-                Nenhum histórico disponível.
+              <div className="bg-gray-50 dark:bg-nvu-surface rounded-xl p-6 text-center text-gray-500 dark:text-nvu-muted border border-gray-100 dark:border-nvu-line text-sm">
+                {historyError ? "Nenhum histórico salvo neste aparelho para esta empresa." : "Nenhum histórico disponível."}
               </div>
             ) : (
               <div className="space-y-2">
@@ -738,7 +811,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                   return (
                     <div
                       key={app.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white dark:bg-[#1A1F26] rounded-lg border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none cursor-pointer hover:border-gray-300 dark:border-[#52525b] transition-all gap-4"
+                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white dark:bg-nvu-surface rounded-lg border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none cursor-pointer hover:border-gray-300 dark:border-nvu-line transition-all gap-4"
                       onClick={() => handleSetSelectedHistoryApp(app)}
                     >
                       <div className="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
@@ -746,13 +819,13 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                           name={app.fullName}
                           srcCandidates={getCandidatePhotoCandidates(app)}
                           muted
-                          wrapperClassName="w-9 h-9 rounded-full border border-gray-100 dark:border-[#2A2F3A] shrink-0"
+                          wrapperClassName="w-9 h-9 rounded-full border border-gray-100 dark:border-nvu-line shrink-0"
                         />
                         <div className="min-w-0 pr-2">
-                          <p className="font-medium text-gray-900 dark:text-[#fafafa] text-[13px] truncate">
+                          <p className="font-medium text-gray-900 dark:text-nvu-text text-[13px] truncate">
                             {app.fullName}
                           </p>
-                          <div className="items-center text-[11px] text-gray-500 dark:text-[#a1a1aa] truncate flex gap-1">
+                          <div className="items-center text-[11px] text-gray-500 dark:text-nvu-muted truncate flex gap-1">
                             <Clock size={10} className="shrink-0" />{" "}
                             <span className="truncate">
                               Há {getTimeSince(app.createdAt)} &middot;{" "}
@@ -761,7 +834,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-50 dark:border-[#2A2F3A] mt-1 sm:mt-0 px-1 sm:px-0">
+                      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-gray-50 dark:border-nvu-line mt-1 sm:mt-0 px-1 sm:px-0">
                         {app.status === "approved" ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60 uppercase tracking-widest shrink-0">
                             <CheckCircle2 size={10} className="mr-1" /> Aprovado
@@ -791,8 +864,8 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
               <Button
                 type="button"
                 onClick={() => void loadRecruitmentHistory(false)}
-                disabled={historyLoading}
-                className="mt-1 w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#d4d4d8] hover:bg-gray-50 dark:hover:bg-[#27272a] shadow-none"
+                disabled={historyLoading || !online}
+                className="mt-1 w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip shadow-none"
               >
                 {historyLoading ? (
                   <>
@@ -810,14 +883,14 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
 
       {activeTab === "page" && (
         <div className="animate-in fade-in slide-in-from-bottom-2">
-          <Card className="rounded-3xl border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none">
+          <Card className="rounded-3xl border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none">
             <CardContent className="p-6 sm:p-8">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-[#fafafa]">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-nvu-text">
                     Editor da Página Pública
                   </h2>
-                  <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
+                  <p className="text-sm text-gray-500 dark:text-nvu-muted mt-1">
                     Configure os textos da página que novos concorrentes verão
                     antes de preencher o formulário.
                   </p>
@@ -834,12 +907,12 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2 border-l-2 border-indigo-500 pl-3">
-                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-[#fafafa] text-sm">
+                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-nvu-text text-sm">
                     <FileText size={16} className="text-indigo-500" /> Sobre a
                     Empresa
                   </label>
                   <textarea
-                    className="w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
+                    className="w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
                     placeholder="Somos a logística XYZ... (Markdown)"
                     value={settingsForm.about}
                     onChange={(e) =>
@@ -853,12 +926,12 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                 </div>
 
                 <div className="space-y-2 border-l-2 border-rose-500 pl-3">
-                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-[#fafafa] text-sm">
+                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-nvu-text text-sm">
                     <Target size={16} className="text-rose-500" /> Regras da
                     Empresa
                   </label>
                   <textarea
-                    className="w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
+                    className="w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
                     placeholder="1. Respeito obrigatório... (Markdown)"
                     value={settingsForm.rules}
                     onChange={(e) =>
@@ -872,11 +945,11 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                 </div>
 
                 <div className="space-y-2 border-l-2 border-sky-500 pl-3">
-                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-[#fafafa] text-sm">
+                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-nvu-text text-sm">
                     <Users2 size={16} className="text-sky-500" /> Como Funciona
                   </label>
                   <textarea
-                    className="w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
+                    className="w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
                     placeholder="As entregas deverão ser logadas... (Markdown)"
                     value={settingsForm.howItWorks}
                     onChange={(e) =>
@@ -890,12 +963,12 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                 </div>
 
                 <div className="space-y-2 border-l-2 border-emerald-500 pl-3">
-                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-[#fafafa] text-sm">
+                  <label className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-nvu-text text-sm">
                     <CheckCircle2 size={16} className="text-emerald-500" />{" "}
                     Benefícios
                   </label>
                   <textarea
-                    className="w-full bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
+                    className="w-full bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-lg p-3 focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600 transition-all text-sm min-h-[100px] shadow-sm dark:shadow-none resize-none"
                     placeholder="Comboios quinzenais... (Markdown)"
                     value={settingsForm.benefits}
                     onChange={(e) =>
@@ -911,7 +984,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                 <div className="md:col-span-2 pt-2 flex justify-end">
                   <Button
                     onClick={handleSaveSettings}
-                    disabled={isSavingSettings}
+                    disabled={isSavingSettings || !online}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 h-auto text-sm shadow-sm dark:shadow-none font-semibold rounded-lg"
                   >
                     {isSavingSettings ? (
@@ -931,17 +1004,17 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
 
       {selectedHistoryApp && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1F26] rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-300">
+          <div className="bg-white dark:bg-nvu-surface rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl animate-in zoom-in-95 slide-in-from-bottom-2 duration-300">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-[#2A2F3A]">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 dark:border-nvu-line">
               <div className="flex items-center gap-3">
                 <CandidateAvatar
                   name={selectedHistoryApp.fullName}
                   srcCandidates={getCandidatePhotoCandidates(selectedHistoryApp)}
-                  wrapperClassName="w-12 h-12 rounded-full shadow-sm dark:shadow-none bg-gray-50 dark:bg-[#1A1F26] border border-gray-100 dark:border-[#2A2F3A]"
+                  wrapperClassName="w-12 h-12 rounded-full shadow-sm dark:shadow-none bg-gray-50 dark:bg-nvu-surface border border-gray-100 dark:border-nvu-line"
                 />
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-[#fafafa] leading-tight">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-nvu-text leading-tight">
                     {selectedHistoryApp.fullName}
                   </h2>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -960,7 +1033,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                         Recusado
                       </span>
                     )}
-                    <span className="text-[11px] text-gray-500 dark:text-[#a1a1aa] font-medium tracking-wide">
+                    <span className="text-[11px] text-gray-500 dark:text-nvu-muted font-medium tracking-wide">
                       &middot; Há {getTimeSince(selectedHistoryApp.createdAt)}
                     </span>
                   </div>
@@ -968,103 +1041,103 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
               </div>
               <button
                 onClick={() => handleSetSelectedHistoryApp(null)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-[#d4d4d8] dark:hover:text-[#a1a1aa] hover:bg-gray-100 dark:bg-[#27272a] dark:hover:bg-[#3f3f46]/50 rounded-lg transition-colors self-start shrink-0"
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:text-nvu-text-soft dark:hover:text-nvu-muted hover:bg-gray-100 dark:bg-nvu-strip dark:hover:bg-nvu-strip/50 rounded-lg transition-colors self-start shrink-0"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-5 pb-8 space-y-5 bg-gray-50 dark:bg-[#1A1F26]">
+            <div className="flex-1 overflow-y-auto p-5 pb-8 space-y-5 bg-gray-50 dark:bg-nvu-surface">
               {/* Contato e Jogo */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="bg-white dark:bg-[#1A1F26] p-3.5 rounded-xl border border-gray-100 dark:border-[#2A2F3A] shadow-sm dark:shadow-none flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 text-gray-500 dark:text-[#a1a1aa]">
+                <div className="bg-white dark:bg-nvu-surface p-3.5 rounded-xl border border-gray-100 dark:border-nvu-line shadow-sm dark:shadow-none flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-nvu-muted">
                     <Mail size={14} />
                     <p className="text-[11px] font-semibold uppercase tracking-wider">
                       Email
                     </p>
                   </div>
                   <p
-                    className="text-[13px] font-medium text-gray-900 dark:text-[#fafafa] truncate"
+                    className="text-[13px] font-medium text-gray-900 dark:text-nvu-text truncate"
                     title={selectedHistoryApp.email}
                   >
                     {selectedHistoryApp.email}
                   </p>
                 </div>
-                <div className="bg-white dark:bg-[#1A1F26] p-3.5 rounded-xl border border-gray-100 dark:border-[#2A2F3A] shadow-sm dark:shadow-none flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 text-gray-500 dark:text-[#a1a1aa]">
+                <div className="bg-white dark:bg-nvu-surface p-3.5 rounded-xl border border-gray-100 dark:border-nvu-line shadow-sm dark:shadow-none flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-nvu-muted">
                     <Phone size={14} />
                     <p className="text-[11px] font-semibold uppercase tracking-wider">
                       WhatsApp
                     </p>
                   </div>
                   <p
-                    className="text-[13px] font-medium text-gray-900 dark:text-[#fafafa] truncate"
+                    className="text-[13px] font-medium text-gray-900 dark:text-nvu-text truncate"
                     title={selectedHistoryApp.whatsapp}
                   >
                     {selectedHistoryApp.whatsapp}
                   </p>
                 </div>
-                <div className="bg-white dark:bg-[#1A1F26] p-3.5 rounded-xl border border-gray-100 dark:border-[#2A2F3A] shadow-sm dark:shadow-none flex flex-col gap-1.5">
-                  <div className="flex items-center gap-2 text-gray-500 dark:text-[#a1a1aa]">
+                <div className="bg-white dark:bg-nvu-surface p-3.5 rounded-xl border border-gray-100 dark:border-nvu-line shadow-sm dark:shadow-none flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2 text-gray-500 dark:text-nvu-muted">
                     <Gamepad2 size={14} />
                     <p className="text-[11px] font-semibold uppercase tracking-wider">
                       Simulador
                     </p>
                   </div>
-                  <p className="text-[13px] font-medium text-gray-900 dark:text-[#fafafa] truncate">
+                  <p className="text-[13px] font-medium text-gray-900 dark:text-nvu-text truncate">
                     {activeCompany?.simulatorName || "-"}
                   </p>
                 </div>
               </div>
 
               {/* Informações Operacionais */}
-              <div className="bg-white dark:bg-[#1A1F26] rounded-xl border border-gray-100 dark:border-[#2A2F3A] shadow-sm dark:shadow-none">
-                <div className="px-4 py-3 border-b border-gray-50 dark:border-[#2A2F3A] flex items-center gap-2">
+              <div className="bg-white dark:bg-nvu-surface rounded-xl border border-gray-100 dark:border-nvu-line shadow-sm dark:shadow-none">
+                <div className="px-4 py-3 border-b border-gray-50 dark:border-nvu-line flex items-center gap-2">
                   <Target
                     size={14}
                     className="text-indigo-600 dark:text-indigo-400"
                   />
-                  <h3 className="font-semibold text-gray-900 dark:text-[#fafafa] text-[13px]">
+                  <h3 className="font-semibold text-gray-900 dark:text-nvu-text text-[13px]">
                     Informações Operacionais
                   </h3>
                 </div>
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6">
                   <div>
-                    <p className="text-[11px] font-semibold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1">
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-nvu-muted uppercase tracking-widest mb-1">
                       Objetivo Logístico
                     </p>
-                    <p className="text-[13px] text-gray-900 dark:text-[#fafafa] font-medium">
+                    <p className="text-[13px] text-gray-900 dark:text-nvu-text font-medium">
                       {selectedHistoryApp.objective}
                     </p>
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1">
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-nvu-muted uppercase tracking-widest mb-1">
                       Margem de Viagens
                     </p>
-                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-gray-900 dark:text-[#fafafa]">
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-gray-900 dark:text-nvu-text">
                       <Clock size={14} className="text-gray-400" />{" "}
                       {selectedHistoryApp.deliveriesPerWeek}{" "}
-                      <span className="text-gray-500 dark:text-[#a1a1aa] text-xs font-normal">
+                      <span className="text-gray-500 dark:text-nvu-muted text-xs font-normal">
                         viagens/semana
                       </span>
                     </div>
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1">
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-nvu-muted uppercase tracking-widest mb-1">
                       Veículo Principal
                     </p>
-                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-gray-900 dark:text-[#fafafa]">
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-gray-900 dark:text-nvu-text">
                       <Car size={14} className="text-gray-400" />{" "}
                       {selectedHistoryApp.primaryVehicle}
                     </div>
                   </div>
                   <div>
-                    <p className="text-[11px] font-semibold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1">
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-nvu-muted uppercase tracking-widest mb-1">
                       Veículo Secundário
                     </p>
-                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-gray-900 dark:text-[#fafafa]">
+                    <div className="flex items-center gap-1.5 text-[13px] font-medium text-gray-900 dark:text-nvu-text">
                       <Car size={14} className="text-gray-400 opacity-50" />{" "}
                       {selectedHistoryApp.secondaryVehicle || (
                         <span className="text-gray-400 font-normal italic">
@@ -1074,11 +1147,11 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                     </div>
                   </div>
                   <div className="sm:col-span-2 pt-2">
-                    <div className="bg-slate-50 dark:bg-[#18181b] p-3 rounded-lg border border-slate-100 dark:border-[#2A2F3A]">
-                      <p className="text-[11px] font-semibold text-slate-500 dark:text-[#a1a1aa] uppercase tracking-widest mb-1.5">
+                    <div className="bg-slate-50 dark:bg-nvu-surface p-3 rounded-lg border border-slate-100 dark:border-nvu-line">
+                      <p className="text-[11px] font-semibold text-slate-500 dark:text-nvu-muted uppercase tracking-widest mb-1.5">
                         Experiência Prévia
                       </p>
-                      <p className="text-[13px] text-slate-900 dark:text-[#fafafa] font-medium">
+                      <p className="text-[13px] text-slate-900 dark:text-nvu-text font-medium">
                         {selectedHistoryApp.hasExperience
                           ? "Sim, possui experiência com outras empresas (VTC)."
                           : "Não, primeira vez operando de forma organizada."}
@@ -1089,13 +1162,13 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
               </div>
 
               {/* Análise do Candidato */}
-              <div className="bg-white dark:bg-[#1A1F26] rounded-xl border border-indigo-100 dark:border-indigo-500/30 shadow-sm dark:shadow-none relative overflow-hidden">
+              <div className="bg-white dark:bg-nvu-surface rounded-xl border border-indigo-100 dark:border-indigo-500/30 shadow-sm dark:shadow-none relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-indigo-50 dark:bg-indigo-500"></div>
                 <div className="px-5 py-4">
                   <p className="text-[11px] font-bold text-indigo-500 uppercase tracking-wider mb-2">
                     Por que devemos aprovar sua inscrição?
                   </p>
-                  <p className="text-[13px] text-gray-800 dark:text-[#d4d4d8] italic leading-relaxed">
+                  <p className="text-[13px] text-gray-800 dark:text-nvu-text-soft italic leading-relaxed">
                     "{selectedHistoryApp.reason}"
                   </p>
                 </div>
@@ -1103,21 +1176,23 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
             </div>
 
             {/* Modal Footer / Actions */}
-            <div className="p-4 border-t border-gray-100 dark:border-[#2A2F3A] bg-white dark:bg-[#1A1F26] flex flex-col sm:flex-row gap-2">
+            <div className="p-4 border-t border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface flex flex-col sm:flex-row gap-2">
               {selectedHistoryApp.status === "pending" && selectedHistoryApp.isCurrent !== false ? (
                 <>
                   <Button
+                    disabled={!online || processingApplications.has(selectedHistoryApp.id)}
                     onClick={() => {
                       void handleRejectApplication(
                         selectedHistoryApp.id,
                         true,
                       );
                     }}
-                    className="w-full sm:w-1/2 bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#fafafa] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 py-2 h-auto text-sm shadow-sm dark:shadow-none"
+                    className="w-full sm:w-1/2 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 py-2 h-auto text-sm shadow-sm dark:shadow-none"
                   >
                     <XCircle size={16} className="mr-2" /> Recusar Inscrição
                   </Button>
                   <Button
+                    disabled={!online || processingApplications.has(selectedHistoryApp.id)}
                     onClick={() => {
                       void handleApproveApplication(
                         selectedHistoryApp.id,
@@ -1126,15 +1201,16 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                     }}
                     className="w-full sm:w-1/2 bg-emerald-600 hover:bg-emerald-700 text-white py-2 h-auto text-sm shadow-sm dark:shadow-none"
                   >
-                    <CheckCircle2 size={16} className="mr-2" /> Aprovar
-                    Inscrição
+                    {processingApplications.has(selectedHistoryApp.id)
+                      ? <><Loader2 size={16} className="mr-2 animate-spin" /> Aprovando…</>
+                      : <><CheckCircle2 size={16} className="mr-2" /> Aprovar Inscrição</>}
                   </Button>
                 </>
               ) : (
                 <>
                   <Button
                     onClick={() => handleSetSelectedHistoryApp(null)}
-                    className="w-full sm:w-1/3 bg-gray-50 dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#fafafa] hover:bg-gray-100 dark:hover:bg-[#27272a] py-2 h-auto text-sm"
+                    className="w-full sm:w-1/3 bg-gray-50 dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text hover:bg-gray-100 dark:hover:bg-nvu-strip py-2 h-auto text-sm"
                   >
                     Fechar
                   </Button>
@@ -1142,6 +1218,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                     <>
                       <div className="flex-1">
                         <Button
+                          disabled={!online || processingApplications.has(selectedHistoryApp.id)}
                           onClick={() => {
                             void handleApproveApplication(
                               selectedHistoryApp.id,
@@ -1149,8 +1226,9 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                           }}
                           className="w-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 py-2 h-auto border-none text-sm"
                         >
-                          <CheckCircle2 size={16} className="mr-2" /> Mudar para
-                          Aprovado
+                          {processingApplications.has(selectedHistoryApp.id)
+                            ? <><Loader2 size={16} className="mr-2 animate-spin" /> Aprovando…</>
+                            : <><CheckCircle2 size={16} className="mr-2" /> Mudar para Aprovado</>}
                         </Button>
                       </div>
                       <div className="flex-none">
@@ -1171,6 +1249,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                     <>
                       <div className="flex-1">
                         <Button
+                          disabled={!online || processingApplications.has(selectedHistoryApp.id)}
                           onClick={() => {
                             void handleRejectApplication(
                               selectedHistoryApp.id,
@@ -1205,23 +1284,23 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
 
       {appToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1F26] rounded-2xl w-full max-w-sm overflow-hidden flex flex-col shadow-xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white dark:bg-nvu-surface rounded-2xl w-full max-w-sm overflow-hidden flex flex-col shadow-xl animate-in zoom-in-95 duration-200">
             <div className="p-6 text-center">
               <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-4">
                 <Trash2 size={24} />
               </div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-[#fafafa] mb-2">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-nvu-text mb-2">
                 Excluir Inscrição
               </h3>
-              <p className="text-sm text-gray-500 dark:text-[#a1a1aa]">
+              <p className="text-sm text-gray-500 dark:text-nvu-muted">
                 Tem certeza que deseja excluir esta inscrição do histórico? Esta
                 ação não pode ser desfeita.
               </p>
             </div>
-            <div className="p-4 bg-gray-50 dark:bg-[#1A1F26] flex gap-3">
+            <div className="p-4 bg-gray-50 dark:bg-nvu-surface flex gap-3">
               <Button
                 onClick={() => setAppToDelete(null)}
-                className="flex-1 bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#d4d4d8] hover:bg-gray-100 dark:hover:bg-[#3f3f46]/50 font-semibold"
+                className="flex-1 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text-soft hover:bg-gray-100 dark:hover:bg-nvu-strip/50 font-semibold"
               >
                 Cancelar
               </Button>

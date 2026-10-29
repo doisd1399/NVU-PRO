@@ -1,13 +1,8 @@
-/**
- * Applies route/profile state in the current interaction.
- *
- * Route and selector changes are the visible acknowledgement of the user's
- * click, so they must stay urgent. Marking them as a React transition allowed
- * the old screen/selection to remain visible while other updates were pending,
- * which made taps look ignored on Android and in the AI Studio preview.
- */
+import { startTransition } from "react";
+
+/** Schedule immediately; retain the visible page if destination code suspends. */
 export function commitNavigation(update: () => void): void {
-  update();
+  startTransition(update);
 }
 
 /**

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NVU QA</string>
+    <string name="title_activity_main">NVU QA</string>
+    <string name="google_app_id" translatable="false">1:1234567890:android:0000000000000000</string>
+    <string name="gcm_defaultSenderId" translatable="false">1234567890</string>
+    <string name="google_api_key" translatable="false">qa-offline-no-credential</string>
+    <string name="project_id" translatable="false">demo-nvu-v36-4-staging</string>
+    <string name="google_storage_bucket" translatable="false">demo-nvu-v36-4-staging.appspot.com</string>
+    <string name="default_web_client_id" translatable="false">qa-only.apps.googleusercontent.com</string>
+</resources>

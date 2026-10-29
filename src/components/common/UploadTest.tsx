@@ -1,3 +1,4 @@
+import { CachedImage } from "./CachedImage";
 import React, { useState, useRef } from "react";
 import { uploadService, UploadError } from "../../services/uploadService";
 import { UploadCloud, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
@@ -78,7 +79,7 @@ export const UploadTest: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md w-full bg-white dark:bg-[#1A1F26] rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 overflow-hidden">
+    <div className="max-w-md w-full bg-white dark:bg-nvu-surface rounded-xl border border-gray-100 dark:border-nvu-line shadow-sm p-6 overflow-hidden">
       <div className="flex items-center space-x-3 mb-6">
         <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
           <UploadCloud size={20} />
@@ -87,7 +88,7 @@ export const UploadTest: React.FC = () => {
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
             Teste de Upload Firebase
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-gray-500 dark:text-nvu-muted">
             Suporta JPG, PNG, WEBP (Max 5MB)
           </p>
         </div>
@@ -102,12 +103,12 @@ export const UploadTest: React.FC = () => {
             onChange={handleFileChange}
             disabled={isUploading}
             ref={fileInputRef}
-            className="block w-full text-sm text-gray-500 dark:text-gray-400
+            className="block w-full text-sm text-gray-500 dark:text-nvu-muted
               file:mr-4 file:py-2 file:px-4
               file:rounded-md file:border-0
               file:text-sm file:font-medium
               file:bg-gray-50 file:text-gray-700
-              hover:file:bg-gray-100 dark:file:bg-gray-800 dark:file:text-gray-300
+              hover:file:bg-gray-100 dark:file:bg-nvu-surface dark:file:text-nvu-text-soft
               disabled:opacity-50"
           />
         </div>
@@ -128,7 +129,7 @@ export const UploadTest: React.FC = () => {
                 <span>Enviando...</span>
                 <span>{progress}%</span>
               </div>
-              <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div className="w-full bg-gray-100 dark:bg-nvu-surface rounded-full h-1.5 overflow-hidden">
                 <div
                   className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                   style={{ width: `${progress}%` }}
@@ -139,7 +140,7 @@ export const UploadTest: React.FC = () => {
             <button
               onClick={handleUpload}
               disabled={!file}
-              className="w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 dark:disabled:bg-gray-800 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-300 dark:disabled:bg-nvu-surface disabled:cursor-not-allowed transition-colors"
             >
               Iniciar Upload
             </button>
@@ -165,8 +166,8 @@ export const UploadTest: React.FC = () => {
             </a>
 
             {/* Simple Preview */}
-            <div className="mt-3 aspect-video bg-gray-100 dark:bg-gray-900 rounded overflow-hidden border border-gray-200 dark:border-gray-800">
-              <img
+            <div className="mt-3 aspect-video bg-gray-100 dark:bg-nvu-page rounded overflow-hidden border border-gray-200 dark:border-nvu-line">
+              <CachedImage
                 src={uploadedUrl}
                 alt="Upload preview"
                 className="w-full h-full object-cover"

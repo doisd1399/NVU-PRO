@@ -1,3 +1,25 @@
+import { lookupPrivateProfiles, queryPrivateUsers } from "../services/privateUserProfiles";
+import { deleteCompanyCanonical } from "../services/seniorAccountAdministrationService";
+import { manageFleetMembership } from "../services/fleetMembershipService";
+import {
+  rejectDriverRequestOnServer,
+  rejectRecruitmentApplicationOnServer,
+} from "../services/adminRejectionService";
+import { presentConfirmedOperationResult } from "../services/operationCompletionPresentation";
+import { canonicalTripRepository } from "../repositories/CanonicalTripRepository";
+import { operationOutbox, OPERATION_OUTBOX_CHANGED, mirrorOperationStart, mirrorOperationCapturePause, pendingOperationTripCount } from "../services/operationOutbox";
+import { automaticOperationJobId } from "../application/operation/DurableOperationOutbox";
+import { needsSessionReconnect, nextSessionGeneration } from "../lib/sessionRefreshPolicy";
+import { operationalRequestId } from "../lib/operationalRequestId";
+import { automaticQueueScope, readOperationalQueueCache } from "../lib/operationalQueueCache";
+import { resolveOperationContract } from "../lib/operationResultSummary";
+import { assertCachedNewOperationAllowed } from "../services/workModeAvailabilityService";
+import type { QueueNext } from "../../functions/src/operationalQueueModel";
+import { mergeManagedOperationAcknowledgement, ManagedOperationAcknowledgementCache } from "../lib/managedOperationAcknowledgement";
+import { resolveTripSimulatorCode as resolveAvailabilitySimulator } from "../lib/tripDistance";
+import { assertNewOperationAllowed } from "../services/workModeAvailabilityService";
+import { canonicalTripOperationService } from "../application/trip/CanonicalTripOperationService";
+import { canonicalOperationCommandService } from "../application/operation/CanonicalOperationCommandService";
 import React, {
   createContext,
   useContext,
@@ -8,6 +30,8 @@ import React, {
   useRef,
 } from "react";
 import { toast } from "sonner";
+import { driverDisplayIdentity } from "../lib/driverDisplayIdentity";
+import { useDriverDisplayProfiles } from "../hooks/useDriverDisplayProfiles";
 import { auth, authPersistenceReady, db } from "../lib/firebase";
 import { restoreNativeGoogleSession } from "../services/googleAuthService";
 import { NotificationsProvider } from "./NotificationsContext";
@@ -52,6 +76,8 @@ import {
 } from "../services/sessionDiagnostic";
 import { createMembershipRepository } from "../services/membershipRepository";
 import { projectAuthSession } from "../services/authSessionProjection";
+import { applyAuthoritativeJobProjection } from "../lib/authoritativeJobProjection";
+import { useInitialOperationIntegrity } from "../hooks/useInitialOperationIntegrity";
 import { resolveOperationalRealtimePolicy } from "../services/operationalRealtimePolicy";
 import {
   buildProfileIndex,
@@ -70,7 +96,10 @@ import { markSessionBootEvent } from "../lib/sessionBootTelemetry";
 import { markProfilePerf } from "../lib/profilePerformanceTelemetry";
 import { getOperationalSuspension } from "../lib/driverSuspension";
 import { clearTripHistoryCacheForUser } from "../lib/tripHistoryPersistentCache";
-import { isOpenJobStatus, isRunningJobStatus, normalizeJobStatus } from "../lib/jobStatus";
+import { isOpenJobStatus, normalizeJobStatus } from "../lib/jobStatus";
+import { isSimpleAutomationNativeAvailable } from "../lib/simpleAutomationNative";
+import type { ConfirmedOperationCompletion } from "../application/operation/FinalizeOperation";
+import { discardCompletedOperationQueue, reconcileCompletedOperationQueues } from "../services/completedOperationQueueCleanup";
 import { selectCurrentOperationJob } from "../lib/currentOperation";
 import {
   resolveCurrentFleetUsageJobs,
@@ -119,7 +148,7 @@ export interface CompanyMember {
   roles: Role[];
   role?: Role;
   permissions: string[];
-  status: "active" | "pending" | "rejected";
+  status: "active" | "pending" | "rejected" | "inactive";
   joinedAt?: string;
 }
 
@@ -130,6 +159,16 @@ export interface User {
   password?: string;
   authPhotoURL?: string;
   profilePhotoURL?: string;
+  profileNameSource?: string;
+  profileNameUpdatedAt?: string;
+  profilePhotoSource?: string;
+  profilePhotoUpdatedAt?: string;
+  approvedIdentityApplicationId?: string;
+  approvedIdentityName?: string;
+  approvedIdentityPhotoURL?: string;
+  approvedIdentityVersion?: number;
+  profileCoverURL?: string;
+  profileCoverRevision?: string;
   whatsapp?: string;
   applicationSubmitted?: boolean;
   /** Documento da inscrição que está sendo acompanhada nesta sessão/conta. */
@@ -138,7 +177,7 @@ export interface User {
   currentRecruitmentSimulatorId?: string;
   currentRecruitmentStatus?: "pending" | "approved" | "rejected";
   currentRecruitmentType?: "company_registration" | "driver_application";
-  status: "active" | "pending" | "rejected";
+  status: "active" | "pending" | "rejected" | "inactive";
   isOnline?: boolean;
   level?: number;
   rating?: number;
@@ -151,7 +190,7 @@ export interface User {
     [companyId: string]: {
       role: Role;
       roles: Role[];
-      status: "active" | "pending" | "rejected";
+      status: "active" | "pending" | "rejected" | "inactive";
     };
   };
   role?: Role;
@@ -256,6 +295,8 @@ export interface CompanyProfile {
   userId?: string;
   ownerId?: string;
   companyName: string;
+  profileDescription?: string;
+  profileDescriptionRevision?: string;
   fleetName?: string; // Fallback temporário
   simulatorName: string;
   simulatorId?: string;
@@ -265,6 +306,8 @@ export interface CompanyProfile {
   cnpj: string;
   whatsapp?: string;
   logoUrl?: string;
+  profileCoverURL?: string;
+  profileCoverRevision?: string;
   logoURL?: string;
   companyLogoURL?: string;
   logoStoragePath?: string;
@@ -303,16 +346,26 @@ export interface Contract {
 }
 
 export interface Job {
+  operationSyncState?: "pending_start" | "pending_finish" | "start_rejected" | "finish_rejected";
+  operationSyncError?: string;
   id: string;
+  operationId?: string;
   userId?: string;
   motoristaId?: string;
   companyId: string;
   contractId: string;
   driverId: string;
+  simulatorId?: string;
   vehicleId: string;
   trailerId?: string;
   status: "pending" | "active" | "completed" | "cancelled" | "awaiting_completion" | "delayed";
   progress: number; // Num of completed deliveries
+  totalDeliveries?: number;
+  operationalCommandVersion?: number;
+  operationalRevision?: number;
+  contractSnapshot?: Record<string, any>;
+  archived?: boolean;
+  operationProgressReconciled?: boolean; // Server transaction has verified this count
   contractNameSnapshot?: string;
   completedRoutes?: { origin: string; destination: string }[]; // For simple mode deliveries
   deadlineDate: string; // ISO String (legacy fallback)
@@ -587,9 +640,11 @@ export interface OperationalStoreType {
     vehicleId: string,
     trailerId?: string,
     customDeadlineDays?: number,
+    requestId?: string,
   ) => Promise<void>;
   startJob: (jobId: string) => Promise<void>;
-  finishJob: (jobId: string) => Promise<void>;
+  startAutomaticOperation: (next: QueueNext, vehicleId: string) => Promise<void>;
+  finishJob: (jobId: string) => Promise<ConfirmedOperationCompletion>;
   cancelJob: (jobId: string) => Promise<void>;
   deleteJob: (jobId: string) => Promise<void>;
   requestNewJobDemand: () => Promise<void>;
@@ -724,7 +779,7 @@ const normalizeAuthenticatedUser = (
   raw: Record<string, unknown>,
   id: string,
 ): User => {
-  const data = { ...raw, id } as User;
+  const data = { ...raw, id, ...driverDisplayIdentity({ ...raw, id }) } as User;
   const rawRoles = Array.isArray(data.roles) ? [...data.roles] : [];
   if (rawRoles.length === 0) rawRoles.push(data.role || "driver");
   if (rawRoles.includes("admin") && !rawRoles.includes("driver")) {
@@ -741,10 +796,6 @@ const normalizeAuthenticatedUser = (
   }
   if (data.roles.includes("admin")) data.status = "active";
 
-  const resolvedProfilePhoto = resolvePersistedUserProfilePhoto(data);
-  if (resolvedProfilePhoto && !data.profilePhotoURL) {
-    data.profilePhotoURL = resolvedProfilePhoto;
-  }
 
   return data;
 };
@@ -756,13 +807,10 @@ const createFirebaseIdentityFallback = (firebaseUser: {
   photoURL?: string | null;
 }): User => ({
   id: firebaseUser.uid,
-  name:
-    firebaseUser.displayName?.trim() ||
-    firebaseUser.email?.split("@")[0] ||
-    "Usuário",
+  name: "Motorista",
   email: firebaseUser.email || "",
   authPhotoURL: firebaseUser.photoURL || undefined,
-  profilePhotoURL: firebaseUser.photoURL || undefined,
+  profilePhotoURL: undefined,
   status: "active",
   role: "driver",
   roles: ["driver"],
@@ -1158,7 +1206,7 @@ const recoverApprovedCompanyOwnerPhoto = async (
     registrations.set(registrationDoc.id, registrationDoc.data()),
   );
 
-  if (email) {
+  if (email && auth.currentUser?.emailVerified) {
     if (isAuthTeardownActive() || auth.currentUser?.uid !== userId) return "";
     const normalizedEmail = email.trim().toLowerCase();
     if (normalizedEmail) {
@@ -1227,7 +1275,7 @@ type OperationalScopeSnapshot = {
   jobDemands?: JobDemand[];
 };
 
-const OPERATIONAL_SCOPE_SESSION_VERSION = "v2";
+const OPERATIONAL_SCOPE_SESSION_VERSION = "v3-public-profiles";
 const OPERATIONAL_SCOPE_SESSION_PREFIX =
   `nvu.persisted.${OPERATIONAL_SCOPE_SESSION_VERSION}.operational.`;
 const operationalScopeCache = new Map<string, OperationalScopeSnapshot>();
@@ -1613,6 +1661,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const refreshSession = (reason = "manual") => {
     if (isLoggingOutRef.current || isAuthTeardownActive() || !auth.currentUser) return;
+    const confirmed = confirmedMembershipsRef.current;
+    if (!needsSessionReconnect({
+      manual: reason === "manual", uid: auth.currentUser.uid, profileUid: currentUserRef.current?.id,
+      userListenerConnected: Boolean(userDocumentUnsubscribeRef.current),
+      membershipListenerConnected: Boolean(membershipsUnsubscribeRef.current),
+      membershipConfirmed: confirmed?.uid === auth.currentUser.uid && confirmed.sessionGeneration === authSessionGenerationRef.current,
+    })) return; // The SDK resumes healthy live listeners without new reads or UI gates.
     // Android resume/online events used to rebuild the auth + user + membership
     // listener graph while SelectProfile was already interactive. That work can
     // deserialize Firestore snapshots and block the same main thread used by a
@@ -1872,7 +1927,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const attachAuthListener = () => {
       unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
       stopUserDocumentListener();
-      const sessionGeneration = ++authSessionGenerationRef.current;
+      const sessionGeneration = nextSessionGeneration(currentUserRef.current?.id || null, firebaseUser?.uid || null, authSessionGenerationRef.current);
+      authSessionGenerationRef.current = sessionGeneration;
 
       if (firebaseUser) {
         const bootConfirmedSnapshot = confirmedMembershipsRef.current;
@@ -2048,6 +2104,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             (error) => {
               if (!isCurrentGeneration(firebaseUser.uid, sessionGeneration)) return;
               console.warn("[NVU Session] User listener interrupted; recovering.", error);
+              userDocumentUnsubscribeRef.current = null;
               void recoverUserDocument(firebaseUser, "snapshot-error", sessionGeneration);
             },
           );
@@ -2170,9 +2227,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const [trailers, setTrailers] = useState<Trailer[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const finishJobInFlightRef = useRef<Set<string>>(new Set());
+  const [serverJobs, setJobs] = useState<Job[]>([]);
+  const [outboxRevision, setOutboxRevision] = useState(0);
+  const jobs = useMemo(() => {
+    if (activeRole !== "driver" || !currentUser?.id || !activeCompanyId) return serverJobs;
+    try { return operationOutbox.project(serverJobs as any[], currentUser.id, activeCompanyId) as Job[]; }
+    catch { return serverJobs; } // Never turn unavailable local storage into a blank workspace.
+  },
+    [serverJobs, currentUser?.id, activeRole, activeCompanyId, outboxRevision]);
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      if ((event as CustomEvent).detail?.uid === currentUser?.id) setOutboxRevision(revision => revision + 1);
+    };
+    try { if (currentUser?.id) operationOutbox.entries(currentUser.id); }
+    catch { toast.error("Os comandos locais não puderam ser lidos. Os registros foram preservados; novas confirmações estão bloqueadas neste aparelho."); }
+    window.addEventListener(OPERATION_OUTBOX_CHANGED, refresh);
+    return () => window.removeEventListener(OPERATION_OUTBOX_CHANGED, refresh);
+  }, [currentUser?.id]);
+  const operationalCommandScopeRef = useRef("");
+  useEffect(() => {
+    const uid = currentUser?.id || "";
+    if (!uid || activeRole !== "driver" || !activeCompanyId || auth.currentUser?.uid !== uid) return;
+    try {
+      presentConfirmedOperationResult({uid, companyId: activeCompanyId, entries: operationOutbox.entries(uid),
+        contracts, trips: canonicalTripRepository.list(),
+        acknowledge: entryId => operationOutbox.acknowledgeResultPresented(uid, entryId)});
+    } catch (error) { console.warn("[NVU] Resultado confirmado será apresentado na retomada", error); }
+  }, [currentUser?.id, activeRole, activeCompanyId, outboxRevision, contracts]);
+  operationalCommandScopeRef.current = JSON.stringify([currentUser?.id, activeCompanyId, activeRole]);
+  const assertOperationalCommandScope = (uid: string, scope: string) => {
+    if (auth.currentUser?.uid !== uid || operationalCommandScopeRef.current !== scope) throw new Error("OPERATIONAL_COMMAND_SESSION_CHANGED");
+  };
+  const operationalAcknowledgements = useRef(new ManagedOperationAcknowledgementCache<Job>());
+  operationalAcknowledgements.current.resetScope(operationalCommandScopeRef.current);
+  const mergeManagedConfirmedJob = (job: Job): Job => operationalAcknowledgements.current.merge(job);
+
+  const finishJobInFlightRef = useRef<Map<string, Promise<ConfirmedOperationCompletion>>>(new Map());
   const startJobInFlightRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!authInitialized || !currentUser?.id || !isSimpleAutomationNativeAvailable()) return;
+    const refresh = () => {
+      if (document.hidden) return;
+      void reconcileCompletedOperationQueues().catch((error) =>
+        console.warn("[NVU] limpeza de operações encerradas será retomada", error),
+      );
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 60_000);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [authInitialized, currentUser?.id]);
   const [jobDemands, setJobDemands] = useState<JobDemand[]>([]);
   const [operationalReadiness, setOperationalReadiness] =
     useState<OperationalReadiness>(EMPTY_OPERATIONAL_READINESS);
@@ -2240,13 +2349,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   // --- Simulators Subscription ---
   // Firebase is the single source of truth.
   // No automatic creation, seed, or hardcoded simulators.
+  const simulatorCatalogEnabled = !interactionFirstRoute && foregroundPathname !== "/login";
   useEffect(() => {
     // The simulator catalog is not needed to open Pending Applications. Stop
     // the listener before entering the selector so a network snapshot cannot
     // normalize the catalog and invalidate OperationalContext during a tap.
     // Existing simulator data remains in memory and the listener reconnects on
     // routes that actually consume the catalog.
-    if (interactionFirstRoute || foregroundPathname === "/login") return;
+    if (!simulatorCatalogEnabled) return;
 
     setSimulatorsLoading(true);
     setSimulatorsError(null);
@@ -2261,8 +2371,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
           })),
         ) as Simulator[];
 
-        setSimulators(simulatorsData);
-        writeCachedSimulators(simulatorsData);
+        // An offline Firestore listener may emit an empty cache snapshot before
+        // connectivity is known. Never let that transient empty result erase the
+        // last validated simulator catalog required by Print/Pro offline work.
+        if (snap.metadata.fromCache && simulatorsData.length === 0) {
+          setSimulators((current) => current.length > 0 ? current : readCachedSimulators());
+        } else {
+          setSimulators(simulatorsData);
+          if (simulatorsData.length > 0 || !snap.metadata.fromCache) {
+            writeCachedSimulators(simulatorsData);
+          }
+        }
         setSimulatorsError(null);
         setSimulatorsLoading(false);
 
@@ -2280,7 +2399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     );
 
     return () => unsub();
-  }, [foregroundPathname, interactionFirstRoute]);
+  }, [simulatorCatalogEnabled]);
 
   // --- Real-time Firestore Subscriptions (Authenticated) ---
   useEffect(() => {
@@ -2601,6 +2720,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         }
 
         console.warn("[NVU Session] Membership listener interrupted; recovering.", err);
+        membershipsUnsubscribeRef.current = null;
         const existingMemberships =
           membershipsRef.current.length > 0
             ? membershipsRef.current
@@ -2796,6 +2916,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const {
     allCompanyMembers,
     allCompanyMembersReady,
+    allCompanyMembersError,
     setAllCompanyMembers,
   } = useCompanyMembersController({
       userId: currentUserId,
@@ -3000,7 +3121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const hydratePriorityDriverContract = (nextJobs: Job[]) => {
       if (activeRole !== "driver" || !targetCompanyId) return;
 
-      const priorityJob = selectCurrentOperationJob(nextJobs, uid);
+      const priorityJob = selectCurrentOperationJob(nextJobs, uid, targetCompanyId);
 
       const contractId = String(priorityJob?.contractId || "").trim();
       if (!contractId) return;
@@ -3055,7 +3176,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const hydratePriorityDriverAssets = (nextJobs: Job[]) => {
       if (activeRole !== "driver" || !targetCompanyId) return;
-      const priorityJob = selectCurrentOperationJob(nextJobs, uid);
+      const priorityJob = selectCurrentOperationJob(nextJobs, uid, targetCompanyId);
       if (!priorityJob) return;
 
       const assets = [
@@ -3137,11 +3258,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (cachedScope.users) setUsers(cachedScope.users);
       const cachedActiveDriverJob =
         activeRole === "driver"
-          ? cachedScope.jobs?.find(
-              (job) =>
-                job.driverId === uid &&
-                isRunningJobStatus(job.status),
-            )
+          ? selectCurrentOperationJob(cachedScope.jobs || [], uid, targetCompanyId)
           : undefined;
       const cachedActiveContract = cachedActiveDriverJob
         ? cachedScope.contracts?.some(
@@ -3260,10 +3377,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             const nextVehicles = snap.docs.map(
               (doc) => ({ ...doc.data(), id: doc.id }) as Vehicle,
             );
-            setVehicles(nextVehicles);
-            mergeOperationalScopeSnapshot(operationalScopeKey, {
-              vehicles: nextVehicles,
-            });
+            const cachedVehicles = readOperationalScopeSnapshot(operationalScopeKey)?.vehicles || [];
+            const preserveCachedVehicles =
+              snap.metadata.fromCache && nextVehicles.length === 0 && cachedVehicles.length > 0;
+            const effectiveVehicles = preserveCachedVehicles ? cachedVehicles : nextVehicles;
+            setVehicles(effectiveVehicles);
+            if (!preserveCachedVehicles) {
+              mergeOperationalScopeSnapshot(operationalScopeKey, {
+                vehicles: effectiveVehicles,
+              });
+            }
             setOperationalReadiness((current) => ({
               ...current,
               vehicles: true,
@@ -3287,10 +3410,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             const nextTrailers = snap.docs.map(
               (doc) => ({ ...doc.data(), id: doc.id }) as Trailer,
             );
-            setTrailers(nextTrailers);
-            mergeOperationalScopeSnapshot(operationalScopeKey, {
-              trailers: nextTrailers,
-            });
+            const cachedTrailers = readOperationalScopeSnapshot(operationalScopeKey)?.trailers || [];
+            const preserveCachedTrailers =
+              snap.metadata.fromCache && nextTrailers.length === 0 && cachedTrailers.length > 0;
+            const effectiveTrailers = preserveCachedTrailers ? cachedTrailers : nextTrailers;
+            setTrailers(effectiveTrailers);
+            if (!preserveCachedTrailers) {
+              mergeOperationalScopeSnapshot(operationalScopeKey, {
+                trailers: effectiveTrailers,
+              });
+            }
             setOperationalReadiness((current) => ({
               ...current,
               trailers: true,
@@ -3341,10 +3470,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             const nextContracts = snap.docs
               .map((doc) => ({ ...doc.data(), id: doc.id }) as Contract)
               .filter((contract) => !contract.deleted);
-            setContracts(nextContracts);
-            mergeOperationalScopeSnapshot(operationalScopeKey, {
-              contracts: nextContracts,
-            });
+            const cachedContracts = readOperationalScopeSnapshot(operationalScopeKey)?.contracts || [];
+            const preserveCachedContracts =
+              snap.metadata.fromCache && nextContracts.length === 0 && cachedContracts.length > 0;
+            const effectiveContracts = preserveCachedContracts ? cachedContracts : nextContracts;
+            setContracts(effectiveContracts);
+            if (!preserveCachedContracts) {
+              mergeOperationalScopeSnapshot(operationalScopeKey, {
+                contracts: effectiveContracts,
+              });
+            }
             setOperationalReadiness((current) => ({
               ...current,
               contracts: true,
@@ -3374,14 +3509,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
             if (!canPublishPrivateSnapshot()) return;
             const nextJobs = snap.docs.map(
               (doc) => ({ ...doc.data(), id: doc.id }) as Job,
-            );
+            ).map(mergeManagedConfirmedJob).filter(job => !job.archived);
+            if (activeRole === "driver" && !snap.metadata.fromCache) operationOutbox.observe(uid, targetCompanyId, nextJobs);
             // Prioritize the single contract required by the driver's current
             // operation instead of waiting for the full company contract
             // collection before the screen can render.
             hydratePriorityDriverContract(nextJobs);
             hydratePriorityDriverAssets(nextJobs);
-            setJobs(nextJobs);
-            mergeOperationalScopeSnapshot(operationalScopeKey, { jobs: nextJobs });
+            const cachedJobs = readOperationalScopeSnapshot(operationalScopeKey)?.jobs || [];
+            const preserveCachedJobs =
+              snap.metadata.fromCache && nextJobs.length === 0 && cachedJobs.length > 0;
+            const effectiveJobs = preserveCachedJobs ? cachedJobs : nextJobs;
+            setJobs(current => effectiveJobs.map(job => mergeManagedOperationAcknowledgement(current.find(previous => previous.id === job.id), job)));
+            // Cache-originated emptiness is not authoritative while offline.
+            // Persist only a real payload or a server-confirmed empty state.
+            if (!preserveCachedJobs) {
+              mergeOperationalScopeSnapshot(operationalScopeKey, { jobs: effectiveJobs });
+            }
             setOperationalReadiness((current) => ({
               ...current,
               jobs: true,
@@ -3430,7 +3574,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const usersQuery = targetCompanyId
         ? query(
-            collection(db, "users"),
+            collection(db, "public_users"),
             where("companyId", "==", targetCompanyId),
           )
         : null;
@@ -3505,65 +3649,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   ]);
 
   useEffect(() => {
-    if (interactionFirstRoute) return;
-    if (!activeCompanyId || allCompanyMembers.length === 0) return;
-
-    const existingIds = users.map((u) => u.id);
-    const missingIds = allCompanyMembers
-      .map((m) => m.userId)
-      .filter((id): id is string => Boolean(id) && !existingIds.includes(id));
-
-    if (missingIds.length === 0) return;
-
-    const fetchUsers = async () => {
-      const fetched: User[] = [];
-      try {
-        for (let i = 0; i < missingIds.length; i += 30) {
-          const chunk = missingIds.slice(i, i + 30);
-          const q = query(
-            collection(db, "users"),
-            where("__name__", "in", chunk),
-          );
-          const qs = await getDocs(q);
-          qs.docs.forEach((d) =>
-            fetched.push({ ...d.data(), id: d.id } as User),
-          );
-        }
-
-        if (fetched.length > 0) {
-          setFetchedMissingUsers((prev) => {
-            const combined = [...prev];
-            fetched.forEach((f) => {
-              if (!combined.some((u) => u.id === f.id)) combined.push(f);
-            });
-            // apply auto-fix for roles
-            return combined.map((u) => {
-              if (!u.roles) u.roles = [u.role || "driver"];
-              if (u.roles.includes("admin") && !u.roles.includes("driver"))
-                u.roles.push("driver");
-              if (u.roles.includes("admin")) u.status = "active";
-              return u;
-            });
-          });
-        }
-      } catch (e) {
-        if (
-          !isLoggingOutRef.current &&
-          !isAuthTeardownActive() &&
-          auth.currentUser
-        ) {
-          console.warn("Error fetching missing users:", e);
-        }
-      }
-    };
-
-    fetchUsers();
-  }, [
-    interactionFirstRoute,
-    allCompanyMembers,
-    activeCompanyId,
-    users.map((u) => u.id).join(","),
-  ]);
+    if (interactionFirstRoute || !currentUserId || !activeCompanyId) return;
+    const expectedUid = currentUserId;
+    const existingIds = new Set(users.map(user => user.id));
+    const company = companies.find(row => row.id === activeCompanyId);
+    const missingIds = [...new Set([
+      ...allCompanyMembers.filter(member => member.companyId === activeCompanyId && member.status === "active").map(member => member.userId),
+      company?.ownerId, company?.userId,
+      ...jobs.filter(job => job.companyId === activeCompanyId).map(job => job.driverId),
+    ].filter((id): id is string => Boolean(id) && !existingIds.has(id)))];
+    // Only this exact account/company/ID set may supply supplemental display metadata.
+    setFetchedMissingUsers(previous => previous.filter(user => missingIds.includes(user.id)));
+    let active = true;
+    const stops: Array<() => void> = [];
+    for (let offset = 0; offset < missingIds.length; offset += 30) {
+      const ids = missingIds.slice(offset, offset + 30);
+      stops.push(onSnapshot(query(collection(db, "public_users"), where("__name__", "in", ids)), snapshot => {
+        if (!active || auth.currentUser?.uid !== expectedUid || isAuthTeardownActive()) return;
+        const profiles = snapshot.docs.map(row => ({ ...row.data(), id: row.id }) as User);
+        setFetchedMissingUsers(previous => [...previous.filter(user => !ids.includes(user.id)), ...profiles]);
+      }, error => {
+        if (active && auth.currentUser?.uid === expectedUid && !isAuthTeardownActive()) console.warn("Error reading public member identity:", error);
+      }));
+    }
+    return () => { active = false; stops.forEach(stop => stop()); };
+  }, [interactionFirstRoute, currentUserId, allCompanyMembers, activeCompanyId, companies, jobs, users.map(user => user.id).join(",")]);
 
   // Helper para getCurrentUserId (conforme requisitos)
   const getCurrentUserId = () => {
@@ -3574,14 +3684,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const handleFirebaseError = (error: any) => {
     if (isLoggingOutRef.current || isAuthTeardownActive()) return;
     console.error("Firebase Error: ", error);
+    const message = String(error?.message || error || "");
     if (
-      error.code === "permission-denied" ||
-      error.message?.includes("permission-denied") ||
-      error.message?.includes("Missing or insufficient permissions")
+      ["permission-denied", "functions/permission-denied"].includes(String(error?.code || "")) ||
+      message.includes("permission-denied") ||
+      message.includes("Missing or insufficient permissions")
     ) {
       toast.error("Você não tem permissão para esta ação");
+    } else if (["functions/unauthenticated", "unauthenticated"].includes(String(error?.code || ""))) {
+      toast.error("Sua sessão expirou. Entre novamente para concluir a ação.");
+    } else if (["functions/unavailable", "unavailable", "functions/deadline-exceeded", "deadline-exceeded"].includes(String(error?.code || ""))) {
+      toast.error("O servidor não confirmou a ação a tempo. Verifique o estado atual e tente novamente.");
+    } else if (["functions/internal", "internal"].includes(String(error?.code || "")) && !error?.details?.diagnosticId) {
+      toast.error("O servidor não confirmou a ação. Verifique o estado atual; se o erro continuar, informe a ação e o horário ao suporte.");
+    } else if (message.includes("OPERATION_TRIPS_NOT_VALIDATED")) {
+      toast.error("O servidor ainda não confirmou todas as viagens previstas. Aguarde a sincronização e tente finalizar novamente.");
+    } else if (message.includes("OPERATION_COMPLETION_NOT_SETTLED")) {
+      toast.error("Não foi possível confirmar o encerramento agora. Verifique a conexão e tente novamente.");
     } else {
-      toast.error("Ocorreu um erro: " + (error.message || String(error)));
+      toast.error("Ocorreu um erro: " + message);
     }
   };
 
@@ -3631,9 +3752,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         if (data.userId) membershipUserIds.add(data.userId);
         if (!data.userId && normalizedEmail) {
           try {
-            const usersByEmail = await getDocs(
-              query(collection(db, "users"), where("email", "==", normalizedEmail)),
-            );
+            const usersByEmail = await queryPrivateUsers({ email: normalizedEmail });
             usersByEmail.docs.forEach((userDoc) => membershipUserIds.add(userDoc.id));
           } catch (err) {
             console.warn("Could not fetch user by email query (likely permissions):", err);
@@ -3675,7 +3794,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
                   where("userId", "==", data.userId),
                 )
               : null,
-            normalizedEmail
+            normalizedEmail && auth.currentUser?.emailVerified
               ? query(
                   collection(db, "recruitment_applications"),
                   where("email", "==", normalizedEmail),
@@ -3813,266 +3932,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const approveRecruitmentApplication = async (applicationId: string) => {
+  const applyApprovedFleetAck = (result: any, application?: RecruitmentApplication) => {
+    if (auth.currentUser?.uid !== currentUserId || !result.userId || !result.companyId) return;
+    const roles = Array.isArray(result.roles) ? result.roles : ["driver"];
+    const now = new Date().toISOString();
+    setAllCompanyMembers(rows => [...rows.filter(row => !(row.userId === result.userId && row.companyId === result.companyId)),
+      { id: `${result.userId}_${result.companyId}`, userId: result.userId, companyId: result.companyId, roles,
+        status: "active", permissions: [], joinedAt: now }]);
+    if (application) setRecruitmentApplications(rows => rows.map(row => row.id === application.id ? { ...row, status: "approved" } : row));
+    if (result.requestId) setDriverRequests(rows => rows.filter(row => row.id !== result.requestId));
+    // The callable returns committed profile fields, including later edits on
+    // an idempotent replay. Never guess identity from a stale form here.
+    if (result.displayProfile) {
+      const profile = { ...result.displayProfile, id: result.userId, companyId: result.companyId,
+        roles, role: roles.includes("admin") ? "admin" : "driver", status: "active" } as User;
+      setUsers(rows => rows.map(row => row.id === result.userId ? { ...row, ...profile } : row));
+      setFetchedMissingUsers(rows => [...rows.filter(row => row.id !== result.userId), profile]);
+    }
+  };
+
+  const approveRecruitmentApplication = async (applicationId: string, companyIdOverride?: string) => {
     try {
       getCurrentUserId();
-      const stateApplication = recruitmentApplications.find(
-        (application) => application.id === applicationId,
-      );
-
-      // O listener administrativo mantém apenas pendências em tempo real.
-      // Registros históricos são paginados pela tela, então a ação sempre
-      // relê o documento exato e usa o estado apenas como fallback.
-      const applicationSnapshot = await getDoc(
-        doc(db, "recruitment_applications", applicationId),
-      );
-      const app = applicationSnapshot.exists()
-        ? ({
-            id: applicationSnapshot.id,
-            ...applicationSnapshot.data(),
-          } as RecruitmentApplication)
-        : stateApplication;
-      if (!app) return;
-      // Allow approving applications that are pending or rejected, but not already approved
-      if (app.status === "approved") return;
-
-      if (
-        app.isCurrent === false ||
-        app.accessRevokedAt ||
-        app.accessRevokedReason === "removed_from_fleet"
-      ) {
-        throw new Error("Esta inscrição pertence ao histórico e não pode liberar acesso. O motorista precisa enviar uma nova inscrição.");
-      }
-
-      // Uma inscrição nova torna as anteriores apenas histórico. Mesmo que o
-      // RH abra uma linha antiga, ela não pode criar vínculo nem substituir a
-      // empresa da inscrição corrente.
-      const submittedUserId = String(app.userId || "").trim();
-      if (submittedUserId) {
-        const submittedUserSnapshot = await getDoc(doc(db, "users", submittedUserId));
-        const currentApplicationId = String(
-          submittedUserSnapshot.data()?.currentRecruitmentApplicationId || "",
-        ).trim();
-        const currentRecruitmentType = String(
-          submittedUserSnapshot.data()?.currentRecruitmentType || "",
-        ).trim();
-        if (
-          currentRecruitmentType === "driver_application" &&
-          currentApplicationId &&
-          currentApplicationId !== applicationId
-        ) {
-          throw new Error("Esta inscrição foi substituída por uma inscrição de motorista mais recente e não pode liberar acesso.");
-        }
-      }
-
-      // O UID informado pela própria inscrição é a identidade canônica.
-      // O e-mail é usado apenas como fallback para inscrições legadas. Isso
-      // evita vincular a aprovação a um documento antigo/duplicado de usuário.
-      const normalizedEmail = String(app.email || "").trim().toLowerCase();
-      let userId = String(app.userId || "").trim();
-      let currentUserData: any = {};
-
-      if (userId) {
-        const canonicalUserSnapshot = await getDoc(doc(db, "users", userId));
-        const canonicalUserEmail = String(
-          canonicalUserSnapshot.data()?.email || "",
-        )
-          .trim()
-          .toLowerCase();
-        const identityMatches =
-          canonicalUserSnapshot.exists() &&
-          (!normalizedEmail || canonicalUserEmail === normalizedEmail);
-        if (identityMatches) {
-          currentUserData = canonicalUserSnapshot.data();
-        } else {
-          // A legacy application can carry a UID from a previous account.
-          // Discard it and resolve the user by the submitted e-mail instead.
-          userId = "";
-        }
-      }
-
-      if (!userId) {
-        const emailQuery = query(
-          collection(db, "users"),
-          where("email", "==", normalizedEmail),
-        );
-        const emailSnapshot = await getDocs(emailQuery);
-        if (!emailSnapshot.empty) {
-          userId = emailSnapshot.docs[0].id;
-          currentUserData = emailSnapshot.docs[0].data();
-        } else {
-          userId = doc(collection(db, "users")).id;
-        }
-      }
-
-      const existingRoles = Array.isArray(currentUserData.roles)
-        ? currentUserData.roles
-        : [];
-      const canonicalRoles = Array.from(new Set([...existingRoles, "driver"]));
-
-      await setDoc(
-        doc(db, "users", userId),
-        {
-          id: userId,
-          email: normalizedEmail,
-          name: app.fullName,
-          whatsapp: app.whatsapp,
-          ...(app.applicationPhotoURL && {
-            profilePhotoURL: app.applicationPhotoURL,
-          }),
-          approvedIdentityName: app.fullName,
-          approvedIdentityApplicationId: applicationId,
-          status: "active",
-          currentRecruitmentApplicationId: applicationId,
-          currentRecruitmentCompanyId: app.companyId,
-          currentRecruitmentSimulatorId: resolveSimulatorId(app, simulators),
-          currentRecruitmentStatus: "approved",
-          currentRecruitmentType: "driver_application",
-          companyId: app.companyId,
-          role: currentUserData.role === "admin" ? "admin" : "driver",
-          roles: canonicalRoles,
-          updatedAt: new Date().toISOString(),
-          ...(!currentUserData.createdAt && { createdAt: new Date().toISOString() }),
-        },
-        { merge: true },
-      );
-
-      // Criação/atualização idempotente do vínculo. Se já houver registros
-      // duplicados, todos são normalizados para impedir estados divergentes.
-      const memberQuery = query(
-        collection(db, "companyMembers"),
-        where("userId", "==", userId),
-        where("companyId", "==", app.companyId),
-      );
-      const memberSnapshot = await getDocs(memberQuery);
-
-      if (memberSnapshot.empty) {
-        await addDoc(collection(db, "companyMembers"), {
-          userId,
-          companyId: app.companyId,
-          roles: ["driver"],
-          status: "active",
-          permissions: [],
-          joinedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        await Promise.all(
-          memberSnapshot.docs.map(async (memberDocument) => {
-            const memberData = memberDocument.data();
-            const memberRoles = Array.isArray(memberData.roles)
-              ? memberData.roles
-              : [];
-            await updateDoc(memberDocument.ref, {
-              userId,
-              companyId: app.companyId,
-              roles: Array.from(new Set([...memberRoles, "driver"])),
-              status: "active",
-              permissions: Array.isArray(memberData.permissions)
-                ? memberData.permissions
-                : [],
-              updatedAt: new Date().toISOString(),
-            });
-          }),
-        );
-      }
-
-      await syncSingleSimulatorMember(
-        userId,
-        app.companyId,
-        "active",
-        canonicalRoles,
-        resolveSimulatorId(app, simulators),
-      );
-
-      await updateDoc(doc(db, "recruitment_applications", applicationId), {
-        status: "approved",
-        isCurrent: true,
-        userId,
-        email: normalizedEmail,
-        updatedAt: new Date().toISOString(),
-      });
-      const company = companies.find((c) => c.id === app.companyId);
-      if (userId) {
-        try {
-          await createNotification({
-            userId: userId,
-            companyId: app.companyId,
-            targetProfile: "driver",
-            type: "RECRUITMENT_APPROVED",
-            title: "Solicitação aprovada",
-            message: `Sua solicitação para a empresa ${company?.companyName || ""} foi aprovada!`,
-            dedupeKey: `RECRUITMENT_APPROVED_${applicationId}`,
-          });
-        } catch (notificationError) {
-          console.warn(
-            "[NVU Notifications] A candidatura foi aprovada, mas o aviso falhou:",
-            notificationError,
-          );
-        }
-      }
-
-
-    } catch (e) {
-      handleFirebaseError(e);
-      throw e;
-    }
+      const companyId = String(companyIdOverride || activeCompanyId || "");
+      if (!companyId) throw new Error("Selecione a empresa antes de aprovar a inscrição.");
+      const application = recruitmentApplications.find(row => row.id === applicationId);
+      const result = await manageFleetMembership({ action: "approve-application", companyId, applicationId });
+      applyApprovedFleetAck(result, application);
+      toast.success("Motorista aprovado e vínculo sincronizado.");
+    } catch (e) { handleFirebaseError(e); throw e; }
   };
 
   const rejectRecruitmentApplication = async (applicationId: string) => {
     try {
-      getCurrentUserId();
-      const stateApplication = recruitmentApplications.find(
-        (application) => application.id === applicationId,
-      );
-      const applicationSnapshot = await getDoc(
-        doc(db, "recruitment_applications", applicationId),
-      );
-      const app = applicationSnapshot.exists()
-        ? ({
-            id: applicationSnapshot.id,
-            ...applicationSnapshot.data(),
-          } as RecruitmentApplication)
-        : stateApplication;
-      if (!app) return;
-
-      await updateDoc(doc(db, "recruitment_applications", applicationId), {
-        status: "rejected",
-      });
-      const company = companies.find((c) => c.id === app?.companyId);
-      let targetUserId = app?.userId;
-      if (!targetUserId && app?.email) {
-        const q = query(collection(db, "users"), where("email", "==", app.email.trim().toLowerCase()));
-        const qs = await getDocs(q);
-        if (!qs.empty) targetUserId = qs.docs[0].id;
-      }
-      if (targetUserId && app?.companyId) {
-        await createNotification({
-          userId: targetUserId,
-          companyId: app.companyId,
-          targetProfile: "driver",
-          type: "RECRUITMENT_REJECTED",
-          title: "Solicitação recusada",
-          message: `Sua solicitação para a empresa ${company?.companyName || ""} foi recusada.`,
-          dedupeKey: `RECRUITMENT_REJECTED_${applicationId}`,
-        });
-      }
-
-
-      if (app?.userId) {
-        const userRef = doc(db, "users", app.userId);
-        const userSnapshot = await getDoc(userRef);
-        const currentApplicationId = String(
-          userSnapshot.data()?.currentRecruitmentApplicationId || "",
-        ).trim();
-        if (userSnapshot.exists() && currentApplicationId === applicationId) {
-          await updateDoc(userRef, {
-            currentRecruitmentStatus: "rejected",
-            currentRecruitmentType: "driver_application",
-            updatedAt: new Date().toISOString(),
-          });
-        }
-      }
+      await rejectRecruitmentApplicationOnServer(applicationId);
     } catch (e) {
       handleFirebaseError(e);
       throw e;
@@ -4092,7 +3985,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const createCompany = async (data: Omit<CompanyProfile, "id" | "cnpj">) => {
     try {
       const uid = getCurrentUserId();
-      console.log("[DEBUG] createCompany -> UID:", uid, "Data:", data);
+      if (!isSeniorAuthenticated) throw new Error("O cadastro da empresa precisa ser aprovado no painel Sênior.");
       const cnpj = generateCnpj();
       const ownerEmail = String(
         data.email || data.ownerEmail || currentUserRef.current?.email || "",
@@ -4110,7 +4003,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         cnpj,
         createdAt: new Date().toISOString(),
       };
-      const newDoc = await addDoc(collection(db, "frotas"), payload);
+      const newDoc = doc(collection(db, "frotas"));
+      const batch = writeBatch(db);
+      batch.set(newDoc, payload);
+      batch.update(doc(db, "users", uid), {
+        companyId: newDoc.id, roles: ["admin", "driver"], status: "active",
+      });
+      batch.set(doc(db, "companyMembers", `${uid}_${newDoc.id}`), {
+        companyId: newDoc.id, userId: uid, roles: ["admin", "driver"], status: "active",
+        permissions: ["admin", "owner", "manage_fleet", "all"], joinedAt: payload.createdAt,
+      });
+      batch.set(doc(db, "simulator_members", `${uid}_${newDoc.id}`), {
+        companyId: newDoc.id, userId: uid, roles: ["admin", "driver"], role: "admin", status: "active",
+        simulatorId: resolveSimulatorId(payload as any) || "default", isEligible: true,
+      });
+      // Publish the new company only when company + owner + both memberships
+      // commit together. A denied write leaves no half-created company behind.
+      await batch.commit();
       setCompanies((current) => {
         const next = mergeCompanyProfile(
           current,
@@ -4120,24 +4029,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         if (companyCatalogLoadedRef.current) writeCachedCompanies(next);
         return next;
       });
-
-      // Update user document to be an admin/driver in this company
-      await updateDoc(doc(db, "users", uid), {
-        companyId: newDoc.id,
-        roles: ["admin", "driver"],
-        status: "active",
-      });
-
-      // Create companyMember document for the constructor/owner
-      await addDoc(collection(db, "companyMembers"), {
-        companyId: newDoc.id,
-        userId: uid,
-        roles: ["admin", "driver"],
-        status: "active",
-        permissions: ["admin", "owner", "manage_fleet", "all"],
-        joinedAt: new Date().toISOString(),
-      });
-      syncSingleSimulatorMember(uid, newDoc.id, "active", ["admin", "driver"]);
 
       setActiveCompanyId(newDoc.id);
       setActiveRole("admin");
@@ -4154,13 +4045,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       getCurrentUserId(); // valida se tá autenticado
 
-      // Company name and simulator define the platform identity of an existing
-      // company. They are set during creation and are not editable through the
-      // regular owner/admin profile update flow.
+      // The company display name is user-editable and `frotas/{companyId}.companyName`
+      // is the canonical source of truth for the current company identity.
+      // Simulator assignment remains controlled by the dedicated operational flow.
       const editableUpdates = { ...updates };
-      delete editableUpdates.companyName;
       delete editableUpdates.simulatorId;
       delete editableUpdates.simulatorName;
+
+      if (typeof editableUpdates.companyName === "string") {
+        const normalizedCompanyName = editableUpdates.companyName.trim();
+        if (!normalizedCompanyName) {
+          throw new Error("Nome da empresa é obrigatório.");
+        }
+        editableUpdates.companyName = normalizedCompanyName;
+      }
 
       await updateDoc(doc(db, "frotas", id), editableUpdates);
       setCompanies((current) => {
@@ -4185,54 +4083,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       getCurrentUserId(); // valida
 
-      const batch = writeBatch(db);
-
-      const usersToUpdate = users.filter((u) => u.companyId === id);
-      for (const u of usersToUpdate) {
-        batch.update(doc(db, "users", u.id), {
-          companyId: deleteField(),
-          role: "driver",
-        });
-      }
-
-      const vehiclesToDelete = vehicles.filter((v) => v.companyId === id);
-      for (const v of vehiclesToDelete) {
-        batch.delete(doc(db, "veiculos", v.id));
-      }
-
-      const trailersToDelete = trailers.filter((t) => t.companyId === id);
-      for (const t of trailersToDelete) {
-        batch.delete(doc(db, "reboques", t.id));
-      }
-
-      const contractsToDelete = contracts.filter((c) => c.companyId === id);
-      for (const c of contractsToDelete) {
-        batch.delete(doc(db, "contratos", c.id));
-      }
-
-      const jobsToDelete = jobs.filter((j) => j.companyId === id);
-      for (const j of jobsToDelete) {
-        batch.delete(doc(db, "trabalhos", j.id));
-      }
-
-      const requestsToDelete = driverRequests.filter((r) => r.empresaId === id);
-      for (const r of requestsToDelete) {
-        batch.delete(doc(db, "solicitacoes_motoristas", r.id));
-      }
-
-      // Query and delete all related memberships in companyMembers collection
-      const membersToQuery = await getDocs(
-        query(collection(db, "companyMembers"), where("companyId", "==", id)),
-      );
-      membersToQuery.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-        const data = docSnap.data();
-        removeSimulatorMember(data.userId, id);
-      });
-
-      batch.delete(doc(db, "frotas", id));
-
-      await batch.commit();
+      await deleteCompanyCanonical(id);
       setCompanies((current) => {
         const next = current.filter((company) => company.id !== id);
         companiesRef.current = next;
@@ -4243,15 +4094,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (activeCompanyId === id) setActiveCompanyId(null);
     } catch (e) {
       handleFirebaseError(e);
+      throw e;
     }
   };
 
   const createContract = async (data: Omit<Contract, "id" | "status">) => {
     try {
-      if (!activeCompanyId) return;
+      if (!activeCompanyId) throw new Error("Selecione uma empresa antes de salvar.");
       const uid = getCurrentUserId();
       const activeCompany = companies.find((c) => c.id === activeCompanyId);
-      if (!activeCompany) return;
+      if (!activeCompany) throw new Error("Empresa ativa não encontrada. Atualize a seleção e tente novamente.");
 
       
       const rawPayload = {
@@ -4274,6 +4126,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       await addDoc(collection(db, "contratos"), cleanPayload);
     } catch (e) {
       handleFirebaseError(e);
+      throw e;
     }
   };
 
@@ -4287,7 +4140,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return sequenceRef.id;
     } catch (e) {
       handleFirebaseError(e);
-      return null;
+      throw e;
     }
   };
 
@@ -4388,10 +4241,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     vehicleId: string,
     trailerId?: string,
     customDeadlineDays?: number,
+    requestId?: string,
   ) => {
     try {
       if (!activeCompanyId) throw new Error("Empresa ativa não encontrada para designar a operação.");
       const uid = getCurrentUserId();
+      const commandScope = operationalCommandScopeRef.current;
+      if (companies.find(company => company.id === activeCompanyId)?.operationalCommandVersion === 1) {
+        const result = await canonicalOperationCommandService.executeManaged({ action: "assign", companyId: activeCompanyId,
+          contractId, driverId, vehicleId, trailerId: trailerId || null,
+          ...(customDeadlineDays !== undefined ? { deadlineDays: customDeadlineDays } : {}) }, requestId);
+        assertOperationalCommandScope(uid, commandScope);
+        const confirmedJob = mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: result.jobId } as Job);
+        setJobs(current => [mergeManagedOperationAcknowledgement(current.find(job => job.id === result.jobId), confirmedJob), ...current.filter(job => job.id !== result.jobId)].filter(job => !job.archived));
+        setJobDemands(current => current.filter(demand => !(demand.companyId === activeCompanyId && demand.driverId === driverId && demand.status === "pending")));
+        return;
+      }
       const contract = contracts.find((c) => c.id === contractId);
       if (!contract) throw new Error("A operação selecionada não está disponível.");
       if (!driverId || !vehicleId) throw new Error("Motorista e veículo são obrigatórios.");
@@ -4409,6 +4274,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       const nowISO = new Date().toISOString();
       const deadlineISO = deadline.toISOString();
       const tripId = `TRIP-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const assignedVehicle = vehicles.find((vehicle) => vehicle.id === vehicleId);
+      const assignedTrailer = trailerId
+        ? trailers.find((trailer) => trailer.id === trailerId)
+        : null;
       const jobRef = doc(collection(db, "trabalhos"));
       const jobData: Omit<Job, "id"> & Record<string, unknown> = {
         userId: uid,
@@ -4419,9 +4288,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         assignedDriverId: driverId,
         tripId,
         vehicleId,
+        vehicleName: assignedVehicle?.name || "",
+        vehiclePlate: assignedVehicle?.plate || "",
         trailerId: trailerId || null,
+        trailerName: assignedTrailer?.name || "",
+        contractName: contract.name || "",
+        totalDeliveries: Number(contract.totalDeliveries || 0),
         status: "pending",
         progress: 0,
+        // New operations start on the canonical reconciliation contract.
+        // Legacy recovery is reserved for operations created by older builds.
+        operationReconciliationVersion: 4,
+        operationProgressReconciled: true,
+        operationProjectionSource: "new-operation-v4",
         deadlineDate: deadlineISO,
         createdAt: nowISO,
         assignedAt: nowISO,
@@ -4499,236 +4378,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const startJob = async (jobId: string) => {
-    const normalizedJobId = String(jobId || "").trim();
-    if (!normalizedJobId) {
-      throw new Error("Operação inválida.");
-    }
-    if (startJobInFlightRef.current.has(normalizedJobId)) {
-      throw new Error("A operação já está sendo iniciada. Aguarde a confirmação.");
-    }
-    startJobInFlightRef.current.add(normalizedJobId);
-
+    const id = String(jobId || "").trim(), uid = getCurrentUserId(), scope = operationalCommandScopeRef.current;
+    if (!id || activeRole !== "driver" || !activeCompanyId) throw new Error("Selecione seu perfil de motorista para iniciar.");
+    if (startJobInFlightRef.current.has(id)) return;
+    startJobInFlightRef.current.add(id);
     try {
-      const uid = getCurrentUserId();
-      const suspension = getOperationalSuspension(currentUser as any);
-      if (suspension.active) {
-        throw new Error(
-          "Suas atividades operacionais estão suspensas. Aguarde o término da suspensão para iniciar uma operação.",
-        );
+      if (getOperationalSuspension(currentUser as any).active) throw new Error("Suas atividades operacionais estão suspensas.");
+      let target = jobs.find(job => job.id === id);
+      if (!target && navigator.onLine !== false) {
+        const row = await getDocFromServer(doc(db, "trabalhos", id));
+        if (row.exists()) target = { ...row.data(), id } as Job;
       }
-
-      const jobRef = doc(db, "trabalhos", normalizedJobId);
-      const before = await getDocFromServer(jobRef);
-      if (!before.exists()) {
-        throw new Error("A operação não foi encontrada. Atualize a tela e tente novamente.");
-      }
-
-      const beforeData = before.data() as Record<string, unknown>;
-      const beforeDriverId = String(beforeData.driverId || "").trim();
-      const beforeStatus = normalizeJobStatus(beforeData.status);
-      const publishConfirmedJob = (confirmedJob: Job) => {
-        setJobs((current) =>
-          current.some((job) => job.id === normalizedJobId)
-            ? current.map((job) =>
-                job.id === normalizedJobId ? { ...job, ...confirmedJob } : job,
-              )
-            : [...current, confirmedJob],
-        );
-
-        const cacheCompanyId = String(
-          activeCompanyId || currentUser?.companyId || "",
-        ).trim();
-        if (!cacheCompanyId || !activeRole) return;
-
-        const cacheKey = buildOperationalScopeKey(
-          uid,
-          cacheCompanyId,
-          activeRole,
-        );
-        const cachedScope = readOperationalScopeSnapshot(cacheKey);
-        const cachedJobs = cachedScope?.jobs || jobs;
-        const nextCachedJobs = cachedJobs.some(
-          (job) => job.id === normalizedJobId,
-        )
-          ? cachedJobs.map((job) =>
-              job.id === normalizedJobId ? { ...job, ...confirmedJob } : job,
-            )
-          : [...cachedJobs, confirmedJob];
-        mergeOperationalScopeSnapshot(cacheKey, { jobs: nextCachedJobs });
-      };
-      if (beforeDriverId !== uid) {
-        throw new Error("Esta operação não está atribuída ao usuário atual.");
-      }
-      if (beforeStatus === "active") {
-        publishConfirmedJob({
-          ...beforeData,
-          id: normalizedJobId,
-          status: "active",
-        } as Job);
-        return;
-      }
-      if (beforeStatus !== "pending") {
-        throw new Error("A operação não está aguardando início. Atualize a tela e tente novamente.");
-      }
-
-      await updateDoc(jobRef, { status: "active" });
-      const confirmation = await getDocFromServer(jobRef);
-      const confirmedStatus = confirmation.exists()
-        ? normalizeJobStatus((confirmation.data() as Record<string, unknown>).status)
-        : "";
-      if (!confirmation.exists() || confirmedStatus !== "active") {
-        throw new Error("A operação ainda não foi iniciada no servidor. Tente novamente em alguns segundos.");
-      }
-
-      const confirmedData = confirmation.data() as Record<string, unknown>;
-      publishConfirmedJob({
-        ...confirmedData,
-        id: normalizedJobId,
-        status: "active",
-      } as Job);
-    } catch (e) {
-      handleFirebaseError(e);
-      throw e;
-    } finally {
-      startJobInFlightRef.current.delete(normalizedJobId);
-    }
+      assertOperationalCommandScope(uid, scope);
+      if (!target || target.driverId !== uid || target.companyId !== activeCompanyId) throw new Error("Esta operação não está disponível para este motorista no aparelho.");
+      if (["active", "delayed", "awaiting_completion"].includes(target.status)) return;
+      if (target.status !== "pending") throw new Error("A operação não está aguardando início.");
+      if (jobs.some(job => job.id !== id && job.driverId === uid && job.companyId === activeCompanyId && ["active", "delayed", "awaiting_completion"].includes(job.status))) throw new Error("Finalize sua operação atual antes de iniciar outra.");
+      const company = companies.find(company => company.id === target!.companyId), contract = resolveOperationContract(target, contracts);
+      const simulatorId = String(target.simulatorId || contract?.simulator || resolveAvailabilitySimulator(company, simulators) || "");
+      assertCachedNewOperationAllowed(simulatorId);
+      const command = { action: "start" as const, companyId: target.companyId, jobId: id };
+      const managed = target.operationalCommandVersion === 1 || company?.operationalCommandVersion === 1;
+      const requestId = managed ? canonicalOperationCommandService.reserveManagedRequestId(command) : operationalRequestId();
+      const local = { ...target, status: "active", totalDeliveries: Number(target.totalDeliveries || contract?.totalDeliveries || 0), simulatorId,
+        contractSnapshot: target.contractSnapshot || (contract ? { ...contract, snapshotVersion: 1 } : undefined) };
+      await mirrorOperationStart(uid, target.companyId, id, true);
+      assertOperationalCommandScope(uid, scope);
+      try { operationOutbox.enqueueStart({ requestId, transport: managed ? "managed" : "legacy", command, job: local }); }
+      catch (error) { if (!operationOutbox.startUnsettled(uid, id)) void mirrorOperationStart(uid, target.companyId, id, false); throw error; }
+      toast.message("Início salvo neste aparelho. A confirmação será sincronizada.");
+    } finally { startJobInFlightRef.current.delete(id); }
   };
 
-  const finishJob = async (jobId: string) => {
-    const normalizedJobId = String(jobId || "").trim();
-    if (!normalizedJobId || finishJobInFlightRef.current.has(normalizedJobId)) return;
-    finishJobInFlightRef.current.add(normalizedJobId);
+  const startAutomaticOperation = async (next: QueueNext, vehicleId: string): Promise<void> => {
+    const uid = getCurrentUserId(), scope = operationalCommandScopeRef.current, companyId = activeCompanyId;
+    if (activeRole !== "driver" || !companyId || !next || !vehicleId) throw new Error("Escolha a operação e um veículo disponível.");
+    if (getOperationalSuspension(currentUser as any).active) throw new Error("Suas atividades operacionais estão suspensas.");
+    if (jobs.some(job => job.companyId === companyId && job.driverId === uid && ["active", "delayed", "awaiting_completion"].includes(job.status))) throw new Error("Finalize sua operação atual antes de iniciar outra.");
+    const company = companies.find(company => company.id === companyId);
+    const cache = await readOperationalQueueCache(automaticQueueScope(uid, companyId, "driver", String(company?.simulatorId || company?.simulatorName || "unknown")));
+    const view = cache?.snapshot;
+    if (!view || view.reason !== "ready" || view.next?.previewToken !== next.previewToken || view.next.contractId !== next.contractId || view.next.queueId !== next.queueId || view.configRevision !== next.configRevision || !view.vehicles.some(vehicle => vehicle.id === vehicleId)) throw new Error("A próxima operação não está salva neste aparelho ou foi atualizada. Confira a fila.");
+    let contract = contracts.find(contract => contract.id === next.contractId && contract.companyId === companyId);
+    if (!contract && navigator.onLine !== false) { const row = await getDocFromServer(doc(db, "contratos", next.contractId)); if (row.exists()) contract = { ...row.data(), id: row.id } as Contract; }
+    assertOperationalCommandScope(uid, scope);
+    if (!contract || contract.companyId !== companyId || contract.deleted || !Number.isSafeInteger(contract.deadlineDays) || contract.deadlineDays < 1) throw new Error("Os dados completos desta operação ainda não estão salvos no aparelho.");
+    assertCachedNewOperationAllowed(view.simulatorId);
+    const command = { action: "startAutomatic" as const, companyId, ...next, vehicleId };
+    const requestId = canonicalOperationCommandService.reserveManagedRequestId(command), jobId = await automaticOperationJobId(uid, requestId);
+    const vehicle = view.vehicles.find(vehicle => vehicle.id === vehicleId)!;
+    const now = new Date().toISOString(), due = new Date(Date.now() + contract.deadlineDays * 86_400_000).toISOString();
+    const local = { id: jobId, companyId, driverId: uid, motoristaId: uid, userId: uid, contractId: contract.id,
+      contractName: contract.name, contractNameSnapshot: contract.name, contractSnapshot: { ...contract, snapshotVersion: 1 }, totalDeliveries: Number(contract.totalDeliveries),
+      vehicleId, vehicleName: vehicle.name, vehiclePlate: vehicle.plate, trailerId: contract.trailerId || null, simulatorId: view.simulatorId,
+      status: "active", progress: 0, createdAt: now, assignedAt: now, startedAt: now, deadlineDate: due, dueAt: due,
+      queueId: next.queueId, queueRevision: next.configRevision, operationalCommandVersion: 1, operationReconciliationVersion: 4,
+      operationProgressReconciled: true, operationProjectionSource: "new-operation-v4", operationSource: "operational-queue-v1" };
+    await mirrorOperationStart(uid, companyId, jobId, true);
+    assertOperationalCommandScope(uid, scope);
+    try { operationOutbox.enqueueStart({ requestId, transport: "managed", command, job: local }); }
+    catch (error) { if (!operationOutbox.startUnsettled(uid, jobId)) void mirrorOperationStart(uid, companyId, jobId, false); throw error; }
+  };
 
-    try {
-      getCurrentUserId();
-      const freshJobSnapshot = await getDoc(doc(db, "trabalhos", normalizedJobId));
-      const freshJob = freshJobSnapshot.exists()
-        ? ({ id: normalizedJobId, ...freshJobSnapshot.data() } as Job)
-        : undefined;
-      if (freshJob?.status === "completed") {
-        setJobs((current) =>
-          current.map((item) =>
-            item.id === normalizedJobId ? { ...item, ...freshJob } : item,
-          ),
-        );
-        return;
+  const finishJob = (jobId: string): Promise<ConfirmedOperationCompletion> => {
+    const uid = getCurrentUserId(), scope = operationalCommandScopeRef.current;
+    const job = jobs.find(job => job.id === jobId && job.driverId === uid && job.companyId === activeCompanyId);
+    if (!job || activeRole !== "driver") return Promise.reject(new Error("Operação inválida para finalizar."));
+    const key = JSON.stringify([uid, jobId]), existing = finishJobInFlightRef.current.get(key);
+    if (existing) return existing;
+    const execution = (async () => {
+      const total = Number(resolveOperationContract(job, contracts)?.totalDeliveries || 0);
+      const pending = await pendingOperationTripCount(uid, job.companyId, jobId);
+      assertOperationalCommandScope(uid, scope);
+      if (total < 1 || Number(job.progress || 0) + pending < total) throw new Error("Ainda faltam entregas nesta operação.");
+      await mirrorOperationCapturePause(uid, job.companyId, jobId, true);
+      try {
+        assertOperationalCommandScope(uid, scope);
+        operationOutbox.enqueueFinish({ ...job, totalDeliveries: total }, operationalRequestId());
+      } catch (error) {
+        if (!operationOutbox.pending(uid).some(entry => entry.jobId === jobId && entry.kind === "finish"))
+          void mirrorOperationCapturePause(uid, job.companyId, jobId, false).catch(() => undefined);
+        throw error;
       }
-
-      const job = freshJob || jobs.find((j) => j.id === normalizedJobId);
-      let completionStatus: "on_time" | "late" = "on_time";
-      let completionTimeOffset = "";
-      const now = new Date();
-      
-      const referenceDueAt = job?.dueAt || job?.deadlineDate; // but dueAt is the architectural source for new
-      
-      if (referenceDueAt) {
-        const deadline = new Date(referenceDueAt);
-        const diffMs = deadline.getTime() - now.getTime();
-        
-        const formatTimeDiff = (ms: number) => {
-            const absMs = Math.abs(ms);
-            const d = Math.floor(absMs / (1000 * 60 * 60 * 24));
-            const h = Math.floor((absMs / (1000 * 60 * 60)) % 24);
-            
-            let text = "";
-            if (d > 0) text += `${d} dia${d > 1 ? 's' : ''}`;
-            if (h > 0) text += `${text ? ' e ' : ''}${h} hora${h > 1 ? 's' : ''}`;
-            if (d === 0 && h === 0) {
-              const m = Math.floor((absMs / 1000 / 60) % 60);
-              if (m > 0) text = `${m} minuto${m > 1 ? 's' : ''}`;
-            }
-            return text || "menos de 1 minuto";
-        };
-
-        if (diffMs >= 0) {
-            completionStatus = "on_time";
-            completionTimeOffset = `Restavam ${formatTimeDiff(diffMs)} para o prazo final.`;
-        } else {
-            completionStatus = "late";
-            completionTimeOffset = `Prazo excedido em ${formatTimeDiff(diffMs)}.`;
-        }
-      }
-
-      const contract = contracts.find(c => c.id === job?.contractId);
-      const contractNameSnapshot = contract?.name || (contract as any)?.nome || job?.contractNameSnapshot || "Contrato não identificado";
-
-      const completionRef = doc(db, "trabalhos", normalizedJobId);
-      await updateDoc(completionRef, {
-        status: "completed",
-        completedAt: now.toISOString(),
-        completionStatus,
-        completionTimeOffset,
-        contractNameSnapshot,
-      });
-      const completionConfirmation = await getDocFromServer(completionRef);
-      const confirmedCompletionStatus = completionConfirmation.exists()
-        ? normalizeJobStatus(completionConfirmation.data()?.status)
-        : "";
-      if (!completionConfirmation.exists() || confirmedCompletionStatus !== "completed") {
-        throw new Error("A operação não foi confirmada como concluída no servidor.");
-      }
-
-      setJobs((current) =>
-        current.map((item) =>
-          item.id === normalizedJobId
-            ? {
-                ...item,
-                status: "completed",
-                completedAt: now.toISOString(),
-                completionStatus,
-                completionTimeOffset,
-                contractNameSnapshot,
-              }
-            : item,
-        ),
-      );
-
-      if (job?.companyId) {
-        const driver = users.find((user) => user.id === job.driverId);
-        try {
-          await createCorporateNotifications({
-            companyId: job.companyId,
-            type: "OPERATION_COMPLETED",
-            title: "Operação concluída",
-            message: `${driver?.name || "O motorista"} concluiu a operação ${contractNameSnapshot}.`,
-            metadata: { jobId, driverId: job.driverId, contractId: job.contractId },
-            dedupeKey: `OPERATION_COMPLETED_${jobId}`,
-          });
-        } catch (notificationError) {
-          console.error(
-            "[NVU Notifications] A operação foi concluída, mas o aviso corporativo falhou:",
-            notificationError,
-          );
-        }
-      }
-      if (job) {
-        if (job.vehicleId) {
-          try {
-            await updateDoc(doc(db, "veiculos", job.vehicleId), {
-              status: "available",
-            });
-          } catch (err) {
-            console.error("Ignorado erro ao liberar veiculo", err);
-          }
-        }
-        if (job.trailerId) {
-          try {
-            await updateDoc(doc(db, "reboques", job.trailerId), {
-              status: "available",
-            });
-          } catch (err) {
-            console.error("Ignorado erro ao liberar reboque", err);
-          }
-        }
-      }
-      // removed alert
-    } catch (e) {
-      console.error(e);
-      handleFirebaseError(e);
-      throw e;
-    } finally {
-      finishJobInFlightRef.current.delete(normalizedJobId);
-    }
+      return { pendingSync: true, completed: false, jobId, status: "pending_sync", progress: Number(job.progress || 0), total };
+    })();
+    finishJobInFlightRef.current.set(key, execution);
+    const cleanup = () => finishJobInFlightRef.current.delete(key);
+    void execution.then(cleanup, cleanup);
+    return execution;
   };
 
   const cancelJob = async (jobId: string) => {
@@ -4744,6 +4481,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
       const uid = getCurrentUserId();
+      const commandScope = operationalCommandScopeRef.current;
+      const target = jobs.find(job => job.id === jobId);
+      const companyId = target?.companyId || activeCompanyId;
+      if (companyId && (target?.operationalCommandVersion === 1 || companies.find(company => company.id === companyId)?.operationalCommandVersion === 1)) {
+        const result = await canonicalOperationCommandService.executeManaged({ action: "cancel", companyId, jobId });
+        assertOperationalCommandScope(uid, commandScope);
+        const confirmedJob = mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: jobId } as Job);
+        setJobs(current => current.map(job => job.id === jobId ? mergeManagedOperationAcknowledgement(job, confirmedJob) : job).filter(job => !job.archived));
+        toast.success("Trabalho cancelado com sucesso!");
+        return;
+      }
       console.log("[cancelJob] User UID:", uid);
 
       const docRef = doc(db, "trabalhos", jobId);
@@ -4769,7 +4517,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         ),
       );
 
-      await updateDoc(docRef, { status: "cancelled" });
+      await canonicalOperationCommandService.setLifecycleStatus(jobId, { status: "cancelled" });
       console.log("[cancelJob] updateDoc 'trabalhos' concluído com sucesso.");
 
       const job = prevJobState || jobs.find((j) => j.id === jobId);
@@ -4841,6 +4589,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
       const uid = getCurrentUserId();
+      const commandScope = operationalCommandScopeRef.current;
+      const target = jobs.find(job => job.id === jobId);
+      const companyId = target?.companyId || activeCompanyId;
+      if (companyId && (target?.operationalCommandVersion === 1 || companies.find(company => company.id === companyId)?.operationalCommandVersion === 1)) {
+        const result = await canonicalOperationCommandService.executeManaged({ action: "archive", companyId, jobId });
+        assertOperationalCommandScope(uid, commandScope);
+        mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: jobId } as Job);
+        setJobs(current => current.filter(job => job.id !== jobId));
+        if (activeRole) {
+          const key = buildOperationalScopeKey(uid, companyId, activeRole);
+          const cached = readOperationalScopeSnapshot(key);
+          if (cached?.jobs) mergeOperationalScopeSnapshot(key, { jobs: cached.jobs.filter(job => job.id !== jobId) });
+        }
+        toast.success("Trabalho retirado da listagem. O histórico foi preservado.");
+        return;
+      }
       console.log("[deleteJob] User UID:", uid);
 
       const docRef = doc(db, "trabalhos", jobId);
@@ -4937,6 +4701,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       alert("Solicitação enviada com sucesso!");
     } catch (e) {
       handleFirebaseError(e);
+      throw e;
     }
   };
 
@@ -4946,122 +4711,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       await deleteDoc(doc(db, "solicitacoes_motoristas", requestId));
     } catch (e) {
       handleFirebaseError(e);
+      throw e;
     }
   };
 
   const approveDriver = async (requestId: string) => {
     try {
       getCurrentUserId();
-      const req = driverRequests.find((r) => r.id === requestId);
-      if (!req) throw new Error("Solicitação de motorista não encontrada.");
-
-      const approvedAt = new Date().toISOString();
-      const userDocRef = doc(db, "users", req.motoristaId);
-      const memberQuery = query(
-        collection(db, "companyMembers"),
-        where("userId", "==", req.motoristaId),
-        where("companyId", "==", req.empresaId),
-      );
-      const [userDocSnap, qs] = await Promise.all([
-        getDoc(userDocRef),
-        getDocs(memberQuery),
-      ]);
-
-      const batch = writeBatch(db);
-      batch.update(doc(db, "solicitacoes_motoristas", requestId), {
-        status: "approved",
-        updatedAt: approvedAt,
-      });
-      if (userDocSnap.exists()) {
-        batch.update(userDocRef, {
-          companyId: req.empresaId,
-          status: "active",
-          updatedAt: approvedAt,
-        });
-      }
-
-      const membershipRoles = new Set<string>(["driver"]);
-      if (qs.empty) {
-        batch.set(doc(collection(db, "companyMembers")), {
-          userId: req.motoristaId,
-          companyId: req.empresaId,
-          roles: ["driver"],
-          status: "active",
-          permissions: [],
-          joinedAt: approvedAt,
-        });
-      } else {
-        qs.docs.forEach((memberDoc) => {
-          const existingRoles = Array.isArray(memberDoc.data().roles)
-            ? memberDoc.data().roles
-            : [];
-          existingRoles.forEach((role) => membershipRoles.add(String(role)));
-        });
-        qs.docs.forEach((memberDoc) => {
-          batch.update(memberDoc.ref, {
-            status: "active",
-            roles: Array.from(membershipRoles),
-            updatedAt: approvedAt,
-          });
-        });
-      }
-      await batch.commit();
-
-      // The durable membership is confirmed. These projections/notifications
-      // are secondary and must not delay or invalidate the approval.
-      void Promise.resolve()
-        .then(() =>
-          syncSingleSimulatorMember(
-            req.motoristaId,
-            req.empresaId,
-            "active",
-            Array.from(membershipRoles),
-          ),
-        )
-        .catch((error) => {
-        console.warn("[NVU] Sincronização do simulador após aprovação adiada:", error);
-      });
-      const company = companies.find((c) => c.id === req.empresaId);
-      void createNotification({
-        userId: req.motoristaId,
-        companyId: req.empresaId,
-        targetProfile: "driver",
-        type: "DRIVER_REQUEST_APPROVED",
-        title: "Solicitação aprovada",
-        message: `Sua solicitação para a empresa ${company?.companyName || ""} foi aprovada!`,
-        dedupeKey: `DRIVER_REQUEST_APPROVED_${requestId}`,
-      }).catch((error) => {
-        console.warn("[NVU Notifications] Aviso de aprovação adiado:", error);
-      });
-    } catch (e) {
-      handleFirebaseError(e);
-      throw e;
-    }
+      const req = driverRequests.find((row) => row.id === requestId);
+      const companyId = String(req?.empresaId || activeCompanyId || "");
+      const result = await manageFleetMembership({ action: "approve-request", companyId, requestId });
+      applyApprovedFleetAck(result);
+      toast.success("Motorista aprovado e vínculo sincronizado.");
+    } catch (e) { handleFirebaseError(e); throw e; }
   };
 
   const rejectDriver = async (requestId: string) => {
     try {
-      getCurrentUserId();
-      const req = driverRequests.find((r) => r.id === requestId);
-      if (!req) return;
-
-      // Update request status
-      await updateDoc(doc(db, "solicitacoes_motoristas", requestId), {
-        status: "rejected",
-        updatedAt: new Date().toISOString(),
-      });
-
-      // Notify user
-      const company = companies.find((c) => c.id === req.empresaId);
-      await createNotification({
-        userId: req.motoristaId,
-        companyId: req.empresaId,
-        targetProfile: "driver",
-        type: "DRIVER_REQUEST_REJECTED",
-        title: "Solicitação recusada",
-        message: `Sua solicitação para a empresa ${company?.companyName || ""} foi recusada.`,
-        dedupeKey: `DRIVER_REQUEST_REJECTED_${requestId}`,
-      });
+      await rejectDriverRequestOnServer(requestId);
     } catch (e) {
       handleFirebaseError(e);
       throw e;
@@ -5070,7 +4737,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
 
   const switchRole = async (role: Role, newCompanyId?: string) => {
-    if (!currentUser) return;
+    if (!currentUser || auth.currentUser?.uid !== currentUser.id || isAuthTeardownActive()) return;
 
     const targetCompanyId =
       newCompanyId || activeCompanyId || currentUser.companyId;
@@ -5132,8 +4799,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    const latestUser = currentUserRef.current?.id === currentUser.id ? currentUserRef.current : currentUser;
+    // Always commit the latest local choice, but do not write an unchanged
+    // preference to Firestore. The ref also sees an uncommitted earlier choice.
+    if (latestUser.role === role && latestUser.companyId === targetCompanyId) return;
+
     const optimisticUser: User = {
-      ...currentUser,
+      ...latestUser,
       role,
       companyId: targetCompanyId,
       roles: effectiveRoles,
@@ -5152,124 +4824,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   };
 
-  const promoteDriverToAdmin = async (driverId: string) => {
-    try {
-      getCurrentUserId();
-      if (!activeCompanyId) return;
-
-      const memberQuery = query(
-        collection(db, "companyMembers"),
-        where("userId", "==", driverId),
-        where("companyId", "==", activeCompanyId),
-      );
-      const qs = await getDocs(memberQuery);
-      if (qs.empty) {
-        alert("Driver is not in your active fleet.");
-        return;
-      }
-
-      const memberDoc = qs.docs[0];
-      const memberData = memberDoc.data() as CompanyMember;
-
-      if (!memberData.roles.includes("admin")) {
-        await updateDoc(doc(db, "companyMembers", memberDoc.id), {
-          roles: [...memberData.roles, "admin"],
-        });
-        syncSingleSimulatorMember(driverId, activeCompanyId, memberData.status || "active", [...memberData.roles, "admin"]);
-      }
-
-      // Update legacy user doc
-      const driverRef = doc(db, "users", driverId);
-      const driverDoc = await getDoc(driverRef);
-      if (driverDoc.exists()) {
-        const driverData = driverDoc.data();
-        const currentRoles = driverData.memberships?.[activeCompanyId]?.roles ||
-          driverData.roles || ["driver"];
-        if (!currentRoles.includes("admin")) {
-          const newRoles = [...currentRoles, "admin"];
-
-          const updates: any = {
-            [`memberships.${activeCompanyId}.roles`]: newRoles,
-            [`memberships.${activeCompanyId}.role`]: "admin",
-            updatedAt: new Date().toISOString(),
-          };
-
-          if (driverData.companyId === activeCompanyId) {
-            updates.roles = Array.from(
-              new Set([...(driverData.roles || []), "admin"]),
-            );
-          }
-
-          await updateDoc(driverRef, updates);
-        }
-      }
-    } catch (e) {
-      handleFirebaseError(e);
-      throw e;
-    }
+  const setFleetRole = async (driverId: string, role: "admin" | "driver") => {
+    getCurrentUserId();
+    if (!activeCompanyId) throw new Error("Selecione a empresa antes de alterar o vínculo.");
+    try { await manageFleetMembership({action:"set-role",companyId:activeCompanyId,targetUserId:driverId,role}); }
+    catch (error) { handleFirebaseError(error); throw error; }
   };
-
-  const demoteAdminToDriver = async (driverId: string) => {
-    try {
-      getCurrentUserId();
-      if (!activeCompanyId) return;
-
-      const memberQuery = query(
-        collection(db, "companyMembers"),
-        where("userId", "==", driverId),
-        where("companyId", "==", activeCompanyId),
-      );
-      const qs = await getDocs(memberQuery);
-      if (qs.empty) {
-        alert("Driver is not in your active fleet.");
-        return;
-      }
-
-      const memberDoc = qs.docs[0];
-      const memberData = memberDoc.data() as CompanyMember;
-      const newRoles = memberData.roles.filter((r) => r !== "admin");
-      if (newRoles.length === 0) newRoles.push("driver");
-
-      await updateDoc(doc(db, "companyMembers", memberDoc.id), {
-        roles: newRoles,
-      });
-      syncSingleSimulatorMember(driverId, activeCompanyId, memberData.status || "active", newRoles);
-
-      const driverRef = doc(db, "users", driverId);
-      const driverDoc = await getDoc(driverRef);
-      if (driverDoc.exists()) {
-        const driverData = driverDoc.data();
-
-        const currentRoles = driverData.memberships?.[activeCompanyId]?.roles ||
-          driverData.roles || ["driver"];
-        const fallbackRoles = currentRoles.filter((r: string) => r !== "admin");
-        if (fallbackRoles.length === 0) fallbackRoles.push("driver");
-
-        const updates: any = {
-          [`memberships.${activeCompanyId}.roles`]: fallbackRoles,
-          [`memberships.${activeCompanyId}.role`]: fallbackRoles[0],
-          updatedAt: new Date().toISOString(),
-        };
-
-        if (driverData.companyId === activeCompanyId) {
-          updates.roles = (driverData.roles || []).filter(
-            (r: string) => r !== "admin",
-          );
-          if (updates.roles.length === 0) updates.roles.push("driver");
-
-          // If they are currently viewing THIS company as admin, kick them to driver view.
-          if (driverData.role === "admin") {
-            updates.role = "driver";
-          }
-        }
-
-        await updateDoc(driverRef, updates);
-      }
-    } catch (e) {
-      handleFirebaseError(e);
-      throw e;
-    }
-  };
+  const promoteDriverToAdmin = (driverId: string) => setFleetRole(driverId, "admin");
+  const demoteAdminToDriver = (driverId: string) => setFleetRole(driverId, "driver");
 
   const updateUserOnlineStatus = async (isOnline: boolean) => {
     try {
@@ -5290,93 +4852,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const removeDriverFromFleet = async (driverId: string, companyIdOverride?: string) => {
     try {
-      console.log("Removendo driver com ID:", driverId);
       getCurrentUserId();
-
-      const targetCompanyId = companyIdOverride || activeCompanyId;
-      if (!targetCompanyId) throw new Error("Nenhuma empresa ativa para remover o motorista.");
-      if (!driverId) throw new Error("Motorista inválido para remoção.");
-
-      const removalTimestamp = new Date().toISOString();
-      const memberQuery = query(
-        collection(db, "companyMembers"),
-        where("userId", "==", driverId),
-        where("companyId", "==", targetCompanyId),
-      );
-      const driverRef = doc(db, "users", driverId);
-      const recruitmentQuery = query(
-        collection(db, "recruitment_applications"),
-        where("companyId", "==", targetCompanyId),
-      );
-
-      // These reads are independent; parallelize them before the single atomic
-      // revocation batch. No permission scope is widened.
-      const [memberSnapshot, driverDoc, recruitmentSnapshot] = await Promise.all([
-        getDocs(memberQuery),
-        getDoc(driverRef),
-        getDocs(recruitmentQuery),
-      ]);
-      const driverEmail = driverDoc.exists()
-        ? String(driverDoc.data().email || "").trim().toLowerCase()
-        : "";
-      const recruitmentUpdates = recruitmentSnapshot.docs.filter((applicationDoc) => {
-        const application = applicationDoc.data() as Record<string, unknown>;
-        const applicationUserId = String(application.userId || "").trim();
-        const applicationEmail = String(application.email || "")
-          .trim()
-          .toLowerCase();
-        return (
-          applicationUserId === driverId ||
-          Boolean(driverEmail && applicationEmail === driverEmail)
-        );
-      });
-
-      const removalBatch = writeBatch(db);
-      memberSnapshot.docs.forEach((memberDoc) => removalBatch.delete(memberDoc.ref));
-      removalBatch.delete(doc(db, "simulator_members", `${driverId}_${targetCompanyId}`));
-      recruitmentUpdates.forEach((applicationDoc) => {
-        removalBatch.update(applicationDoc.ref, {
-          status: "rejected",
-          updatedAt: removalTimestamp,
-          accessRevokedAt: removalTimestamp,
-          accessRevokedReason: "removed_from_fleet",
-        });
-      });
-
-      if (driverDoc.exists()) {
-        const updates: any = { updatedAt: removalTimestamp };
-        updates[`memberships.${targetCompanyId}`] = deleteField();
-        if (driverDoc.data().companyId === targetCompanyId) {
-          updates.companyId = null;
-          updates.status = "pending";
-          updates.role = "driver";
-          updates.roles = ["driver"];
-        }
-        if (driverDoc.data().currentRecruitmentCompanyId === targetCompanyId) {
-          updates.currentRecruitmentApplicationId = deleteField();
-          updates.currentRecruitmentCompanyId = deleteField();
-          updates.currentRecruitmentSimulatorId = deleteField();
-          updates.currentRecruitmentStatus = deleteField();
-          updates.approvedIdentityApplicationId = deleteField();
-          updates.approvedIdentityName = deleteField();
-        }
-        removalBatch.update(driverRef, updates);
-      }
-
-      await removalBatch.commit();
-      setFetchedMissingUsers((current) => current.filter((user) => user.id !== driverId));
-      setAllCompanyMembers((current) =>
-        current.filter(
-          (member) => !(member.userId === driverId && member.companyId === targetCompanyId),
-        ),
-      );
+      const companyId = companyIdOverride || activeCompanyId;
+      if (!companyId || !driverId) throw new Error("Empresa ou motorista inválido para remoção.");
+      await manageFleetMembership({ action: "remove", companyId, targetUserId: driverId });
+      if (auth.currentUser?.uid !== currentUserId) return;
+      setAllCompanyMembers(rows => rows.filter(row => !(row.companyId === companyId && row.userId === driverId)));
+      const removeScope = (user: User): User => {
+        if (user.id !== driverId) return user;
+        const memberships = { ...user.memberships }; delete memberships[companyId];
+        return { ...user, memberships, ...(user.companyId === companyId ? { companyId: null, status: "pending" as const, roles: ["driver" as const], role: "driver" as const } : {}) };
+      };
+      setUsers(rows => rows.map(removeScope));
+      setFetchedMissingUsers(rows => rows.map(removeScope));
       toast.success("Motorista removido da empresa com sucesso.");
-      console.log("Driver removido com sucesso!");
-    } catch (e) {
-      console.error("Erro ao remover driver:", e);
-      handleFirebaseError(e);
-      throw e;
-    }
+    } catch (e) { handleFirebaseError(e); throw e; }
   };
 
   const createManualDriver = async (driverData: Partial<User>) => {
@@ -5390,12 +4880,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!currentUser) throw new Error("Não autenticado");
 
       // Verificamos se há algum usuário no sistema com este email
-      const q = query(
-        collection(db, "users"),
-        where("email", "==", email.trim().toLowerCase()),
-      );
-      const qs = await getDocs(q);
-      if (!qs.empty) {
+      const result = await lookupPrivateProfiles({ email: email.trim().toLowerCase(), companyId: activeCompanyId, existenceOnly: true });
+      if (result.exists) {
         throw new Error(
           "Já existe um usuário com este email. Use o fluxo de convite ou peça para ele se inscrever.",
         );
@@ -5546,7 +5032,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     data: Omit<Vehicle, "id" | "status" | "companyId">,
   ) => {
     try {
-      if (!activeCompanyId) return;
+      if (!activeCompanyId) throw new Error("Selecione uma empresa antes de salvar.");
       const uid = getCurrentUserId();
       await addDoc(collection(db, "veiculos"), {
         ...data,
@@ -5558,6 +5044,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     } catch (e) {
       handleFirebaseError(e);
+      throw e;
     }
   };
 
@@ -5588,7 +5075,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     data: Omit<Trailer, "id" | "status" | "companyId">,
   ) => {
     try {
-      if (!activeCompanyId) return;
+      if (!activeCompanyId) throw new Error("Selecione uma empresa antes de salvar.");
       const uid = getCurrentUserId();
       await addDoc(collection(db, "reboques"), {
         ...data,
@@ -5600,6 +5087,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     } catch (e) {
       handleFirebaseError(e);
+      throw e;
     }
   };
 
@@ -5639,6 +5127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     // Notify page-level hooks and long-lived services before Auth is revoked.
     // They can unsubscribe synchronously and ignore any late callbacks.
     beginAuthTeardown();
+    const pushLogoutCleanup = clearPushRegistrationContext();
 
     // End the native GTO session before authentication is revoked. R3.1 keeps
     // an already-confirmed delivery in its durable retry queue, but discards an
@@ -5715,11 +5204,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     setJobDemands([]);
     setDriverRequests([]);
     setRecruitmentApplications([]);
-    try {
-      clearPushRegistrationContext();
-    } catch (pushCleanupError) {
-      console.warn("[NVU Logout] Push cleanup warning:", pushCleanupError);
-    }
     setSessionRecovering(false);
     clearCachedSession(logoutUid);
     if (logoutUid) clearTripHistoryCacheForUser(logoutUid);
@@ -5740,6 +5224,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     });
 
+    await pushLogoutCleanup;
     try {
       await signOut(auth);
     } catch (error) {
@@ -5764,175 +5249,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Resource release already belongs to the canonical completion/cancel
+  // transaction/trigger. A driver's scoped or cached jobs list cannot prove
+  // that another driver's vehicle/trailer is free. Do not write resource
+  // availability from incomplete UI snapshots.
   const syncCompanyData = async () => {
-    if (
-      !activeCompanyId ||
-      isLoggingOutRef.current ||
-      isAuthTeardownActive() ||
-      !auth.currentUser ||
-      !allCompanyMembersReady
-    )
-      return;
-    try {
-      const companyJobs = jobs.filter((j) => j.companyId === activeCompanyId);
-
-      const batch = writeBatch(db);
-      let updates = 0;
-
-      // Only active assignments affect resource availability. The previous
-      // implementation also recalculated driver XP/level for every snapshot,
-      // but the update condition was permanently false and produced no writes.
-      const currentUsageJobs = resolveCurrentFleetUsageJobs({
-        jobs: companyJobs,
-        members: allCompanyMembers,
-        companyId: activeCompanyId,
-        contracts,
-      });
-      const contractsById = new Map(
-        contracts
-          .map((contract) => [String(contract.id), contract] as const)
-          .filter(([id]) => Boolean(id)),
-      );
-      const activeVehicleIds = new Set<string>();
-      const activeTrailerIds = new Set<string>();
-
-      for (const job of currentUsageJobs) {
-        const vehicleId = resolveFleetJobAssetId(
-          job,
-          "vehicle",
-          contractsById,
-        );
-        const trailerId = resolveFleetJobAssetId(
-          job,
-          "trailer",
-          contractsById,
-        );
-        if (vehicleId) activeVehicleIds.add(vehicleId);
-        if (trailerId) activeTrailerIds.add(trailerId);
-      }
-
-      const companyVehicles = vehicles.filter(
-        (v) => v.companyId === activeCompanyId,
-      );
-      for (const v of companyVehicles) {
-        if (v.status === "in_use") {
-          const hasActiveJob = activeVehicleIds.has(v.id);
-          if (!hasActiveJob) {
-            batch.update(doc(db, "veiculos", v.id), { status: "available" });
-            updates++;
-          }
-        }
-      }
-
-      const companyTrailers = trailers.filter(
-        (t) => t.companyId === activeCompanyId,
-      );
-      for (const t of companyTrailers) {
-        if (t.status === "in_use") {
-          const hasActiveJob = activeTrailerIds.has(t.id);
-          if (!hasActiveJob) {
-            batch.update(doc(db, "reboques", t.id), { status: "available" });
-            updates++;
-          }
-        }
-      }
-
-      if (updates > 0) {
-        if (
-          isLoggingOutRef.current ||
-          isAuthTeardownActive() ||
-          !auth.currentUser
-        )
-          return;
-        await batch.commit();
-      }
-    } catch (e) {
-      if (
-        !isLoggingOutRef.current &&
-        !isAuthTeardownActive() &&
-        auth.currentUser
-      ) {
-        console.warn("Error syncing data:", e);
-      }
-    }
+    if (isLoggingOutRef.current || isAuthTeardownActive() || !auth.currentUser) return;
+    const { SyncManager } = await import("../services/syncManager");
+    await SyncManager.syncPendingTrips();
   };
 
-  // Resource reconciliation stays automatic, but runs after the current UI
-  // work has settled so a Firestore snapshot cannot cause a navigation hitch.
-  useEffect(() => {
-    // Resource reconciliation scans cached operational arrays and may commit a
-    // Firestore batch. Never schedule it while an interaction-first screen is
-    // active; it resumes automatically after entering an operational profile.
-    if (interactionFirstRoute || !authInitialized || !activeCompanyId) return;
-
-    let idleId: number | null = null;
-    const idleApi = window as Window & {
-      requestIdleCallback?: (
-        callback: () => void,
-        options?: { timeout: number },
-      ) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-
-    const syncTimer = window.setTimeout(() => {
-      if (idleApi.requestIdleCallback) {
-        idleId = idleApi.requestIdleCallback(
-          () => void syncCompanyData(),
-          { timeout: 2000 },
-        );
-      } else {
-        void syncCompanyData();
-      }
-    }, 1800);
-
-    return () => {
-      window.clearTimeout(syncTimer);
-      if (idleId !== null) idleApi.cancelIdleCallback?.(idleId);
-    };
-  }, [
-    jobs,
-    vehicles,
-    trailers,
-    allCompanyMembers,
-    allCompanyMembersReady,
-    activeCompanyId,
-    authInitialized,
-    interactionFirstRoute,
-  ]);
-
-  // Reconcile immediately when connectivity returns because the previous
-  // attempt may have been interrupted while offline.
-  useEffect(() => {
-    if (interactionFirstRoute) return;
-
-    const handleOnline = () => {
-      console.log("[Auto-Sync] Conexão restabelecida. Rodando sincronização.");
-      void syncCompanyData();
-    };
-
-    window.addEventListener("online", handleOnline);
-    return () => window.removeEventListener("online", handleOnline);
-  }, [
-    jobs,
-    vehicles,
-    trailers,
-    activeCompanyId,
-    authInitialized,
-    interactionFirstRoute,
-  ]);
-
-  const combinedUsers = useMemo(() => {
+  const combinedUsersRaw = useMemo(() => {
     const merged = [...users];
-    const activeMemberIds = new Set(
-      allCompanyMembers
-        .filter((member) => member.status === "active")
-        .map((member) => member.userId),
-    );
-    const missingUsers = allCompanyMembersReady
-      ? fetchedMissingUsers.filter((missingUser) => activeMemberIds.has(missingUser.id))
-      : fetchedMissingUsers;
-    missingUsers.forEach((missingUser) => {
-      if (!merged.some((user) => user.id === missingUser.id)) merged.push(missingUser);
+    const company = companies.find(row => row.id === activeCompanyId);
+    const displayIds = new Set([
+      ...allCompanyMembers.filter(member => member.companyId === activeCompanyId && member.status === "active").map(member => member.userId),
+      company?.ownerId, company?.userId,
+      ...jobs.filter(job => job.companyId === activeCompanyId).map(job => job.driverId),
+    ]);
+    fetchedMissingUsers.forEach((missingUser) => {
+      if (displayIds.has(missingUser.id) && !merged.some((user) => user.id === missingUser.id)) merged.push(missingUser);
     });
 
     if (currentUser && !merged.some((user) => user.id === currentUser.id)) {
@@ -5940,20 +5276,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         activeCompanyId &&
           (currentUser.companyId === activeCompanyId ||
             currentUser.memberships?.[activeCompanyId] ||
-            allCompanyMembers.some((member) => member.userId === currentUser.id)),
+            company?.ownerId === currentUser.id || company?.userId === currentUser.id ||
+            allCompanyMembers.some((member) => member.companyId === activeCompanyId && member.userId === currentUser.id && member.status === "active")),
       );
       if (belongsToActiveCompany) merged.push(currentUser);
     }
 
-    return merged;
+    return merged.map(user => {
+      const member = allCompanyMembers.find(row => row.userId === user.id && row.companyId === activeCompanyId && row.status === "active");
+      if (!member) return user;
+      return { ...user, roles: resolveMembershipRoles(member, undefined) as Role[], role: (member.roles?.includes("admin") || (member.roles as string[] | undefined)?.includes("owner")) ? "admin" as const : "driver" as const };
+    });
   }, [
     activeCompanyId,
     allCompanyMembers,
-    allCompanyMembersReady,
     currentUser,
     fetchedMissingUsers,
+    companies,
+    jobs,
     users,
   ]);
+
+  const combinedUsers = useDriverDisplayProfiles(combinedUsersRaw, activeCompanyId || "", currentUserId || "");
 
   const scopedJobDemands = useMemo(
     () =>
@@ -6013,6 +5357,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const stableDeleteContract = useStableEvent(deleteContract);
   const stableAssignJob = useStableEvent(assignJob);
   const stableStartJob = useStableEvent(startJob);
+  const stableStartAutomaticOperation = useStableEvent(startAutomaticOperation);
   const stableFinishJob = useStableEvent(finishJob);
   const stableCancelJob = useStableEvent(cancelJob);
   const stableDeleteJob = useStableEvent(deleteJob);
@@ -6048,6 +5393,56 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const stableLoadCompanyCatalog = useStableEvent(loadCompanyCatalog);
   const stableLoadCompanyById = useStableEvent(loadCompanyById);
   const stablePrimeCompanyProfile = useStableEvent(primeCompanyProfile);
+  useEffect(() => {
+    const handleProgressReconciled = (rawEvent: Event) => {
+      const detail = (rawEvent as CustomEvent<any>).detail || {};
+      const jobId = String(detail.jobId || "").trim();
+      const progress = Math.max(0, Number(detail.progress || 0));
+      if (!jobId || detail.source !== "validated-server-trips") return;
+      setJobs((current) => applyAuthoritativeJobProjection(current, jobId, progress));
+    };
+    window.addEventListener("nvu-operation-progress-reconciled", handleProgressReconciled);
+    return () => window.removeEventListener("nvu-operation-progress-reconciled", handleProgressReconciled);
+  }, []);
+
+  useEffect(() => {
+    const handleIntegrityChecked = (rawEvent: Event) => {
+      const detail = (rawEvent as CustomEvent<any>).detail || {};
+      const jobId = String(detail.jobId || "").trim();
+      const progress = Math.max(0, Number(detail.progress || 0));
+      if (!jobId || detail.source !== "canonical-server-trips") return;
+      if (detail.userId && detail.userId !== currentUserRef.current?.id) return;
+      const status = typeof detail.status === "string" && detail.status.trim() ? detail.status : undefined;
+      setJobs((current) => applyAuthoritativeJobProjection(current, jobId, progress, status));
+    };
+    window.addEventListener("nvu-operation-integrity-checked", handleIntegrityChecked);
+    return () => window.removeEventListener("nvu-operation-integrity-checked", handleIntegrityChecked);
+  }, []);
+
+  useInitialOperationIntegrity({
+    uid: currentUser?.id || "",
+    enabled: Boolean(firebaseSessionUid && currentUser?.id === firebaseSessionUid),
+    jobs,
+    contracts,
+  });
+
+  useEffect(() => {
+    const handleValidatedTrip = async (rawEvent: Event) => {
+      const detail = (rawEvent as CustomEvent<any>).detail || {};
+      const jobId = String(detail.jobId || "").trim();
+      if (!jobId || isAuthTeardownActive()) return;
+      try {
+        // Server validation may move a full operation to `awaiting_completion`,
+        // but it must never press the driver's Finalizar Operação action.
+        await canonicalTripOperationService.syncJobProgress(jobId);
+      } catch (error) {
+        console.warn("[NVU] Reconciliação de operação após validação offline será repetida na próxima atualização:", error);
+      }
+    };
+    window.addEventListener("nvu-offline-trip-validated", handleValidatedTrip);
+    return () => window.removeEventListener("nvu-offline-trip-validated", handleValidatedTrip);
+  }, []);
+
   const sessionProjection = projectAuthSession({
     authInitialized,
     firebaseSessionUid,
@@ -6319,6 +5714,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       memberships,
       allCompanyMembers,
       allCompanyMembersReady,
+      allCompanyMembersError,
       recruitmentApplications: scopedRecruitmentApplications,
       driverRequests: scopedDriverRequests,
       updateRecruitmentSettings: stableUpdateRecruitmentSettings,
@@ -6341,6 +5737,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       activeCompanyId,
       allCompanyMembers,
       allCompanyMembersReady,
+      allCompanyMembersError,
       companies,
       companyCatalogAttempted,
       companyCatalogLoaded,
@@ -6418,6 +5815,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       deleteSequence: stableDeleteSequence,
       assignJob: stableAssignJob,
       startJob: stableStartJob,
+      startAutomaticOperation: stableStartAutomaticOperation,
       finishJob: stableFinishJob,
       cancelJob: stableCancelJob,
       deleteJob: stableDeleteJob,

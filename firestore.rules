@@ -17,41 +17,110 @@ service cloud.firestore {
         ('isSenior' in request.auth.token && request.auth.token.isSenior == true) ||
         ('role' in request.auth.token && request.auth.token.role == 'senior') ||
         ('roles' in request.auth.token && request.auth.token.roles is list && request.auth.token.roles.hasAny(['senior']))
-      );
+      ) && exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        accountIsUsable(getUserData());
     }
 
     function isAdmin() {
-      return isAuthenticated() && (
-        isSenior() ||
-        ('role' in getUserData() && getUserData().role == 'admin') ||
-        ('roles' in getUserData() && getUserData().roles.hasAny(['admin']))
-      );
+      // Global authority comes only from verified Auth claims. A company role
+      // in users is scoped below and cannot administer a different company.
+      return isSenior();
     }
 
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Financial goals are private even though company directory records are public.
+    function operationalGoalCompany(goalId) {
+      let parts = goalId.split('__');
+      return parts.size() == 3 && parts[0] != '' && parts[1] != '' && parts[2] != '' ? parts[0] : '';
+    }
+    function operationalGoalSimulator(goalId) {
+      let parts = goalId.split('__');
+      return parts.size() == 3 ? parts[1] : '';
+    }
+    function accountIsUsable(data) {
+      return data.get('deleted', false) != true &&
+        !(data.get('status', 'active').lower() in ['suspended', 'deleted', 'blocked', 'disabled', 'inactive']) &&
+        !(data.get('accountStatus', 'active').lower() in ['suspended', 'deleted', 'blocked', 'disabled', 'inactive']) &&
+        data.get('suspension', {}).get('active', false) != true;
+    }
+    function accessData(companyId, userId) {
+      let path = /databases/$(database)/documents/company_access/$(companyId)/members/$(userId);
+      return exists(path) ? get(path).data : {};
+    }
+    function companyIsUsable(companyId) {
+      let path = /databases/$(database)/documents/frotas/$(companyId);
+      let company = exists(path) ? get(path).data : {};
+      return exists(path) && company.get('deleted', false) != true && company.get('isDeleted', false) != true &&
+        company.get('active', true) != false && company.get('isActive', true) != false &&
+        !(company.get('status', 'active').lower() in ['deleted', 'archived', 'disabled', 'blocked']);
+    }
+    function hasActiveCompanyAccess(companyId, userId) {
+      let access = accessData(companyId, userId);
+      let path = /databases/$(database)/documents/users/$(userId);
+      return exists(path) && companyIsUsable(companyId) && accountIsUsable(get(path).data) &&
+        access.get('status', '') == 'active' && access.get('revokedAt', null) == null;
+    }
+    function canManageOperationalGoal(companyId) { return isCompanyManager(companyId); }
     function isCompanyOwner(companyId) {
-      let company = get(/databases/$(database)/documents/frotas/$(companyId)).data;
-      return company != null && (
-        company.userId == request.auth.uid ||
-        company.ownerId == request.auth.uid
-      );
+      let path = /databases/$(database)/documents/frotas/$(companyId);
+      let company = exists(path) ? get(path).data : {};
+      return isAuthenticated() && companyIsUsable(companyId) && accountIsUsable(getUserData()) &&
+        (company.get('userId', '') == request.auth.uid || company.get('ownerId', '') == request.auth.uid);
     }
-
+    function hasCompanyAdminMembership(companyId) {
+      let access = accessData(companyId, request.auth.uid);
+      return isAuthenticated() && hasActiveCompanyAccess(companyId, request.auth.uid) &&
+        access.get('roles', []).hasAny(['admin', 'owner']);
+    }
     function isCompanyManager(companyId) {
-      return isSenior() || isAdmin() || isCompanyOwner(companyId);
+      return isAuthenticated() && (isSenior() || isCompanyOwner(companyId) || hasCompanyAdminMembership(companyId));
     }
 
+    function goalCompanyId(goalId) {
+      let parts = goalId.split('__');
+      return parts.size() == 3 ? parts[0] : '';
+    }
+
+    function usesOperationalCommands(companyId) {
+      let company = get(/databases/$(database)/documents/frotas/$(companyId)).data;
+      return company != null && 'operationalCommandVersion' in company && company.operationalCommandVersion == 1;
+    }
+
+    function isManagedJob(data) {
+      return 'operationalCommandVersion' in data && data.operationalCommandVersion == 1;
+    }
+
+    function isActiveJobDriver(companyId, driverId) {
+      return hasActiveCompanyAccess(companyId, driverId) && accessData(companyId, driverId).get('roles', []).hasAny(['driver', 'admin', 'owner']);
+    }
     function isCompanyMember(companyId) {
-      return isAuthenticated() && (
-        isCompanyManager(companyId) ||
+      return isAuthenticated() && (isCompanyManager(companyId) || hasActiveCompanyAccess(companyId, request.auth.uid));
+    }
+
+    function preservesTripReceiptEvidence() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'comprovanteUrl', 'imageHash', 'gtoReceiptAnalyzed',
+        'valorDetectadoAutomaticamente', 'valorDeteccaoMetodo',
+        'valorBloqueadoPorDeteccao', 'offlineReceiptKey'
+      ]);
+    }
+
+    function canCreateNotificationForRecipient() {
+      let companyId = request.resource.data.companyId;
+      let recipientId = request.resource.data.userId;
+      return isAuthenticated() && request.resource.data.actorUserId == request.auth.uid &&
+        companyId is string && recipientId is string && isCompanyManager(companyId) &&
         (
-          'companyId' in getUserData() &&
-          getUserData().companyId == companyId
-        )
-      );
+          (exists(/databases/$(database)/documents/users/$(recipientId)) &&
+            companyIdFromMap(get(/databases/$(database)/documents/users/$(recipientId)).data) == companyId) ||
+          (isCompanyOwner(companyId) &&
+            get(/databases/$(database)/documents/frotas/$(companyId)).data.userId == recipientId) ||
+          (isCompanyOwner(companyId) &&
+            get(/databases/$(database)/documents/frotas/$(companyId)).data.ownerId == recipientId)
+        );
     }
 
     function isOperationallySuspended(userId) {
@@ -62,6 +131,41 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(userId)).data.operationalSuspendedUntil > request.time;
     }
 
+    // Resolve documented legacy aliases without rewriting immutable identity.
+    function companyIdFromMap(data) {
+      return ('companyId' in data && data.companyId is string)
+        ? data.companyId
+        : (('empresaId' in data && data.empresaId is string) ? data.empresaId : '');
+    }
+
+    function contractIdFromMap(data) {
+      return ('contractId' in data && data.contractId is string)
+        ? data.contractId
+        : (('contratoId' in data && data.contratoId is string) ? data.contratoId : '');
+    }
+
+    function tripDriverIdFromMap(trip) {
+      return ('driverId' in trip && trip.driverId is string)
+        ? trip.driverId
+        : (('motoristaId' in trip && trip.motoristaId is string)
+          ? trip.motoristaId
+          : (('userId' in trip && trip.userId is string)
+            ? trip.userId
+            : (('criadoPor' in trip && trip.criadoPor is string) ? trip.criadoPor : '')));
+    }
+
+    function tripContractIdFromMap(trip) {
+      return ('contractId' in trip && trip.contractId is string)
+        ? trip.contractId
+        : (('contratoId' in trip && trip.contratoId is string) ? trip.contratoId : '');
+    }
+
+    function tripOperationIdFromMap(trip) {
+      return ('jobId' in trip && trip.jobId is string)
+        ? trip.jobId
+        : (('operationId' in trip && trip.operationId is string) ? trip.operationId : '');
+    }
+
     function requestedTripDriverId() {
       return ('driverId' in request.resource.data && request.resource.data.driverId is string)
         ? request.resource.data.driverId
@@ -70,12 +174,173 @@ service cloud.firestore {
           : '');
     }
 
+    // A locally queued receipt belongs in IndexedDB until Storage confirms
+    // the upload. Never let an old or modified client commit the queue key or
+    // a Print trip with an empty receipt URL as a completed server document.
+    function validUploadedTripReceipt(trip) {
+      return !('offlineReceiptKey' in trip) &&
+        (!('imageHash' in trip) ||
+          (trip.comprovanteUrl is string &&
+            trip.comprovanteUrl.matches('https://.*')));
+    }
+
+    // A client may submit only a delivery for its assigned, recordable job.
+    // The server must still validate OCR evidence independently before using
+    // client supplied monetary values as trusted financial proof.
+    function validTripJobBinding(jobId, tripId) {
+      let trip = request.resource.data;
+      let job = get(/databases/$(database)/documents/trabalhos/$(jobId)).data;
+      let slotClaim = getAfter(/databases/$(database)/documents/trip_operation_slots/$(tripId)).data;
+      return job != null &&
+        tripDriverIdFromMap(get(/databases/$(database)/documents/trabalhos/$(request.resource.data.jobId)).data) == request.resource.data.driverId &&
+        request.resource.data.driverId == requestedTripDriverId() &&
+        ((('companyId' in job) && job.companyId == trip.companyId) ||
+          (('empresaId' in job) && job.empresaId == trip.companyId)) &&
+        ((('contractId' in job) && job.contractId == trip.contractId) ||
+          (('contratoId' in job) && job.contratoId == trip.contractId)) &&
+        trip.empresaId == trip.companyId &&
+        trip.motoristaId == requestedTripDriverId() &&
+        trip.driverId == requestedTripDriverId() &&
+        trip.criadoPor == request.auth.uid &&
+        trip.operationSlot is int && trip.operationSlot > 0 &&
+        job.totalDeliveries is int && job.totalDeliveries > 0 &&
+        trip.operationSlot <= job.totalDeliveries &&
+        trip.operationSlotKey == tripId &&
+        slotClaim.jobId == jobId &&
+        slotClaim.driverId == request.auth.uid &&
+        slotClaim.operationSlot == trip.operationSlot &&
+        slotClaim.tripId == tripId &&
+        trip.status == 'concluida' &&
+        'serverValidatedAt' in trip &&
+        trip.serverValidatedAt == request.time &&
+        trip.valor is number && trip.valor > 0 &&
+        (!(('simulatorKey' in trip && trip.simulatorKey in ['global-truck', 'GTO']) ||
+            ('simulatorCode' in trip && trip.simulatorCode == 'GTO') ||
+            ('simuladorCodigo' in trip && trip.simuladorCodigo == 'GTO') ||
+            ('gtoEntryMode' in trip && trip.gtoEntryMode == 'print')) ||
+          (trip.valor >= 1000 && trip.valorCents is int && trip.valorCents >= 100000 &&
+            trip.valorCents == int(trip.valor * 100 + 0.5))) &&
+        validUploadedTripReceipt(trip) &&
+        job.status in ['active', 'delayed', 'awaiting_completion'] &&
+        (!('gtoEntryMode' in trip) || trip.gtoEntryMode != 'print' ||
+          (trip.imageHash is string &&
+            trip.imageHash != '' &&
+            trip.gtoReceiptAnalyzed == true &&
+            trip.valorDetectadoAutomaticamente == true &&
+            trip.valorDeteccaoMetodo == 'ocr'));
+    }
+
     function existingJobDriverId() {
       return ('driverId' in resource.data && resource.data.driverId is string)
         ? resource.data.driverId
         : (('motoristaId' in resource.data && resource.data.motoristaId is string)
           ? resource.data.motoristaId
           : '');
+    }
+
+    function validTripProgressIncrease(jobId) {
+      let tripId = ('lastValidatedTripId' in request.resource.data)
+        ? request.resource.data.lastValidatedTripId
+        : '';
+      let trip = getAfter(/databases/$(database)/documents/historico_viagens/$(tripId)).data;
+      let previousProgress = ('progress' in resource.data && resource.data.progress is int)
+        ? resource.data.progress
+        : 0;
+      return ('lastValidatedTripId' in request.resource.data) &&
+        existingJobDriverId() == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'progress', 'lastValidatedTripId', 'progressUpdatedAt',
+          'operationProgressReconciled', 'operationProgressReconciledAt'
+        ]) &&
+        request.resource.data.progress is int &&
+        request.resource.data.progress == previousProgress + 1 &&
+        request.resource.data.progress <= resource.data.totalDeliveries &&
+        request.resource.data.progressUpdatedAt == request.time &&
+        (!('operationProgressReconciled' in request.resource.data) ||
+          request.resource.data.operationProgressReconciled is bool) &&
+        (!('operationProgressReconciledAt' in request.resource.data) ||
+          request.resource.data.operationProgressReconciledAt == request.time) &&
+        trip.jobId == jobId &&
+        trip.driverId == request.auth.uid &&
+        trip.companyId == resource.data.companyId &&
+        trip.contractId == resource.data.contractId &&
+        trip.status == 'concluida' &&
+        trip.operationSlotKey == tripId &&
+        trip.serverValidatedAt == request.time;
+    }
+
+    function validTripProgressDecrease(jobId) {
+      let tripId = ('lastDeletedTripId' in request.resource.data)
+        ? request.resource.data.lastDeletedTripId
+        : '';
+      let slotPath = /databases/$(database)/documents/trip_operation_slots/$(tripId);
+      return ('lastDeletedTripId' in request.resource.data) &&
+        (exists(slotPath)
+          ? validSlotTripProgressDecrease(jobId, tripId)
+          : validLegacyTripProgressDecrease(jobId, tripId));
+    }
+
+    function validSlotTripProgressDecrease(jobId, tripId) {
+      let slotBefore = get(/databases/$(database)/documents/trip_operation_slots/$(tripId)).data;
+      let slotAfter = getAfter(/databases/$(database)/documents/trip_operation_slots/$(tripId)).data;
+      let tripAfter = getAfter(/databases/$(database)/documents/historico_viagens/$(tripId)).data;
+      let previousProgress = ('progress' in resource.data && resource.data.progress is int)
+        ? resource.data.progress : 0;
+      let actorAuthorized = existingJobDriverId() == request.auth.uid ||
+        isCompanyManager(companyIdFromMap(resource.data));
+      return actorAuthorized &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'progress', 'lastDeletedTripId', 'progressUpdatedAt',
+          'operationProgressReconciled', 'operationProgressReconciledAt'
+        ]) &&
+        request.resource.data.progress is int &&
+        request.resource.data.progress == (previousProgress > 0 ? previousProgress - 1 : 0) &&
+        request.resource.data.progressUpdatedAt == request.time &&
+        request.resource.data.operationProgressReconciled == true &&
+        request.resource.data.operationProgressReconciledAt == request.time &&
+        slotBefore.jobId == jobId &&
+        slotBefore.driverId == existingJobDriverId() &&
+        (!('deleted' in slotBefore) || slotBefore.deleted != true) &&
+        slotAfter.deleted == true && slotAfter.deletedAt == request.time &&
+        tripOperationIdFromMap(tripAfter) == jobId &&
+        tripDriverIdFromMap(tripAfter) == existingJobDriverId() &&
+        tripAfter.deletedBy == request.auth.uid &&
+        tripAfter.deleted == true && tripAfter.status == 'DELETED';
+    }
+
+    function validLegacyTripProgressDecrease(jobId, tripId) {
+      let tripBefore = get(/databases/$(database)/documents/historico_viagens/$(tripId)).data;
+      let tripAfter = getAfter(/databases/$(database)/documents/historico_viagens/$(tripId)).data;
+      let slotPath = /databases/$(database)/documents/trip_operation_slots/$(tripId);
+      let previousProgress = ('progress' in resource.data && resource.data.progress is int)
+        ? resource.data.progress : 0;
+      let actorAuthorized = existingJobDriverId() == request.auth.uid || isCompanyManager(companyIdFromMap(resource.data));
+      let driverId = tripDriverIdFromMap(tripAfter);
+      let tripCompanyId = companyIdFromMap(tripAfter);
+      let tripContractId = tripContractIdFromMap(tripAfter);
+      let jobCompanyId = companyIdFromMap(resource.data);
+      let jobContractId = contractIdFromMap(resource.data);
+      return actorAuthorized &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'progress', 'lastDeletedTripId', 'progressUpdatedAt',
+          'operationProgressReconciled', 'operationProgressReconciledAt'
+        ]) &&
+        previousProgress > 0 &&
+        request.resource.data.progress is int &&
+        request.resource.data.progress == previousProgress - 1 &&
+        request.resource.data.progressUpdatedAt == request.time &&
+        request.resource.data.operationProgressReconciled == true &&
+        request.resource.data.operationProgressReconciledAt == request.time &&
+        !existsAfter(slotPath) &&
+        tripBefore != null && tripBefore.status == 'concluida' &&
+        'serverValidatedAt' in tripBefore && tripBefore.serverValidatedAt is timestamp &&
+        tripOperationIdFromMap(tripAfter) == jobId &&
+        driverId == existingJobDriverId() &&
+        tripCompanyId == jobCompanyId &&
+        tripContractId == jobContractId &&
+        tripAfter.deletedBy == request.auth.uid &&
+        tripAfter.deletedAt == request.time &&
+        tripAfter.deleted == true && tripAfter.status == 'DELETED';
     }
 
     function existingTripDriverId() {
@@ -88,13 +353,17 @@ service cloud.firestore {
             : ''));
     }
 
+    function existingTripCompanyId() {
+      return companyIdFromMap(resource.data);
+    }
+
     function canEditTripRoute() {
       return isAuthenticated() &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['origem', 'destino']) &&
         (
           (existingTripDriverId() != '' && existingTripDriverId() == request.auth.uid) ||
-          isCompanyOwner(resource.data.empresaId) ||
+          (existingTripCompanyId() != '' && isCompanyManager(existingTripCompanyId())) ||
           isSenior() ||
           isAdmin() ||
           (request.auth.token.role != null &&
@@ -103,12 +372,53 @@ service cloud.firestore {
         );
     }
 
+    function validCanonicalTripEdit() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let valueChanged = changed.hasAny([
+        'valor', 'valorCents', 'valorEditadoNoPainelSenior',
+        'valorEditadoPor', 'valorEditadoEm'
+      ]);
+      let priorVersion = ('syncVersion' in resource.data && resource.data.syncVersion is int)
+        ? resource.data.syncVersion : 1;
+      return !('deleted' in resource.data && resource.data.deleted == true) &&
+        (existingTripDriverId() == request.auth.uid ||
+          (existingTripCompanyId() != '' && isCompanyManager(existingTripCompanyId())) || isSenior()) &&
+        changed.hasOnly([
+          'origem', 'destino', 'valor', 'valorCents',
+          'valorEditadoNoPainelSenior', 'valorEditadoPor', 'valorEditadoEm',
+          'syncVersion', 'lastEditId', 'editedBy', 'updatedAt', 'serverUpdatedAt', 'clientUpdatedAt'
+        ]) &&
+        changed.hasAll(['syncVersion', 'lastEditId', 'updatedAt', 'serverUpdatedAt']) &&
+        request.resource.data.syncVersion == priorVersion + 1 &&
+        request.resource.data.lastEditId is string &&
+        request.resource.data.lastEditId.size() > 0 &&
+        request.resource.data.editedBy == request.auth.uid &&
+        request.resource.data.updatedAt == request.time &&
+        request.resource.data.serverUpdatedAt == request.time &&
+        (!changed.hasAny(['origem']) ||
+          (request.resource.data.origem is string && request.resource.data.origem.size() > 0)) &&
+        (!changed.hasAny(['destino']) ||
+          (request.resource.data.destino is string && request.resource.data.destino.size() > 0)) &&
+        (!valueChanged || (
+          isSenior() &&
+          request.resource.data.valor is number && request.resource.data.valor > 0 &&
+          request.resource.data.valorCents is int &&
+          request.resource.data.valorCents == int(request.resource.data.valor * 100 + 0.5) &&
+          (!('gtoEntryMode' in resource.data && resource.data.gtoEntryMode == 'print') ||
+            request.resource.data.valorCents >= 100000) &&
+          request.resource.data.valorEditadoNoPainelSenior == true &&
+          request.resource.data.valorEditadoPor == request.auth.uid &&
+          request.resource.data.valorEditadoEm == request.time
+        ));
+    }
+
     // A recorded earning is immutable for drivers, company admins and owners.
     // Only a verified Senior session may change the amount or its provenance.
     function preservesTripValueIntegrity() {
       return isSenior() ||
         !request.resource.data.diff(resource.data).affectedKeys().hasAny([
           'valor',
+          'valorCents', 'earnings', 'cacheValue',
           'valorDeteccaoMetodo',
           'valorDetectadoAutomaticamente',
           'valorBloqueadoPorDeteccao',
@@ -116,6 +426,33 @@ service cloud.firestore {
           'valorEditadoPor',
           'valorEditadoEm'
         ]);
+    }
+
+    function preservesTripBinding() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'jobId', 'companyId', 'empresaId', 'contractId', 'contratoId',
+        'driverId', 'motoristaId', 'userId', 'operationId', 'trabalhoId', 'status', 'operationSlot',
+        'operationSlotKey', 'canonicalTripId', 'idempotencyKey', 'clientRequestId', 'serverValidatedAt'
+      ]);
+    }
+
+    function isCanonicalTripDeletion() {
+      return (!('deleted' in resource.data) || resource.data.deleted != true) &&
+        request.resource.data.deleted == true &&
+        request.resource.data.status == 'DELETED' &&
+        request.resource.data.deletedAt == request.time &&
+        request.resource.data.deletedBy == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'deleted', 'status', 'deletedAt', 'deletedBy', 'updatedAt',
+          'serverUpdatedAt', 'clientUpdatedAt', 'syncVersion'
+        ]) &&
+        (
+          existingTripDriverId() == request.auth.uid ||
+          resource.data.criadoPor == request.auth.uid ||
+          isCompanyManager(existingTripCompanyId()) ||
+          isSenior() ||
+          isAdmin()
+        );
     }
 
     function preservesOwnOperationalModeration(userId) {
@@ -152,6 +489,7 @@ service cloud.firestore {
           'role',
           'roles',
           'permissions',
+          'memberships',
           'companyId',
           'empresaId',
           'status',
@@ -160,10 +498,26 @@ service cloud.firestore {
         ]);
     }
 
+    function preservesAccountModeration() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pendingAccountCommand', 'accountActionState']) &&
+        (isSenior() || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'accountStatus', 'suspension', 'deleted', 'deletedAt', 'deletedBy', 'deletionReason', 'reactivatedAt', 'reactivatedBy'
+      ]));
+    }
+    function validInitialAccountModeration() {
+      return isSenior() || (request.resource.data.get('accountStatus', 'active') == 'active' &&
+        request.resource.data.get('deleted', false) == false && !request.resource.data.keys().hasAny(['suspension', 'deletedAt', 'deletedBy']));
+    }
+
     function ownsRequestedCompany() {
-      return request.resource.data.companyId is string &&
-        exists(/databases/$(database)/documents/frotas/$(request.resource.data.companyId)) &&
-        get(/databases/$(database)/documents/frotas/$(request.resource.data.companyId)).data.userId == request.auth.uid;
+      return request.resource.data.get('role', 'driver') in ['driver', 'admin'] &&
+        request.resource.data.get('roles', ['driver']).hasOnly(['driver', 'admin']) &&
+        request.resource.data.companyId is string &&
+        existsAfter(/databases/$(database)/documents/frotas/$(request.resource.data.companyId)) &&
+        (
+          getAfter(/databases/$(database)/documents/frotas/$(request.resource.data.companyId)).data.userId == request.auth.uid ||
+          getAfter(/databases/$(database)/documents/frotas/$(request.resource.data.companyId)).data.ownerId == request.auth.uid
+        );
     }
 
     // Alias temporário mantido apenas para evitar uma troca ampla de nomes no
@@ -173,23 +527,33 @@ service cloud.firestore {
       return isSenior();
     }
 
-    function hasUserEmail() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        getUserData().email is string;
-    }
-
     function isRegistrationOwner() {
       return isAuthenticated() && (
-        (resource.data.userId is string &&
-          resource.data.userId == request.auth.uid) ||
-        (resource.data.email is string &&
-          request.auth.token.email != null &&
-          resource.data.email == request.auth.token.email) ||
-        (resource.data.email is string &&
-          hasUserEmail() &&
-          resource.data.email == getUserData().email)
+        (resource.data.get('userId', '') == request.auth.uid) ||
+        (request.auth.token.get('email_verified', false) == true &&
+          resource.data.get('email', '') == request.auth.token.get('email', null))
       );
+    }
+
+    // Private users contain contacts and account controls. Directory readers use
+    // the server-owned whitelist projection public_users; Senior reads use a callable.
+    function validUserIdentity(data) {
+      return (!('name' in data) || (data.name is string && data.name.size() <= 200)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 254)) &&
+        (!('whatsapp' in data) || (data.whatsapp is string && data.whatsapp.size() <= 40));
+    }
+    function validOwnUserCreate(data) {
+      return data.get('role', 'driver') == 'driver' &&
+        data.get('roles', ['driver']) is list && data.get('roles', ['driver']).hasOnly(['driver']) &&
+        data.get('companyId', '') in ['', null] && data.get('empresaId', '') in ['', null] &&
+        data.get('memberships', {}) == {} && data.get('permissions', []) == [] &&
+        data.get('status', 'pending') == 'pending';
+    }
+    function validCompanyIdentity(data) {
+      return data.companyName is string && data.companyName.size() > 0 && data.companyName.size() <= 200 &&
+        data.get('ownerId', data.get('userId', '')) is string &&
+        data.get('ownerId', data.get('userId', '')).size() > 0 &&
+        data.get('ownerId', data.get('userId', '')).size() <= 128;
     }
 
     function validCompanyRegistration() {
@@ -205,73 +569,116 @@ service cloud.firestore {
 
     // 1. users
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isSenior() ||
-        (isOwner(userId) && !requestedPrivilegedUserRole());
-      allow update: if (
+      allow read: if isOwner(userId);
+      allow create: if validUserIdentity(request.resource.data) && !request.resource.data.keys().hasAny(['pendingAccountCommand', 'accountActionState']) && (isSenior() ||
+        (isOwner(userId) && validOwnUserCreate(request.resource.data) && !requestedPrivilegedUserRole() && validInitialAccountModeration()) ||
+        (
+          !isOwner(userId) &&
+          request.resource.data.companyId is string &&
+          isCompanyManager(request.resource.data.companyId) &&
+          !requestedPrivilegedUserRole() && validInitialAccountModeration()
+        ));
+      allow update: if validUserIdentity(request.resource.data) && (
         isSenior() ||
         isAdmin() ||
         (isOwner(userId) &&
-          (preservesOwnAuthorization(userId) || ownsRequestedCompany()))
-      ) && preservesOwnOperationalModeration(userId);
+          (preservesOwnAuthorization(userId) || ownsRequestedCompany())) ||
+        (
+          !isOwner(userId) &&
+          companyIdFromMap(request.resource.data) != '' &&
+          companyIdFromMap(resource.data) == companyIdFromMap(request.resource.data) &&
+          isCompanyManager(companyIdFromMap(request.resource.data))
+        )
+      ) && preservesOwnOperationalModeration(userId) && preservesAccountModeration() &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['profileCoverURL', 'profileCoverRevision', 'profileCoverUpdatedAt']) ||
+          isOwner(userId) || isSenior());
       allow delete: if hasLegacySeniorPanelAccess() || isSenior();
+    }
+
+    match /public_users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
+    // Minimal authenticated projection used by Ranking Premium. It exposes
+    // only participant/vehicle identity and the already-uploaded URL.
+    match /rankingVehiclePhotos/{photoId} {
+      function validPhotoProjection() {
+        return request.resource.data.keys().hasOnly(['userId', 'simulatorId', 'vehicleId', 'vehicleName', 'url', 'revision', 'updatedAt', 'migratedFrom', 'migrationVersion']) &&
+          request.resource.data.userId == request.auth.uid &&
+          request.resource.data.simulatorId is string && request.resource.data.simulatorId.size() > 0 &&
+          request.resource.data.vehicleId is string && request.resource.data.vehicleId.size() > 0 &&
+          request.resource.data.url is string && request.resource.data.url.size() <= 4096 &&
+          request.resource.data.url.matches('^https://.+');
+      }
+      allow read: if isAuthenticated();
+      // Existing identity/ownership cannot be replaced by a foreign payload.
+      allow create: if isAuthenticated() && validPhotoProjection() &&
+        photoId.split(':').size() == 3 && photoId.split(':')[0] == request.auth.uid;
+      allow update: if isAuthenticated() && validPhotoProjection() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.simulatorId == resource.data.simulatorId &&
+        request.resource.data.vehicleId == resource.data.vehicleId;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // 2. frotas (companies)
     match /frotas/{id} {
-      // Company identity is intentionally public-readable. The public UI only
-      // projects companyName, simulator and logo; private owner/contact fields
-      // are never used by anonymous profile routes.
-      allow read: if true;
-      allow create: if isAuthenticated() && (
-        isSenior() ||
-        isAdmin() ||
-        (
-          request.resource.data.userId == request.auth.uid &&
-          request.resource.data.ownerId == request.auth.uid
-        )
-      );
-      allow update, delete: if isCompanyManager(id);
+      // Private company documents are scoped; public directory uses public_companies.
+      allow read: if isCompanyMember(id);
+      allow create: if isSenior() && validCompanyIdentity(request.resource.data) &&
+        !request.resource.data.keys().hasAny(['operationalCommandVersion', 'operationalCommandsEnabledAt', 'operationalCommandsEnabledBy', 'automaticQueuesConfigured']);
+      allow update: if isCompanyManager(id) && validCompanyIdentity(request.resource.data) &&
+        (isSenior() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'userId'])) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['operationalCommandVersion', 'operationalCommandsEnabledAt', 'operationalCommandsEnabledBy', 'automaticQueuesConfigured']);
+      allow delete: if isCompanyManager(id);
     }
 
     // 3. veiculos
     match /veiculos/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     // 4. reboques
     match /reboques/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     // 5. contratos
     match /contratos/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     // English aliases still used by the historical trip repository.
     match /vehicles/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     match /trailers/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     match /contracts/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     match /sequencias/{id} {
@@ -286,43 +693,102 @@ service cloud.firestore {
         isCompanyManager(resource.data.companyId);
     }
 
+    function validJobUpdate(jobId) {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Managed companies/jobs have no direct client lifecycle writer.
+      // Retain only the documented old-client transitions before explicit opt-in.
+      return !usesOperationalCommands(companyIdFromMap(resource.data)) && !isManagedJob(resource.data) &&
+        !(request.resource.data.status == 'completed' && resource.data.status != 'completed') &&
+        changed.hasOnly(['status']) && (
+          (existingJobDriverId() == request.auth.uid && resource.data.status == 'pending' && request.resource.data.status == 'active' &&
+            isActiveJobDriver(companyIdFromMap(resource.data), request.auth.uid) && !isOperationallySuspended(request.auth.uid)) ||
+          (isCompanyManager(companyIdFromMap(resource.data)) && request.resource.data.status == 'cancelled' &&
+            resource.data.status in ['pending', 'active', 'delayed', 'awaiting_completion', 'cancelled'])
+        );
+    }
+
+    function validLegacyJobCreate() {
+      let job = request.resource.data;
+      return !usesOperationalCommands(job.companyId) &&
+        !job.keys().hasAny(['operationalCommandVersion', 'contractSnapshot', 'completedAt', 'completionSource', 'manualCompletionConfirmedAt', 'operationStatusUpdatedByCanonicalGateway']) &&
+        job.status == 'pending' && job.progress == 0 &&
+        job.driverId is string && isActiveJobDriver(job.companyId, job.driverId) &&
+        get(/databases/$(database)/documents/contratos/$(job.contractId)).data.companyId == job.companyId &&
+        get(/databases/$(database)/documents/veiculos/$(job.vehicleId)).data.companyId == job.companyId &&
+        (!('trailerId' in job) || job.trailerId == null || job.trailerId == '' ||
+          get(/databases/$(database)/documents/reboques/$(job.trailerId)).data.companyId == job.companyId);
+    }
+
     // 6. trabalhos
     match /trabalhos/{id} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() &&
-        isCompanyManager(request.resource.data.companyId);
-      allow update: if isAuthenticated() && (
-        (
-          isCompanyManager(resource.data.companyId) &&
-          (
-            !(request.resource.data.status == 'active' && resource.data.status != 'active') ||
-            (
-              existingJobDriverId() != '' &&
-              !isOperationallySuspended(existingJobDriverId())
-            )
-          )
-        ) ||
-        (
-          existingJobDriverId() == request.auth.uid &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status',
-            'completedAt',
-            'completionStatus',
-            'completionTimeOffset',
-            'contractNameSnapshot'
-          ]) &&
-          request.resource.data.status == 'completed' &&
-          !isOperationallySuspended(request.auth.uid)
-        ) ||
-        (
-          existingJobDriverId() == request.auth.uid &&
-          resource.data.status == 'pending' &&
-          request.resource.data.status == 'active' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
-          !isOperationallySuspended(request.auth.uid)
-        )
-      );
-      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+        isCompanyManager(request.resource.data.companyId) && validLegacyJobCreate();
+      // Progress, lastValidatedTripId, lastDeletedTripId and terminal status are
+      // server-owned. Legacy clients may keep reading and may request a safe
+      // status activation, but they cannot mutate the operational projection.
+      allow update: if isAuthenticated() && validJobUpdate(id);
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId) &&
+        !usesOperationalCommands(resource.data.companyId) && !isManagedJob(resource.data);
+    }
+
+    // Financial targets are isolated by company, simulator and selected period.
+    // Only an authenticated company manager may read or maintain them.
+    match /operationalGoals/{goalId} {
+      allow get: if isAuthenticated() && operationalGoalCompany(goalId) != '' &&
+        canManageOperationalGoal(operationalGoalCompany(goalId)) &&
+        (!exists(/databases/$(database)/documents/operationalGoals/$(goalId)) ||
+          (resource.data.companyId == operationalGoalCompany(goalId) && resource.data.simulatorId == operationalGoalSimulator(goalId)));
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasOnly(['companyId', 'simulatorId', 'periodKey', 'targetAmount', 'currency', 'updatedBy', 'updatedAt']) &&
+        request.resource.data.companyId == operationalGoalCompany(goalId) &&
+        request.resource.data.simulatorId == operationalGoalSimulator(goalId) &&
+        request.resource.data.periodKey is string && request.resource.data.periodKey.size() > 0 &&
+        request.resource.data.targetAmount is number && request.resource.data.targetAmount > 0 && request.resource.data.targetAmount <= 1000000000000000 &&
+        request.resource.data.currency == 'BRL' && request.resource.data.updatedBy == request.auth.uid &&
+        canManageOperationalGoal(request.resource.data.companyId);
+      allow update: if isAuthenticated() &&
+        resource.data.companyId == operationalGoalCompany(goalId) && resource.data.simulatorId == operationalGoalSimulator(goalId) &&
+        canManageOperationalGoal(resource.data.companyId) &&
+        request.resource.data.companyId == resource.data.companyId &&
+        request.resource.data.simulatorId == resource.data.simulatorId && request.resource.data.periodKey == resource.data.periodKey &&
+        request.resource.data.targetAmount is number && request.resource.data.targetAmount > 0 && request.resource.data.targetAmount <= 1000000000000000 &&
+        request.resource.data.currency == 'BRL' && request.resource.data.updatedBy == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['targetAmount', 'currency', 'updatedBy', 'updatedAt']);
+      allow list, delete: if false;
+    }
+    match /operationalQueueSettings/{companyId} {
+      allow read: if isAuthenticated() && isCompanyManager(companyId);
+      allow write: if false;
+    }
+    match /operationalQueueSignals/{companyId} {
+      allow read: if isAuthenticated() && (isCompanyManager(companyId) || isActiveJobDriver(companyId, request.auth.uid));
+      allow write: if false;
+    }
+    match /operationalQueueMutations/{id} {
+      allow read: if isAuthenticated() && resource.data.actorId == request.auth.uid;
+      allow write: if false;
+    }
+    match /operationalQueueAudits/{id} {
+      allow read: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow write: if false;
+    }
+    match /automaticQueueHistoryReviews/{id} {
+      allow read: if isAuthenticated() && (resource.data.driverId == request.auth.uid || isCompanyManager(resource.data.companyId));
+      allow write: if false;
+    }
+
+    match /operationalDriverStates/{id} {
+      allow read: if isAuthenticated() && (resource.data.driverId == request.auth.uid || isCompanyManager(resource.data.companyId));
+      allow write: if false;
+    }
+    match /operationalCommandRequests/{id} {
+      allow read: if isAuthenticated() && resource.data.actorId == request.auth.uid;
+      allow write: if false;
+    }
+    match /driverOperationCompletions/{id} {
+      allow read: if isAuthenticated() && (resource.data.driverId == request.auth.uid || isCompanyManager(resource.data.companyId));
+      allow write: if false;
     }
 
     // 7. solicitacoes_motoristas
@@ -332,7 +798,8 @@ service cloud.firestore {
         isCompanyManager(resource.data.empresaId)
       );
       allow create: if isAuthenticated() &&
-        request.resource.data.motoristaId == request.auth.uid;
+        request.resource.data.motoristaId == request.auth.uid && request.resource.data.status == 'pending' &&
+        !request.resource.data.keys().hasAny(['approvalAuthorityVersion', 'approvedBy', 'approvedAt', 'accessRevokedAt']);
       allow update: if isAuthenticated() &&
         isCompanyManager(resource.data.empresaId);
       allow delete: if isAuthenticated() && (
@@ -345,33 +812,39 @@ service cloud.firestore {
     // O cliente cria avisos em nome do usuário autenticado (actorUserId).
     // A leitura e a marcação como lida ficam restritas ao destinatário.
     match /notifications/{id} {
-      allow create: if hasLegacySeniorPanelAccess() || (isAuthenticated() &&
-        request.resource.data.userId is string &&
-        (
-          request.resource.data.userId == request.auth.uid ||
-          request.resource.data.actorUserId == request.auth.uid
-        ));
+      allow create: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin() ||
+        (isAuthenticated() && request.resource.data.userId == request.auth.uid) ||
+        canCreateNotificationForRecipient();
       allow read: if hasLegacySeniorPanelAccess() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow update: if hasLegacySeniorPanelAccess() || (isAuthenticated() &&
         resource.data.userId == request.auth.uid &&
-        request.resource.data.userId == resource.data.userId);
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'read', 'lida', 'resolvedAt', 'resolvedAtIso', 'popupShownAt', 'popupShownAtIso'
+        ]));
       allow delete: if hasLegacySeniorPanelAccess() || (isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isSenior() || isAdmin()));
     }
 
     match /notificacoes/{id} {
-      allow create: if hasLegacySeniorPanelAccess() || isAuthenticated();
+      allow create: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin() ||
+        (isAuthenticated() && request.resource.data.userId == request.auth.uid) ||
+        canCreateNotificationForRecipient();
       allow read: if hasLegacySeniorPanelAccess() || (isAuthenticated() && resource.data.userId == request.auth.uid);
-      allow update: if hasLegacySeniorPanelAccess() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      allow update: if hasLegacySeniorPanelAccess() || (isAuthenticated() &&
+        resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'read', 'lida', 'resolvedAt', 'resolvedAtIso', 'popupShownAt', 'popupShownAtIso'
+        ]));
       allow delete: if hasLegacySeniorPanelAccess() || (isAuthenticated() &&
         (resource.data.userId == request.auth.uid || isSenior() || isAdmin()));
     }
 
     match /userDevices/{id} {
-      allow create, update: if isAuthenticated() &&
-        request.resource.data.userId == request.auth.uid;
-      allow read, delete: if isAuthenticated() &&
-        resource.data.userId == request.auth.uid;
+      // Only the canonical register/revoke callables can mutate associations.
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
 
     // 9. jobDemands
@@ -385,7 +858,9 @@ service cloud.firestore {
           isAdmin()
         ) &&
         !isOperationallySuspended(request.resource.data.driverId);
-      allow update, delete: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+      allow update: if isSenior() || (isAuthenticated() && isCompanyManager(resource.data.companyId));
+      allow delete: if isAuthenticated() && (isSenior() || isCompanyManager(resource.data.companyId) ||
+        (resource.data.driverId == request.auth.uid && resource.data.status == 'pending'));
     }
 
     // 10. recruitment_applications
@@ -393,45 +868,90 @@ service cloud.firestore {
       // Company registration is the only intentionally public create flow.
       // Driver applications must come from an authenticated candidate.
       allow create: if validCompanyRegistration() ||
-        (isAuthenticated() && (!('type' in request.resource.data) || request.resource.data.type != 'company_registration'));
+        (isAuthenticated() && request.resource.data.get('type', 'driver_application') == 'driver_application' &&
+          request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending' &&
+          !request.resource.data.keys().hasAny(['approvalAuthorityVersion', 'approvedBy', 'approvedAt', 'accessRevokedAt']));
       // The temporary legacy access function keeps the Senior panel usable
       // while the shared password mode is active. Replace it with a custom
       // claim before tightening these mixed-collection queries again.
-      allow read: if hasLegacySeniorPanelAccess() || isAdmin() || isRegistrationOwner();
+      allow read: if hasLegacySeniorPanelAccess() || isRegistrationOwner() ||
+        (
+          (!('type' in resource.data) || resource.data.type != 'company_registration') &&
+          resource.data.companyId is string &&
+          isCompanyManager(resource.data.companyId)
+        ) ||
+        isAdmin();
       allow update, delete: if hasLegacySeniorPanelAccess() || (
         ('type' in resource.data && resource.data.type == 'company_registration' && isSenior()) ||
-        ((!('type' in resource.data) || resource.data.type != 'company_registration') && isAdmin())
+        (
+          (!('type' in resource.data) || resource.data.type != 'company_registration') &&
+          resource.data.companyId is string &&
+          isCompanyManager(resource.data.companyId)
+        )
       );
     }
 
     // 11. company_registrations
     match /company_registrations/{id} {
       allow create: if validCompanyRegistration();
-      allow read, update, delete: if hasLegacySeniorPanelAccess() || isSenior() || isRegistrationOwner();
+      allow read: if isSenior() || isRegistrationOwner();
+      allow update, delete: if isSenior();
+    }
+
+    // A new fleet and its owner's projections are committed in one batch.
+    // getAfter is limited to this new-company bootstrap; existing-tenant
+    // authorization continues to use server-owned company_access.
+    function isOwnNewCompanyMembership() {
+      let companyId = request.resource.data.companyId;
+      let path = /databases/$(database)/documents/frotas/$(companyId);
+      let company = getAfter(path).data;
+      return isAuthenticated() && accountIsUsable(getUserData()) && !exists(path) &&
+        company != null && company.get('ownerId', '') == request.auth.uid && company.get('userId', '') == request.auth.uid &&
+        request.resource.data.userId == request.auth.uid && request.resource.data.status == 'active' &&
+        request.resource.data.roles is list && request.resource.data.roles.hasOnly(['admin', 'driver']);
     }
 
     // 12. companyMembers
     match /companyMembers/{id} {
       allow read: if isAuthenticated() && (
+        isSenior() || isAdmin() ||
         resource.data.userId == request.auth.uid ||
         isCompanyMember(resource.data.companyId)
       );
       allow create: if isAuthenticated() &&
-        isCompanyManager(request.resource.data.companyId);
+        (isCompanyManager(request.resource.data.companyId) || isOwnNewCompanyMembership());
       allow update: if isAuthenticated() &&
         isCompanyManager(resource.data.companyId) &&
-        request.resource.data.companyId == resource.data.companyId;
-      allow delete: if isAuthenticated() &&
-        isCompanyManager(resource.data.companyId);
+        request.resource.data.companyId == resource.data.companyId &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId) &&
+        !existsAfter(/databases/$(database)/documents/frotas/$(resource.data.companyId));
     }
 
     // 12b. simulator_members
     match /simulator_members/{id} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
-      allow update, delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
+      allow read: if isAuthenticated() && (
+        isSenior() || isAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        isCompanyMember(resource.data.companyId)
+      );
+      allow create: if isAuthenticated() && (isCompanyManager(request.resource.data.companyId) || isOwnNewCompanyMembership());
+      allow update: if isAuthenticated() &&
+        isCompanyManager(resource.data.companyId) &&
+        request.resource.data.companyId == resource.data.companyId &&
+        request.resource.data.userId == resource.data.userId;
+      allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
     
+    match /company_access/{companyId}/members/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isCompanyManager(companyId));
+      allow write: if false;
+    }
+    match /public_companies/{companyId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // 13. historico_viagens
     // Canonical GTO lifecycle mirror. Native/Cloud Functions write; the driver can read only its own session.
     match /gto_active_gto_sessions/{driverId} {
@@ -445,52 +965,139 @@ service cloud.firestore {
     }
 
     match /historico_viagens/{tripId} {
-      allow read: if true;
-      allow create: if request.auth != null &&
-        requestedTripDriverId() != '' &&
-        (
-          requestedTripDriverId() == request.auth.uid ||
-          isSenior() ||
-          isAdmin()
-        ) &&
-        !isOperationallySuspended(requestedTripDriverId());
-      allow update: if request.auth != null && (
-        canEditTripRoute() ||
-        (preservesTripValueIntegrity() && (
-          request.auth.uid == resource.data.motoristaId ||
-          request.auth.uid == resource.data.criadoPor ||
-          isCompanyOwner(resource.data.empresaId) ||
-          isSenior() ||
-          isAdmin() ||
-          (request.auth.token.role != null && request.auth.token.role in ["admin", "owner"] && request.auth.token.empresaId == resource.data.empresaId) ||
-          hasLegacySeniorPanelAccess()
-        ))
-      );
-      allow delete: if request.auth != null && (
-        request.auth.uid == resource.data.motoristaId ||
-        request.auth.uid == resource.data.criadoPor ||
-        isCompanyOwner(resource.data.empresaId) ||
+      // Full trip documents contain receipt URLs and device/location data.
+      // Public profiles need a separate sanitized projection before anonymous
+      // trip statistics can be restored safely.
+      // Native transactions GET the next deterministic slot before it exists.
+      // Existing documents and all list queries retain the owner boundary.
+      allow get: if isAuthenticated() && (
+        !exists(/databases/$(database)/documents/historico_viagens/$(tripId)) ||
         isSenior() ||
-        isAdmin() ||
-        (request.auth.token.role != null && request.auth.token.role in ["admin", "owner"] && request.auth.token.empresaId == resource.data.empresaId) ||
-        hasLegacySeniorPanelAccess()
+        existingTripDriverId() == request.auth.uid ||
+        (existingTripCompanyId() != '' && isCompanyMember(existingTripCompanyId()))
       );
+      allow list: if isAuthenticated() && (
+        isSenior() ||
+        resource.data.driverId == request.auth.uid ||
+        resource.data.motoristaId == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        resource.data.criadoPor == request.auth.uid ||
+        (resource.data.companyId != '' && isCompanyMember(resource.data.companyId)) ||
+        (resource.data.empresaId != '' && isCompanyMember(resource.data.empresaId))
+      );
+      // All authoritative history creates go through registerCanonicalSimpleTrip,
+      // registerGtoProReceipt or registerGtoTrip (Admin SDK). Direct client
+      // creates are intentionally denied so old/offline APKs cannot manufacture
+      // serverValidatedAt, operation slots, progress or completion. Offline
+      // clients may keep a local pending record and retry the callable gateway.
+      allow create: if false;
+      allow update: if request.auth != null && (
+        isCanonicalTripDeletion() ||
+        (
+          preservesTripBinding() &&
+          preservesTripReceiptEvidence() &&
+          (
+            canEditTripRoute() ||
+            validCanonicalTripEdit() ||
+            (
+              preservesTripValueIntegrity() &&
+              !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+                'lastEditId', 'editedBy', 'syncVersion'
+              ]) &&
+              (
+                request.auth.uid == resource.data.motoristaId ||
+                request.auth.uid == resource.data.criadoPor ||
+                isCompanyOwner(resource.data.empresaId) ||
+                isSenior() ||
+                isAdmin() ||
+                (request.auth.token.role != null && request.auth.token.role in ["admin", "owner"] && request.auth.token.empresaId == resource.data.empresaId) ||
+                hasLegacySeniorPanelAccess()
+              )
+            )
+          )
+        )
+      );
+      allow delete: if false;
     }
     
 
+    match /trip_operation_slots/{slotId} {
+      allow get: if isAuthenticated();
+      allow list: if isAuthenticated() && resource.data.driverId == request.auth.uid;
+      // Slot allocation is part of the canonical Admin SDK transaction. The
+      // client may read the projection but cannot claim an operational slot.
+      allow create: if false;
+      allow update: if isAuthenticated() &&
+        (resource.data.driverId == request.auth.uid || isCompanyManager(companyIdFromMap(get(/databases/$(database)/documents/trabalhos/$(resource.data.jobId)).data))) &&
+        resource.data.tripId == slotId &&
+        (!('deleted' in resource.data) || resource.data.deleted != true) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'deletedAt']) &&
+        request.resource.data.deleted == true &&
+        request.resource.data.deletedAt == request.time &&
+        getAfter(/databases/$(database)/documents/historico_viagens/$(slotId)).data.deleted == true &&
+        getAfter(/databases/$(database)/documents/historico_viagens/$(slotId)).data.status == 'DELETED';
+      allow delete: if false;
+    }
+
+    // The callable owns the idempotency marker; clients must never create or
+    // alter one to turn an unconfirmed receipt into a server ACK.
+    match /pro_trip_attempts/{attemptId} {
+      allow read, write: if false;
+    }
+
+    match /trip_request_locks/{lockId} {
+      allow get: if isAuthenticated();
+      allow list: if false;
+      // The callable owns the idempotency marker; clients cannot manufacture
+      // an ACK or bind a receipt to a slot directly.
+      allow create: if false;
+      allow update, delete: if false;
+    }
+
     match /trip_deletion_audits/{auditId} {
-      allow read, create: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+      allow read: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+      allow create: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin() ||
+        (isAuthenticated() && isCompanyManager(request.resource.data.companyId) &&
+          request.resource.data.actorUserId == request.auth.uid &&
+          request.resource.data.driverId is string &&
+          request.resource.data.tripId is string &&
+          tripDriverIdFromMap(getAfter(/databases/$(database)/documents/historico_viagens/$(request.resource.data.tripId)).data) == request.resource.data.driverId &&
+          companyIdFromMap(getAfter(/databases/$(database)/documents/historico_viagens/$(request.resource.data.tripId)).data) == request.resource.data.companyId &&
+          getAfter(/databases/$(database)/documents/historico_viagens/$(request.resource.data.tripId)).data.deletedBy == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/historico_viagens/$(request.resource.data.tripId)).data.deletedAt == request.time);
       allow update, delete: if false;
     }
 
     match /driver_suspension_audits/{auditId} {
-      allow read, create: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+      allow read: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+      allow create: if hasLegacySeniorPanelAccess() || isSenior() || isAdmin() ||
+        (isAuthenticated() && isCompanyManager(request.resource.data.companyId) &&
+          request.resource.data.actorUserId == request.auth.uid &&
+          request.resource.data.driverId is string &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.driverId)).data.operationalSuspension.createdBy == request.auth.uid &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.driverId)).data.operationalSuspension.companyId == request.resource.data.companyId &&
+          getAfter(/databases/$(database)/documents/users/$(request.resource.data.driverId)).data.operationalSuspension.startsAt == request.resource.data.startsAt);
       allow update, delete: if false;
     }
 
     match /simulators/{id} {
+      function validSimulator(data) {
+        return data.keys().hasOnly(['id', 'name', 'active', 'createdAt', 'updatedAt']) &&
+          data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+          data.active is bool;
+      }
       allow read: if true;
-      allow write: if isAuthenticated() || hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+      allow create, update: if isSenior() && validSimulator(request.resource.data);
+      allow delete: if isSenior();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated() && settingId == 'system';
+      // WorkMode availability is mutated only by the audited callable.
+      // Admin SDK writes are not evaluated by Rules; denying the client path
+      // prevents a direct Firestore transaction from bypassing the audit log.
+      allow create, update: if false;
+      allow delete: if false;
     }
 
     // Cidades usadas exclusivamente pelo Modo Automático Simples. A lista é
@@ -498,7 +1105,9 @@ service cloud.firestore {
     // protegida pelo acesso Sênior/admin e pelo identificador canônico do documento.
     match /simple_automation_cities/{simulatorKey} {
       function canManageSimpleCities() {
-        return hasLegacySeniorPanelAccess() || isSenior() || isAdmin();
+        // This is a shared simulator catalog, not company operational data.
+        return isSenior() || (isAuthenticated() && companyIdFromMap(getUserData()) != '' &&
+          isCompanyManager(companyIdFromMap(getUserData())));
       }
 
       function validSimpleCityDocument() {
@@ -637,10 +1246,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Default fallback
+    // Default deny. A broad authenticated read fallback would override the
+    // privacy checks above because Firestore allow rules are additive.
     match /{document=**} {
-      allow read: if isAuthenticated();
-      allow write: if isSenior();
+      allow read, write: if false;
     }
   }
 }

@@ -13,7 +13,7 @@ const checks = [
   ["Unreadable value requests a clearer print", /Não foi possível ler o valor recebido\. Envie um print mais nítido para continuar\./.test(recordTrip)],
   ["Legacy manual confirmation state is removed", !recordTrip.includes("gtoManualConfirmed") && !recordTrip.includes('type="checkbox"')],
   ["Legacy broad analysis gate is not used before value promotion", !/if \(!analysis\.analysisOk\)/.test(recordTrip)],
-  ["Print submit still rejects unreadable or pending OCR", /if \(gtoReceiptAnalysisStatus === "failed"\)[\s\S]{0,240}Não foi possível ler o valor recebido/.test(recordTrip) && /imagePreview && gtoReceiptAnalysisStatus !== "ok"/.test(recordTrip)],
+  ["Print submit still rejects unreadable or pending OCR", /if \(gtoReceiptAnalysisStatus === "failed"\)[\s\S]{0,240}Não foi possível ler o valor recebido/.test(recordTrip) && /gtoReceiptAnalysisStatus !== "ok" \|\| !valorDetectadoAutomaticamente/.test(recordTrip)],
 ];
 
 let failed = 0;

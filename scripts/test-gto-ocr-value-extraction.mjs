@@ -10,6 +10,7 @@ const cases = [
   ["Valor a receber: 1480000", "14.800,00"],
   ["Concluído Valor a receber: R$ 14.800,00 Dobrar valor (ADS)", "14.800,00"],
   ["R$ 1.250,50", "1.250,50"],
+  ["Valor a receber: R$ 39.694,00", "39.694,00"],
 ];
 
 for (const [input, expected] of cases) {
@@ -19,6 +20,15 @@ for (const [input, expected] of cases) {
     `valor não extraído corretamente: ${input}`,
   );
 }
+
+assert.equal(extractValueFromText("Valor a receber: R$ 101,00"), "101,00",
+  "valor positivo baixo precisa ser preservado");
+
+assert.equal(
+  extractValueFromText("108", { allowImplicitCentsInGeneric: false }),
+  null,
+  "token genérico 108 não pode virar R$ 1,08",
+);
 
 assert.equal(
   extractValueFromText("12:55 5G 90% FPS 31"),

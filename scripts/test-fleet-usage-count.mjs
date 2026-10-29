@@ -136,8 +136,8 @@ const count = (assetId, kind, companyId = "company-a") =>
 
 assert.equal(
   count("truck-1", "vehicle"),
-  2,
-  "deve contar somente os membros ativos com atribuição corrente: driver-1 e driver-3",
+  3,
+  "inclui a operação aguardando finalização manual: driver-1, driver-2 e driver-3",
 );
 assert.equal(
   count("truck-old", "vehicle"),
@@ -151,7 +151,7 @@ assert.equal(
 );
 assert.equal(
   count("trailer-1", "trailer"),
-  3,
+  4,
   "reboque deve considerar vínculos diretos e o vínculo pelo contrato da mesma empresa",
 );
 assert.equal(
@@ -184,7 +184,7 @@ const currentJobs = resolveCurrentFleetUsageJobs({
 });
 assert.deepEqual(
   currentJobs.map((job) => job.id).sort(),
-  ["j1", "j4", "j7"].sort(),
+  ["j1", "j3", "j4", "j7"].sort(),
   "deve retornar uma atribuição corrente por motorista ativo, excluir pending, órfãos e encerrados",
 );
 

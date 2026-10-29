@@ -1,0 +1,183 @@
+/* Approved assignment flow: shared app colors, compact cards and deliberate spacing. */
+.nvu-assignment-theme, .nvu-assignment-page {
+  --assignment-paper: var(--nvu-surface, #fff);
+  --assignment-page: var(--nvu-page, #f7f9fa);
+  --assignment-soft: var(--nvu-strip, #edf1f4);
+  --assignment-text: var(--nvu-text, #182332);
+  --assignment-muted: #5c6c7d;
+  --assignment-line: #d7e0e6;
+  --assignment-control-line: #a7b7c2;
+  --assignment-action: #147659;
+  --assignment-selected: #edf6f3;
+  --assignment-selected-line: #7cae9f;
+  color: var(--assignment-text);
+}
+.dark .nvu-assignment-theme, .dark .nvu-assignment-page {
+  --assignment-muted: var(--nvu-muted, #b3c0cb);
+  --assignment-line: var(--nvu-line, #405562);
+  --assignment-control-line: var(--nvu-control-line, #6d8595);
+  --assignment-action: #71d5ac;
+  --assignment-selected: var(--nvu-strip, #23353e);
+  --assignment-selected-line: #718e99;
+}
+.nvu-assignment-page {
+  width: 100%;
+  min-width: 0;
+  min-height: calc(100dvh - var(--nvu-native-header-height, 44px));
+  padding: 24px 18px max(28px, env(safe-area-inset-bottom, 0px));
+  background: var(--assignment-page);
+}
+.nvu-assignment-panel {
+  width: 100%;
+  max-width: 640px;
+  min-width: 0;
+  margin-inline: auto;
+  overflow: hidden;
+  border: 1px solid var(--assignment-line);
+  border-radius: 20px;
+  background: var(--assignment-paper);
+  color: var(--assignment-text);
+}
+.nvu-assignment-heading { position: relative; padding: 28px 20px 22px; text-align: center; }
+.nvu-assignment-close {
+  position: absolute; top: 12px; right: 12px;
+  display: grid; place-items: center; width: 36px; height: 36px;
+  border-radius: 10px; color: var(--assignment-muted); background: transparent;
+}
+.nvu-assignment-close:hover { background: var(--assignment-soft); }
+.nvu-assignment-hero {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; margin: 0 auto 18px;
+  border-radius: 14px; background: var(--assignment-soft); color: var(--assignment-muted);
+}
+.nvu-assignment-hero-send { position: absolute; right: 8px; bottom: 8px; background: var(--assignment-soft); }
+.nvu-assignment-heading h1, .nvu-assignment-heading h2 {
+  margin: 0; font-size: clamp(21px, 5.4vw, 28px); line-height: 1.3;
+  font-weight: 650; letter-spacing: -.025em; color: var(--assignment-text);
+}
+.nvu-assignment-heading p { margin: 8px auto 0; max-width: 38ch; font-size: 13px; line-height: 1.6; color: var(--assignment-muted); }
+.nvu-assignment-content { display: grid; gap: 26px; padding: 8px 18px 24px; }
+.nvu-assignment-field { min-width: 0; }
+.nvu-assignment-field h2, .nvu-assignment-drivers-heading h2 {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px;
+  font-size: 15px; font-weight: 600; line-height: 1.5; color: var(--assignment-text);
+}
+.nvu-assignment-field h2 > svg, .nvu-assignment-drivers-heading h2 > svg { flex-shrink: 0; color: var(--assignment-muted); }
+.nvu-assignment-required { margin-left: 2px; color: var(--assignment-action); }
+.nvu-assignment-select {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px;
+  padding: 14px 15px; border: 1px solid var(--assignment-line); border-radius: 13px;
+  background: var(--assignment-paper); color: var(--assignment-muted); text-align: left;
+}
+.nvu-assignment-select > svg { flex-shrink: 0; }
+.nvu-assignment-select-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.nvu-assignment-select-copy strong { display: block; font-size: 15px; line-height: 1.4; font-weight: 600; color: var(--assignment-text); }
+.nvu-assignment-select-copy small { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 12px; line-height: 1.5; }
+.nvu-assignment-select-copy small svg { flex-shrink: 0; }
+.nvu-assignment-placeholder { font-size: 14px; }
+.nvu-assignment-drivers { padding-top: 22px; border-top: 1px solid var(--assignment-line); min-width: 0; }
+.nvu-assignment-drivers-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.nvu-assignment-drivers-heading h2 { margin: 0; }
+.nvu-assignment-selection-count { color: var(--assignment-muted); font-size: 11px; }
+.nvu-assignment-text-action { margin-left: auto; color: var(--assignment-action); font-size: 12px; font-weight: 500; border-radius: 5px; padding: 5px 0; }
+.nvu-assignment-help { margin: 5px 0 12px; color: var(--assignment-muted); font-size: 12px; line-height: 1.6; }
+.nvu-assignment-driver-list { display: grid; gap: 10px; }
+.nvu-assignment-driver {
+  display: flex; align-items: center; gap: 12px; padding: 13px 14px; min-height: 64px;
+  border: 1px solid var(--assignment-line); border-radius: 12px; background: var(--assignment-soft);
+  cursor: pointer; min-width: 0;
+}
+.nvu-assignment-driver.is-selected { border-color: var(--assignment-selected-line); background: var(--assignment-selected); }
+.nvu-assignment-driver input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--assignment-action); }
+.nvu-assignment-avatar { width: 38px; height: 38px; flex-shrink: 0; overflow: hidden; border-radius: 50%; background: var(--assignment-paper); }
+.nvu-assignment-avatar > span { display: grid; place-items: center; height: 100%; font-size: 11px; color: var(--assignment-muted); }
+.nvu-assignment-driver-copy { flex: 1; min-width: 0; }
+.nvu-assignment-driver-copy strong { display: block; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.nvu-assignment-driver-copy small { display: block; margin-top: 3px; color: var(--assignment-muted); font-size: 12px; }
+.nvu-assignment-deadlines { border-top: 1px solid var(--assignment-line); padding-top: 16px; }
+.nvu-assignment-deadlines summary { display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 13px; color: var(--assignment-muted); padding: 4px 0 8px; }
+.nvu-assignment-deadline-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 12px; }
+.nvu-assignment-deadline-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.nvu-assignment-deadline-row > span:last-child { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--assignment-muted); }
+.nvu-assignment-deadline-row input { width: 58px; min-height: 36px; padding: 6px; text-align: center; background: var(--assignment-paper); color: var(--assignment-text); border: 1px solid var(--assignment-line); border-radius: 8px; }
+.nvu-assignment-footer { padding: 16px 18px 20px; border-top: 1px solid var(--assignment-line); }
+.nvu-assignment-footer > p { margin: 0 0 18px; color: var(--assignment-muted); font-size: 12px; line-height: 1.6; }
+.nvu-assignment-footer-actions { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.5fr); gap: 10px; }
+.nvu-assignment-button {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-width: 0; min-height: 44px;
+  padding: 11px 12px; border-radius: 11px; font-size: 13px; font-weight: 600; line-height: 1.4;
+  background: transparent; color: var(--assignment-text); border: 1px solid transparent;
+}
+.nvu-assignment-button svg { flex-shrink: 0; }
+.nvu-assignment-cancel { border-color: var(--assignment-control-line); }
+.nvu-assignment-primary { background: var(--assignment-soft); border-color: var(--assignment-line); }
+.nvu-assignment-primary:disabled { color: var(--assignment-muted); opacity: .6; }
+.nvu-assignment-page button:disabled, .nvu-assignment-theme button:disabled { cursor: not-allowed; }
+.nvu-assignment-select:not(:disabled):hover, .nvu-assignment-button:not(:disabled):hover { border-color: var(--assignment-control-line); background: var(--assignment-soft); }
+.nvu-assignment-page :is(button, input, summary):focus-visible,
+.nvu-assignment-theme :is(button, input):focus-visible { outline: 2px solid var(--assignment-control-line); outline-offset: 3px; }
+.nvu-assignment-empty { padding: 18px 12px; text-align: center; font-size: 13px; line-height: 1.6; color: var(--assignment-muted); }
+
+.nvu-assign-picker-overlay {
+  --assignment-header-offset: calc(44px + env(safe-area-inset-top, 0px));
+  position: fixed; inset: var(--assignment-header-offset) 0 0; z-index: 12000;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 18px 18px max(18px, env(safe-area-inset-bottom, 0px));
+  background: var(--assignment-page);
+}
+.nvu-assign-picker-dialog { display: flex; flex-direction: column; max-width: 560px; max-height: 100%; outline: none; }
+.nvu-assign-picker-heading { flex-shrink: 0; padding: 22px 20px 17px; }
+.nvu-assign-picker-heading .nvu-assignment-hero { width: 46px; height: 46px; margin-bottom: 13px; border-radius: 12px; }
+.nvu-assign-picker-heading h2 { font-size: clamp(20px, 5.4vw, 25px); }
+.nvu-assignment-heading .nvu-assignment-description-pill { display: table; max-width: 100%; padding: 6px 12px; border-radius: 20px; background: var(--assignment-soft); font-size: 12px; line-height: 1.5; }
+.nvu-assign-picker-search-area { padding: 0 16px 12px; flex-shrink: 0; }
+.nvu-assign-picker-search { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 9px 12px; border: 1px solid var(--assignment-line); border-radius: 12px; color: var(--assignment-muted); }
+.nvu-assign-picker-search > svg { flex-shrink: 0; }
+.nvu-assign-picker-search:focus-within { border-color: var(--assignment-control-line); }
+.nvu-assign-picker-search input { width: 100%; min-width: 0; outline: none; background: transparent; color: var(--assignment-text); font-size: 14px; }
+.nvu-assign-picker-search input::placeholder { color: var(--assignment-muted); opacity: 1; }
+.nvu-assign-picker-selection { margin: 10px 2px 0; color: var(--assignment-muted); font-size: 12px; line-height: 1.5; }
+.nvu-assign-picker-list { padding: 0 16px 16px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.nvu-assignment-folder + .nvu-assignment-folder { margin-top: 16px; }
+.nvu-assignment-folder-heading { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 12px; min-height: 46px; border: 1px solid var(--assignment-line); border-radius: 12px; color: var(--assignment-muted); text-align: left; }
+.nvu-assignment-folder-heading > svg:first-child { color: var(--assignment-action); flex-shrink: 0; }
+.nvu-assignment-folder-heading > svg:last-child { flex-shrink: 0; margin-left: auto; }
+.nvu-assignment-folder-heading strong { min-width: 0; overflow-wrap: anywhere; font-size: 14px; font-weight: 600; color: var(--assignment-text); }
+.nvu-assignment-folder-count { flex-shrink: 0; background: var(--assignment-soft); padding: 3px 9px; border-radius: 20px; font-size: 11px; }
+.nvu-assignment-folder-cards { display: grid; gap: 10px; margin-top: 10px; }
+.nvu-assignment-choice {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) 20px; align-items: center; gap: 12px;
+  width: 100%; min-height: 68px; padding: 12px; border: 1px solid var(--assignment-line); border-radius: 12px;
+  background: var(--assignment-paper); color: var(--assignment-muted); text-align: left;
+}
+.nvu-assignment-choice.is-selected { background: var(--assignment-selected); border-color: var(--assignment-selected-line); }
+.nvu-assignment-choice:hover { border-color: var(--assignment-control-line); }
+.nvu-assignment-choice-symbol { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--assignment-soft); }
+.nvu-assignment-choice-copy { min-width: 0; }
+.nvu-assignment-choice-copy strong { display: block; color: var(--assignment-text); font-size: 14px; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.nvu-assignment-choice-description { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.nvu-assignment-choice-description svg { flex-shrink: 0; }
+.nvu-assignment-choice-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 11px; }
+.nvu-assignment-choice-meta > span { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; line-height: 1.5; }
+.nvu-assignment-contract-choice { align-items: start; padding-top: 14px; padding-bottom: 14px; }
+.nvu-assignment-contract-choice .nvu-assignment-radio { align-self: center; }
+.nvu-assignment-radio { display: grid; place-items: center; width: 19px; height: 19px; border: 1.5px solid var(--assignment-muted); border-radius: 50%; }
+.nvu-assignment-choice.is-selected .nvu-assignment-radio { border-color: var(--assignment-action); }
+.nvu-assignment-choice.is-selected .nvu-assignment-radio > span { width: 9px; height: 9px; border-radius: 50%; background: var(--assignment-action); }
+.nvu-assignment-picker-footer { flex-shrink: 0; display: grid; grid-template-columns: 1fr 1.25fr; gap: 12px; padding: 14px 16px 16px; border-top: 1px solid var(--assignment-line); }
+@media (min-width: 768px) {
+  .nvu-assignment-page { padding-top: 26px; }
+  .nvu-assignment-content { padding-inline: 26px; }
+  .nvu-assignment-footer { padding-inline: 26px; }
+  .nvu-assign-picker-overlay { --assignment-header-offset: 48px; }
+}
+@media (max-height: 600px) {
+  .nvu-assign-picker-overlay { padding-block: 12px; }
+  .nvu-assign-picker-heading { padding: 12px 40px 10px; }
+  .nvu-assign-picker-heading .nvu-assignment-hero { display: none; }
+  .nvu-assign-picker-heading h2 { font-size: 19px; }
+  .nvu-assignment-heading .nvu-assignment-description-pill { padding-block: 4px; margin-top: 4px; }
+  .nvu-assign-picker-search-area { padding-bottom: 8px; }
+  .nvu-assign-picker-selection { margin-top: 6px; }
+  .nvu-assignment-picker-footer { padding-block: 10px; }
+}

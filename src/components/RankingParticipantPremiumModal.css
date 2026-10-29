@@ -1,0 +1,104 @@
+.nvu-ranking-profile-overlay {
+  --profile-surface: #fff; --profile-surface-soft: #f4f8fa; --profile-text: #172330;
+  --profile-muted: #697c90; --profile-border: #dce5ed; --profile-accent: #00889e;
+  --gamer-accent: #0095aa; --gamer-accent-bright: #0ab9cc;
+  position: fixed; inset: 0; z-index: 12000; display: flex; align-items: flex-end; justify-content: center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) 0 0;
+  background: rgb(0 0 0 / 86%); backdrop-filter: blur(3px); color-scheme: light;
+  font-family: "NVU Podium", system-ui, sans-serif;
+}
+.dark .nvu-ranking-profile-overlay {
+  --profile-surface: var(--nvu-elevated); --profile-surface-soft: var(--nvu-strip); --profile-text: var(--nvu-text);
+  --profile-muted: var(--nvu-muted); --profile-border: var(--nvu-line); --profile-accent: var(--nvu-accent);
+  --gamer-accent: var(--nvu-accent); --gamer-accent-bright: var(--nvu-accent); color-scheme: dark;
+}
+.nvu-ranking-profile-modal {
+  width: 100%; max-width: 520px; min-height: 0; max-height: 92dvh;
+  display: flex; flex-direction: column; overflow: hidden;
+  padding: 0; border: 1px solid var(--profile-border); border-bottom: 0; border-radius: 24px 24px 0 0;
+  background: linear-gradient(150deg, var(--profile-surface), var(--profile-surface-soft));
+  color: var(--profile-text); outline: none; box-shadow: 0 -10px 50px #0003;
+  animation: nvu-profile-rise 180ms ease-out;
+}
+.nvu-profile-header {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex: none; min-height: 76px; padding: 29px max(16px, env(safe-area-inset-right, 0px)) 18px max(20px, env(safe-area-inset-left, 0px));
+}
+.nvu-profile-handle { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 34px; height: 4px; border-radius: 9px; background: var(--profile-muted); opacity: .6; }
+.nvu-profile-header h2 { margin: 0; color: var(--profile-text); font-size: 16px; font-weight: 700; line-height: 1.35; letter-spacing: -.025em; }
+.nvu-profile-close { display: grid; place-items: center; width: 36px; height: 36px; flex: none; margin-block: -8px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--profile-muted); cursor: pointer; }
+.nvu-profile-content { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding: 0 max(15px, env(safe-area-inset-right, 0px)) max(20px, env(safe-area-inset-bottom, 0px)) max(15px, env(safe-area-inset-left, 0px)); }
+.nvu-profile-cover { position: relative; margin: 0; overflow: hidden; border-radius: 12px; aspect-ratio: 2.8 / 1; background: var(--profile-surface-soft); }
+.nvu-profile-cover > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.nvu-profile-cover-fallback { display: grid; place-items: center; width: 100%; height: 100%; padding: 20px 16px 30px; color: var(--profile-muted); text-align: center; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.nvu-profile-cover figcaption { position: absolute; right: 7px; bottom: 6px; max-width: calc(100% - 92px); padding: 4px 7px; border-radius: 6px; background: #0b111bd9; color: #f5f7fb; font-size: 10px; font-weight: 500; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nvu-ranking-profile-identity { position: relative; display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: end; gap: 12px; margin-top: -20px; margin-bottom: 14px; padding-inline: 5px; }
+.nvu-profile-avatar { display: block; width: 72px; height: 72px; overflow: hidden; border: 2px solid var(--profile-surface); border-radius: 13px; background: var(--profile-surface-soft); box-shadow: 0 2px 5px #0002; }
+.nvu-profile-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.nvu-profile-initials { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--profile-muted); font-size: 16px; font-weight: 500; }
+.nvu-profile-person { min-width: 0; padding-top: 28px; padding-bottom: 1px; }
+.nvu-profile-person h3 { margin: 0 0 5px; color: var(--profile-text); font-size: 18px; font-weight: 700; line-height: 1.25; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.nvu-profile-ranking-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.nvu-profile-position { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; min-height: 21px; padding: 2px 6px; border: 1px solid color-mix(in srgb, var(--rank-metal, #8d9db4) 70%, transparent); border-radius: 7px; color: var(--rank-metal, #8d9db4); font-size: 10px; font-weight: 500; line-height: 1.2; white-space: nowrap; }
+.nvu-profile-position .nvu-gamer-crown { width: 13px; height: 13px; }
+.nvu-profile-scope { min-width: 0; color: var(--profile-muted); font-size: 12px; line-height: 1.3; }
+.nvu-profile-company-identity { margin-top: 0; }
+.nvu-profile-company-identity .nvu-profile-person { padding-top: 0; }
+.nvu-profile-summary { container-type: inline-size; overflow: hidden; margin: 0 0 10px; border: 1px solid var(--profile-border); border-radius: 12px; background: color-mix(in srgb, var(--profile-surface-soft) 75%, transparent); }
+.nvu-profile-results { display: grid; grid-template-columns: minmax(0, 1fr) minmax(62px, .34fr); align-items: center; column-gap: 12px; padding: 12px 11px; }
+.nvu-profile-earnings-group, .nvu-profile-trips-group { min-width: 0; }
+.nvu-profile-label { margin: 0; color: var(--profile-muted); font-size: 11px; font-weight: 500; line-height: 1.4; }
+.nvu-profile-earnings-group > .nvu-profile-label { margin-bottom: 3px; overflow-wrap: anywhere; }
+.nvu-ranking-profile-earnings { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: var(--profile-text); font-size: clamp(16px, 6cqw, 22px); font-weight: 700; line-height: 1.2; letter-spacing: -.025em; font-variant-numeric: tabular-nums; }
+.nvu-profile-money-line { display: block; white-space: nowrap; }
+.nvu-profile-earnings-long { font-size: clamp(12px, 4.8cqw, 18px); }
+.nvu-profile-trips-group { border-left: 1px solid var(--profile-border); padding-left: 13px; }
+.nvu-profile-trips-group > .nvu-profile-label { text-align: center; }
+.nvu-profile-trip-count { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 3px; font-size: 21px; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.nvu-profile-trip-count > span { color: var(--profile-text); }
+.nvu-profile-trip-count .nvu-gamer-route { display: block; width: 16px; height: 16px; flex: none; color: var(--gamer-accent-bright); }
+.nvu-profile-company { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 39px; margin-inline: 9px; padding: 7px 2px; border-top: 1px solid var(--profile-border); }
+.nvu-profile-company > .nvu-profile-label { flex: none; font-size: 10px; }
+.nvu-profile-company-value { display: flex; align-items: center; justify-content: flex-end; gap: 7px; min-width: 0; }
+.nvu-profile-company-logo { display: block; width: 25px; height: 25px; flex: none; border-radius: 5px; overflow: hidden; background: var(--profile-surface-soft); }
+.nvu-profile-company-logo img { width: 100%; height: 100%; object-fit: cover; }
+.nvu-profile-company-name { min-width: 0; color: var(--profile-text); font-size: 12px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nvu-profile-history { overflow: hidden; border: 1px solid var(--profile-border); border-radius: 12px; }
+.nvu-profile-history-toggle { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 47px; padding: 8px 10px; border: 0; background: transparent; color: var(--profile-text); text-align: left; font: 500 12px/1.35 "NVU Podium", system-ui, sans-serif; cursor: pointer; }
+.nvu-profile-history-toggle > span:nth-child(2) { flex: 1; min-width: 0; }
+.nvu-profile-history-toggle > svg { flex: none; color: var(--profile-muted); }
+.nvu-profile-history-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: color-mix(in srgb, var(--profile-muted) 9%, transparent); color: var(--profile-muted); }
+.nvu-profile-history-body { padding: 0 10px 10px; }
+.nvu-profile-history-types { display: flex; gap: 10px; padding-top: 3px; }
+.nvu-profile-history-types button { flex: 1; min-width: 0; min-height: 34px; padding: 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--profile-muted); font: 500 11px/1.3 "NVU Podium", system-ui, sans-serif; cursor: pointer; }
+.nvu-profile-history-types button[aria-pressed="true"] { background: var(--profile-surface-soft); color: var(--profile-text); border-color: var(--profile-border); }
+.nvu-profile-history-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: 8px; padding: 11px 0; border-bottom: 1px solid var(--profile-border); }
+.nvu-profile-history-period { margin: 0; color: var(--profile-text); font-size: 11px; font-weight: 500; line-height: 1.4; }
+.nvu-profile-history-status { margin: 3px 0 0; color: var(--profile-muted); font-size: 10px; line-height: 1.4; }
+.nvu-profile-history-result { min-width: 0; text-align: right; }
+.nvu-profile-history-result .nvu-ranking-profile-earnings { font-size: 12px; }
+.nvu-profile-history-result .nvu-profile-earnings-long { font-size: 10px; }
+.nvu-profile-history-more { width: 100%; min-height: 36px; margin-top: 6px; padding: 7px; border: 1px solid var(--profile-border); border-radius: 8px; background: transparent; color: var(--profile-muted); font: 500 11px/1.3 "NVU Podium", system-ui, sans-serif; cursor: pointer; }
+.nvu-profile-notice { display: flex; align-items: center; gap: 6px; margin: 0 0 9px; padding: 7px 8px; border-radius: 8px; background: #b9862012; color: var(--profile-muted); font-size: 11px; line-height: 1.4; }
+.nvu-profile-notice svg { flex: none; }
+.nvu-profile-photo-notice { margin: 0 0 9px; color: var(--profile-muted); font-size: 10px; line-height: 1.4; }
+.nvu-profile-loading { display: block; padding: 2px 0; color: var(--profile-muted); }
+.nvu-ranking-profile-modal button { -webkit-tap-highlight-color: transparent; }
+.nvu-ranking-profile-modal button:focus-visible { outline: 2px solid var(--profile-accent); outline-offset: -2px; }
+@media (hover: hover) { .nvu-profile-close:hover, .nvu-profile-history-toggle:hover, .nvu-profile-history-more:hover { background: color-mix(in srgb, var(--profile-muted) 7%, transparent); } }
+@media (max-width: 350px) {
+  .nvu-profile-content { padding-inline: 12px; }
+  .nvu-ranking-profile-identity { grid-template-columns: 62px minmax(0, 1fr); gap: 9px; }
+  .nvu-profile-avatar { width: 62px; height: 62px; }
+  .nvu-profile-person h3 { font-size: 16px; }
+  .nvu-profile-scope { font-size: 11px; }
+  .nvu-profile-results { padding-inline: 9px; column-gap: 8px; }
+  .nvu-profile-trips-group { padding-left: 8px; }
+}
+@media (max-height: 520px) { .nvu-profile-header { min-height: 63px; padding-top: 23px; padding-bottom: 12px; } .nvu-profile-cover { aspect-ratio: 4 / 1; } }
+@keyframes nvu-profile-rise { from { transform: translateY(32px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .nvu-ranking-profile-modal { animation: none; } }
+@media (forced-colors: active) {
+  .nvu-ranking-profile-overlay { --profile-surface: Canvas; --profile-surface-soft: Canvas; --profile-text: CanvasText; --profile-muted: CanvasText; --profile-border: CanvasText; --profile-accent: Highlight; }
+  .nvu-profile-position { color: CanvasText; border-color: CanvasText; }
+}

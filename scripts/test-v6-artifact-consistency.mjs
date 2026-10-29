@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+const audit = JSON.parse(fs.readFileSync("/home/ubuntu/nvu-delivery/AUDITORIA_PRODUCAO_V6.json"));
+const manifest = JSON.parse(fs.readFileSync("/home/ubuntu/nvu-delivery/MIGRATION_MANIFEST_V6.json"));
+const md = fs.readFileSync("/home/ubuntu/nvu-delivery/AUDITORIA_PRODUCAO_V6.md", "utf8");
+const eligible = audit.eligibleCount;
+assert.equal(manifest.candidateCount, eligible, "manifest eligible count diverges from JSON");
+assert.match(md, new RegExp(`- candidates: ${eligible}\\b`), "Markdown eligible count diverges from JSON");
+assert.equal(audit.classificationCounts.HISTORY_SAFE + audit.classificationCounts.ACTIVE_SAFE + audit.classificationCounts.COMPLETED_SAFE + audit.classificationCounts.MANUAL_REVIEW + audit.classificationCounts.BLOCKED + audit.classificationCounts.CRITICAL_OVERFLOW, audit.inputCounts.operations, "categories are not exhaustive");
+assert.equal(audit.divergenceTotal, audit.divergenceEntries.length, "divergence matrix mismatch");
+assert.equal(audit.dryApply.firstPass, eligible);
+assert.equal(audit.dryApply.secondNoOp, eligible);
+assert.equal(audit.rollback.pass, true);
+assert.equal(audit.concurrency.pass, true);
+assert.equal(audit.rebuild.pass, true);
+console.log(`V6_ARTIFACT_CONSISTENCY_PASS eligible=${eligible} universe=${audit.inputCounts.operations} divergence=${audit.divergenceTotal}`);

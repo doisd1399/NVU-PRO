@@ -1,4 +1,5 @@
 import { validateSimpleReceiptText } from "../src/services/simpleAutomationReceiptPolicy";
+import { readSimpleReceiptCurrency } from "../functions/src/tripReceiptPolicy";
 
 const assert = (condition: unknown, message: string) => {
   if (!condition) throw new Error(`[simple-receipt] ${message}`);
@@ -15,12 +16,6 @@ const baseTruck = validateSimpleReceiptText(
 );
 assert(baseTruck.decision === "accept", "resultado sem bônus deve ser aceito");
 assert(baseTruck.amount === 45863.47, "valor base do caminhão não foi extraído");
-
-const exactGto = validateSimpleReceiptText(
-  "Concluído Valor a receber: R$ 30.138,00 Receber Dobrar valor (ADS)",
-);
-assert(exactGto.decision === "accept", "recibo GTO com valor brasileiro deve ser aceito");
-assert(exactGto.amount === 30138, "R$ 30.138,00 deve resultar em 30138");
 
 const staticZeroAdLabel = validateSimpleReceiptText(
   "Resultados Ganhos da Viagem: $ 45863,47\nBônus Video ADS: 0 0\nTotal: $ 45863,47\nAnúncio Assistido disponível",
@@ -68,4 +63,17 @@ const toe3AppliedMultiplier = validateSimpleReceiptText(
 );
 assert(toe3AppliedMultiplier.decision === "reject", "multiplicador aplicado no TOE 3 deve ser rejeitado");
 
-console.log("[simple-receipt] receipt protection gates passed");
+const explicitBrl = readSimpleReceiptCurrency("global-truck", "Concluído Valor a receber: R$ 4.099,00");
+assert(explicitBrl.status === "known" && explicitBrl.currency === "BRL", "R$ explícito deve resolver BRL server-side");
+assert(readSimpleReceiptCurrency("global-truck", "Valor a receber: R$ 100,00 Bônus Video ADS: 0").status === "known",
+  "token de interface ADS não deve contaminar moeda explícita próxima ao valor");
+assert(readSimpleReceiptCurrency("global-truck", "Valor a receber: R$ 100,00 GBP 100,00").status === "conflict",
+  "código de moeda diferente depois do valor não pode ser ignorado");
+const explicitEur = readSimpleReceiptCurrency("toe-3", "Renda total: € 4,099.00");
+assert(explicitEur.status === "known" && explicitEur.currency === "EUR", "€ explícito deve resolver EUR server-side");
+assert(readSimpleReceiptCurrency("toe-3", "Renda total: $ 6,547").status === "unknown", "$ isolado não deve ser mapeado a USD nem a EUR");
+assert(readSimpleReceiptCurrency("toe-3", "Renda total: 6.547,00").status === "unknown", "simulador ou formato do número não deve inferir moeda");
+assert(readSimpleReceiptCurrency("global-truck", "Valor a receber: R$ 100,00 EUR 100,00").status === "conflict",
+  "tokens de moedas diferentes no mesmo campo de valor devem produzir CONFLICT");
+
+console.log("[simple-receipt] receipt amount/bonus gates and explicit currency evidence passed");

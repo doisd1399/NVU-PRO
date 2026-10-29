@@ -1,0 +1,41 @@
+:root {
+  --nvu-workspace-dock-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nvu-workspace-dock-clearance: calc(62px + var(--nvu-workspace-dock-safe-bottom));
+}
+
+/* The opaque footer owns the whole bottom band, including the rounded dock's
+   sides and the system gesture inset. Scrolling cards never show or receive
+   taps through that band. The existing document scroll and its memory stay intact. */
+.nvu-workspace-dock-region {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 40;
+  box-sizing: border-box;
+  /* The compact pill keeps 44px touch targets. Six pixels separate it
+     from the opaque band edge; the system bottom inset stays unchanged. */
+  padding: 6px 14px calc(10px + var(--nvu-workspace-dock-safe-bottom));
+  background: var(--nvu-page, #f7f9fa);
+}
+
+/* Keep the approved pill, icons, spacing and bottom position. The footer,
+   rather than a second fixed child, now positions the navigation. */
+.nvu-workspace-dock-region > nav.nvu-driver-dock {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  margin: 0 auto;
+  padding-block: 0;
+}
+
+.nvu-workspace-dock-space {
+  height: var(--nvu-workspace-dock-clearance);
+  min-height: var(--nvu-workspace-dock-clearance);
+}
+
+html:has(.nvu-workspace-dock-region) {
+  scroll-padding-bottom: var(--nvu-workspace-dock-clearance);
+}
+
+@media (min-width: 1024px) {
+  .nvu-desktop-shell .nvu-workspace-dock-region { left: 256px; }
+}

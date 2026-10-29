@@ -1,3 +1,4 @@
+import { queryPrivateUsers } from "./privateUserProfiles";
 import type { User as FirebaseAuthUser } from "firebase/auth";
 import {
   collection,
@@ -6,13 +7,14 @@ import {
   getDoc,
   getDocs,
   query,
+  runTransaction,
   setDoc,
   where,
   writeBatch,
   type DocumentReference,
 } from "firebase/firestore";
 import { legacyNotificationCompatibility } from "../config/legacyNotifications";
-import { db } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import {
   approvedApplicationField,
   resolveCanonicalProfileName,
@@ -242,10 +244,10 @@ async function loadApprovedIdentityApplication(
       collection(db, "recruitment_applications"),
       where("userId", "==", userId),
     ),
-    query(
+    ...(auth.currentUser?.emailVerified ? [query(
       collection(db, "recruitment_applications"),
       where("email", "==", normalizedEmail),
-    ),
+    )] : []),
   ];
 
   const snapshots = await Promise.allSettled(
@@ -277,9 +279,9 @@ export async function unifyUserDocument(user: FirebaseAuthUser) {
 
   const recordsById = new Map<string, UserDocumentRecord>();
   for (const emailCandidate of emailCandidates) {
-    const emailSnapshot = await getDocs(
-      query(collection(db, "users"), where("email", "==", emailCandidate)),
-    );
+    // Only verified e-mail ownership can recover historical identity records.
+    if (!user.emailVerified) continue;
+    const emailSnapshot = await queryPrivateUsers({ email: emailCandidate });
     emailSnapshot.docs.forEach((userDocument) => {
       recordsById.set(userDocument.id, {
         id: userDocument.id,
@@ -304,6 +306,7 @@ export async function unifyUserDocument(user: FirebaseAuthUser) {
   );
   const { merged, roles, memberships } = mergeUsefulDocuments(records, user.uid);
   const preservedProfilePhotoURL = resolvePersistedUserProfilePhoto(
+    canonicalRecord,
     {
       profilePhotoURL: approvedApplicationField(
         approvedIdentityApplication,
@@ -360,17 +363,28 @@ export async function unifyUserDocument(user: FirebaseAuthUser) {
         ? "active"
         : merged.status || "pending";
 
+  const persistedCanonicalName =
+    canonicalRecord && typeof canonicalRecord.name === "string"
+      ? canonicalRecord.name.trim()
+      : "";
+
   const finalUserData = {
     ...merged,
     id: user.uid,
     email: normalizedEmail,
-    name: resolveCanonicalProfileName({
-      approvedApplication: approvedIdentityApplication,
-      canonicalRecord,
-      mergedRecord: merged,
-      googleDisplayName: user.displayName,
-      email: normalizedEmail,
-    }),
+    // Once the canonical users/{uid} document has a name, it is authoritative.
+    // Approved applications, Google displayName and legacy duplicate documents
+    // are initialization/recovery fallbacks only; they must not overwrite a
+    // profile edit during login, resume or identity reconciliation.
+    name:
+      persistedCanonicalName ||
+      resolveCanonicalProfileName({
+        approvedApplication: approvedIdentityApplication,
+        canonicalRecord,
+        mergedRecord: merged,
+        googleDisplayName: user.displayName,
+        email: normalizedEmail,
+      }),
     whatsapp:
       approvedApplicationField(approvedIdentityApplication, "whatsapp") ||
       merged.whatsapp ||
@@ -411,7 +425,41 @@ export async function unifyUserDocument(user: FirebaseAuthUser) {
 
   // The canonical document is saved before any legacy cleanup. A cleanup or
   // migration failure must never erase the only identity record.
-  await setDoc(doc(db, "users", user.uid), canonicalWriteData, { merge: true });
+  // Login may have started before an approval/profile edit. Re-read inside the
+  // write transaction so a delayed Google reconciliation cannot restore the
+  // older name/photo after the approval has committed.
+  await runTransaction(db, async tx => {
+    const userRef = doc(db, "users", user.uid);
+    const latest = await tx.get(userRef);
+    const current = latest.data() || {};
+    const patch = { ...canonicalWriteData };
+    if (latest.exists()) {
+      delete patch.role; delete patch.roles; delete patch.status;
+      if (typeof current.name === "string" && current.name.trim()) patch.name = current.name.trim();
+      const latestPhoto = resolvePersistedUserProfilePhoto(current);
+      if (latestPhoto) patch.profilePhotoURL = latestPhoto;
+      if (current.profilePhotoSource === "user_edit" && typeof current.profilePhotoURL === "string")
+        patch.profilePhotoURL = current.profilePhotoURL;
+      if (typeof current.whatsapp === "string" && current.whatsapp.trim()) patch.whatsapp = current.whatsapp;
+      const application = approvedIdentityApplication;
+      // Repair the previous release's approved-but-still-Google identity once,
+      // only for this account's exact current approved driver application.
+      if (current.approvedIdentityVersion !== 2 && application?.type === "driver_application" &&
+          application.userId === user.uid && application.id === current.approvedIdentityApplicationId &&
+          application.id === current.currentRecruitmentApplicationId && current.currentRecruitmentStatus === "approved" &&
+          application.companyId === current.currentRecruitmentCompanyId && application.isCurrent !== false &&
+          !application.accessRevokedAt && !application.accessRevokedReason) {
+        if (current.profileNameSource !== "user_edit" && typeof application.fullName === "string" && application.fullName.trim())
+          Object.assign(patch, { name: application.fullName.trim(), profileNameSource: "recruitment_application", profileNameUpdatedAt: finalUserData.updatedAt });
+        const formPhoto = approvedApplicationField(application, "applicationPhotoURL");
+        if (current.profilePhotoSource !== "user_edit" && current.profileNameSource !== "user_edit" && formPhoto)
+          Object.assign(patch, { profilePhotoURL: formPhoto, profilePhotoSource: "recruitment_application", profilePhotoUpdatedAt: finalUserData.updatedAt });
+        patch.approvedIdentityVersion = 2;
+      }
+    }
+    tx.set(userRef, patch, { merge: true });
+    Object.assign(finalUserData, current, patch);
+  });
 
   const duplicateIds = records
     .map((record) => record.id)

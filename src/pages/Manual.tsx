@@ -47,7 +47,7 @@ const accentStyles = {
 };
 
 const StepList = ({ children }: { children: React.ReactNode }) => (
-  <div className="space-y-2 text-sm leading-relaxed text-slate-600 dark:text-[#b4b4bd]">
+  <div className="space-y-2 text-sm leading-relaxed text-slate-600 dark:text-nvu-muted">
     {children}
   </div>
 );
@@ -75,17 +75,17 @@ const ManualAccordionItem = ({
     <details
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      className="group overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-[#2A2F3A] dark:bg-[#111318]"
+      className="group overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-nvu-line dark:bg-nvu-page"
     >
       <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3.5 select-none [&::-webkit-details-marker]:hidden">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-[#20242b] dark:text-[#a1a1aa]">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-nvu-strip dark:text-nvu-muted">
           <ItemIcon size={16} strokeWidth={2} />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-slate-900 dark:text-white">
             {item.title}
           </span>
-          <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-[#8f8f99]">
+          <span className="mt-0.5 block text-xs leading-relaxed text-slate-500 dark:text-nvu-muted">
             {item.description}
           </span>
         </span>
@@ -94,7 +94,7 @@ const ManualAccordionItem = ({
           className="shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
         />
       </summary>
-      <div className="relative border-t border-slate-100 px-4 py-4 dark:border-[#242933]">
+      <div className="relative border-t border-slate-100 px-4 py-4 dark:border-nvu-line">
         <span
           className={cn(
             "absolute left-0 top-4 h-8 w-0.5 rounded-r-full",
@@ -131,13 +131,13 @@ const ManualGroup = ({
           <GroupIcon size={20} strokeWidth={2} />
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-[#71717a]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400 dark:text-nvu-muted">
             {eyebrow}
           </p>
           <h2 className="mt-0.5 text-lg font-bold tracking-tight text-slate-900 dark:text-white">
             {title}
           </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-[#a1a1aa]">
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
             {description}
           </p>
         </div>
@@ -163,7 +163,7 @@ const TripReceiptRules = () => (
       <p className="text-sm font-semibold text-slate-900 dark:text-white">
         Padrão do comprovante
       </p>
-      <p className="mt-1 text-xs text-slate-500 dark:text-[#8f8f99]">
+      <p className="mt-1 text-xs text-slate-500 dark:text-nvu-muted">
         Registre a viagem somente com um print que cumpra as regras abaixo.
       </p>
     </div>
@@ -173,7 +173,7 @@ const TripReceiptRules = () => (
         <p className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
           Deve aparecer
         </p>
-        <div className="space-y-1.5 text-sm text-slate-700 dark:text-[#d4d4d8]">
+        <div className="space-y-1.5 text-sm text-slate-700 dark:text-nvu-text-soft">
           <p>✅ Print mostrando o valor.</p>
           <p>✅ Câmera próxima ao veículo.</p>
           <p>✅ Utilização das pinturas da empresa.</p>
@@ -186,7 +186,7 @@ const TripReceiptRules = () => (
         <p className="mb-2 text-xs font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
           Não é permitido
         </p>
-        <div className="space-y-1.5 text-sm text-slate-700 dark:text-[#d4d4d8]">
+        <div className="space-y-1.5 text-sm text-slate-700 dark:text-nvu-text-soft">
           <p>❌ Print dentro da cabine.</p>
           <p>❌ Veículo sem a pintura da empresa.</p>
           <p>❌ Print escuro ou realizado durante a noite.</p>
@@ -362,19 +362,19 @@ export default function Manual() {
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-8">
-      <header className="mb-6 rounded-3xl border border-slate-200 bg-white px-5 py-5 dark:border-[#2A2F3A] dark:bg-[#111318] sm:px-6">
+      <header className="mb-6 rounded-3xl border border-slate-200 bg-white px-5 py-5 dark:border-nvu-line dark:bg-nvu-page sm:px-6">
         <div className="flex items-start gap-4">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-white dark:text-slate-900">
             <BookOpen size={22} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-[#71717a]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-nvu-muted">
               Central de orientação
             </p>
             <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
               Manual da Plataforma
             </h1>
-            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-[#a1a1aa]">
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
               Guia rápido para motoristas e administradores.
             </p>
           </div>
@@ -383,14 +383,14 @@ export default function Manual() {
         <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:w-fit">
           <a
             href="#manual-motorista"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-[#2A2F3A] dark:text-[#d4d4d8] dark:hover:bg-[#20242b]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-strip"
           >
             <Truck size={14} />
             Motorista
           </a>
           <a
             href="#manual-administrativo"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-[#2A2F3A] dark:text-[#d4d4d8] dark:hover:bg-[#20242b]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-strip"
           >
             <Building2 size={14} />
             Administrativo
@@ -424,7 +424,7 @@ export default function Manual() {
         />
       </div>
 
-      <footer className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-[#71717a]">
+      <footer className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-nvu-muted">
         <History size={13} />
         Consulte este manual para revisar os principais fluxos.
       </footer>

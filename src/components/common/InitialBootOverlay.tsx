@@ -121,7 +121,7 @@ export default function InitialBootOverlay() {
   return (
     <div
       data-nvu-initial-boot
-      className="pointer-events-none fixed inset-0 z-[2300] flex items-center justify-center bg-gray-50 dark:bg-[#09090b]"
+      className="pointer-events-none fixed inset-0 z-[2300] flex items-center justify-center bg-gray-50 dark:bg-nvu-page"
       role="status"
       aria-live="polite"
       aria-label="Abrindo o NVU"

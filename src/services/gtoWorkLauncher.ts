@@ -1,3 +1,5 @@
+import { assertWorkModeEntryAllowed } from "./workModeAvailabilityService";
+import { explainOverlayPermissionBeforeSettings } from "./overlayPermissionGuide";
 import {
   GtoObserver,
   type GtoObserverContext,
@@ -9,6 +11,7 @@ import {
   isClosedJobStatus,
   isTripRecordableJobStatus,
 } from "../lib/jobStatus";
+import { needsProjectionRearm } from "../lib/projectionRecoveryPolicy";
 
 export type GtoWorkLaunchResult =
   | { status: "opened" }
@@ -29,19 +32,19 @@ const isRecordableJobStatus = (
 ): boolean => isTripRecordableJobStatus(value, progress, total);
 
 const contextAlreadyClosed = (context: GtoObserverContext): boolean => {
-  const progress = Math.max(0, Number(context.jobProgress || 0));
+  const progress = Number(context.confirmedTripCount);
   const total = Math.max(0, Number(context.jobTotalDeliveries || 0));
+  if (!Number.isFinite(progress)) return false;
   if (isClosedJobStatus(context.jobStatus, progress, total)) return true;
   return total > 0 && progress >= total;
 };
 
-const observerReportsClosedJob = (status: GtoObserverStatus): boolean => {
-  if (status.gtoBackendJobClosed) return true;
-  const progress = Math.max(
-    Number(status.jobProgress || 0),
-    Number(status.gtoJobProgress || 0),
-  );
-  const total = Math.max(0, Number(status.jobTotalDeliveries || 0));
+const observerReportsClosedJob = (status: GtoObserverStatus, confirmedTripCount: number, totalDeliveries: number): boolean => {
+  const progress = Math.max(0, Number(confirmedTripCount));
+  const total = Math.max(0, Number(totalDeliveries || 0));
+  // Native counters are telemetry only. A native closed flag can close the
+  // flow only after the Web projection confirms the same operation reached its total.
+  if (status.gtoBackendJobClosed && total > 0 && progress >= total) return true;
   if (isClosedJobStatus(status.gtoJobStatus || status.jobStatus, progress, total)) return true;
   return total > 0 && progress >= total;
 };
@@ -56,29 +59,23 @@ export async function launchGtoWork(
 ): Promise<GtoWorkLaunchResult> {
   if (!isNativeAndroid()) return { status: "not-native" };
   if (!isGtoObserverAvailable()) return { status: "module-missing" };
+  if (!Number.isFinite(Number(context.confirmedTripCount))) return { status: "job-not-ready" };
   if (contextAlreadyClosed(context)) return { status: "job-closed" };
-  const contextProgress = Math.max(0, Number(context.jobProgress || 0));
+  const contextProgress = Math.max(0, Number(context.confirmedTripCount));
   const contextTotal = Math.max(0, Number(context.jobTotalDeliveries || 0));
   if (context.jobStatus && !isRecordableJobStatus(context.jobStatus, contextProgress, contextTotal)) {
     return { status: "job-not-ready" };
   }
 
+  await assertWorkModeEntryAllowed("max", "gto");
   await GtoObserver.setContext(context);
   let status = await GtoObserver.getStatus();
 
-  if (observerReportsClosedJob(status)) return { status: "job-closed" };
-  const firstStatusProgress = Math.max(
-    Number(status.jobProgress || 0),
-    Number(status.gtoJobProgress || 0),
-  );
-  const firstStatusTotal = Math.max(0, Number(status.jobTotalDeliveries || 0));
+  if (observerReportsClosedJob(status, contextProgress, contextTotal)) return { status: "job-closed" };
+  const firstStatusProgress = contextProgress;
+  const firstStatusTotal = contextTotal;
   if (status.jobStatus && !isRecordableJobStatus(status.jobStatus, firstStatusProgress, firstStatusTotal)) {
     return { status: "job-not-ready" };
-  }
-
-  if (!status.overlayPermission) {
-    await GtoObserver.openOverlaySettings();
-    return { status: "overlay-permission" };
   }
 
   if (!status.usageAccess) {
@@ -100,6 +97,7 @@ export async function launchGtoWork(
   if (!status.running) {
     status = await GtoObserver.startObserver();
     if (status.missingPermission === "overlay") {
+      explainOverlayPermissionBeforeSettings();
       await GtoObserver.openOverlaySettings();
       return { status: "overlay-permission" };
     }
@@ -124,14 +122,22 @@ export async function launchGtoWork(
   // Refresh the context after start/recovery so an old native session can never
   // keep another company/job as the active automatic-trip context.
   status = await GtoObserver.setContext(context);
-  if (observerReportsClosedJob(status)) return { status: "job-closed" };
-  const refreshedStatusProgress = Math.max(
-    Number(status.jobProgress || 0),
-    Number(status.gtoJobProgress || 0),
-  );
-  const refreshedStatusTotal = Math.max(0, Number(status.jobTotalDeliveries || 0));
+  if (observerReportsClosedJob(status, contextProgress, contextTotal)) return { status: "job-closed" };
+  const refreshedStatusProgress = contextProgress;
+  const refreshedStatusTotal = contextTotal;
   if (status.jobStatus && !isRecordableJobStatus(status.jobStatus, refreshedStatusProgress, refreshedStatusTotal)) {
     return { status: "job-not-ready" };
+  }
+
+  // A prior denial or service restart must never become a terminal Web state.
+  // Arm the native consent flow again; Android will display it only after GTO
+  // is foreground, preserving the one-shot MediaProjection contract.
+  if (needsProjectionRearm(status)) {
+    try {
+      await GtoObserver.requestScreenCapture();
+    } catch (error) {
+      console.warn("[GTO] Não foi possível rearmar MediaProjection; o observador continuará recuperável:", error);
+    }
   }
 
   // Every automatic-mode start explicitly rearms the floating control, even when the
@@ -157,6 +163,15 @@ export async function launchGtoWork(
       status: "observer-failed",
       message: openResult.error || "O estado da viagem não pôde ser preparado antes de abrir o GTO.",
     };
+  }
+
+  const afterOpen = await GtoObserver.getStatus();
+  if (needsProjectionRearm(afterOpen)) {
+    try {
+      await GtoObserver.requestScreenCapture();
+    } catch (error) {
+      console.warn("[GTO] MediaProjection segue sem consentimento; nova tentativa ficará disponível:", error);
+    }
   }
 
   return { status: "opened" };
