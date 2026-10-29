@@ -36,6 +36,6 @@ html:has(.nvu-workspace-dock-region) {
   scroll-padding-bottom: var(--nvu-workspace-dock-clearance);
 }
 
-@media (min-width: 1024px) {
-  .nvu-desktop-shell .nvu-workspace-dock-region { left: 256px; }
-}
+/* The desktop shell has no side rail (its menu is a floating card), and its content is centered
+   on the window, so the dock region keeps the full-width inset above and the pill stays centered
+   under the content on every driver, company and ranking page. */

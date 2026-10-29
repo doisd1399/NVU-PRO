@@ -306,7 +306,6 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
   .nvu-desktop-shell .nvu-driver-workspace .nvu-driver-hero > .nvu-driver-hero-content { padding-bottom: 36px !important; }
 }
 @media (min-width: 1024px) {
-  .nvu-desktop-shell .nvu-driver-dock { left: 270px; }
   .nvu-desktop-shell .nvu-driver-workspace .nvu-driver-surface { max-width: 960px; margin-inline: auto !important; }
 }
 /* Driver queue: the next action remains available while the history folds away. */
