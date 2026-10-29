@@ -18,6 +18,7 @@ import { filterAndSortTripHistory } from "../../lib/tripHistoryEngine";
 import { applySimulatorCurrencyContext } from "../../lib/metricsEngine";
 import "../../components/driver/DriverWorkspace.css";
 import "../../components/driver/DriverLandscape.css";
+import "../../components/driver/DriverLandscapeProfile.css";
 import { resolveOperationContract } from "../../lib/operationResultSummary";
 import { useOperationalStore, useSessionStore, type User } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
@@ -1078,7 +1079,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         )}
 
         {(visitedTabs.has("operations") || activeTab === "operations") && (
-          <RetainedPanel active={activeTab === "operations"} className="space-y-3">
+          <RetainedPanel active={activeTab === "operations"} className="space-y-3 nvu-ops-filters-panel">
               {!activeJob && activeOperationResolved && currentUser.isOnline && (
                 <Button
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-12 font-bold text-[14px] shadow-sm tracking-tight transition-all"
@@ -1139,7 +1140,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         )}
 
         {(visitedTabs.has("dashboard") || activeTab === "dashboard" || visitedTabs.has("operations") || activeTab === "operations") && (
-          <RetainedPanel active={activeTab === "dashboard" || activeTab === "operations"}>
+          <RetainedPanel active={activeTab === "dashboard" || activeTab === "operations"} className="nvu-ops-card-panel">
             {showSecondary && <>
               {activeTab === "operations" && <h2 className="nvu-driver-section-title">Operação ativa</h2>}
               <Dashboard
@@ -1156,7 +1157,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         )}
 
         {(visitedTabs.has("operations") || activeTab === "operations") && (
-          <RetainedPanel active={activeTab === "operations"}>
+          <RetainedPanel active={activeTab === "operations"} className="nvu-ops-history-panel">
             {/* Job History */}
             <div className="pb-6">
               <h3 className="text-[13px] font-bold text-gray-900 dark:text-nvu-text mb-3 px-1">

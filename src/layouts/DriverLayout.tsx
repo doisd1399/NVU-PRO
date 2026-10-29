@@ -77,6 +77,8 @@ export default function DriverLayout() {
   // Horizontal "Painel do motorista": the work tab shares the solid header and
   // cover of the other profile tabs. Portrait keeps the photo hero.
   const isLandscapeDashboard = landscapeWorkspace && location.pathname === "/driver/profile" && !isCoverTabRoute;
+  // Every tab of the driver profile gets the denser horizontal spacing; portrait is untouched.
+  const isLandscapeProfile = landscapeWorkspace && location.pathname === "/driver/profile";
   const isCoverPage = isCoverTabRoute || isLandscapeDashboard;
   const isDriverHeroRoute = location.pathname.startsWith("/driver/profile") && !isCoverPage;
   const isLegacyCoverPage = isCoverPage && location.pathname !== "/driver/profile";
@@ -422,6 +424,7 @@ export default function DriverLayout() {
         isDriverHeroRoute && "nvu-native-profile-route",
         isCoverPage && "nvu-cover-page-shell",
         isLandscapeDashboard && "nvu-landscape-dashboard",
+        isLandscapeProfile && "nvu-landscape-profile",
       )}
     >
       {window.location.pathname.includes("/driver/join") ? (

@@ -3362,3 +3362,18 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-sidebar {
   .dark .nvu-native-android.nvu-native-admin-company-route .nvu-admin-header,
   .dark .nvu-workspace-shell .nvu-admin-header { background-color: var(--nvu-page) !important; }
 }
+
+/* Driver floating menu (desktop): icon and label share the start of each row. The shared desktop rows above spread
+   their children with space-between, and the trailing-indicator rule (svg:last-child) also matched the leading icon
+   of the page links, which have no wrapper span, pushing icon and label to the right. */
+@media (min-width: 821px) {
+  .nvu-desktop-shell [data-nvu-unified-profile-menu="driver"] .nvu-profile-menu-nav > a.nvu-profile-menu-item,
+  .nvu-desktop-shell [data-nvu-unified-profile-menu="driver"] .nvu-profile-menu-footer > button.nvu-profile-logout-button {
+    justify-content: flex-start !important;
+    text-align: left;
+  }
+
+  .nvu-desktop-shell [data-nvu-unified-profile-menu="driver"] .nvu-profile-menu-nav > a.nvu-profile-menu-item > svg:last-child {
+    margin-left: 0 !important;
+  }
+}
