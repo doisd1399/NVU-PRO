@@ -395,36 +395,47 @@ try {
     await page.waitForFunction(()=>window.__writes.length===1);
     assert.equal((await page.evaluate(()=>window.__writes))[0].data.targetAmount,300000);
   });
-  await check("Horizontal central: company, summary and management on the left; active jobs on the right with their own scroll",async()=>{
+  await check("Horizontal central: centered columns of equal height with room around them, left column and compact job rows, from large to small windows",async()=>{
     await fresh();
     await page.setViewportSize({width:1280,height:800});
     await page.evaluate(()=>window.__scenario({many:true}));
-    await page.waitForFunction(()=>document.querySelectorAll(".nvu-central-operation").length===8&&document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central")&&getComputedStyle(document.querySelector(".nvu-central-page")).getPropertyValue("--nvu-fill-h").trim().endsWith("px"));
+    await page.waitForFunction(()=>document.querySelectorAll(".nvu-central-operation").length===8&&document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"));
     await page.evaluate(()=>document.fonts.ready);
-    const read=()=>page.evaluate(()=>{
-      const box=selector=>{const node=document.querySelector(selector);if(!node)return null;const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height};};
-      const list=document.querySelector(".nvu-central-job-list");
-      return {flagged:document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"),title:box(".nvu-workspace-page-title"),company:box(".nvu-central-company-row"),simulator:box(".nvu-central-simulator"),summary:box(".nvu-central-summary"),actions:box(".nvu-central-actions"),jobs:box(".nvu-central-jobs"),
-        list:{client:list.clientHeight,scroll:list.scrollHeight,overflow:getComputedStyle(list).overflowY},doc:{scroll:document.documentElement.scrollHeight,inner:innerHeight,scrollWidth:document.documentElement.scrollWidth,width:innerWidth},
-        rows:[...document.querySelectorAll(".nvu-central-operation")].map(node=>node.getBoundingClientRect().height)};
-    });
-    const wide=await read(),info=JSON.stringify(wide);
-    assert(wide.flagged,info);
-    for(const key of ["company","summary","actions"]) assert(Math.abs(wide[key].left-wide.company.left)<=1&&wide[key].right<=wide.jobs.left,key+" "+info);
-    assert(wide.simulator.right<=wide.jobs.left,info);
-    assert(wide.title.bottom<=wide.company.top+1&&wide.title.bottom<=wide.jobs.top+1,"The title stays above both columns: "+info);
-    assert(wide.company.top<wide.summary.top&&wide.summary.top<wide.actions.top,info);
-    assert(Math.abs(wide.jobs.top-wide.company.top)<=1&&wide.jobs.left>wide.actions.right,info);
-    assert(wide.jobs.bottom<=wide.doc.inner&&wide.doc.scroll<=wide.doc.inner+1&&wide.doc.scrollWidth<=wide.doc.width,"The management center fits the window: "+info);
-    assert(wide.list.overflow==="auto"&&wide.list.scroll>wide.list.client,"The job list scrolls inside its card: "+info);
-    assert(wide.rows.length===8&&wide.rows.every(height=>height<=140),"Operations use compact rows: "+info);
+    const read=async()=>{
+      await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      return page.evaluate(()=>{
+        const box=selector=>{const node=document.querySelector(selector);if(!node)return null;const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,height:r.height};};
+        const list=document.querySelector(".nvu-central-job-list");
+        return {flagged:document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"),title:box(".nvu-workspace-page-title"),company:box(".nvu-central-company-row"),simulator:box(".nvu-central-simulator"),summary:box(".nvu-central-summary"),actions:box(".nvu-central-actions"),jobs:box(".nvu-central-jobs"),
+          list:{client:list.clientHeight,scroll:list.scrollHeight,overflow:getComputedStyle(list).overflowY},doc:{scroll:document.documentElement.scrollHeight,inner:innerHeight,scrollWidth:document.documentElement.scrollWidth,width:innerWidth},
+          rows:[...document.querySelectorAll(".nvu-central-operation")].map(node=>node.getBoundingClientRect().height),buttons:[...document.querySelectorAll(".nvu-central-action")].map(node=>node.getBoundingClientRect().height)};
+      });
+    };
+    for(const [width,height] of [[2560,1300],[1911,947],[1440,900],[1366,768],[1280,720],[1100,700],[1024,768]]){
+      await page.setViewportSize({width,height});
+      const wide=await read(),info=width+"x"+height+" "+JSON.stringify(wide);
+      assert(wide.flagged,info);
+      for(const key of ["company","summary","actions"]) assert(Math.abs(wide[key].left-wide.company.left)<=1&&wide[key].right<=wide.jobs.left,key+" "+info);
+      assert(wide.simulator.right<=wide.jobs.left,info);
+      assert(Math.abs((wide.company.left+wide.jobs.right)/2-wide.doc.width/2)<=1,"The two columns are centered on the window: "+info);
+      assert(wide.title.bottom<=wide.company.top&&wide.jobs.top-wide.title.bottom>=12,"Room between the title and the cards: "+info);
+      assert(Math.abs(wide.jobs.top-wide.company.top)<=1&&wide.jobs.left>wide.actions.right,info);
+      assert(Math.abs(wide.jobs.bottom-wide.actions.bottom)<=1,"Both columns end on the same line: "+info);
+      assert(wide.doc.inner-wide.jobs.bottom>=18,"Room between the cards and the bottom of the screen: "+info);
+      assert(wide.doc.scroll<=wide.doc.inner+1&&wide.doc.scrollWidth<=wide.doc.width,"The management center fits the window: "+info);
+      assert(wide.list.overflow==="auto"&&wide.list.scroll>wide.list.client,"The job list scrolls inside its card: "+info);
+      assert(wide.rows.length===8&&wide.rows.every(rowHeight=>rowHeight<=140),"Operations use compact rows: "+info);
+      assert(wide.buttons.length===6&&wide.buttons.every(buttonHeight=>buttonHeight>=30&&buttonHeight<=64),"The six management buttons share the left column height: "+info);
+    }
+    await page.setViewportSize({width:1280,height:800});
+    await read();
     await page.evaluate(()=>{document.querySelector(".nvu-central-job-list").scrollTop=300;});
     assert.deepEqual(await page.evaluate(()=>({page:scrollY,list:document.querySelector(".nvu-central-job-list").scrollTop>0})),{page:0,list:true},"Scrolling the list must not scroll the page");
     await page.setViewportSize({width:390,height:867});
     await page.waitForFunction(()=>!document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"));
     const narrow=await read();
     assert(!narrow.flagged,JSON.stringify(narrow));
-    assert(narrow.summary.top<narrow.actions.top&&narrow.actions.top<narrow.jobs.top&&Math.abs(narrow.jobs.left-narrow.summary.left)<=1&&narrow.rows.every(height=>height>250),"Portrait keeps the single column and the full cards: "+JSON.stringify(narrow));
+    assert(narrow.summary.top<narrow.actions.top&&narrow.actions.top<narrow.jobs.top&&Math.abs(narrow.jobs.left-narrow.summary.left)<=1&&narrow.rows.every(rowHeight=>rowHeight>250),"Portrait keeps the single column and the full cards: "+JSON.stringify(narrow));
     await page.evaluate(()=>window.__scenario({many:false}));
   });
   await check("Designar Trabalhos keeps the existing assignment route",async()=>{

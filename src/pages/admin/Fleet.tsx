@@ -13,7 +13,6 @@ import { commitNavigation } from "../../lib/navigationTransition";
 import { PanelLoading } from "../../components/common/RetainedPanel";
 import OperationsTab from "./fleet/OperationsTab";
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
-import { useLandscapeFillHeight } from "../../hooks/useLandscapeFillHeight";
 import "../../components/driver/DriverWorkspace.css";
 import { DriverProfileToolbar } from "../../components/driver/DriverProfileToolbar";
 import type { DriverProfileView } from "../../components/driver/DriverProfileSummary";
@@ -99,11 +98,9 @@ export default function Fleet() {
   const isProfile = activeTab === "company" && Boolean(activeCompany);
   const hasCover = ["company", "history", "reports"].includes(activeTab) && Boolean(activeCompany);
   const showHeading = activeCompany && !(activeTab === "hr" && recruitmentFormOpen) && !(activeTab === "history" && tripDetailsOpen);
-  // Horizontal screens split the management center in two columns; its job list scrolls inside its own card.
-  const [pageNode, setPageNode] = useState<HTMLDivElement | null>(null);
+  // Horizontal screens split the management center in two columns of equal height (see ManagementDashboard.css).
   const landscapeWorkspace = useLandscapeWorkspace();
   const landscapeCentral = landscapeWorkspace && activeTab === "operations" && !hasCover && Boolean(activeCompanyId);
-  useLandscapeFillHeight(landscapeCentral, pageNode, ".nvu-central-jobs", { min: 320 });
   const selectAsset = (tab: "vehicles" | "trailers") => {
     if (tab === activeFleetTab) return;
     commitNavigation(() => navigate("/admin/fleet", { state: { activeTab: "fleet", activeFleetTab: tab } }));
@@ -111,7 +108,7 @@ export default function Fleet() {
   };
   const simulatorItems = companies.filter(company => company.ownerId === currentUser?.id || company.userId === currentUser?.id || memberships?.some(member => member.companyId === company.id && member.status === "active" && (member.roles?.includes("admin") || member.roles?.includes("owner" as any))));
 
-  return <Suspense fallback={<PanelLoading />}><div ref={setPageNode} className={hasCover ? "nvu-company-profile-page nvu-driver-workspace nvu-workspace-theme" : `nvu-central-page nvu-company-tools-page${landscapeCentral ? " nvu-landscape-central" : ""}`}>
+  return <Suspense fallback={<PanelLoading />}><div className={hasCover ? "nvu-company-profile-page nvu-driver-workspace nvu-workspace-theme" : `nvu-central-page nvu-company-tools-page${landscapeCentral ? " nvu-landscape-central" : ""}`}>
     <div className={hasCover ? "nvu-profile-stack nvu-profile-cover-stack" : "nvu-central-stack"}>
       {hasCover && <WorkspaceProfileCover scope="company"/>}
       {showHeading && !hasCover && <WorkspacePageHeader key="tool-heading" title={title} description={description} companyName={activeCompany.companyName || "Empresa"} simulator={simulatorLabel(activeCompany)} onSimulator={() => setSimulatorOpen(true)} />}

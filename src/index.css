@@ -3377,3 +3377,10 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-sidebar {
     margin-left: 0 !important;
   }
 }
+
+/* Company layout, horizontal windows: its 256px left margin (lg:ml-64) is left over from a permanent sidebar that the
+   floating menu replaced, and it pushed every company page about 128px to the right of the window center. Without it
+   the pages are centered on the window like the driver's. (The dock rail keeps the content clear: WorkspaceDock.css.) */
+@media (orientation: landscape) and (min-width: 1024px) {
+  .nvu-admin-shell .nvu-admin-shell-content > main { margin-left: 0; }
+}

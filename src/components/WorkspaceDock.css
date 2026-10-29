@@ -89,7 +89,13 @@ html:has(.nvu-workspace-dock-region) {
 
 /* Between 1100px and 1279px the pages that hug the window edges (driver news, ranking...) keep clear of the rail with
    equal space on both sides, so they stay centered. Cover pages already have wider margins (their cover must not
-   change), and the company layout already keeps a 256px column free on the left. */
+   change), and the company layout has its own rule below. */
 @media (orientation: landscape) and (min-width: 1100px) and (max-width: 1279px) {
   body:has(.nvu-workspace-dock-region):not(:has(.nvu-cover-page-shell, .nvu-admin-shell-content)) { padding-inline: var(--nvu-rail-reserve); }
+}
+
+/* Company pages are centered on the window (see index.css) and many of them fill the width, so from 1100px up they keep
+   clear of the rail at every width, with equal space on both sides. Their cover pages need no reserve. */
+@media (orientation: landscape) and (min-width: 1100px) {
+  body:has(.nvu-admin-shell-content):not(:has(.nvu-cover-page-shell)) { padding-inline: var(--nvu-rail-reserve); }
 }
