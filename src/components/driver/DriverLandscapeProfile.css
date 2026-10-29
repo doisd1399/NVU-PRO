@@ -24,15 +24,16 @@ body .nvu-landscape-profile:not(.nvu-landscape-dashboard) .nvu-profile-cover-sta
 /* ---- Resumo: photo beside the vehicle and the figures instead of above them ---- */
 .nvu-landscape-profile .nvu-profile-summary-card {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-columns: clamp(240px, 36%, 330px) minmax(0, 1fr);
   grid-template-rows: auto auto 1fr;
   column-gap: 20px;
   padding: 12px 16px 14px;
 }
 .nvu-landscape-profile .nvu-profile-summary-heading { grid-column: 1 / -1; margin-bottom: 8px; }
-.nvu-landscape-profile .nvu-profile-summary-photo { grid-column: 1; grid-row: 2 / span 2; width: 100%; height: 100%; min-height: 140px; max-height: none; aspect-ratio: auto; }
+.nvu-landscape-profile .nvu-profile-summary-photo { grid-column: 1; grid-row: 2 / span 2; align-self: start; width: 100%; height: auto; min-height: 0; max-height: none; aspect-ratio: 2.2 / 1; }
 .nvu-landscape-profile .nvu-profile-summary-vehicle { grid-column: 2; grid-row: 2; padding: 2px 0 10px; }
-.nvu-landscape-profile .nvu-profile-summary-figures { grid-column: 2; grid-row: 3; align-self: start; padding-top: 10px; }
+.nvu-landscape-profile .nvu-profile-summary-photo img { object-position: 65% 50%; }
+.nvu-landscape-profile .nvu-profile-summary-figures { grid-column: 2; grid-row: 3; align-self: end; padding-top: 10px; }
 .nvu-landscape-profile .nvu-profile-summary-vehicle > strong { font-size: 18px; }
 .nvu-landscape-profile .nvu-profile-company-card { gap: 12px; padding: 10px 14px; }
 .nvu-landscape-profile .nvu-profile-company-logo { width: 40px; height: 40px; flex-basis: 40px; }
@@ -65,6 +66,9 @@ body .nvu-landscape-profile:not(.nvu-landscape-dashboard) .nvu-profile-cover-sta
 .nvu-landscape-profile .nvu-driver-report-links > h2 { padding-bottom: 4px; }
 .nvu-landscape-profile .nvu-driver-report-links > button { padding: 8px 0; }
 
+.nvu-landscape-profile div:has(> .nvu-driver-activity-list) { gap: 2px; }
+.nvu-landscape-profile .nvu-driver-more-trips { padding: 4px 14px; font-size: 12px; }
+.nvu-landscape-profile .nvu-driver-trip-count { margin: 0; font-size: 11px; line-height: 1.3; }
 /* ---- Atividade / Operações: title and tabs share one row ---- */
 .nvu-landscape-profile .nvu-driver-surface:is([data-page="activity"], [data-page="operations"]) {
   display: grid;
@@ -88,21 +92,35 @@ body .nvu-landscape-profile:not(.nvu-landscape-dashboard) .nvu-profile-cover-sta
 .nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > div > button { padding: 8px 12px; }
 .nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > div > button .h-px { margin-block: 6px; }
 .nvu-landscape-profile .nvu-ops-history-panel .space-y-3 { display: flex; flex-direction: column; gap: 8px; }
-.nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > * { margin: 0; }
+.nvu-landscape-profile .nvu-ops-history-panel .space-y-3 > * { margin: 0; flex-shrink: 0; }
 
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel > div { padding-bottom: 0; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel > div > [data-testid="operation-controls-and-card"] { margin-bottom: 0; }
-/* The Operações tab has less vertical room than the Painel: slightly flatter photo and tighter rows. */
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel .nvu-driver-vehicle-photo > button:first-child { aspect-ratio: 527 / 178; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel .nvu-driver-section-title { margin-bottom: 4px; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel .nvu-current-operation-body { padding-top: 6px; gap: 5px; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel .nvu-driver-operation-metrics > .flex-1 { padding-block: 3px; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel .nvu-driver-operation-timing { padding-bottom: 6px; }
-.nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] .nvu-driver-status-row { min-height: 36px; }
+.nvu-landscape-profile .nvu-ops-card-panel > div { padding-bottom: 0; }
+.nvu-landscape-profile .nvu-ops-card-panel > div > [data-testid="operation-controls-and-card"] { margin-bottom: 0; }
 .nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] { gap: 0; }
 .nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > div:empty { display: none; }
 .nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > .order-3 { margin: 0; border-radius: 16px; border-color: var(--driver-line); box-shadow: 0 2px 10px rgb(24 35 50 / .06); }
 .dark .nvu-landscape-profile .nvu-driver-surface[data-page="operations"] .nvu-ops-card-panel [data-testid="operation-controls-and-card"] > .order-3 { box-shadow: none; }
+
+/* ---- Lists scroll inside their own card (useLandscapeFillHeight sets --nvu-fill-h) ---- */
+.nvu-landscape-profile .nvu-driver-activity-list,
+.nvu-landscape-profile .nvu-ops-history-list,
+.nvu-landscape-profile .nvu-driver-daily-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--driver-line) transparent;
+}
+.nvu-landscape-profile .nvu-driver-activity-list::-webkit-scrollbar,
+.nvu-landscape-profile .nvu-ops-history-list::-webkit-scrollbar,
+.nvu-landscape-profile .nvu-driver-daily-list::-webkit-scrollbar { width: 6px; }
+.nvu-landscape-profile .nvu-driver-activity-list::-webkit-scrollbar-thumb,
+.nvu-landscape-profile .nvu-ops-history-list::-webkit-scrollbar-thumb,
+.nvu-landscape-profile .nvu-driver-daily-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--driver-line); }
+.nvu-landscape-profile .nvu-driver-activity-list { max-height: var(--nvu-fill-h, none); }
+.nvu-landscape-profile .nvu-driver-activity-day { position: sticky; top: 0; z-index: 1; background: var(--driver-paper); }
+.nvu-landscape-profile .nvu-ops-history-list { max-height: var(--nvu-fill-h, none); padding: 2px 6px 2px 2px; margin-right: -6px; }
+.nvu-landscape-profile .nvu-driver-daily-results { display: flex; flex-direction: column; max-height: var(--nvu-fill-h, none); }
+.nvu-landscape-profile .nvu-driver-daily-list { flex: 1 1 auto; min-height: 0; margin-right: -8px; padding-right: 8px; }
 
 /* Slimmer layout on tablets and phones turned sideways. */
 @media (max-width: 899px) {

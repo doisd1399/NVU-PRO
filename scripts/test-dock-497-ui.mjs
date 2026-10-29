@@ -70,22 +70,56 @@ async function assertBottomBand(){
  });
  assert.equal(band.background,band.page,JSON.stringify(band));assert.equal(band.bottom,await page.evaluate(()=>innerHeight));assert(band.blocked,'Page content must not be painted or clickable in footer band: '+JSON.stringify(band));assert(!band.overflow);assert(band.spacer>=band.height-1);assert(band.nav.height>=(compact?44:50)&&band.nav.height<=(compact?48:54),JSON.stringify(band));assert.equal(await page.locator('.nvu-driver-dock button').count(),6);return band;
 }
+const landscapeRail=()=>page.evaluate(()=>matchMedia('(orientation: landscape) and (min-width: 1100px)').matches);
+// Wide landscape windows: the same shared dock becomes a lateral rail, vertically centered, with slightly rounded corners.
+async function assertRail(tag='',clearance=true){
+ const band=await page.evaluate(()=>{
+  const region=document.querySelector('.nvu-workspace-dock-region'),nav=region.querySelector('nav'),box=region.getBoundingClientRect(),dock=nav.getBoundingClientRect(),style=getComputedStyle(nav),cx=dock.left+dock.width/2;
+  const outside=[[cx,Math.max(2,dock.top/2)],[cx,(dock.bottom+innerHeight)/2]],leaves=[...document.querySelectorAll('main *')].filter(el=>!region.contains(el)&&[...el.childNodes].some(node=>node.nodeType===3&&node.textContent.trim())&&el.getClientRects().length&&getComputedStyle(el).visibility!=='hidden');
+  return {rail:true,position:getComputedStyle(region).position,background:getComputedStyle(region).backgroundColor,regionEvents:getComputedStyle(region).pointerEvents,navEvents:style.pointerEvents,region:{left:box.left,top:box.top,bottom:box.bottom},nav:{left:dock.left,right:dock.right,top:dock.top,bottom:dock.bottom,width:dock.width,height:dock.height},radius:parseFloat(style.borderTopLeftRadius),direction:style.flexDirection,spacer:document.querySelector('.nvu-workspace-dock-space').getBoundingClientRect().height,overflow:document.documentElement.scrollWidth>innerWidth+1,passThrough:outside.every(([x,y])=>!region.contains(document.elementFromPoint(x,y))),hit:nav.contains(document.elementFromPoint(cx,dock.top+dock.height/2)),contentLeft:leaves.length?Math.min(...leaves.map(el=>el.getBoundingClientRect().left)):null,viewport:{width:innerWidth,height:innerHeight}};
+ });
+ const info=tag+JSON.stringify(band);
+ assert.equal(band.position,'fixed',info);assert.equal(band.region.left,0,info);assert.equal(band.region.top,0,info);assert.equal(band.region.bottom,band.viewport.height,info);
+ assert.equal(band.background,'rgba(0, 0, 0, 0)',info);assert.equal(band.regionEvents,'none',info);assert.equal(band.navEvents,'auto',info);assert(band.passThrough,'The empty space around the rail must not block the page: '+info);assert(band.hit,info);
+ assert.equal(band.direction,'column',info);assert(band.radius>=12&&band.radius<=20,'Slightly rounded corners: '+info);
+ assert(Math.abs((band.nav.top+band.nav.bottom)/2-band.viewport.height/2)<=1,'Rail must be vertically centered: '+info);
+ assert(band.nav.left>=8&&band.nav.left<=24,info);assert(band.nav.width>=46&&band.nav.width<=62,info);assert(band.nav.top>=0&&band.nav.bottom<=band.viewport.height,'The whole rail must stay inside the viewport: '+info);
+ assert.equal(band.spacer,0,'The landscape rail needs no bottom spacer: '+info);assert(!band.overflow,info);
+ if(clearance)assert(band.contentLeft===null||band.contentLeft>=band.nav.right,'Page content must stay clear of the rail: '+info);
+ assert.equal(await page.locator('.nvu-driver-dock button').count(),6);return band;
+}
+const assertDock=async()=>(await landscapeRail())?assertRail():assertBottomBand();
 try{
  await page.goto(origin+'/admin/reports');await page.getByText('Semana atual',{exact:true}).waitFor();
  const fast=process.env.NVU_DOCK_QA_FAST==='1';
- for(const role of ['admin','driver'])for(const theme of fast?['dark']:['light','dark'])for(const width of fast?[390]:[320,360,390,412,768,1280]){
+ for(const role of ['admin','driver'])for(const theme of fast?['dark']:['light','dark'])for(const width of fast?[390]:[320,360,390,412,768,1024,1180,1280]){
   await check('Relatórios reais e faixa opaca '+role+' '+theme+' '+width,async()=>{
    await page.setViewportSize({width,height:867});await page.evaluate(({role,theme})=>{window.dispatchEvent(new CustomEvent('nvu:theme-change',{detail:theme}));window.__go('/'+role+'/reports');document.documentElement.style.setProperty('--nvu-workspace-dock-safe-bottom','0px');},{role,theme});await tick();
    await page.getByText('Semana atual',{exact:true}).waitFor();
-   await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*.4));await tick();await assertBottomBand();
-   if(width===390)await page.screenshot({path:path.join(output,'middle-'+role+'-'+theme+'.png')});
-   await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await tick();const band=await assertBottomBand();
-   const notice=await page.getByText('Os dados refletem o histórico oficial e excluem entregas rejeitadas, canceladas ou viagens ainda em andamento.').boundingBox();assert(notice.y+notice.height<=band.nav.top-7,JSON.stringify({notice,band}));
-   const load=page.getByRole('button',{name:'Carregar mais registros',exact:true});assert(await load.isVisible());const before=await page.getByText(/Semana de /).count();await load.click();assert(await page.getByText(/Semana de /).count()>before);await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await tick();await assertBottomBand();
+   await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight*.4));await tick();await assertDock();
+   if(width===390||width===1280)await page.screenshot({path:path.join(output,'middle-'+role+'-'+theme+'-'+width+'.png')});
+   await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await tick();const band=await assertDock();
+   const notice=await page.getByText('Os dados refletem o histórico oficial e excluem entregas rejeitadas, canceladas ou viagens ainda em andamento.').boundingBox();if(band.rail)assert(notice.y+notice.height<=band.viewport.height&&notice.x>=band.nav.right,JSON.stringify({notice,band}));else assert(notice.y+notice.height<=band.nav.top-7,JSON.stringify({notice,band}));
+   const load=page.getByRole('button',{name:'Carregar mais registros',exact:true});assert(await load.isVisible());const before=await page.getByText(/Semana de /).count();await load.click();assert(await page.getByText(/Semana de /).count()>before);await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await tick();await assertDock();
    // Reset the report's paging state without changing the shared layout.
    await page.getByRole('button',{name:'Mensal',exact:true}).click();await page.getByRole('button',{name:'Semanal',exact:true}).click();
   });
  }
+ const railRoutes=[['/admin/reports'],['/admin/history'],['/admin/news'],['/driver/reports'],['/driver/profile'],['/driver/news'],['/ranking',{state:{workspaceDockRole:'admin'}}]];
+ for(const [width,height] of [[1100,700],[1180,820],[1280,867],[1366,768],[1911,947],[1200,260]])await check('Uma única dock lateral centralizada em todas as páginas '+width+'x'+height,async()=>{
+  await page.setViewportSize({width,height});await page.evaluate(()=>document.documentElement.style.setProperty('--nvu-workspace-dock-safe-bottom','0px'));
+  const seen=[];
+  for(const [route,options] of railRoutes){
+   await page.evaluate(([route,options])=>window.__go(route,options),[route,options]);await page.waitForFunction(route=>window.__route.pathname===route,route);
+   if(route==='/ranking')await page.getByRole('heading',{name:'Ranking — superfície de teste'}).waitFor();
+   await tick();await tick();const band=await assertRail(route+' ',false);seen.push(JSON.stringify(band.nav));
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true,route);
+  }
+  assert.equal(new Set(seen).size,1,'The dock must have one size and position on every page: '+seen.join(' | '));
+ });
+ await check('Dock lateral só aparece em janelas horizontais largas: retrato e telas menores mantêm a pílula inferior',async()=>{
+  for(const [width,height] of [[390,844],[768,1024],[700,400],[320,568],[720,360],[844,390],[1024,768],[1099,700]]){await page.setViewportSize({width,height});await page.evaluate(()=>window.__go('/admin/reports'));await tick();assert.equal((await assertDock()).rail,undefined,width+'x'+height);}
+ });
  for(const role of ['admin','driver'])for(const safe of [24,34])await check('Área segura e último item '+role+' '+safe+'px',async()=>{
   await page.setViewportSize({width:390,height:867});await page.evaluate(({role,safe})=>{window.__go('/'+role+'/reports');document.documentElement.style.setProperty('--nvu-workspace-dock-safe-bottom',safe+'px');},{role,safe});await tick();await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await tick();const band=await assertBottomBand();assert(band.height>=(compact?62:82)+safe);assert.equal(Math.round(867-band.nav.bottom),10+safe);
  });

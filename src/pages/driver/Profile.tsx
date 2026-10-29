@@ -11,6 +11,7 @@ import { resolveDriverPhoto } from '../../lib/resolveDriverPhoto';
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
+import { useLandscapeFillHeight } from "../../hooks/useLandscapeFillHeight";
 import Dashboard from "./Dashboard";
 import TripHistory from "./TripHistory";
 import { DriverResults } from "../../components/driver/DriverResults";
@@ -194,6 +195,17 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   // Horizontal screens use the cover layout of "Painel do motorista"; portrait is untouched.
   const landscapeWorkspace = useLandscapeWorkspace();
   const landscapeDashboard = activeTab === "dashboard" && landscapeWorkspace;
+  // Horizontal lists scroll inside their own card: trips, daily results and the operation history.
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  useLandscapeFillHeight(
+    landscapeWorkspace,
+    workspaceRef,
+    activeTab === "activity" ? ".nvu-driver-activity-list"
+      : activeTab === "results" ? ".nvu-driver-daily-results"
+      : activeTab === "operations" ? ".nvu-ops-history-list"
+      : null,
+    { alignTo: activeTab === "operations" ? '[data-testid="operation-controls-and-card"]' : undefined },
+  );
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set([activeTab]));
   // The operational panel is the first view of this route. Keep profile
   // metrics/history out of that first render; they are only needed after the
@@ -898,7 +910,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
   );
 
   return (
-    <div className="nvu-driver-workspace w-full flex flex-col gap-3 sm:gap-4" data-profile-page={activeTab} data-landscape-dashboard={landscapeDashboard ? "true" : undefined}>
+    <div ref={workspaceRef} className="nvu-driver-workspace w-full flex flex-col gap-3 sm:gap-4" data-profile-page={activeTab} data-landscape-dashboard={landscapeDashboard ? "true" : undefined}>
       {maintenanceMode && (
         <WorkModeMaintenanceDialog
           mode={maintenanceMode === "simple" ? "pro" : maintenanceMode}
@@ -1164,7 +1176,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                 Histórico
               </h3>
               {filteredHistoryJobs.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-3 nvu-ops-history-list">
                   {filteredHistoryJobs.map((job) => {
                     const contract = contractsMap.get(job.contractId);
                     const jobTrailerlessSimulator = isTrailerlessSimulator(

@@ -36,6 +36,60 @@ html:has(.nvu-workspace-dock-region) {
   scroll-padding-bottom: var(--nvu-workspace-dock-clearance);
 }
 
-/* The desktop shell has no side rail (its menu is a floating card), and its content is centered
-   on the window, so the dock region keeps the full-width inset above and the pill stays centered
+/* The desktop shell has no permanent sidebar (its menu is a floating card) and its content is centered
+   on the window, so the dock region keeps the full-width inset above and the bottom pill stays centered
    under the content on every driver, company and ranking page. */
+
+/* Wide landscape windows: the dock becomes a lateral rail, vertically centered on the left edge, with slightly
+   rounded corners. It is the one shared dock, so every page that shows it gets the same rail, and the bottom band
+   is not needed there. The rail sits in the side margins that a window this wide leaves around the page, so the
+   cover, the profile photo and the driver name keep their size and position. Portrait and smaller landscape
+   windows (phones, small tablets) keep the bottom pill. */
+@media (orientation: landscape) and (min-width: 1100px) {
+  :root {
+    --nvu-workspace-dock-clearance: 0px;
+    --nvu-rail-reserve: 80px;
+  }
+
+  .nvu-workspace-dock-space { display: none; }
+
+  .nvu-workspace-dock-region {
+    inset: 0 auto 0 0;
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 max(12px, env(safe-area-inset-left, 0px));
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .nvu-workspace-dock-region > nav.nvu-driver-dock {
+    pointer-events: auto;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 16px;
+  }
+
+  /* 44px buttons; on very short windows they shrink so the whole rail stays inside the viewport
+     (6 buttons + 5 gaps + padding/border + 12px of air above and below). */
+  .nvu-workspace-dock-region .nvu-driver-dock-item {
+    width: 44px;
+    height: 44px;
+    min-height: 0;
+    width: max(32px, min(44px, calc((100dvh - 58px) / 6)));
+    height: max(32px, min(44px, calc((100dvh - 58px) / 6)));
+    padding: 0;
+    border-radius: 12px;
+  }
+}
+
+/* Between 1100px and 1279px the pages that hug the window edges (driver news, ranking...) keep clear of the rail with
+   equal space on both sides, so they stay centered. Cover pages already have wider margins (their cover must not
+   change), and the company layout already keeps a 256px column free on the left. */
+@media (orientation: landscape) and (min-width: 1100px) and (max-width: 1279px) {
+  body:has(.nvu-workspace-dock-region):not(:has(.nvu-cover-page-shell, .nvu-admin-shell-content)) { padding-inline: var(--nvu-rail-reserve); }
+}

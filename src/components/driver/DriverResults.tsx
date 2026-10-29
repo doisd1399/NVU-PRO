@@ -54,16 +54,18 @@ export function DriverResults({ trips, loading, onTripsReport, onOperationReport
         </strong><span>Média por viagem</span></div>}
       </div>
     </section>
-    <section className="nvu-driver-paper" aria-labelledby="nvu-driver-daily-title">
+    <section className="nvu-driver-paper nvu-driver-daily-results" aria-labelledby="nvu-driver-daily-title">
       <div className="nvu-driver-paper-heading"><h2 id="nvu-driver-daily-title">Por dia</h2><span>Ganhos</span></div>
-      {!days.length ? <p className="nvu-driver-empty">Os resultados diários aparecerão aqui.</p> : days.map(day =>
-        <div className="nvu-driver-daily-row" key={day.id}>
-          <div><strong>{driverDateLabel(day.date, { day: "numeric", month: "short" })}</strong>
-            <span>{day.trips.length} {day.trips.length === 1 ? "viagem" : "viagens"}</span></div>
-          <div>{day.moneyGroups.map((money, index) => <strong key={index}>
-            {formatHistoryMoney(money.value, money.currency, money.currencyStatus)}
-          </strong>)}</div>
-        </div>)}
+      <div className="nvu-driver-daily-list">
+        {!days.length ? <p className="nvu-driver-empty">Os resultados diários aparecerão aqui.</p> : days.map(day =>
+          <div className="nvu-driver-daily-row" key={day.id}>
+            <div><strong>{driverDateLabel(day.date, { day: "numeric", month: "short" })}</strong>
+              <span>{day.trips.length} {day.trips.length === 1 ? "viagem" : "viagens"}</span></div>
+            <div>{day.moneyGroups.map((money, index) => <strong key={index}>
+              {formatHistoryMoney(money.value, money.currency, money.currencyStatus)}
+            </strong>)}</div>
+          </div>)}
+      </div>
     </section>
     <section className="nvu-driver-paper nvu-driver-report-links" aria-labelledby="nvu-driver-reports-title">
       <h2 id="nvu-driver-reports-title">Relatórios</h2>
