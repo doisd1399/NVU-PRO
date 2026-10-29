@@ -2,75 +2,42 @@
    Every rule is scoped by .nvu-landscape-dashboard, a class DriverLayout adds
    only while useLandscapeWorkspace() is true on the work tab. Portrait never
    receives this class, so the vertical layout is untouched. */
-.nvu-landscape-dashboard {
-  --ls-width: 960px;
-  --ls-gap: 20px;
-  --ls-inline: max(var(--driver-gutter, 24px), env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
-  /* About 23.5% of the window height: tall enough to show the faces, short enough to keep the cards above the dock. */
-  --ls-cover-h: clamp(150px, 23.5dvh, 250px);
-  /* Window height minus cover, app bar, identity, title and the dock band; capped so the cards never stretch. */
-  --ls-body-h: clamp(440px, calc(100dvh - var(--ls-cover-h) - 284px), 476px);
-}
+.nvu-landscape-dashboard { --ls-gap: 16px; }
 
-/* ---- Page width: one centered 1120px container (desktop and native shells) ---- */
-body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-native-main {
-  width: min(100% - 2rem, calc(var(--ls-width) + 2 * var(--ls-inline)));
-  max-width: calc(var(--ls-width) + 2 * var(--ls-inline));
-}
-body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-native-content {
-  width: 100%;
-  max-width: calc(var(--ls-width) + 2 * var(--ls-inline));
-}
-body .nvu-landscape-dashboard .nvu-driver-workspace .nvu-profile-stack,
-body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-profile-stack {
-  width: min(100%, calc(var(--ls-width) + 2 * var(--ls-inline))) !important;
-  max-width: calc(var(--ls-width) + 2 * var(--ls-inline)) !important;
-  margin-inline: auto !important;
-  padding-inline: var(--ls-inline) !important;
-  box-sizing: border-box;
-}
-body .nvu-landscape-dashboard .nvu-profile-cover-stack > .nvu-driver-surface {
-  margin: 0 calc(-1 * var(--ls-inline)) !important;
-  padding: 0 var(--ls-inline) 12px;
-  min-height: 0;
-}
-body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-driver-workspace .nvu-driver-surface {
-  max-width: none;
-}
+/* Page width, cover and dock are NOT overridden here: the cover (size, crop, container) is the one of the
+   Perfil > Resumo page and the dock is the single shared dock (see WorkspaceDock.css). */
 
-/* ---- Dock: narrower pill, centered by the shared dock region (see WorkspaceDock.css) ---- */
-body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav.nvu-driver-dock { max-width: 560px; }
+/* Cards share the cover's width and sit right under the heading (no extra stack gap). */
+body .nvu-landscape-dashboard .nvu-profile-cover-stack > .nvu-driver-surface { padding-inline: 0; padding-top: 4px; min-height: 0; }
+.nvu-landscape-dashboard .nvu-profile-cover-stack > .nvu-cover-hero { margin-bottom: 0; }
 
-/* ---- Top: low cover, overlapping square photo, identity row ---- */
-.nvu-landscape-dashboard .nvu-cover-hero .nvu-cover-image {
-  aspect-ratio: auto;
-  height: var(--ls-cover-h);
-  max-height: none;
-}
-.nvu-landscape-dashboard .nvu-cover-hero .nvu-cover-image > img { object-position: 50% 30%; }
-.nvu-landscape-dashboard .nvu-cover-identity { grid-template-columns: 78px minmax(0, 1fr) auto; column-gap: 14px; min-height: 58px; padding: 10px 8px 0; }
+/* ---- Top: same cover as Resumo, compact overlapping photo and identity row ---- */
+.nvu-landscape-dashboard .nvu-cover-identity { grid-template-columns: 78px minmax(0, 1fr) auto; column-gap: 14px; min-height: 52px; padding: 4px 8px 0; }
 .nvu-landscape-dashboard .nvu-cover-avatar { width: 78px; height: 78px; margin-top: -34px; border-radius: 16px; }
-.nvu-landscape-dashboard .nvu-cover-copy h2 { font-size: 23px; }
+.nvu-landscape-dashboard .nvu-cover-copy h2 { font-size: 22px; }
 .nvu-landscape-dashboard .nvu-cover-copy p { font-size: 13px; }
-.nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] { margin: 0 0 18px; }
+.nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] { margin: 0 0 8px; }
 .nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] h1 { font-size: 20px; font-weight: 650; line-height: 1.25; }
-.nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] p { margin-top: 6px; padding: 3px 14px; border-radius: 999px; font-size: 11.5px; }
+.nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] p { margin-top: 4px; padding: 2px 12px; border-radius: 999px; font-size: 11.5px; }
 
 /* ---- Body: two columns, same top and same bottom ---- */
 .nvu-landscape-dashboard .nvu-landscape-operation-grid {
   display: grid;
-  grid-template-columns: clamp(320px, 37.5%, 400px) minmax(0, 1fr);
+  grid-template-columns: clamp(300px, 39%, 380px) minmax(0, 1fr);
   gap: var(--ls-gap);
   align-items: stretch;
   width: 100%;
-  min-height: var(--ls-body-h);
+  /* useLandscapeBodyHeight() sets --ls-body-h from the free space above the dock; the row never gets smaller than the operation card. */
+  min-height: var(--ls-body-h, 380px);
 }
 .nvu-landscape-dashboard .nvu-landscape-operation-grid > * { min-width: 0; }
 .nvu-landscape-dashboard .nvu-landscape-operation-grid [data-testid="operation-controls-and-card"] {
   display: flex;
   flex-direction: column;
+  gap: 0;
   height: 100%;
 }
+.nvu-landscape-dashboard .nvu-landscape-operation-grid [data-testid="operation-controls-and-card"] > div:empty { display: none; }
 .nvu-landscape-dashboard .nvu-landscape-operation-grid [data-testid="operation-controls-and-card"] > .order-3 {
   flex: 1 1 auto;
   margin: 0;
@@ -84,7 +51,7 @@ body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav
 .nvu-landscape-dashboard .nvu-driver-vehicle-photo { flex: none; }
 .nvu-landscape-dashboard .nvu-driver-vehicle-photo > button:first-child {
   height: auto;
-  aspect-ratio: 527 / 225;
+  aspect-ratio: 527 / 200;
 }
 .nvu-landscape-dashboard .nvu-driver-vehicle-photo > button:first-child img {
   position: absolute;
@@ -99,28 +66,28 @@ body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav
 .nvu-landscape-dashboard .nvu-current-operation-body {
   flex: 1 1 auto;
   justify-content: space-between;
-  gap: 10px;
-  padding: 13px 16px 11px;
+  gap: 6px;
+  padding: 8px 16px 4px;
 }
 .nvu-landscape-dashboard .nvu-current-operation-vehicle { padding-block: 0; }
-.nvu-landscape-dashboard .nvu-current-operation-vehicle .min-w-0 > p:first-child { font-size: 20px; line-height: 1.2; font-weight: 700; }
+.nvu-landscape-dashboard .nvu-current-operation-vehicle .min-w-0 > p:first-child { font-size: 19px; line-height: 1.2; font-weight: 700; }
 .nvu-landscape-dashboard .nvu-current-operation-vehicle .min-w-0 > p:last-child { font-size: 12.5px; }
-.nvu-landscape-dashboard .nvu-current-operation-vehicle > button { padding: 10px; border-radius: 11px; }
+.nvu-landscape-dashboard .nvu-current-operation-vehicle > button { padding: 9px; border-radius: 10px; }
 .nvu-landscape-dashboard .nvu-current-operation-vehicle > div:last-child { font-size: 14px; }
 .nvu-landscape-dashboard .nvu-driver-operation-metrics { border-radius: 12px; }
-.nvu-landscape-dashboard .nvu-driver-operation-metrics > .flex-1 { padding-block: 8px; }
-.nvu-landscape-dashboard .nvu-driver-operation-metrics > .flex-1 > span:first-child { font-size: 21px; line-height: 1.15; }
+.nvu-landscape-dashboard .nvu-driver-operation-metrics > .flex-1 { padding-block: 4px; }
+.nvu-landscape-dashboard .nvu-driver-operation-metrics > .flex-1 > span:first-child { font-size: 20px; line-height: 1.15; }
 .nvu-landscape-dashboard .nvu-driver-operation-metrics > .flex-1 > span:last-child { font-size: 10.5px; letter-spacing: .06em; }
 .nvu-landscape-dashboard .nvu-current-operation-body p.uppercase { font-size: 10.5px; }
-.nvu-landscape-dashboard .nvu-driver-operation-timing { padding: 4px 16px 12px; gap: 10px; }
+.nvu-landscape-dashboard .nvu-driver-operation-timing { padding: 0 16px 8px; gap: 10px; }
 .nvu-landscape-dashboard .nvu-driver-operation-timing > .nvu-driver-remaining-time,
-.nvu-landscape-dashboard .nvu-driver-operation-timing > .nvu-driver-start-work { min-height: 50px; border-radius: 11px; }
-.nvu-landscape-dashboard .nvu-driver-remaining-time > svg { width: 19px; height: 19px; }
+.nvu-landscape-dashboard .nvu-driver-operation-timing > .nvu-driver-start-work { min-height: 42px; border-radius: 10px; }
+.nvu-landscape-dashboard .nvu-driver-remaining-time > svg { width: 17px; height: 17px; }
 .nvu-landscape-dashboard .nvu-driver-remaining-time small { font-size: 10.5px; }
 .nvu-landscape-dashboard .nvu-driver-remaining-time strong { font-size: 14px; }
 .nvu-landscape-dashboard .nvu-driver-operation-timing > .nvu-driver-start-work { font-size: 13.5px; }
 .nvu-landscape-dashboard .nvu-driver-operation-timing > .nvu-driver-start-work > svg { width: 18px; height: 18px; }
-.nvu-landscape-dashboard .nvu-landscape-operation-grid .nvu-driver-status-row { min-height: 48px; padding-inline: 16px; }
+.nvu-landscape-dashboard .nvu-landscape-operation-grid .nvu-driver-status-row { min-height: 38px; padding-inline: 16px; }
 .nvu-landscape-dashboard .nvu-driver-status-label { font-size: 13px; }
 .nvu-landscape-dashboard .nvu-driver-status-value { font-size: 12.5px; }
 
@@ -142,7 +109,7 @@ body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav
 .nvu-landscape-panel-head { display: flex; flex: none; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 12px; padding: 13px 14px 0; }
 .nvu-landscape-tabs { display: inline-flex; gap: 2px; max-width: 100%; padding: 3px; border-radius: 11px; background: var(--driver-strip); overflow-x: auto; scrollbar-width: none; }
 .nvu-landscape-tabs::-webkit-scrollbar { display: none; }
-.nvu-landscape-tabs > button { display: inline-flex; flex: none; align-items: center; gap: 7px; min-height: 34px; padding: 0 10px; border-radius: 8px; color: var(--driver-muted); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.nvu-landscape-tabs > button { display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 34px; padding: 0 9px; border-radius: 8px; color: var(--driver-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .nvu-landscape-tabs > button[aria-selected="true"] { background: var(--driver-paper); color: var(--driver-text); box-shadow: 0 1px 4px rgb(24 35 50 / .12); }
 .dark .nvu-landscape-tabs > button[aria-selected="true"] { box-shadow: none; background: var(--nvu-surface, var(--driver-paper)); }
 .nvu-landscape-tab-count { padding: 1px 7px; border-radius: 999px; background: var(--driver-line); color: var(--driver-muted); font-size: 11px; font-weight: 700; line-height: 1.4; }
@@ -150,7 +117,7 @@ body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav
 .dark .nvu-landscape-tabs > button[aria-selected="true"] .nvu-landscape-tab-count { color: var(--driver-accent); }
 .nvu-landscape-panel-tools[hidden] { display: none; }
 .nvu-queue-tab-tools { display: flex; align-items: center; gap: 8px; }
-.nvu-queue-tab-all { min-height: 34px; padding: 0 13px; border: 1px solid var(--driver-line); border-radius: 9px; background: var(--driver-paper); color: var(--driver-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.nvu-queue-tab-all { min-height: 34px; padding: 0 11px; border: 1px solid var(--driver-line); border-radius: 9px; background: var(--driver-paper); color: var(--driver-text); font-size: 12px; font-weight: 600; white-space: nowrap; }
 .nvu-queue-tab-tools .nvu-queue-refresh { min-width: 34px; min-height: 34px; border: 1px solid var(--driver-line); border-radius: 9px; background: var(--driver-paper); color: var(--driver-text); }
 .nvu-landscape-panel-body { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
 .nvu-landscape-panel-body[hidden] { display: none; }
@@ -202,7 +169,7 @@ body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav
 
 /* Tablets and phones turned sideways: columns shrink before the page does. */
 @media (max-width: 899px) {
-  .nvu-landscape-dashboard .nvu-landscape-operation-grid { --ls-gap: 16px; grid-template-columns: clamp(290px, 40%, 360px) minmax(0, 1fr); }
+  .nvu-landscape-dashboard .nvu-landscape-operation-grid { --ls-gap: 16px; grid-template-columns: clamp(280px, 40%, 340px) minmax(0, 1fr); }
   .nvu-landscape-panel-head { padding: 12px 12px 0; }
   .nvu-landscape-tabs > button { padding: 0 11px; font-size: 13px; }
   .nvu-queue-summary { margin-inline: 12px; padding: 12px; }
@@ -217,9 +184,7 @@ body .nvu-landscape-dashboard.nvu-desktop-shell .nvu-workspace-dock-region > nav
   .nvu-landscape-dashboard .nvu-landscape-operation-grid .nvu-driver-status-row { padding-inline: 16px; }
 }
 
-/* Phones turned sideways: a slimmer top so the cards start inside the first screen. */
+/* Phones turned sideways: tighter heading. */
 @media (max-height: 520px) {
-  .nvu-landscape-dashboard { --ls-cover-h: 88px; }
-  .nvu-landscape-dashboard .nvu-cover-identity { min-height: 78px; }
-  .nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] { margin-bottom: 10px; }
+  .nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] { margin-bottom: 8px; }
 }

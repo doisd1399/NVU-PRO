@@ -13,6 +13,7 @@ import { DriverStatusRow } from "../../components/driver/DriverStatusRow";
 import { useOptionalAutomaticOperations } from "../../contexts/AutomaticOperationsProvider";
 import { LandscapeOperationPanel } from "../../components/operations/LandscapeOperationPanel";
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
+import { useLandscapeBodyHeight } from "../../hooks/useLandscapeBodyHeight";
 import { createPortal } from "react-dom";
 import React, { useState, useMemo, useEffect } from "react";
 import { PendingProOperationNotice } from "../../components/PendingProOperationNotice";
@@ -156,6 +157,7 @@ function DashboardComponent({
   const hasAutomaticQueues=Boolean(automatic?.view?.queues.length);
   // Horizontal "Painel do motorista" layout; portrait keeps the original structure.
   const landscapeWorkspace = useLandscapeWorkspace();
+  const landscapeGridRef = useLandscapeBodyHeight(landscapeWorkspace);
   const { suspension: operationalSuspension } = useOperationalSuspension(
     currentUser as any,
   );
@@ -1406,7 +1408,7 @@ function DashboardComponent({
         status="in_progress"
       />
       {landscapeOperationLayout ? (
-        <div className="nvu-landscape-operation-grid" data-testid="landscape-operation-grid">
+        <div className="nvu-landscape-operation-grid" data-testid="landscape-operation-grid" ref={landscapeGridRef}>
           {controlsAndCard}
           <LandscapeOperationPanel key={`${activeCompanyId}:${myJob.id}`} blocked={operationalSuspension.active}
             tripCount={currentOperationTrips.length} routes={contractRoutesCard} trips={operationTripHistory} />
