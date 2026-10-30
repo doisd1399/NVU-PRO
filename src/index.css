@@ -1040,6 +1040,46 @@ html.nvu-role-transition-active [data-nvu-background-brand] {
   padding-inline: 0.24rem;
 }
 
+/* The driver's floating menu keeps the same layout on every page. Without these, a page that is not flagged as the
+   native profile route showed the role switcher as a plain block (unstyled "Alternar perfil" text over the dark
+   surface that the theme still paints). */
+[data-nvu-unified-profile-menu] .nvu-profile-role-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 0.42rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.88rem;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.dark [data-nvu-unified-profile-menu] .nvu-profile-role-group {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+[data-nvu-unified-profile-menu] .nvu-profile-action-caption,
+[data-nvu-unified-profile-menu] .nvu-profile-submenu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  padding: 0.08rem 0.16rem 0.12rem;
+  color: #64748b;
+  font-size: 0.61rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+[data-nvu-unified-profile-menu] .nvu-profile-submenu-heading {
+  min-height: 2rem;
+  padding-inline: 0.24rem;
+  color: var(--nvu-text);
+  box-shadow: none;
+}
+
 .nvu-native-android.nvu-native-profile-route .nvu-profile-submenu-back {
   display: grid;
   width: 1.8rem;

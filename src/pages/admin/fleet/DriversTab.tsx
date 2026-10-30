@@ -1,4 +1,5 @@
 import { companyTeamRoles } from "../../../lib/companyTeam";
+import { DriverOptionsSheet, type DriverOption } from "../../../components/admin/management/DriverOptionsSheet";
 import { useManagedDriverContacts } from "../../../hooks/useManagedDriverContacts";
 import { ModalPortal } from "../../../components/ui/ModalPortal";
 import { resolveDriverPhoto } from '../../../lib/resolveDriverPhoto';
@@ -70,8 +71,7 @@ function DriversTab() {
     string | null
   >(null);
 
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [dropdownPlacement, setDropdownPlacement] = useState<"above" | "below">("below");
+  const [optionsDriverId, setOptionsDriverId] = useState<string | null>(null);
 
   const activeCompany = companies?.find(company => company.id === activeCompanyId);
   const getDriverRoles = React.useCallback((driver: any) =>
@@ -150,33 +150,6 @@ function DriversTab() {
 
   const handleViewJob = (jobId: string) => {
     navigate("/admin/fleet", { state: { preselectedJobId: jobId } });
-  };
-
-  /**
-   * The action menu used to be clipped by the driver's Card when the card was
-   * the last item in the list.  Keep the menu anchored to the trigger, but
-   * open it upward whenever there is not enough room below the trigger.
-   */
-  const handleToggleDropdown = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    driverId: string,
-  ) => {
-    if (openDropdownId === driverId) {
-      setOpenDropdownId(null);
-      return;
-    }
-
-    const triggerRect = event.currentTarget.getBoundingClientRect();
-    const estimatedMenuHeight = 190;
-    const viewportHeight =
-      typeof window !== "undefined" ? window.innerHeight : triggerRect.bottom + estimatedMenuHeight;
-    const spaceBelow = viewportHeight - triggerRect.bottom;
-    const spaceAbove = triggerRect.top;
-    const opensAbove =
-      spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow;
-
-    setDropdownPlacement(opensAbove ? "above" : "below");
-    setOpenDropdownId(driverId);
   };
 
   return (
@@ -281,7 +254,7 @@ function DriversTab() {
                           {processingRoleChangeId === req.id ? "Processando..." : "Recusar"}
                         </Button>
                         <Button
-                          onClick={() => navigate(`/admin/driver/${driver.id}`, { state: { returnUrl: "/admin/fleet", returnState: { activeTab: "drivers" }, companyId: activeCompanyId } })}
+                          onClick={() => navigate(`/admin/driver/${driver.id}/perfil`, { state: { returnUrl: "/admin/fleet", returnState: { activeTab: "drivers" }, companyId: activeCompanyId } })}
                           variant="ghost"
                           className="w-full text-gray-700 dark:text-nvu-text-soft bg-white dark:bg-nvu-surface hover:bg-gray-50 dark:hover:bg-nvu-strip border-gray-200 dark:border-nvu-line text-sm h-8"
                         >
@@ -343,12 +316,6 @@ function DriversTab() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 md:gap-4 w-full relative">
-            {openDropdownId && (
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setOpenDropdownId(null)}
-              />
-            )}
             {sortedEmployees.map((driver) => {
               const { allDriverJobs, activeJob, totalDeliveries, displayLevel, xpProgress } = driver as any;
 
@@ -397,108 +364,16 @@ function DriversTab() {
                           </h3>
                           
                             {/* Menu de opções */}
-                          <div className="shrink-0 relative z-50">
+                          <div className="shrink-0">
                             <button 
-                              onClick={(event) => handleToggleDropdown(event, driver.id)}
+                              onClick={() => setOptionsDriverId(driver.id)}
                               aria-label={`Ações de ${driver.name}`}
-                              aria-haspopup="menu"
-                              aria-expanded={openDropdownId === driver.id}
+                              aria-haspopup="dialog"
+                              aria-expanded={optionsDriverId === driver.id}
                               className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-nvu-strip text-gray-400 hover:text-gray-600 dark:text-nvu-muted dark:hover:text-nvu-text-soft transition-colors -mt-1 -mr-1"
                             >
                               <MoreVertical size={18} />
                             </button>
-                            
-                            {openDropdownId === driver.id && (
-                               <div
-                                 role="menu"
-                                 className={cn(
-                                   "absolute right-0 z-[60] w-52 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-xl shadow-lg py-1.5 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100",
-                                   dropdownPlacement === "above"
-                                     ? "bottom-full mb-1 slide-in-from-bottom-1"
-                                     : "top-full mt-1 slide-in-from-top-1",
-                                 )}
-                               >
-                                  <button 
-                                    onClick={() => {
-                                      setOpenDropdownId(null);
-                                      navigate(`/admin/driver/${driver.id}`, { state: { returnUrl: "/admin/fleet", returnState: { activeTab: "drivers" }, companyId: activeCompanyId } });
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip flex items-center gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <Eye size={14} className="text-gray-400" /> Ver Perfil
-                                  </button>
-                                  
-                                  <button 
-                                    onClick={() => {
-                                      setOpenDropdownId(null);
-                                      navigate('/admin/assign', { state: { preselectedDriverId: driver.id } });
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip flex items-center gap-2 transition-colors cursor-pointer"
-                                  >
-                                    <Briefcase size={14} className="text-gray-400" /> Designar Trabalho
-                                  </button>
-                                  
-                                  { (getDriverRoles(currentUser).includes("admin") || hasSeniorRole) && (
-                                    <>
-                                      <button 
-                                        disabled={processingRoleChangeId === driver.id}
-                                        onClick={async () => {
-                                          setOpenDropdownId(null);
-                                          if (processingRoleChangeId) return;
-                                          
-                                          const isAdmin = getDriverRoles(driver).includes("admin");
-                                          if (isAdmin) {
-                                            if (driver.id !== currentUser?.id) {
-                                              setProcessingRoleChangeId(driver.id);
-                                              try {
-                                                await demoteAdminToDriver(driver.id);
-                                                toast.success("Privilégios de administrador removidos.");
-                                              } catch (e: any) {
-                                                toast.error("Erro: " + e.message);
-                                              } finally {
-                                                setProcessingRoleChangeId(null);
-                                              }
-                                            } else {
-                                              toast.error("Você não pode remover seus próprios privilégios.");
-                                            }
-                                          } else {
-                                            setProcessingRoleChangeId(driver.id);
-                                            try {
-                                              await promoteDriverToAdmin(driver.id);
-                                              toast.success("Promovido a administrador.");
-                                            } catch (e: any) {
-                                              toast.error("Erro ao promover: " + e.message);
-                                            } finally {
-                                              setProcessingRoleChangeId(null);
-                                            }
-                                          }
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
-                                      >
-                                        {processingRoleChangeId === driver.id ? (
-                                          <Loader2 size={14} className="animate-spin text-gray-400" />
-                                        ) : (
-                                          <Crown size={14} className={getDriverRoles(driver).includes("admin") ? "text-blue-500" : "text-gray-400"} /> 
-                                        )}
-                                        {getDriverRoles(driver).includes("admin") ? "Remover de Admin" : "Promover a Admin"}
-                                      </button>
-
-                                      { (driver.id !== currentUser.id || hasSeniorRole) && (
-                                        <button 
-                                          disabled={Boolean(processingRoleChangeId)}
-                                          onClick={() => {
-                                            setOpenDropdownId(null);
-                                            setDriverToRemove(driver.id);
-                                          }}
-                                          className="w-full text-left px-3 py-2 text-[12px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2 transition-colors cursor-pointer mt-1 border-t border-gray-50 dark:border-nvu-line/50"
-                                        >
-                                          <Trash2 size={14} className="text-red-500" /> Remover da Frota
-                                        </button>
-                                      )}
-                                    </>
-                                  )}
-                               </div>
-                            )}
                           </div>
                         </div>
 
@@ -655,6 +530,43 @@ function DriversTab() {
           </div>
         )}
       </section>
+
+      {optionsDriverId && (() => {
+        const driver = sortedEmployees.find(item => item.id === optionsDriverId) as any;
+        if (!driver) return null;
+        const isAdmin = getDriverRoles(driver).includes("admin");
+        const canManageRoles = getDriverRoles(currentUser).includes("admin") || hasSeniorRole;
+        const options: DriverOption[] = [
+          { id: "profile", label: "Ver Perfil", icon: Eye, onSelect: () => navigate(`/admin/driver/${driver.id}/perfil`, { state: { returnUrl: "/admin/fleet", returnState: { activeTab: "drivers" }, companyId: activeCompanyId } }) },
+          { id: "assign", label: "Designar Trabalho", icon: Briefcase, onSelect: () => navigate("/admin/assign", { state: { preselectedDriverId: driver.id } }) },
+        ];
+        if (canManageRoles) {
+          options.push({
+            id: "role", label: isAdmin ? "Remover de Admin" : "Promover a Admin", icon: Crown, disabled: Boolean(processingRoleChangeId),
+            onSelect: async () => {
+              if (processingRoleChangeId) return;
+              if (isAdmin) {
+                if (driver.id === currentUser?.id) { toast.error("Você não pode remover seus próprios privilégios."); return; }
+                setProcessingRoleChangeId(driver.id);
+                try { await demoteAdminToDriver(driver.id); toast.success("Privilégios de administrador removidos."); }
+                catch (e: any) { toast.error("Erro: " + e.message); }
+                finally { setProcessingRoleChangeId(null); }
+              } else {
+                setProcessingRoleChangeId(driver.id);
+                try { await promoteDriverToAdmin(driver.id); toast.success("Promovido a administrador."); }
+                catch (e: any) { toast.error("Erro ao promover: " + e.message); }
+                finally { setProcessingRoleChangeId(null); }
+              }
+            },
+          });
+          if (driver.id !== currentUser?.id || hasSeniorRole) {
+            options.push({ id: "remove", label: "Remover da Frota", icon: Trash2, danger: true, disabled: Boolean(processingRoleChangeId), onSelect: () => setDriverToRemove(driver.id) });
+          }
+        }
+        const status = driver.activeJob ? "Em operação" : (driver.isOnline ? "Livre" : "Indisponível");
+        return <DriverOptionsSheet driverId={driver.id} companyId={activeCompanyId || ""} name={driver.name} photo={resolveDriverPhoto(driver)}
+          subtitle={`${isAdmin ? "Admin" : "Motorista"} · ${status}`} options={options} onClose={() => setOptionsDriverId(null)} />;
+      })()}
 
       {driverToRemove && (
         <ModalPortal label="Remover da frota" onClose={() => setDriverToRemove(null)} busy={Boolean(processingRoleChangeId)}><div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 min-h-[100dvh]">

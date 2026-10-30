@@ -21,16 +21,20 @@ const cssFiles = (await fs.readdir("dist/assets")).filter(name => name.endsWith(
 assert(cssFiles.some(name => name.startsWith("index-")), "Build the app before running the UI check");
 const css = (await Promise.all(cssFiles.map(name => fs.readFile(path.join("dist/assets", name), "utf8")))).join("\n");
 const fixtures = await fs.readFile("scripts/fixtures/operation-info-fixtures.tsx", "utf8");
-const adapters = new Set(["AppContext.tsx", "CompanyContext.tsx", "NotificationsContext.tsx", "firebase.ts", "routePreload.ts", "rankingPhotoWarmup.ts", "usePersistentRankingImage.ts", "useTripHistory.ts", "useDriverTrips.ts", "useMissingOperationTrip.ts", "SimpleAutomationCompletionBridge.tsx", "CompactProfileEditorModal.tsx", "NotificationCenter.tsx", "ProfileModal.tsx", "useVehiclePhoto.ts", "workModeAvailabilityService.ts", "simpleAutomationCityService.ts", "operationIntegrityGuard.ts", "uploadService.ts", "useProfileRanking.ts", "useTripsRealtime.ts", "AutomaticOperationsProvider.tsx", "useLocalOperationPending.ts", "operationalGoalAccess.ts", "CanonicalTripMigrationService.ts", "CanonicalTripCommandService.ts", "CanonicalTripOperationService.ts", "syncManager.ts", "tripModerationService.ts", "ProPendingAuthButton.tsx", "ProPendingRetryButton.tsx", "ProAttemptDiagnosticDetails.tsx", "FailedHistoryRegistrationRecovery.tsx", "OperationResultModal.tsx"]);
+const adapters = new Set(["AppContext.tsx", "CompanyContext.tsx", "NotificationsContext.tsx", "firebase.ts", "routePreload.ts", "rankingPhotoWarmup.ts", "usePersistentRankingImage.ts", "useTripHistory.ts", "useDriverTrips.ts", "useMissingOperationTrip.ts", "SimpleAutomationCompletionBridge.tsx", "CompactProfileEditorModal.tsx", "NotificationCenter.tsx", "ProfileModal.tsx", "useVehiclePhoto.ts", "useManagedDriverContacts.ts", "workModeAvailabilityService.ts", "simpleAutomationCityService.ts", "operationIntegrityGuard.ts", "uploadService.ts", "useProfileRanking.ts", "useTripsRealtime.ts", "AutomaticOperationsProvider.tsx", "useLocalOperationPending.ts", "operationalGoalAccess.ts", "CanonicalTripMigrationService.ts", "CanonicalTripCommandService.ts", "CanonicalTripOperationService.ts", "syncManager.ts", "tripModerationService.ts", "ProPendingAuthButton.tsx", "ProPendingRetryButton.tsx", "ProAttemptDiagnosticDetails.tsx", "FailedHistoryRegistrationRecovery.tsx", "OperationResultModal.tsx"]);
 const secondary = new Set(["VehiclesTab.tsx", "TrailersTab.tsx", "DriversTab.tsx", "ContractsTab.tsx", "RecruitmentTab.tsx", "GtoObserverSetup.tsx", "Reports.tsx"]);
 const bundle = await build({
   stdin: { resolveDir: root, sourcefile: "operation-info-ui.tsx", loader: "tsx", contents: `
 import React from "react";import {createRoot} from "react-dom/client";import {MemoryRouter,Routes,Route,useLocation,useNavigate} from "react-router-dom";
+import {CompanyPerformanceCard} from "./src/components/CompanyPerformanceCard";import {DriverPerformanceCard} from "./src/components/DriverPerformanceCard";
+const noTrips=()=>[];
+const companyCard=<div className="nvu-driver-workspace nvu-workspace-theme" style={{padding:16}}><CompanyPerformanceCard companyId="dc" allCompanies={[]} historicoTrips={[]} profilePresentation={{kind:"company",view:"summary",periodType:"mes",onPeriodChange(){},onScopeChange(){},viewerId:"driver",company:{id:"dc",companyName:"DC Transportes"} as any,canEdit:false,results:{getTrips:noTrips,loading:false}}}/></div>;
+const driverCard=<div className="nvu-driver-workspace nvu-workspace-theme" style={{padding:16}}><DriverPerformanceCard driverId="driver" activeCompanyId="dc" allCompanyMembers={[]} currentUser={{id:"driver",name:"David Canto"}} historicoTrips={[]} rankingScope="global" hideScopeSelector profilePresentation={{view:"summary",periodType:"mes",onPeriodChange(){},onScopeChange(){},viewerId:"driver",company:{id:"dc",name:"DC Transportes"},vehicle:null,results:{getTrips:noTrips,loading:false}}}/></div>;
 import AdminLayout from "./src/layouts/AdminLayout";import Fleet from "./src/pages/admin/Fleet";import DriverProfileReference from "./src/pages/admin/DriverProfileReference";
 import {WorkspaceScrollMemory} from "./src/components/common/WorkspaceScrollMemory";import {startProfileCoverSync} from "./src/services/profileCoverService";import {handleSafeAppBack} from "./src/lib/safeBackNavigation";window.__back=()=>handleSafeAppBack({canGoBack:true});
 startProfileCoverSync();
 function Probe(){const location=useLocation(),navigate=useNavigate();window.__route={pathname:location.pathname,state:location.state};window.__go=navigate;return null;}
-createRoot(document.getElementById("root")).render(<MemoryRouter initialEntries={[{pathname:"/admin/fleet",state:{activeTab:"operations"}}]}><Probe/><WorkspaceScrollMemory scope="qa:company"/><Routes><Route path="/admin" element={<AdminLayout/>}><Route path="fleet" element={<Fleet/>}/><Route path="driver/:id/perfil" element={<DriverProfileReference/>}/><Route path="*" element={<div>Destino</div>}/></Route><Route path="*" element={<div>Outra página</div>}/></Routes></MemoryRouter>);
+createRoot(document.getElementById("root")).render(<MemoryRouter initialEntries={[{pathname:"/admin/fleet",state:{activeTab:"operations"}}]}><Probe/><WorkspaceScrollMemory scope="qa:company"/><Routes><Route path="/admin" element={<AdminLayout/>}><Route path="fleet" element={<Fleet/>}/><Route path="driver/:id/perfil" element={<DriverProfileReference/>}/><Route path="*" element={<div>Destino</div>}/></Route><Route path="/qa-company-card" element={companyCard}/><Route path="/qa-driver-card" element={driverCard}/><Route path="*" element={<div>Outra página</div>}/></Routes></MemoryRouter>);
 ` },
   bundle: true, write: false, outfile: path.join(output, "fixture.js"), format: "iife", platform: "browser", jsx: "automatic", loader: { ".css": "empty" }, logLevel: "error",
   define: { "process.env.NODE_ENV": '"test"', "import.meta.env.BASE_URL": '"/"', "import.meta.env.PROD": "false", "import.meta.env.DEV": "false", "import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID": '""', __AVATAR__: JSON.stringify(avatar), __VEHICLE__: JSON.stringify(photo) },
@@ -335,6 +339,53 @@ try {
       if (viewport.width === 412) { await region.evaluate(node => { node.scrollTop = 0; }); await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await page.screenshot({ path: path.join(output, "perfil-resultados-expandido.png") }); }
       await toggle.click(); await tick(page);
       assert.equal(await toggle.getAttribute("aria-expanded"), "false"); assert.equal(await page.locator(".nvu-profile-results-scroll").count(), 0);
+      await context.close();
+    }
+  });
+
+  await check("Informações do perfil: Email e WhatsApp reais do motorista (consulta autorizada da empresa), 'Não informado' só quando não há dado", async () => {
+    const { context, page } = await openWindow({ width: 412, height: 915 });
+    await start(page);
+    await infoButton(page, "Iveco S Way").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Visualizar perfil" }).click();
+    await page.locator(".nvu-driver-reference").waitFor();
+    await page.getByRole("button", { name: "Informações do perfil", exact: true }).click();
+    const panel = page.locator(".nvu-driver-reference-info");
+    await panel.waitFor();
+    const text = await panel.innerText();
+    assert.match(text, /bruno\.lima@dctransportes\.test/); assert.match(text, /\+55 41 99999-0000/); assert.match(text, /DC Transportes/);
+    assert.doesNotMatch(text, /Não informado/);
+    const lookups = await page.evaluate(() => window.__contactLookups.at(-1));
+    assert.deepEqual(lookups, ["driver", "dc", ["bruno"]], "Asked as the signed-in manager, for this company and this driver only");
+    // a driver without contact data keeps the honest placeholder
+    await page.evaluate(() => window.__go(-1)); await page.getByTestId("management-dashboard").waitFor();
+    await page.evaluate(() => window.__mutate(o => { o.users = o.users.map(u => u.id === "ana" ? { ...u, email: "", whatsapp: "" } : u); }));
+    await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Visualizar perfil" }).click(); await page.locator(".nvu-driver-reference").waitFor();
+    await page.getByRole("button", { name: "Informações do perfil", exact: true }).click();
+    const other = await page.locator(".nvu-driver-reference-info").innerText();
+    assert.match(other, /Não informado/); assert.doesNotMatch(other, /bruno\.lima/);
+    await context.close();
+  });
+
+  await check("Resumo do perfil da empresa e do motorista: card Resultados recolhível abaixo do histórico de classificação", async () => {
+    for (const [path_, who] of [["/qa-company-card", "empresa"], ["/qa-driver-card", "motorista"]]) {
+      const { context, page } = await openWindow({ width: 412, height: 915 });
+      await start(page);
+      await page.evaluate(route => window.__go(route), path_);
+      await page.locator("[data-nvu-profile-results]").waitFor();
+      const order = await page.evaluate(() => [...document.querySelectorAll(".nvu-profile-ranking-layout > section")].map(node => node.getAttribute("aria-label") || node.querySelector("h3")?.textContent));
+      assert.equal(order.at(-1), "Resultados", `${who}: Resultados is the last card of the Resumo: ${JSON.stringify(order)}`);
+      assert.equal(order.at(-2), "Histórico de classificação", `${who}: right below the classification history`);
+      const toggle = page.locator("[data-nvu-profile-results] .nvu-profile-history-toggle");
+      assert.equal(await toggle.getAttribute("aria-expanded"), "false"); assert.equal(await page.locator(".nvu-profile-results-scroll").count(), 0);
+      await toggle.click();
+      const region = page.locator(".nvu-profile-results-scroll"); await region.waitFor();
+      const text = await region.innerText();
+      assert.match(text, /Semana/); assert.match(text, /Mês/); assert.match(text, /Ganhos no período/); assert.match(text, /Por dia/);
+      assert.doesNotMatch(text, /Relatórios/);
+      assert.equal(await region.evaluate(node => getComputedStyle(node).overflowY), "auto");
+      await toggle.click(); assert.equal(await page.locator(".nvu-profile-results-scroll").count(), 0);
       await context.close();
     }
   });

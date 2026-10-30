@@ -547,7 +547,7 @@ export default function Operations() {
                         <Button
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/admin/driver/${job.driverId}`, { state: { returnUrl: location.pathname, companyId: job.companyId } });
+                            navigate(`/admin/driver/${job.driverId}/perfil`, { state: { returnUrl: location.pathname, companyId: job.companyId } });
                           }}
                           className="flex-1 h-9 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft bg-white dark:bg-nvu-surface hover:bg-gray-50 dark:hover:bg-nvu-strip border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none rounded-xl"
                         >

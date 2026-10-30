@@ -23,6 +23,27 @@ try {
   assert((await page.getByRole("img", { name: "Nome Cadastro NVU", exact: true }).getAttribute("src"))?.startsWith("data:image/svg"));
   assert.equal(await page.getByText("Nome Google", { exact: true }).count(), 0);
   checks.push("Actual Teams card uses the form identity and never the provider avatar");
+  // The options of a team member are a modal (bottom sheet), not a popover that the card can clip; "Ver Perfil" opens the new profile page.
+  await page.getByRole("button", { name: "Ações de Nome Cadastro NVU" }).click();
+  const sheet = page.getByRole("dialog", { name: "Opções do motorista" });
+  await sheet.waitFor();
+  const labels = await sheet.getByRole("button").evaluateAll(nodes => nodes.map(node => node.textContent?.trim()).filter(Boolean));
+  for (const label of ["Ver Perfil", "Designar Trabalho", "Remover da Frota"]) assert(labels.includes(label), `Option ${label} in ${JSON.stringify(labels)}`);
+  assert.equal(await page.locator('[role="menu"]').count(), 0, "No clipped popover menu any more");
+  assert.equal(await page.evaluate(() => document.body.style.overflow), "hidden", "The page behind the modal does not scroll");
+  const box = await sheet.evaluate(node => { const r = node.getBoundingClientRect(); return { bottom: r.bottom, inner: innerHeight, left: r.left, right: r.right, width: innerWidth }; });
+  assert(Math.abs(box.bottom - box.inner) <= 1 && box.left >= 0 && box.right <= box.width, "Sheet anchored to the bottom, inside the screen: " + JSON.stringify(box));
+  if (process.env.NVU_TEAMS_SHOT) await page.screenshot({ path: process.env.NVU_TEAMS_SHOT });
+  await page.keyboard.press("Escape"); await sheet.waitFor({ state: "detached" });
+  assert.notEqual(await page.evaluate(() => document.body.style.overflow), "hidden", "Closing releases the page scroll");
+  await page.getByRole("button", { name: "Ações de Nome Cadastro NVU" }).click(); await sheet.waitFor();
+  await sheet.getByRole("button", { name: "Ver Perfil", exact: true }).click();
+  await sheet.waitFor({ state: "detached" });
+  await page.waitForFunction(() => /^\/admin\/driver\/[^/]+\/perfil$/.test(location.pathname));
+  assert.deepEqual(await page.evaluate(() => (history.state?.usr as any)?.returnState), { activeTab: "drivers" }, "Back returns to the Teams list");
+  checks.push("Team options are a modal with the member's actions; Ver Perfil opens /admin/driver/:id/perfil (the new profile page)");
+  await page.evaluate(() => history.back());
+  await page.getByRole("button", { name: "Ações de Nome Cadastro NVU" }).waitFor();
   await page.getByRole("button", { name: "Ações de Nome Cadastro NVU" }).click();
   await page.getByRole("button", { name: "Remover da Frota", exact: true }).click();
   await page.getByRole("dialog", { name: "Remover da frota" }).waitFor();

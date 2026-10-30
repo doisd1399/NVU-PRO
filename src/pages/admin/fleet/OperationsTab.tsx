@@ -299,7 +299,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     {requestsOpen && <ManagementDialog title="Solicitações de trabalho" onClose={() => setRequestsOpen(false)}><div className="nvu-central-dialog-body">
       {pendingDemands.map(demand => <div className="nvu-central-paint" key={demand.id}><h3>{formatDriverName(users.find(user => user.id === demand.driverId)?.name || "Motorista")}</h3><div className="nvu-central-dialog-actions">
         <button type="button" onClick={() => navigate("/admin/assign", { state: { preselectedDriverId: demand.driverId } })}>Encaminhar</button>
-        <button type="button" onClick={() => navigate(`/admin/driver/${demand.driverId}`, { state: { companyId: activeCompanyId, returnUrl: "/admin/fleet", returnState: { activeTab: "operations" } } })}>Perfil</button>
+        <button type="button" onClick={() => navigate(`/admin/driver/${demand.driverId}/perfil`, { state: { companyId: activeCompanyId, returnUrl: "/admin/fleet", returnState: { activeTab: "operations" } } })}>Perfil</button>
         <button type="button" data-danger="true" onClick={async () => { try { await rejectJobDemand(demand.id); } catch { setRequestError("Não foi possível recusar a solicitação."); } }}>Recusar</button>
       </div></div>)}{!pendingDemands.length && <p>Nenhuma solicitação pendente.</p>}{requestError && <p role="alert">{requestError}</p>}
     </div></ManagementDialog>}

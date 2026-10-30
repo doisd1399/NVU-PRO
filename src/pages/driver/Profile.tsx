@@ -8,7 +8,7 @@ import { assertWorkModeEntryAllowed, prefetchWorkModeAvailability } from "../../
 import { isWorkModeMaintenanceError } from "../../lib/workModeMaintenanceError";
 import { WorkModeMaintenanceDialog } from "../../components/WorkModeMaintenanceDialog";
 import { resolveDriverPhoto } from '../../lib/resolveDriverPhoto';
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
 import { useLandscapeFillHeight } from "../../hooks/useLandscapeFillHeight";
@@ -889,6 +889,10 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
           .map(trip => applySimulatorCurrencyContext(trip, companies, simulators))
       : [], [activeTab, visitedTabs, historicoTrips, companies, simulators]);
 
+  // Resultados card of the Resumo: the same trips as the Resultados page, computed only when the card is opened.
+  const getSummaryResultTrips = useCallback(() => filterAndSortTripHistory(historicoTrips, { periodPreset: "todos" })
+    .map(trip => applySimulatorCurrencyContext(trip, companies, simulators)), [historicoTrips, companies, simulators]);
+
   const renderWorkspaceHeading = () => (
     <>
       {activeTab === "profile" ? <DriverProfileToolbar view={profileView} onViewChange={setProfileView}
@@ -1045,6 +1049,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                     onPeriodChange: setProfilePeriodType,
                     onScopeChange: setProfileRankingScope,
                     viewerId: currentUser.id,
+                    results: { getTrips: getSummaryResultTrips, loading: driverTripsLoading },
                     company: currentActiveCompany ? {
                       id: currentActiveCompany.id,
                       name: currentActiveCompany.companyName || currentActiveCompany.name || currentActiveCompany.fleetName || "Empresa vinculada",

@@ -1,7 +1,9 @@
 import { readPrivateUser } from "../../../services/privateUserProfiles";
 import { CachedImage } from "../../../components/common/CachedImage";
 import { ModalPortal } from "../../../components/ui/ModalPortal";
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import { filterAndSortTripHistory } from "../../../lib/tripHistoryEngine";
+import { applySimulatorCurrencyContext } from "../../../lib/metricsEngine";
 import { createPortal } from "react-dom";
 import { useTripHistory } from "../../../hooks/useTripHistory";
 import { HistoryReadCoverageNotice } from "../../../components/common/HistoryReadCoverageNotice";
@@ -176,6 +178,9 @@ function CompanyTab({
     enabled: Boolean(activeCompanyId),
     userId: currentUser?.id,
   });
+  // Resultados card of the Resumo: the company's trips as the Resultados page counts them, computed only when it is opened.
+  const getCompanyResultTrips = useCallback(() => filterAndSortTripHistory(historicoTrips, { periodPreset: "todos" })
+    .map(trip => applySimulatorCurrencyContext(trip, allCompanies as Record<string, unknown>[], simulators as Record<string, unknown>[])), [historicoTrips, allCompanies, simulators]);
   const [internalIsEditing, setInternalIsEditing] = useState(false);
 
   useEffect(() => {
@@ -929,7 +934,8 @@ function CompanyTab({
       <CompanyPerformanceCard
           profilePresentation={{ kind: "company", view: profileView, periodType: profilePeriod, onPeriodChange: setProfilePeriod,
             onScopeChange: () => undefined, viewerId: currentUser?.id || "", company: activeCompany,
-            canEdit: canManageCompanyProfile(currentUser?.id || "", activeCompany, memberships, seniorCompanyId) }}
+            canEdit: canManageCompanyProfile(currentUser?.id || "", activeCompany, memberships, seniorCompanyId),
+            results: { getTrips: getCompanyResultTrips, loading: companyTripsLoading } }}
           historicoTrips={historicoTrips}
           companyId={activeCompanyId!}
           allCompanies={allCompanies}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Building2, Mail, Phone } from "lucide-react";
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
@@ -9,6 +9,7 @@ import { DriverProfileToolbar } from "../../components/driver/DriverProfileToolb
 import type { DriverProfileView } from "../../components/driver/DriverProfileSummary";
 import { DriverPerformanceCard } from "../../components/DriverPerformanceCard";
 import { useTripHistory } from "../../hooks/useTripHistory";
+import { useManagedDriverContacts } from "../../hooks/useManagedDriverContacts";
 import { filterAndSortTripHistory } from "../../lib/tripHistoryEngine";
 import { applySimulatorCurrencyContext } from "../../lib/metricsEngine";
 import { normalizeTrip } from "../../lib/tripNormalizer";
@@ -57,6 +58,8 @@ export default function DriverProfileReference() {
   });
   const company = (companyId && (allCompanies.find(item => item.id === companyId) || companies.find(item => item.id === companyId))) || null;
   const { historicoTrips = [], loading, coverage, error, readCoverage } = useTripHistory(companyId, { enabled: Boolean(companyId), userId: currentUser?.id });
+  // Email and WhatsApp are private: a manager of the driver's company reads them through the authorized callable, never from the public profile.
+  const contact = useManagedDriverContacts(currentUser?.id || "", companyId || "", driverId && companyId ? [driverId] : []).find(row => row.id === driverId);
   const level = useMemo(() => getDriverLevelData(driverId, jobs, contracts, historicoTrips), [driverId, jobs, contracts, historicoTrips]);
   const currentJob = useMemo(() => selectCurrentOperationJob(jobs, driverId, companyId), [jobs, driverId, companyId]);
   const vehicle = currentJob?.vehicleId ? vehicles.find(item => item.id === currentJob.vehicleId) : undefined;
@@ -64,7 +67,7 @@ export default function DriverProfileReference() {
   const vehiclePhoto = useVehiclePhoto(currentJob?.vehicleId && photoSimulatorId ? { userId: driverId, simulatorId: photoSimulatorId, vehicleId: String(currentJob.vehicleId), vehicleName: vehicle?.name } : null, companyId || "");
   const simulatorLabel = company ? resolveSimulatorDisplayLabel(company as any, simulators as any[], allCompanies as any[]) || "Simulador" : "Simulador";
   // Same figures as the driver's own Resultados page, computed from this driver's trips only.
-  const resultTrips = useMemo(() => filterAndSortTripHistory(historicoTrips.filter(trip => getCanonicalTripDriverId(normalizeTrip(trip as any)) === driverId), { periodPreset: "todos" })
+  const getResultTrips = useCallback(() => filterAndSortTripHistory(historicoTrips.filter(trip => getCanonicalTripDriverId(normalizeTrip(trip as any)) === driverId), { periodPreset: "todos" })
     .map(trip => applySimulatorCurrencyContext(trip, companies, simulators)), [historicoTrips, driverId, companies, simulators]);
   const goBack = () => { if (state.returnUrl) navigate(state.returnUrl, { state: state.returnState }); else navigate(-1); };
 
@@ -82,14 +85,14 @@ export default function DriverProfileReference() {
         <DriverProfileToolbar view={view} onViewChange={setView} infoOpen={infoOpen} onInfo={() => setInfoOpen(value => !value)} onEdit={() => undefined} canEdit={false} />
         <HistoryReadCoverageNotice coverage={coverage} hasError={Boolean(error)} error={error} readCoverage={readCoverage} />
         {infoOpen && <div className="nvu-driver-reference-info">
-          <div><Mail size={16} aria-hidden="true" /><span><small>Email</small>{driver.email || "Não informado"}</span></div>
-          <div><Phone size={16} aria-hidden="true" /><span><small>WhatsApp</small>{(driver as any).whatsapp || "Não informado"}</span></div>
+          <div><Mail size={16} aria-hidden="true" /><span><small>Email</small>{contact?.email || driver.email || "Não informado"}</span></div>
+          <div><Phone size={16} aria-hidden="true" /><span><small>WhatsApp</small>{contact?.whatsapp || (driver as any).whatsapp || "Não informado"}</span></div>
           {company && <div><Building2 size={16} aria-hidden="true" /><span><small>Empresa</small>{(company as any).companyName || "Empresa"}</span></div>}
         </div>}
         {companyId ? <DriverPerformanceCard
           rankingScope={scope} hideScopeSelector
           profilePresentation={{
-            view, periodType, onPeriodChange: setPeriodType, onScopeChange: setScope, viewerId: currentUser?.id || "", viewingOther: true, results: { trips: resultTrips, loading },
+            view, periodType, onPeriodChange: setPeriodType, onScopeChange: setScope, viewerId: currentUser?.id || "", viewingOther: true, results: { getTrips: getResultTrips, loading },
             company: company ? { id: String((company as any).id), name: (company as any).companyName || (company as any).name || "Empresa vinculada", logo: (company as any).logoUrl || (company as any).logoURL || (company as any).companyLogoURL } : null,
             companyLoading: false,
             vehicle: currentJob?.vehicleId ? { id: String(currentJob.vehicleId), name: vehicle?.name || "Veículo atual", photo: vehiclePhoto.src, onPhotoLoad: vehiclePhoto.onImageLoad, onPhotoError: vehiclePhoto.onImageError } : null,

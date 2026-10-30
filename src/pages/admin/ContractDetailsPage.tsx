@@ -509,7 +509,7 @@ export default function ContractDetailsPage() {
 
                         <div className="flex flex-col sm:flex-row items-center gap-2 pt-3 border-t border-gray-200 dark:border-nvu-line">
                           <Button
-                            onClick={() => navigate(`/admin/driver/${job.driverId}`, { state: { returnUrl: location.pathname, companyId: job.companyId } })}
+                            onClick={() => navigate(`/admin/driver/${job.driverId}/perfil`, { state: { returnUrl: location.pathname, companyId: job.companyId } })}
                             className="w-full sm:flex-1 h-9 text-[12px] font-semibold text-gray-700 dark:text-nvu-text-soft bg-white dark:bg-nvu-surface hover:bg-gray-50 dark:hover:bg-nvu-strip border border-gray-200 dark:border-nvu-line shadow-sm"
                           >
                             <User size={14} className="mr-1.5" /> Perfil
