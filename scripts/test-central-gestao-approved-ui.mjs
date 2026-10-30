@@ -132,7 +132,8 @@ try {
     assert.match(await page.locator(".nvu-central-earnings").innerText(),/141.682,00/);
     assert.equal(await page.locator(".nvu-central-trip-count").innerText(),"5");
     assert.equal(await page.locator(".nvu-central-operation-metrics strong").first().innerText(),"3/10");
-    assert.match(await page.locator(".nvu-central-operation-timing").innerText(),/22\/10\/2026/);
+    assert.match(await page.locator(".nvu-central-operation-timing").innerText(),/^Tempo restante:\s*\S/);
+    assert.doesNotMatch(await page.locator(".nvu-central-operation").first().innerText(),/Prazo limite|22\/10\/2026/,"The list shows the remaining time only, not the deadline date");
     assert.ok(await page.evaluate(()=>window.__photos.some(p=>p.userId==="driver"&&p.simulatorId==="gto"&&p.vehicleId==="iveco")));
     assert.equal(await page.getByRole("progressbar",{name:"Progresso de David Canto"}).getAttribute("aria-valuenow"),"30");
     assert.equal(await page.getByRole("button",{name:"Gerenciar empresa",exact:true}).count(),0);
@@ -439,7 +440,7 @@ try {
     const narrow=await read();
     assert(!narrow.flagged,JSON.stringify(narrow));
     assert(narrow.summary.top<narrow.actions.top&&narrow.actions.top<narrow.jobs.top&&Math.abs(narrow.jobs.left-narrow.summary.left)<=1&&narrow.rows.every(rowHeight=>rowHeight>250),"Portrait keeps the single column and the full cards: "+JSON.stringify(narrow));
-    assert(Math.abs((narrow.photo.right-narrow.photo.left)/narrow.photo.height-2.64)<=.03&&narrow.info.height>=32&&narrow.chip.height>=26,"Portrait keeps the approved photo, information button and period button: "+JSON.stringify(narrow));
+    assert(Math.abs((narrow.photo.right-narrow.photo.left)/narrow.photo.height-3.1)<=.03&&narrow.info.height>=28&&narrow.chip.height>=26,"Portrait keeps the approved photo, information button and period button: "+JSON.stringify(narrow));
     await page.evaluate(()=>window.__scenario({many:false}));
   });
   await check("Smartphone in landscape: one narrow scrolling column, summary and shortcuts in view, hint to the jobs",async()=>{

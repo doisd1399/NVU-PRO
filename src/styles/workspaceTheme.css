@@ -81,7 +81,7 @@ body .nvu-workspace-shell .nvu-native-main { min-height:0; }
 body .nvu-workspace-shell .nvu-central-stack { padding-bottom:12px; }
 body .nvu-workspace-shell :is(.nvu-driver-surface,.nvu-company-surface) { min-height:0; }
 body .nvu-workspace-shell .nvu-driver-page-heading[data-page="dashboard"] { text-align:center; }
-body .nvu-workspace-shell .nvu-central-jobs .nvu-central-section-toggle { padding:14px 12px 13px; align-items:center; }
+body .nvu-workspace-shell .nvu-central-jobs .nvu-central-section-toggle { padding:13px 14px 10px; align-items:center; }
 body .nvu-workspace-shell .nvu-central-jobs .nvu-central-subtitle { margin-top:5px; line-height:1.4; }
 .nvu-central-goal-feedback { display:flex; align-items:center; gap:8px 10px; margin-top:8px; }
 .nvu-central-goal-feedback > .nvu-central-goal-error { flex:1; min-width:0; margin:0; }

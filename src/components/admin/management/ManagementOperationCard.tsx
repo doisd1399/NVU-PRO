@@ -1,6 +1,6 @@
 import { useSessionStore } from "../../../context/AppContext";
 import React, { useEffect, useState } from "react";
-import { CalendarDays, Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
+import { Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
 import { StableImage } from "../../common/StableImage";
 import { useVehiclePhoto } from "../../../hooks/useVehiclePhoto";
 import { ManagementDialog } from "./ManagementDialog";
@@ -84,18 +84,17 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
       <div className="nvu-central-vehicle-name"><strong>{operation.vehicleName}</strong>{operation.showTrailer && <small>{operation.trailerName || "Sem reboque"}</small>}</div>
       <span className="nvu-central-operation-name" title={operation.name}>{operation.name}</span>
     </div>
-    <div className="nvu-central-operation-metrics">
-      <div><strong>{operation.completed}/{operation.required || "—"}</strong><span>Entregas</span></div>
-      <div><strong>{operation.required ? operation.remaining : "—"}</strong><span>Restantes</span></div>
-      <div><strong>{operation.progress}%</strong><span>Concluído</span></div>
+    <div className="nvu-central-operation-stats">
+      <div className="nvu-central-operation-metrics">
+        <div><strong>{operation.completed}/{operation.required || "—"}</strong><span>Entregas</span></div>
+        <div><strong>{operation.required ? operation.remaining : "—"}</strong><span>Restantes</span></div>
+        <div><strong>{operation.progress}%</strong><span>Concluído</span></div>
+      </div>
+      <div className="nvu-central-progress" role="progressbar" aria-label={`Progresso de ${operation.driverName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={operation.progress}>
+        <span style={{ width: `${operation.progress}%` }} />
+      </div>
     </div>
-    <div className="nvu-central-progress" role="progressbar" aria-label={`Progresso de ${operation.driverName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={operation.progress}>
-      <span style={{ width: `${operation.progress}%` }} />
-    </div>
-    <div className="nvu-central-operation-timing">
-      <div><CalendarDays size={18} strokeWidth={1.7} /><span><small>Prazo limite</small><strong>{operation.deadline}</strong></span></div>
-      <div><Clock3 size={18} strokeWidth={1.7} /><span><small>Tempo restante</small><strong data-warning={operation.timeRemaining !== "Não definido" || undefined}>{operation.timeRemaining}</strong></span></div>
-    </div>
+    <p className="nvu-central-operation-timing"><Clock3 size={16} strokeWidth={1.8} aria-hidden="true" /><span>Tempo restante:</span><strong data-warning={operation.timeRemaining !== "Não definido" || undefined}>{operation.timeRemaining}</strong></p>
     {paintsOpen && <PaintsDialog operation={operation} onClose={() => setPaintsOpen(false)} />}
   </article>;
 }

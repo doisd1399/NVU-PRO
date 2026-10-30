@@ -6,6 +6,7 @@
   --central-page: var(--nvu-page, #f5f8fa);
   --central-paper: var(--nvu-surface, #fff);
   --central-soft: var(--nvu-strip, #edf2f5);
+  --central-card: color-mix(in srgb, var(--central-paper) 55%, var(--central-soft));
   --central-highlight: var(--nvu-accent-soft, #e0f7fa);
   --central-line: var(--nvu-line, #dce5eb);
   --central-text: var(--nvu-text, #182332);
@@ -110,46 +111,53 @@ body .nvu-central-shell .nvu-admin-shell-content > main > div:first-child { padd
 .nvu-central-jobs-header { position: relative; }
 .nvu-central-title-count { display: flex; align-items: center; gap: 8px; }
 .nvu-central-count { display: grid; place-items: center; min-width: 26px; height: 20px; padding: 0 6px; border-radius: 7px; background: var(--central-line); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* The heading, counter, subtitle and collapse button are part of the same container that wraps the operations. */
+.nvu-central-jobs { border-radius: 18px; }
+.nvu-central-jobs h2 { font-size: 17px; }
+.nvu-central-jobs .nvu-central-subtitle { margin-top: 2px; font-size: 12px; }
+.nvu-central-jobs .nvu-central-count { height: 22px; min-width: 28px; font-size: 13px; }
+.nvu-central-jobs .nvu-central-disclosure-icon { width: 30px; height: 30px; flex-basis: 30px; }
 .nvu-central-jobs-filter { position: absolute; top: 29px; right: 48px; }
 .nvu-central-jobs-filter > button.nvu-modal-select { display: grid; place-items: center; width: 23px; height: 23px; min-height: 0; padding: 2px; border: 0; border-radius: 6px; color: var(--central-muted); background: transparent; box-shadow: none; }
 .nvu-central-jobs-filter .nvu-modal-select-label { display: none; }
 .nvu-central-jobs-filter[data-active="true"] > button.nvu-modal-select { color: var(--central-accent); background: var(--central-highlight); }
-.nvu-central-job-list { padding: 0 10px 8px; }
-.nvu-central-operation + .nvu-central-operation { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--central-line); }
-.nvu-central-driver-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 36px; padding: 0 1px 3px; border-top: 1px solid var(--central-line); }
-.nvu-central-driver { display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0; padding: 3px 0 0; }
-.nvu-central-avatar { display: inline-flex; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: var(--central-soft); font-size: 11px; }
+.nvu-central-job-list { display: flex; flex-direction: column; gap: 10px; padding: 0 10px 10px; }
+/* One card per operation on the surface of the "Trabalhos ativos" container: own background and rounded corners,
+   no horizontal or vertical divider lines; the spacing between cards is the gap of the list. */
+.nvu-central-operation { display: flex; flex-direction: column; gap: 9px; padding: 14px; border-radius: 16px; background: var(--central-card); }
+.nvu-central-driver-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
+.nvu-central-driver { display: flex; align-items: center; gap: 10px; text-align: left; min-width: 0; }
+.nvu-central-avatar { display: inline-flex; width: 30px; height: 30px; flex-shrink: 0; overflow: hidden; border-radius: 50%; background: var(--central-soft); font-size: 11px; }
 .nvu-central-avatar > span { display: grid; place-items: center; }
-.nvu-central-driver > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; letter-spacing: -.025em; }
-.nvu-central-job-status { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; font-size: 10px; color: var(--central-accent); }
+.nvu-central-driver > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 700; letter-spacing: -.02em; }
+.nvu-central-job-status { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; padding: 3px 10px; border: 1px solid color-mix(in srgb, currentColor 40%, transparent); border-radius: 999px; background: color-mix(in srgb, currentColor 12%, transparent); font-size: 11px; line-height: 1.2; color: var(--central-accent); }
 .nvu-central-job-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .nvu-central-job-status[data-state="overdue"] { color: var(--central-warning); }
 .nvu-central-job-status[data-state="pending"] { color: var(--central-muted); }
-.nvu-central-vehicle-photo { position: relative; aspect-ratio: 2.64; overflow: hidden; border-radius: 12px 12px 0 0; background: var(--central-soft); }
+.nvu-central-vehicle-photo { position: relative; aspect-ratio: 3.1; overflow: hidden; border-radius: 12px; background: var(--central-soft); }
 .nvu-central-photo-frame { width: 100%; height: 100%; }
 .nvu-central-photo-frame img { width: 100%; height: 100%; object-fit: cover; }
 .nvu-central-photo-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; width: 100%; height: 100%; color: var(--central-muted); font-size: 11px; }
-.nvu-central-operation-info { display: grid; place-items: center; position: absolute; top: 5px; right: 5px; width: 34px; height: 34px; color: #fff; border-radius: 50%; background: #1020208c; }
-.nvu-central-vehicle-line { display: flex; align-items: center; gap: 12px; padding: 5px 6px; min-height: 32px; border-bottom: 1px solid var(--central-line); }
-.nvu-central-paint-button { display: grid; place-items: center; flex-shrink: 0; width: 24px; height: 24px; border-radius: 6px; color: #617181; background: var(--central-soft); }
+.nvu-central-operation-info { display: grid; place-items: center; position: absolute; top: 7px; right: 7px; width: 30px; height: 30px; color: #fff; border-radius: 50%; background: #1020208c; }
+.nvu-central-vehicle-line { display: flex; align-items: center; gap: 10px; min-height: 34px; }
+.nvu-central-paint-button { display: grid; place-items: center; flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; color: #617181; background: var(--central-soft); }
 .dark .nvu-central-paint-button { color: var(--central-muted); }
 .nvu-central-vehicle-name { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.nvu-central-vehicle-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 600; line-height: 1.25; }
-.nvu-central-vehicle-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--central-muted); font-size: 9px; line-height: 1.3; }
-.nvu-central-operation-name { flex-shrink: 0; max-width: 36%; padding-left: 12px; border-left: 1px solid var(--central-line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.4; font-weight: 600; }
-.nvu-central-operation-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 5px 0 6px; }
-.nvu-central-operation-metrics > div { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; }
-.nvu-central-operation-metrics > div + div::before { content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 1px; background: var(--central-line); }
-.nvu-central-operation-metrics strong { font-size: 12px; line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; }
-.nvu-central-operation-metrics span { font-size: 9px; color: var(--central-muted); line-height: 1.3; }
-.nvu-central-operation > .nvu-central-progress { margin: 0 7px 7px; height: 6px; }
-.nvu-central-operation-timing { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid var(--central-line); padding: 5px 7px 0; }
-.nvu-central-operation-timing > div { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.nvu-central-operation-timing > div + div { border-left: 1px solid var(--central-line); padding-left: 20px; }
-.nvu-central-operation-timing svg { flex-shrink: 0; color: var(--central-muted); }
-.nvu-central-operation-timing span { min-width: 0; }
-.nvu-central-operation-timing small { display: block; color: var(--central-muted); font-size: 9px; line-height: 1.2; }
-.nvu-central-operation-timing strong { display: block; font-size: 10px; line-height: 1.35; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nvu-central-vehicle-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; }
+.nvu-central-vehicle-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--central-muted); font-size: 11.5px; line-height: 1.3; }
+.nvu-central-operation-name { flex-shrink: 0; max-width: 40%; padding: 6px 12px; border-radius: 10px; background: var(--central-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; line-height: 1.2; font-weight: 700; }
+/* Deliveries, remaining and completed share one inner card with the progress bar; three columns, no dividers. */
+.nvu-central-operation-stats { display: flex; flex-direction: column; gap: 8px; padding: 10px 14px 12px; border-radius: 12px; background: var(--central-soft); }
+.nvu-central-operation-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.nvu-central-operation-metrics > div { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
+.nvu-central-operation-metrics strong { font-size: 15px; line-height: 1.15; font-weight: 700; font-variant-numeric: tabular-nums; }
+.nvu-central-operation-metrics span { font-size: 11.5px; color: var(--central-text); line-height: 1.3; }
+.nvu-central-operation-stats > .nvu-central-progress { height: 6px; background: color-mix(in srgb, var(--central-text) 12%, transparent); }
+/* A single compact line under the metrics; the deadline itself stays in the data, only the date column is gone. */
+.nvu-central-operation-timing { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 6px; margin: 0; font-size: 11.5px; line-height: 1.3; }
+.nvu-central-operation-timing svg { flex-shrink: 0; width: 14px; height: 14px; color: var(--central-muted); }
+.nvu-central-operation-timing span { color: var(--central-muted); white-space: nowrap; }
+.nvu-central-operation-timing strong { font-size: 13px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--central-muted); }
 .nvu-central-operation-timing strong[data-warning="true"] { color: var(--central-warning); }
 .nvu-central-empty { padding: 18px 6px; text-align: center; color: var(--central-muted); font-size: 12px; }
 .nvu-central-sync-status { margin: 0; color: var(--central-muted); font-size: 11px; text-align: center; }
@@ -187,8 +195,9 @@ body .nvu-central-shell .nvu-admin-shell-content > main > div:first-child { padd
   .nvu-central-earnings strong { font-size: 17px; }
   .nvu-central-goal-values > strong { font-size: 16px; }
   .nvu-central-goal-values > span { font-size: 10px; }
-  .nvu-central-operation-timing > div { gap: 6px; }
-  .nvu-central-operation-timing > div + div { padding-left: 9px; }
+  .nvu-central-operation { padding: 14px; }
+  .nvu-central-operation-stats { padding: 9px 10px 11px; }
+  .nvu-central-operation-timing strong { font-size: 12.5px; }
   .nvu-central-job-status { font-size: 9px; }
 }
 @media (min-width: 768px) {
@@ -312,54 +321,52 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 .nvu-landscape-central .nvu-central-job-list::-webkit-scrollbar-thumb,
 .nvu-landscape-central .nvu-central-action-list::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--central-line); }
 
-/* One compact row per operation: photo on the left, everything else in five short lines. */
+/* One compact row per operation: photo on the left, the card of figures and the time line on the right. */
 .nvu-landscape-central .nvu-central-operation,
 .nvu-landscape-central .nvu-central-operation + .nvu-central-operation {
   display: grid;
   grid-template-columns: clamp(112px, 34%, 176px) minmax(0, 1fr);
-  grid-template-areas: "photo driver" "photo vehicle" "photo metrics" "photo progress" "photo timing";
-  grid-template-rows: repeat(5, auto);
-  column-gap: 12px;
+  grid-template-areas: "photo driver" "photo vehicle" "photo stats" "photo timing";
+  grid-template-rows: repeat(4, auto);
+  column-gap: 14px;
   row-gap: 3px;
   flex: none;
   margin: 0;
-  padding: 8px;
-  border: 1px solid var(--central-line);
-  border-radius: 12px;
+  padding: 9px 10px;
+  border-radius: 14px;
 }
-.nvu-landscape-central .nvu-central-driver-row { grid-area: driver; min-height: 0; padding: 0; border-top: 0; }
+.nvu-landscape-central .nvu-central-driver-row { grid-area: driver; min-height: 0; padding: 0; }
 .nvu-landscape-central .nvu-central-driver { gap: 8px; padding: 0; }
 .nvu-landscape-central .nvu-central-avatar { width: 24px; height: 24px; font-size: 10px; }
-.nvu-landscape-central .nvu-central-job-status { font-size: 10.5px; }
-/* The vehicle photo is a 16:9 rectangle, centered beside the five lines. */
-.nvu-landscape-central .nvu-central-vehicle-photo { grid-area: photo; align-self: center; aspect-ratio: 16 / 9; min-height: 0; border-radius: 9px; }
+.nvu-landscape-central .nvu-central-driver > strong { font-size: 13px; }
+.nvu-landscape-central .nvu-central-job-status { padding: 3px 9px; font-size: 10.5px; }
+.nvu-landscape-central .nvu-central-job-status i { width: 7px; height: 7px; }
+/* The vehicle photo is a 16:9 rectangle, centered beside the lines. */
+.nvu-landscape-central .nvu-central-vehicle-photo { grid-area: photo; align-self: center; aspect-ratio: 16 / 9; min-height: 0; border-radius: 10px; }
 .nvu-landscape-central .nvu-central-photo-frame { position: absolute; inset: 0; width: auto; height: auto; }
 .nvu-landscape-central .nvu-central-photo-empty { gap: 4px; padding: 6px; text-align: center; font-size: 10px; }
 .nvu-landscape-central .nvu-central-photo-empty svg { width: 24px; height: 24px; }
 .nvu-landscape-central .nvu-central-operation-info { top: 4px; right: 4px; width: 20px; height: 20px; }
 .nvu-landscape-central .nvu-central-operation-info > svg { width: 12px; height: 12px; }
-.nvu-landscape-central .nvu-central-vehicle-line { grid-area: vehicle; gap: 8px; min-height: 0; padding: 0; border-bottom: 0; }
-.nvu-landscape-central .nvu-central-paint-button { width: 22px; height: 22px; }
-.nvu-landscape-central .nvu-central-paint-button > svg { width: 15px; height: 15px; }
+.nvu-landscape-central .nvu-central-vehicle-line { grid-area: vehicle; gap: 8px; min-height: 0; padding: 0; }
+.nvu-landscape-central .nvu-central-paint-button { width: 26px; height: 26px; border-radius: 8px; }
+.nvu-landscape-central .nvu-central-paint-button > svg { width: 16px; height: 16px; }
 .nvu-landscape-central .nvu-central-vehicle-name { flex-direction: row; align-items: baseline; gap: 6px; }
-.nvu-landscape-central .nvu-central-vehicle-name strong { flex: 0 0 auto; max-width: 70%; }
-.nvu-landscape-central .nvu-central-vehicle-name small { flex: 1 1 0; min-width: 0; font-size: 10px; }
-.nvu-landscape-central .nvu-central-operation-name { max-width: 34%; padding-left: 8px; }
-.nvu-landscape-central .nvu-central-operation-metrics { grid-area: metrics; padding: 0; }
-.nvu-landscape-central .nvu-central-operation-metrics > div { flex-direction: row; align-items: baseline; justify-content: center; gap: 4px; }
-.nvu-landscape-central .nvu-central-operation-metrics > div + div::before { top: 1px; bottom: 1px; }
-.nvu-landscape-central .nvu-central-operation-metrics strong { font-size: 12.5px; }
-.nvu-landscape-central .nvu-central-operation-metrics span { font-size: 10px; }
-.nvu-landscape-central .nvu-central-operation > .nvu-central-progress { grid-area: progress; align-self: center; margin: 0; height: 4px; }
-.nvu-landscape-central .nvu-central-operation-timing { grid-area: timing; gap: 6px; padding: 2px 0 0; border-top: 0; }
-.nvu-landscape-central .nvu-central-operation-timing > div { gap: 6px; }
-.nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 10px; }
-.nvu-landscape-central .nvu-central-operation-timing svg { width: 15px; height: 15px; }
+.nvu-landscape-central .nvu-central-vehicle-name strong { flex: 0 0 auto; max-width: 70%; font-size: 13px; }
+.nvu-landscape-central .nvu-central-vehicle-name small { flex: 1 1 0; min-width: 0; font-size: 11px; }
+.nvu-landscape-central .nvu-central-operation-name { max-width: 34%; padding: 5px 9px; font-size: 12px; }
+.nvu-landscape-central .nvu-central-operation-stats { grid-area: stats; gap: 4px; padding: 5px 12px 7px; border-radius: 11px; }
+.nvu-landscape-central .nvu-central-operation-metrics > div { flex-direction: row; align-items: baseline; justify-content: center; gap: 5px; }
+.nvu-landscape-central .nvu-central-operation-metrics strong { font-size: 14px; }
+.nvu-landscape-central .nvu-central-operation-metrics span { font-size: 11px; }
+.nvu-landscape-central .nvu-central-operation-stats > .nvu-central-progress { height: 5px; }
+.nvu-landscape-central .nvu-central-operation-timing { grid-area: timing; flex-wrap: nowrap; gap: 0 6px; font-size: 11px; }
+.nvu-landscape-central .nvu-central-operation-timing svg { width: 14px; height: 14px; }
+.nvu-landscape-central .nvu-central-operation-timing strong { font-size: 12.5px; }
 
 /* Narrow job list (smaller windows): stacked indicators, tighter columns; measured on the list itself. */
 @container central-jobs (max-width: 440px) {
   .nvu-landscape-central .nvu-central-operation-metrics > div { flex-direction: column; gap: 0; }
-  .nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 8px; }
   .nvu-landscape-central .nvu-central-operation,
   .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { column-gap: 10px; }
 }
@@ -476,13 +483,11 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
   .nvu-landscape-central .nvu-central-operation-name { font-size: 10.5px; padding-left: 6px; }
   .nvu-landscape-central .nvu-central-operation-metrics strong { font-size: 11.5px; }
   .nvu-landscape-central .nvu-central-operation-metrics span { font-size: 9px; }
-  .nvu-landscape-central .nvu-central-operation-timing { grid-template-columns: auto auto; justify-content: space-between; gap: 4px; padding-top: 0; }
-  .nvu-landscape-central .nvu-central-operation-timing > div { gap: 4px; }
-  .nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 8px; }
-  .nvu-landscape-central .nvu-central-operation-timing svg { width: 12px; height: 12px; }
-  .nvu-landscape-central .nvu-central-operation-timing > div > span { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
-  .nvu-landscape-central .nvu-central-operation-timing small { font-size: 9px; }
-  .nvu-landscape-central .nvu-central-operation-timing strong { font-size: 10px; line-height: 1.2; }
+  .nvu-landscape-central .nvu-central-operation-stats { gap: 5px; padding: 6px 8px 7px; border-radius: 9px; }
+  .nvu-landscape-central .nvu-central-operation-stats > .nvu-central-progress { height: 4px; }
+  .nvu-landscape-central .nvu-central-operation-timing { gap: 0 4px; font-size: 9.5px; }
+  .nvu-landscape-central .nvu-central-operation-timing svg { width: 11px; height: 11px; }
+  .nvu-landscape-central .nvu-central-operation-timing strong { font-size: 10.5px; line-height: 1.2; }
   .nvu-landscape-central .nvu-central-photo-empty { font-size: 9px; gap: 2px; }
   .nvu-landscape-central .nvu-central-photo-empty svg { width: 20px; height: 20px; }
   .nvu-landscape-central .nvu-central-operation-info { top: 3px; right: 3px; width: 18px; height: 18px; }

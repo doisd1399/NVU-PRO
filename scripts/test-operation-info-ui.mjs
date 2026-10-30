@@ -49,8 +49,8 @@ const errors = [], outbound = [], results = [];
 async function check(name, run) { await run(); results.push({ name, pass: true }); console.log("PASS " + name); }
 
 
-async function openWindow(viewport, { mobile = true } = {}) {
-  const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, timezoneId: "America/Sao_Paulo" });
+async function openWindow(viewport, { mobile = true, userAgent } = {}) {
+  const context = await browser.newContext({ viewport, isMobile: mobile, ...(userAgent ? { userAgent } : {}), hasTouch: mobile, deviceScaleFactor: 1, timezoneId: "America/Sao_Paulo" });
   await context.route("**/*", async route => {
     const url = new URL(route.request().url());
     if (url.hostname === "cover-qa.test") return route.fulfill({ body: vehicleBytes, contentType: "image/jpeg", headers: { "access-control-allow-origin": "*" } });
@@ -155,6 +155,94 @@ try {
     await page.waitForFunction(() => window.__route.pathname === "/admin/driver/ana/perfil");
     assert.equal(await page.locator(".nvu-cover-copy h2").innerText(), "Ana Souza");
     await context.close();
+  });
+
+  await check("Cards de operações: container único com cabeçalho, cartões individuais sem divisórias, card de métricas e uma linha de tempo restante", async () => {
+    for (const [theme, viewport, file] of [["dark", { width: 412, height: 915 }, "cards-dark-412.png"], ["light", { width: 390, height: 844 }, "cards-light-390.png"], ["dark", { width: 360, height: 740 }, "cards-dark-360.png"]]) {
+      const { context, page } = await openWindow(viewport);
+      await start(page, theme);
+      await page.locator(".nvu-central-jobs").scrollIntoViewIfNeeded();
+      const m = await page.evaluate(() => {
+        const rect = n => { const r = n.getBoundingClientRect(); return { l: r.left, r2: r.right, t: r.top, b: r.bottom, w: r.width, h: r.height }; };
+        const jobs = document.querySelector(".nvu-central-jobs"), head = jobs.querySelector(".nvu-central-jobs-header"), cards = [...jobs.querySelectorAll(".nvu-central-operation")];
+        const cs = n => getComputedStyle(n);
+        const lines = n => [...[n, ...n.querySelectorAll("*")]].filter(x => ["Top", "Right", "Bottom", "Left"].some(side => parseFloat(cs(x)["border" + side + "Width"]) > 0 && cs(x)["border" + side + "Style"] !== "none" && x.tagName !== "BUTTON" && !x.classList.contains("nvu-central-job-status") && !x.closest("button")));
+        return {
+          headInside: jobs.contains(head) && jobs.contains(head.querySelector("h2")) && jobs.contains(head.querySelector(".nvu-central-count")) && jobs.contains(head.querySelector(".nvu-central-subtitle")) && jobs.contains(head.querySelector("button[aria-expanded]")),
+          count: head.querySelector(".nvu-central-count").textContent, headText: head.innerText.replace(/\s+/g, " "),
+          cards: cards.map(card => {
+            const stats = card.querySelector(".nvu-central-operation-stats"), timing = card.querySelector(".nvu-central-operation-timing"), metrics = card.querySelector(".nvu-central-operation-metrics"), r = rect(card), tr = rect(timing), sr = rect(stats);
+            const pad = cs(card);
+            const lh = parseFloat(cs(timing.querySelector("strong")).lineHeight) || 20;
+            return { bg: cs(card).backgroundColor, radius: cs(card).borderTopLeftRadius, pad: [pad.paddingTop, pad.paddingRight, pad.paddingBottom, pad.paddingLeft], lines: lines(card).map(x => x.className), statsBg: cs(stats).backgroundColor, statsHasProgress: !!stats.querySelector("[role=progressbar]"), metricsCols: getComputedStyle(metrics).gridTemplateColumns.split(" ").length, text: card.innerText.replace(/\s+/g, " "), timingH: tr.h, timingLines: Math.round(tr.h / lh), timingCentered: Math.abs((tr.l + tr.r2) / 2 - (r.l + r.r2) / 2) < 3, timingBelowStats: tr.t >= sr.b - 1, timingColors: [cs(timing.querySelector("span")).color, cs(timing.querySelector("strong")).color], cardBottom: r.b, cardTop: r.t, overflow: card.scrollWidth > card.clientWidth + 1 };
+          }), jobsBg: cs(jobs).backgroundColor, scrollW: document.documentElement.scrollWidth, width: innerWidth,
+        };
+      });
+      const label = theme + " " + viewport.width + " " + JSON.stringify(m).slice(0, 900);
+      assert(m.headInside, "Title, counter, subtitle and collapse button live in the container of the operations: " + label);
+      assert.match(m.headText, /Trabalhos ativos\s*\d+\s*Operações em andamento/);
+      assert(m.cards.length >= 2 && m.scrollW <= m.width, "Cards render without page overflow: " + label);
+      for (const [i, card] of m.cards.entries()) {
+        assert.notEqual(card.bg, m.jobsBg, "Each operation has a background of its own");
+        assert(parseFloat(card.radius) >= 14, "Rounded card: " + card.radius);
+        assert(card.pad.every(v => parseFloat(v) >= 14 && parseFloat(v) <= 20), "Inner breathing room of 16px: " + card.pad);
+        assert.deepEqual(card.lines, [], "No divider lines inside card " + i);
+        assert(card.statsHasProgress && card.metricsCols === 3 && card.statsBg !== card.bg, "Metrics card with three columns and the progress bar inside: " + label);
+        assert.doesNotMatch(card.text, /Prazo limite|\d{2}\/\d{2}\/\d{4}/, "No deadline label/date in the list");
+        assert.match(card.text, /Entregas/); assert.match(card.text, /Restantes/); assert.match(card.text, /Concluído/);
+        assert.match(card.text, /Tempo restante:\s*(\d+d · \d+h · \d+min|Prazo vencido|Não definido)$/, "Single remaining time line: " + card.text);
+        assert(card.timingLines === 1 && card.timingCentered && card.timingBelowStats, "One centered line below the metrics: " + JSON.stringify(card));
+        if (i > 0) assert(card.cardTop - m.cards[i - 1].cardBottom >= 8, "Space between the cards");
+      }
+      const overdue = m.cards.find(card => /Prazo vencido/.test(card.text));
+      assert(overdue, "An overdue operation shows 'Tempo restante: Prazo vencido'");
+      assert.equal(overdue.timingColors[1], theme === "dark" ? "rgb(255, 136, 0)" : "rgb(184, 102, 13)", "Overdue/remaining value in the warning orange");
+      await page.evaluate(() => window.scrollTo(0, document.querySelector(".nvu-central-jobs").getBoundingClientRect().top + scrollY - 56));
+      await page.screenshot({ path: path.join(output, file) });
+      await context.close();
+    }
+    for (const [viewport, file, mobile] of [[{ width: 844, height: 390 }, "cards-landscape-phone-844.png", true], [{ width: 1280, height: 800 }, "cards-landscape-desktop-1280.png", false], [{ width: 820, height: 1180 }, "cards-tablet-portrait.png", true]]) {
+      const { context, page } = await openWindow(viewport, { mobile });
+      await start(page);
+      const cards = await page.locator(".nvu-central-operation").evaluateAll(nodes => nodes.map(node => { const text = node.innerText.replace(/\s+/g, " "); return { overflow: node.scrollWidth > node.clientWidth + 1, deadline: /Prazo limite/.test(text), time: /Tempo restante:/.test(text), lines: node.querySelector(".nvu-central-operation-timing").getBoundingClientRect().height }; }));
+      assert(cards.length >= 2 && cards.every(card => !card.overflow && !card.deadline && card.time && card.lines < 30), file + " " + JSON.stringify(cards));
+      await page.screenshot({ path: path.join(output, file) });
+      await context.close();
+    }
+  });
+
+  await check("Perfil aberto com a lista rolada: topo da página, sem rolagem herdada nem bloqueios residuais; Voltar restaura a lista", async () => {
+    const androidAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
+    for (const viewport of [{ width: 390, height: 640 }, { width: 844, height: 390 }, { width: 1280, height: 720 }, { width: 412, height: 700, android: true }, { width: 915, height: 412, android: true }]) {
+      const { context, page } = await openWindow(viewport, { mobile: viewport.width < 1000, userAgent: viewport.android ? androidAgent : undefined });
+      await start(page);
+      const target = page.locator(".nvu-central-operation").last();
+      await target.scrollIntoViewIfNeeded();
+      const before = await page.evaluate(() => window.scrollY);
+      if (viewport.width < 1000) assert(before > 120, "The list was scrolled before opening: " + before + " " + JSON.stringify(viewport)); // the desktop center fits the window and cannot scroll
+      await infoButton(page, "Iveco S Way").click(); await sheet(page).waitFor();
+      await page.getByRole("button", { name: "Visualizar perfil" }).click();
+      await page.locator(".nvu-driver-reference").waitFor();
+      await tick(page); await tick(page);
+      const m = await page.evaluate(() => {
+        const cover = document.querySelector(".nvu-cover-hero")?.getBoundingClientRect(), header = document.querySelector("header")?.getBoundingClientRect();
+        return { scrollY: window.scrollY, coverTop: cover?.top, headerBottom: header?.bottom, bodyOverflow: document.body.style.overflow, htmlOverflow: document.documentElement.style.overflow, backdrops: document.querySelectorAll(".nvu-central-backdrop,.nvu-central-scrim,[data-nvu-modal-backdrop]").length, dialogs: document.querySelectorAll("[role=dialog]").length, name: document.querySelector(".nvu-cover-copy h2")?.getBoundingClientRect().top };
+      });
+      const label = JSON.stringify(viewport) + " " + JSON.stringify(m);
+      assert.equal(m.scrollY, 0, "Profile opens at the top: " + label);
+      assert(m.coverTop >= (m.headerBottom || 0) - 1, "Cover below the header: " + label);
+      assert(m.name > 0 && m.name < viewport.height, "Name visible: " + label);
+      assert.notEqual(m.bodyOverflow, "hidden", "No scroll lock left behind: " + label);
+      assert.equal(m.dialogs, 0, "No dialog left: " + label);
+      await page.evaluate(() => window.scrollTo(0, 300));
+      assert((await page.evaluate(() => window.scrollY)) > 0, "The profile scrolls: " + label);
+      await page.getByRole("button", { name: "Voltar", exact: true }).click();
+      await page.waitForFunction(() => window.__route.pathname === "/admin/fleet");
+      await page.getByTestId("management-dashboard").waitFor(); await tick(page); await tick(page);
+      const back = await page.evaluate(() => window.scrollY);
+      assert(Math.abs(back - before) <= 2, `List position restored (${before} -> ${back}): ` + label);
+      await context.close();
+    }
   });
 
   await check("Viagens da operação: only the trips of the selected job, newest first, fixed header and its own scroll", async () => {

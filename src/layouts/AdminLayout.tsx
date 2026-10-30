@@ -581,7 +581,7 @@ export default function AdminLayout() {
       {/* Main wrapper starts below the header */}
       <div className={cn(
         "nvu-admin-shell-content flex-1 flex pt-11 md:pt-12 max-w-full relative",
-        nativeAndroid && isAdminCompanyRoute && "nvu-admin-company-content",
+        (nativeAndroid && isAdminCompanyRoute || isDriverProfileViewRoute) && "nvu-admin-company-content",
       )}>
         <GlobalMenu
           profile="company"
