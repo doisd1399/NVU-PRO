@@ -1,4 +1,4 @@
-import React, { useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarDays, ChevronDown, ClipboardPaste, Headset, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
 import { ManagementOperationCard, type ManagementOperation } from "./ManagementOperationCard";
 import "./ManagementDashboard.css";
@@ -48,6 +48,16 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
 }) {
   const id = useId();
   const [jobsOpen, setJobsOpen] = useState(true);
+  // Smartphones in landscape show one scrolling column: a hint announces the jobs card until it comes into view.
+  const jobsRef = useRef<HTMLElement>(null);
+  const [jobsBelow, setJobsBelow] = useState(false);
+  useEffect(() => {
+    const node = jobsRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setJobsBelow(!entry.isIntersecting), { rootMargin: "0px 0px -110px 0px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
   const disclosure = (open: boolean) => <span className="nvu-central-disclosure-icon" data-expanded={open}><ChevronDown size={19} strokeWidth={2.2} aria-hidden="true" /></span>;
   return <div className="nvu-central-dashboard" data-testid="management-dashboard">
     <section className="nvu-central-section nvu-central-summary" aria-labelledby={`${id}-summary`}>
@@ -80,7 +90,7 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
         </button>)}
       </div>
     </section>
-    <section className="nvu-central-section nvu-central-jobs" aria-labelledby={`${id}-jobs`}>
+    <section ref={jobsRef} className="nvu-central-section nvu-central-jobs" aria-labelledby={`${id}-jobs`}>
       <div className="nvu-central-jobs-header">
         <button type="button" className="nvu-central-section-toggle" aria-expanded={jobsOpen} aria-controls={`${id}-jobs-body`} onClick={() => setJobsOpen(!jobsOpen)}>
           <span><span className="nvu-central-title-count"><h2 id={`${id}-jobs`}>Trabalhos ativos</h2><span className="nvu-central-count">{totalOperations}</span></span><span className="nvu-central-subtitle">Operações em andamento</span></span>{disclosure(jobsOpen)}
@@ -92,6 +102,7 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
           : <p className="nvu-central-empty" role="status">{loading ? "Carregando trabalhos…" : "Nenhum trabalho ativo."}</p>}
       </div>}
     </section>
+    {active && jobsBelow && <div className="nvu-central-more-hint"><button type="button" onClick={() => jobsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>Trabalhos ativos · deslize para ver<ChevronDown size={14} strokeWidth={2.4} aria-hidden="true" /></button></div>}
     {(loading || refreshing) && <p role="status" className="nvu-central-sync-status">Atualizando dados da empresa…</p>}
   </div>;
 }

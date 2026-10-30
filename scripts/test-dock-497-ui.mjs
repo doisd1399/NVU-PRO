@@ -106,7 +106,7 @@ try{
   });
  }
  const railRoutes=[['/admin/reports'],['/admin/history'],['/admin/news'],['/driver/reports'],['/driver/profile'],['/driver/news'],['/ranking',{state:{workspaceDockRole:'admin'}}]];
- for(const [width,height] of [[1100,700],[1180,820],[1280,867],[1366,768],[1911,947],[1200,260]])await check('Uma única dock lateral centralizada em todas as páginas '+width+'x'+height,async()=>{
+ for(const [width,height] of [[1100,700],[1180,820],[1280,867],[1366,768],[1911,947]])await check('Uma única dock lateral centralizada em todas as páginas '+width+'x'+height,async()=>{
   await page.setViewportSize({width,height});await page.evaluate(()=>document.documentElement.style.setProperty('--nvu-workspace-dock-safe-bottom','0px'));
   const seen=[];
   for(const [route,options] of railRoutes){
@@ -118,7 +118,16 @@ try{
   assert.equal(new Set(seen).size,1,'The dock must have one size and position on every page: '+seen.join(' | '));
  });
  await check('Dock lateral só aparece em janelas horizontais largas: retrato e telas menores mantêm a pílula inferior',async()=>{
-  for(const [width,height] of [[390,844],[768,1024],[700,400],[320,568],[720,360],[844,390],[1024,768],[1099,700]]){await page.setViewportSize({width,height});await page.evaluate(()=>window.__go('/admin/reports'));await tick();assert.equal((await assertDock()).rail,undefined,width+'x'+height);}
+  for(const [width,height] of [[390,844],[768,1024],[700,400],[320,568],[1024,768],[1099,700]]){await page.setViewportSize({width,height});await page.evaluate(()=>window.__go('/admin/reports'));await tick();assert.equal((await assertDock()).rail,undefined,width+'x'+height);}
+ });
+ await check('Smartphones na horizontal (tela baixa, toque): a mesma dock vira uma coluna compacta, centralizada, no lado direito',async()=>{
+  for(const [width,height] of [[720,360],[844,390],[915,412],[986,444],[1200,260]])for(const route of ['/admin/reports','/driver/reports']){
+   await page.setViewportSize({width,height});await page.evaluate(route=>window.__go(route),route);await tick();
+   const band=await page.evaluate(()=>{const region=document.querySelector('.nvu-workspace-dock-region'),nav=region.querySelector('nav'),box=nav.getBoundingClientRect();return {position:getComputedStyle(region).position,background:getComputedStyle(region).backgroundColor,events:[getComputedStyle(region).pointerEvents,getComputedStyle(nav).pointerEvents],direction:getComputedStyle(nav).flexDirection,spacer:document.querySelector('.nvu-workspace-dock-space').getBoundingClientRect().height,nav:{left:box.left,right:box.right,top:box.top,bottom:box.bottom,width:box.width},overflow:document.documentElement.scrollWidth>innerWidth+1,w:innerWidth,h:innerHeight,buttons:nav.querySelectorAll('button').length};});
+   const info=width+'x'+height+' '+route+' '+JSON.stringify(band);
+   assert.equal(band.position,'fixed',info);assert.equal(band.background,'rgba(0, 0, 0, 0)',info);assert.deepEqual(band.events,['none','auto'],info);assert.equal(band.direction,'column',info);assert.equal(band.spacer,0,info);assert(!band.overflow,info);assert.equal(band.buttons,6,info);
+   assert(band.nav.left>band.w/2&&band.nav.right<=band.w&&band.nav.width<=46,'Compact rail on the right: '+info);assert(Math.abs((band.nav.top+band.nav.bottom)/2-band.h/2)<=1&&band.nav.top>=0&&band.nav.bottom<=band.h,'Centered and inside the window: '+info);
+  }
  });
  for(const role of ['admin','driver'])for(const safe of [24,34])await check('Área segura e último item '+role+' '+safe+'px',async()=>{
   await page.setViewportSize({width:390,height:867});await page.evaluate(({role,safe})=>{window.__go('/'+role+'/reports');document.documentElement.style.setProperty('--nvu-workspace-dock-safe-bottom',safe+'px');},{role,safe});await tick();await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));await tick();const band=await assertBottomBand();assert(band.height>=(compact?62:82)+safe);assert.equal(Math.round(867-band.nav.bottom),10+safe);

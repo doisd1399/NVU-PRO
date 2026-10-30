@@ -385,3 +385,111 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
   .nvu-landscape-central .nvu-central-goal { padding: 5px 12px 6px; }
   .nvu-landscape-central .nvu-central-actions > .nvu-central-section-heading { padding-top: 11px; padding-bottom: 8px; }
 }
+
+.nvu-central-more-hint { display: none; }
+
+/* ---- Smartphones turned sideways -------------------------------------------------------------------------------
+   Short landscape screens with a touch pointer (phones; desktops and tablets keep the two columns above) cannot hold
+   two columns of cards: the page becomes one centered, narrower column that scrolls. Title, company, summary and the
+   six management shortcuts fit the visible area at scroll 0; "Trabalhos ativos" follows below, announced by a
+   floating hint (.nvu-central-more-hint) that disappears once the card comes into view. The dock is the lateral
+   rail on the right (WorkspaceDock.css), so the whole height is free. */
+@media (orientation: landscape) and (min-width: 720px) and (max-height: 520px) and (pointer: coarse) {
+  .nvu-landscape-central {
+    --central-top: 6px;
+    --central-gap: 9px;
+    --central-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    --central-min: 0px;
+  }
+  body .nvu-landscape-central .nvu-central-stack { display: block; height: auto; min-height: 0; max-width: 660px; padding-top: var(--central-top); }
+  .nvu-landscape-central { justify-content: flex-start; min-height: 0; }
+  body .nvu-landscape-central .nvu-central-jobs { scroll-margin-top: calc(var(--central-header-height) + 8px); }
+  body .nvu-landscape-central .nvu-central-jobs { display: block; margin-top: 8px; }
+  body .nvu-landscape-central .nvu-central-job-list { overflow: visible; }
+  body .nvu-landscape-central .nvu-central-actions { display: block; }
+  body .nvu-landscape-central .nvu-central-summary { margin-bottom: 6px; }
+
+  /* Title and description centered and stacked */
+  body .nvu-landscape-central .nvu-workspace-page-heading .nvu-workspace-page-title { display: block; padding: 0; margin-bottom: var(--central-gap); text-align: center; }
+  body .nvu-landscape-central .nvu-workspace-page-heading h1 { font-size: 20px; line-height: 1.2; }
+  body .nvu-landscape-central .nvu-workspace-page-heading .nvu-workspace-page-title > p { display: table; margin: 4px auto 0; padding: 2px 10px; border-radius: 8px; font-size: 10.5px; line-height: 1.3; }
+
+  /* Company and simulator */
+  body .nvu-landscape-central .nvu-central-company-row { margin: 0 0 6px; min-height: 26px; gap: 8px; }
+  .nvu-landscape-central .nvu-central-company-name h2 { font-size: 15px; line-height: 1.25; }
+  .nvu-landscape-central .nvu-central-simulator { min-height: 26px; gap: 8px; padding: 2px 10px; font-size: 12px; }
+  .nvu-landscape-central .nvu-central-simulator svg { width: 14px; height: 14px; }
+
+  /* Summary: heading on one row, then earnings | trips | goal side by side */
+  .nvu-landscape-central .nvu-central-summary { margin-bottom: 6px; }
+  .nvu-landscape-central .nvu-central-summary > .nvu-central-summary-heading { padding: 5px 12px 2px; }
+  .nvu-landscape-central .nvu-central-summary-heading > h2 { font-size: 13px; }
+  .nvu-landscape-central .nvu-central-summary-heading > .nvu-central-period { min-height: 20px; padding: 2px 6px; font-size: 10px; }
+  .nvu-landscape-central .nvu-central-summary-heading > .nvu-central-period > svg { width: 12px; height: 12px; }
+  .nvu-landscape-central .nvu-central-summary-body { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; padding: 0 12px 8px; }
+  .nvu-landscape-central .nvu-central-financial-metrics { margin: 0; grid-template-columns: auto auto; }
+  .nvu-landscape-central .nvu-central-financial-metrics > div:first-child { padding-right: 10px; }
+  .nvu-landscape-central .nvu-central-financial-metrics > div + div { padding-left: 10px; }
+  .nvu-landscape-central .nvu-central-financial-metrics > div > span { font-size: 10px; }
+  .nvu-landscape-central .nvu-central-earnings strong { font-size: 16px; }
+  .nvu-landscape-central .nvu-central-trip-count { font-size: 20px; }
+  .nvu-landscape-central .nvu-central-goal { padding: 4px 9px 5px; border-radius: 7px; }
+  .nvu-landscape-central .nvu-central-goal-top > span { font-size: 10px; }
+  .nvu-landscape-central .nvu-central-goal-top > button { margin-block: -4px; padding-block: 4px; font-size: 10px; gap: 4px; }
+  .nvu-landscape-central .nvu-central-goal-top > button svg { width: 11px; height: 11px; }
+  .nvu-landscape-central .nvu-central-goal-values { margin: 0 0 3px; }
+  .nvu-landscape-central .nvu-central-goal-values > strong { font-size: 15px; }
+  .nvu-landscape-central .nvu-central-goal-values > span { font-size: 9.5px; }
+  .nvu-landscape-central .nvu-central-progress { height: 5px; }
+
+  /* Management: six shortcuts in a 3 x 2 grid */
+  .nvu-landscape-central .nvu-central-actions > .nvu-central-section-heading { padding: 8px 12px 5px; }
+  .nvu-landscape-central .nvu-central-actions h2 { font-size: 13px; }
+  .nvu-landscape-central .nvu-central-action-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 0 12px 10px; overflow: visible; }
+  .nvu-landscape-central .nvu-central-action { min-height: 36px; max-height: none; gap: 8px; padding: 2px 6px 2px 10px; border-radius: 11px; }
+  .nvu-landscape-central .nvu-central-action-icon { width: 17px; height: 17px; }
+  .nvu-landscape-central .nvu-central-action > span:first-of-type { font-size: 11px; line-height: 1.2; letter-spacing: -.02em; }
+  .nvu-landscape-central .nvu-central-action-arrow { width: 20px; height: 20px; }
+  .nvu-landscape-central .nvu-central-action-arrow svg { width: 13px; height: 13px; }
+
+  /* Jobs: heading and subtitle on one line; compact rows */
+  .nvu-landscape-central .nvu-central-jobs .nvu-central-section-toggle { align-items: center; padding: 6px 10px; min-height: 0; }
+  .nvu-landscape-central .nvu-central-jobs .nvu-central-section-toggle > span:first-child { display: flex; align-items: center; gap: 8px; }
+  .nvu-landscape-central .nvu-central-jobs h2 { font-size: 13px; }
+  .nvu-landscape-central .nvu-central-count { min-width: 22px; height: 18px; font-size: 11px; }
+  .nvu-landscape-central .nvu-central-subtitle { margin: 0; font-size: 10px; }
+  .nvu-landscape-central .nvu-central-disclosure-icon { width: 24px; height: 24px; flex-basis: 24px; }
+  .nvu-landscape-central .nvu-central-disclosure-icon svg { width: 16px; height: 16px; }
+  .nvu-landscape-central .nvu-central-job-list { gap: 7px; padding: 0 8px 8px; }
+  .nvu-landscape-central .nvu-central-operation,
+  .nvu-landscape-central .nvu-central-operation + .nvu-central-operation { grid-template-columns: clamp(100px, 27%, 120px) minmax(0, 1fr); column-gap: 10px; row-gap: 4px; padding: 7px 8px; border-radius: 11px; }
+  .nvu-landscape-central .nvu-central-avatar { width: 18px; height: 18px; font-size: 8px; }
+  .nvu-landscape-central .nvu-central-driver { gap: 6px; }
+  .nvu-landscape-central .nvu-central-driver > strong { font-size: 11px; }
+  .nvu-landscape-central .nvu-central-job-status { font-size: 9.5px; gap: 4px; }
+  .nvu-landscape-central .nvu-central-job-status i { width: 6px; height: 6px; }
+  .nvu-landscape-central .nvu-central-paint-button { width: 18px; height: 18px; }
+  .nvu-landscape-central .nvu-central-paint-button > svg { width: 12px; height: 12px; }
+  .nvu-landscape-central .nvu-central-vehicle-line { gap: 6px; }
+  .nvu-landscape-central .nvu-central-vehicle-name strong { font-size: 10.5px; }
+  .nvu-landscape-central .nvu-central-vehicle-name small { font-size: 9px; }
+  .nvu-landscape-central .nvu-central-operation-name { font-size: 10.5px; padding-left: 6px; }
+  .nvu-landscape-central .nvu-central-operation-metrics strong { font-size: 11.5px; }
+  .nvu-landscape-central .nvu-central-operation-metrics span { font-size: 9px; }
+  .nvu-landscape-central .nvu-central-operation-timing { grid-template-columns: auto auto; justify-content: space-between; gap: 4px; padding-top: 0; }
+  .nvu-landscape-central .nvu-central-operation-timing > div { gap: 4px; }
+  .nvu-landscape-central .nvu-central-operation-timing > div + div { padding-left: 8px; }
+  .nvu-landscape-central .nvu-central-operation-timing svg { width: 12px; height: 12px; }
+  .nvu-landscape-central .nvu-central-operation-timing > div > span { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+  .nvu-landscape-central .nvu-central-operation-timing small { font-size: 9px; }
+  .nvu-landscape-central .nvu-central-operation-timing strong { font-size: 10px; line-height: 1.2; }
+  .nvu-landscape-central .nvu-central-photo-empty { font-size: 9px; gap: 2px; }
+  .nvu-landscape-central .nvu-central-photo-empty svg { width: 20px; height: 20px; }
+  .nvu-landscape-central .nvu-central-operation-info { top: 3px; right: 3px; width: 18px; height: 18px; }
+  .nvu-landscape-central .nvu-central-operation-info > svg { width: 11px; height: 11px; }
+
+  /* Hint that the jobs card follows below */
+  .nvu-central-more-hint { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; justify-content: center; align-items: flex-end; height: calc(70px + env(safe-area-inset-bottom, 0px)); padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)); pointer-events: none; background: linear-gradient(to bottom, transparent, var(--central-page) 62%); }
+  .nvu-central-more-hint > button { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 14px; border-radius: 999px; border: 1px solid var(--central-line); background: var(--central-paper); color: var(--central-text); font-size: 11px; font-weight: 600; pointer-events: auto; }
+  .nvu-central-more-hint svg { width: 14px; height: 14px; color: var(--central-accent); }
+}

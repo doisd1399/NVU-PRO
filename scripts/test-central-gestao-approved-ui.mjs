@@ -442,6 +442,30 @@ try {
     assert(Math.abs((narrow.photo.right-narrow.photo.left)/narrow.photo.height-2.64)<=.03&&narrow.info.height>=32&&narrow.chip.height>=26,"Portrait keeps the approved photo, information button and period button: "+JSON.stringify(narrow));
     await page.evaluate(()=>window.__scenario({many:false}));
   });
+  await check("Smartphone in landscape: one narrow scrolling column, summary and shortcuts in view, hint to the jobs",async()=>{
+    await fresh();
+    await page.setViewportSize({width:986,height:444});
+    await page.evaluate(()=>window.__scenario({many:true}));
+    await page.waitForFunction(()=>document.querySelectorAll(".nvu-central-operation").length===8&&getComputedStyle(document.querySelector(".nvu-central-stack")).display==="block");
+    await page.evaluate(()=>document.fonts.ready);
+    await page.locator(".nvu-central-more-hint button").waitFor();
+    const read=()=>page.evaluate(()=>{
+      const box=selector=>{const node=document.querySelector(selector);if(!node)return null;const r=node.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};
+      return {stack:box(".nvu-central-stack"),summary:box(".nvu-central-summary"),actions:box(".nvu-central-actions"),jobs:box(".nvu-central-jobs"),hint:box(".nvu-central-more-hint button"),
+        doc:{scrollWidth:document.documentElement.scrollWidth,width:innerWidth,height:innerHeight,scroll:document.documentElement.scrollHeight},list:getComputedStyle(document.querySelector(".nvu-central-job-list")).overflowY};
+    });
+    const first=await read(),info=JSON.stringify(first);
+    assert(first.stack.width<=661&&Math.abs((first.stack.left+first.stack.right)/2-first.doc.width/2)<=1,"One narrow centered column: "+info);
+    assert(first.summary.bottom<=first.doc.height&&first.actions.bottom<=first.doc.height-40&&first.actions.top>first.summary.bottom,"Summary and shortcuts are fully in view: "+info);
+    assert(first.jobs.top>=first.actions.bottom&&first.doc.scroll>first.doc.height&&first.doc.scrollWidth<=first.doc.width&&first.list==="visible","The jobs card follows below the fold: "+info);
+    assert(first.hint&&first.hint.bottom<=first.doc.height,"The hint to the jobs card is visible: "+info);
+    await page.locator(".nvu-central-more-hint button").dispatchEvent("click");
+    await page.waitForFunction(()=>!document.querySelector(".nvu-central-more-hint")&&document.querySelector(".nvu-central-jobs").getBoundingClientRect().top<200);
+    await page.evaluate(()=>window.scrollTo(0,0));
+    await page.setViewportSize({width:1280,height:800});
+    await page.waitForFunction(()=>getComputedStyle(document.querySelector(".nvu-central-stack")).display==="grid");
+    await page.evaluate(()=>window.__scenario({many:false}));
+  });
   await check("Designar Trabalhos keeps the existing assignment route",async()=>{
     await page.getByRole("button",{name:"Designar Trabalhos",exact:true}).click();
     await page.waitForFunction(()=>window.__route.pathname==="/admin/assign");

@@ -99,3 +99,44 @@ html:has(.nvu-workspace-dock-region) {
 @media (orientation: landscape) and (min-width: 1100px) {
   body:has(.nvu-admin-shell-content):not(:has(.nvu-cover-page-shell)) { padding-inline: var(--nvu-rail-reserve); }
 }
+
+/* Smartphones turned sideways (short landscape, touch): the bottom pill would take a third of the height, so the dock is a
+   compact lateral rail, vertically centered, on the right edge. The pages are centered with the same reserve on both sides;
+   cover pages keep their cover as it is. */
+@media (orientation: landscape) and (min-width: 720px) and (max-height: 520px) and (pointer: coarse) {
+  :root { --nvu-workspace-dock-clearance: 0px; --nvu-rail-reserve: 56px; }
+
+  .nvu-workspace-dock-space { display: none; }
+
+  .nvu-workspace-dock-region {
+    inset: 0 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 0 max(4px, env(safe-area-inset-right, 0px)) 0 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .nvu-workspace-dock-region > nav.nvu-driver-dock {
+    pointer-events: auto;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 13px;
+  }
+
+  /* 6 buttons + gaps + padding; on very short windows the buttons shrink so the whole rail stays inside. */
+  .nvu-workspace-dock-region .nvu-driver-dock-item {
+    width: 32px;
+    height: max(26px, min(38px, calc((100dvh - 40px) / 6)));
+    min-height: 0;
+    padding: 0;
+    border-radius: 10px;
+  }
+
+  body:has(.nvu-workspace-dock-region):not(:has(.nvu-cover-page-shell)) { padding-inline: var(--nvu-rail-reserve); }
+}
