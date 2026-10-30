@@ -64,7 +64,7 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
   operation: ManagementOperation; onInfo: () => void; onDriver: () => void; active?: boolean;
 }) {
   const [paintsOpen, setPaintsOpen] = useState(false);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const photoId = useId();
   const { currentUser } = useSessionStore();
   useEffect(() => { if (!active) setPaintsOpen(false); }, [active]);

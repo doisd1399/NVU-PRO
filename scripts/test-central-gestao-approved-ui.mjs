@@ -134,7 +134,13 @@ try {
     assert.equal(await page.locator(".nvu-central-operation-metrics strong").first().innerText(),"3/10");
     assert.match(await page.locator(".nvu-central-operation-timing").innerText(),/^Tempo restante:\s*\S/);
     assert.doesNotMatch(await page.locator(".nvu-central-operation").first().innerText(),/Prazo limite|22\/10\/2026/,"The list shows the remaining time only, not the deadline date");
+    assert.equal(await page.locator(".nvu-central-vehicle-photo").count(),0,"The active jobs open as a list: no photo area");
+    assert.equal(await page.locator(".nvu-central-operation[data-expanded=true]").count(),0);
+    assert.equal(await page.evaluate(()=>window.__photos.length),0,"A minimized operation does not even request its vehicle photo");
+    await page.locator(".nvu-central-operation-toggle").first().click();
+    await page.locator(".nvu-central-vehicle-photo").waitFor();
     assert.ok(await page.evaluate(()=>window.__photos.some(p=>p.userId==="driver"&&p.simulatorId==="gto"&&p.vehicleId==="iveco")));
+    await page.locator(".nvu-central-operation-toggle").first().click();
     assert.equal(await page.getByRole("progressbar",{name:"Progresso de David Canto"}).getAttribute("aria-valuenow"),"30");
     assert.equal(await page.getByRole("button",{name:"Gerenciar empresa",exact:true}).count(),0);
   });
@@ -249,6 +255,8 @@ try {
   await fresh();
   await check("Empty/missing photo and overdue states",async()=>{
     await page.evaluate(()=>window.__scenario({missing:true,late:true}));
+    assert.equal(await page.getByText("Foto do veículo indisponível",{exact:true}).count(),0,"The list shows no placeholder");
+    await page.locator(".nvu-central-operation-toggle").first().click();
     await page.getByText("Foto do veículo indisponível",{exact:true}).waitFor();assert.equal(await page.locator(".nvu-central-job-status").innerText(),"Atrasado");
     assert.equal(await page.locator(".nvu-central-title-count .nvu-central-count").innerText(),"1");
     await page.evaluate(()=>window.__scenario({empty:true}));assert.match(await page.locator(".nvu-central-empty").innerText(),/Nenhum trabalho/);
@@ -401,6 +409,7 @@ try {
     await page.setViewportSize({width:1280,height:800});
     await page.evaluate(()=>window.__scenario({many:true}));
     await page.waitForFunction(()=>document.querySelectorAll(".nvu-central-operation").length===8&&document.querySelector(".nvu-central-page").classList.contains("nvu-landscape-central"));
+    await page.evaluate(()=>document.querySelectorAll(".nvu-central-operation-toggle[aria-expanded=false]").forEach(button=>button.click()));
     await page.evaluate(()=>document.fonts.ready);
     const read=async()=>{
       await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));

@@ -241,7 +241,12 @@ try {
       const toggle = index => page.locator(".nvu-central-operation-toggle").nth(index);
       await page.locator(".nvu-central-operation").first().scrollIntoViewIfNeeded();
       const label = JSON.stringify(viewport);
+      const listed = await measure(page, 0);
+      assert.equal(listed.expanded, "false", "The list opens minimized: " + label); assert.equal(listed.photo, null, "No photo area when the list opens: " + label); assert.equal(listed.photoPlaceholder, false);
+      assert.equal(await page.locator(".nvu-central-operation[data-expanded=true]").count(), 0, "No operation opens expanded: " + label);
+      await toggle(0).click(); await toggle(1).click(); await tick(page);
       const open = await measure(page, 0), other = await measure(page, 1);
+      same(listed, open, shared, label + " list -> expanded");
       assert.equal(open.expanded, "true"); assert(open.photo && open.photo[0] > 0, "Expanded shows the photo: " + label);
       assert.equal(open.pressed, "true"); assert.match(open.label, /^Minimizar operação de /);
       assert.deepEqual(open.order, ["nvu-central-driver-row", "nvu-central-vehicle-photo", "nvu-central-vehicle-line", "nvu-central-operation-stats", "nvu-central-operation-timing"]);
@@ -276,6 +281,8 @@ try {
       const label = "long " + JSON.stringify(viewport);
       const index = await page.locator(".nvu-central-operation").evaluateAll(nodes => nodes.findIndex(n => /Iveco/.test(n.innerText)));
       assert(index >= 0, "The long-name operation is listed");
+      assert.equal((await measure(page, index)).photo, null, "Long-name operation also opens as a list: " + label);
+      await page.locator(".nvu-central-operation-toggle").nth(index).click(); await tick(page);
       const open = await measure(page, index);
       assert(open.photo && open.photoPlaceholder, "Unavailable photo still shows its placeholder when expanded: " + label);
       assert(!open.overflow, "Long names stay inside the card: " + label);
