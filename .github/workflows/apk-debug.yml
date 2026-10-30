@@ -1,0 +1,57 @@
+name: APK Debug
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Sync Capacitor assets
+        run: |
+          npx --no-install cap sync android
+          npm run prepare:cap-assets
+          npm run verify:cap-assets
+          npm run verify:cap-local
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: bash ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-apk/NVU-PRO-2.3.198-debug.apk
+          ls -lh dist-apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NVU-PRO-2.3.198-debug-apk
+          path: dist-apk/NVU-PRO-2.3.198-debug.apk
+          if-no-files-found: error
