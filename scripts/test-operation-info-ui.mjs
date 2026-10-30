@@ -211,6 +211,84 @@ try {
     }
   });
 
+  await check("Operação expandida e minimizada: mesmos componentes e medidas; só a foto e a seta mudam", async () => {
+    const measure = (page, index) => page.evaluate(index => {
+      const card = document.querySelectorAll(".nvu-central-operation")[index], cs = n => getComputedStyle(n), rect = n => { const r = n.getBoundingClientRect(); return [Math.round(r.width * 100) / 100, Math.round(r.height * 100) / 100]; };
+      const rel = n => { const r = n.getBoundingClientRect(), c = card.getBoundingClientRect(); return [Math.round((r.left - c.left) * 100) / 100, Math.round((r.right - c.right) * 100) / 100]; };
+      const typo = n => { const c = cs(n); return [c.fontFamily, c.fontSize, c.fontWeight, c.lineHeight, c.letterSpacing, c.color, c.textTransform].join("|"); };
+      const box = n => { const c = cs(n); return [c.paddingTop, c.paddingRight, c.paddingBottom, c.paddingLeft, c.borderTopWidth, c.borderTopColor, c.backgroundColor, c.borderTopLeftRadius, c.gap, c.transform === "none" ? "" : c.transform].join("|"); };
+      const q = selector => card.querySelector(selector), all = selector => [...card.querySelectorAll(selector)];
+      const stats = q(".nvu-central-operation-stats"), status = q(".nvu-central-job-status"), progress = q(".nvu-central-progress"), fill = progress.firstElementChild, timing = q(".nvu-central-operation-timing");
+      return {
+        stats: rect(stats), statsRel: rel(stats), statsBox: box(stats), status: rect(status), statusBox: box(status), statusTypo: typo(status), progress: rect(progress), progressBox: box(progress), fill: rect(fill), fillBg: cs(fill).backgroundColor,
+        metrics: rect(q(".nvu-central-operation-metrics")), metricCells: all(".nvu-central-operation-metrics > div").map(n => [rect(n), rel(n)]),
+        metricType: all(".nvu-central-operation-metrics strong, .nvu-central-operation-metrics span").map(typo), metricText: all(".nvu-central-operation-metrics > div").map(n => n.innerText.replace(/\s+/g, " ")),
+        timing: rect(timing), timingRel: rel(timing), timingType: [...timing.children].map(typo), timingText: timing.innerText,
+        driverRow: rect(q(".nvu-central-driver-row")), avatar: rect(q(".nvu-central-avatar")), driverType: typo(q(".nvu-central-driver strong")), vehicleLine: rect(q(".nvu-central-vehicle-line")), vehicleType: [typo(q(".nvu-central-vehicle-name strong")), q(".nvu-central-vehicle-name small") ? typo(q(".nvu-central-vehicle-name small")) : ""],
+        info: rect(q(".nvu-central-operation-info")), pill: rect(q(".nvu-central-operation-name")), pillType: typo(q(".nvu-central-operation-name")), toggle: rect(q(".nvu-central-operation-toggle")), arrow: cs(q(".nvu-central-operation-toggle svg")).transform,
+        order: [...card.children].map(n => n.className.split(" ")[0]), card: rect(card), cardBox: box(card), photo: q(".nvu-central-vehicle-photo") ? rect(q(".nvu-central-vehicle-photo")) : null, photoPlaceholder: /Foto do veículo indisponível|Carregando foto/.test(card.innerText), expanded: card.dataset.expanded, pressed: q(".nvu-central-operation-toggle").getAttribute("aria-expanded"), label: q(".nvu-central-operation-toggle").getAttribute("aria-label"), overflow: card.scrollWidth > card.clientWidth + 1 || [...card.querySelectorAll("*")].some(n => n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflow === "visible" && n.children.length === 0 && n.clientWidth > 0 && n.tagName !== "I" && n.tagName !== "svg"),
+      };
+    }, index);
+    const same = (a, b, keys, label) => { for (const key of keys) assert.deepEqual(a[key], b[key], `${label}: ${key} must be identical in both states: ${JSON.stringify(a[key])} vs ${JSON.stringify(b[key])}`); };
+    const shared = ["stats", "statsRel", "statsBox", "status", "statusBox", "statusTypo", "progress", "progressBox", "fill", "fillBg", "metrics", "metricCells", "metricType", "metricText", "timing", "timingRel", "timingType", "timingText", "driverRow", "avatar", "driverType", "vehicleLine", "vehicleType", "info", "pill", "pillType", "toggle", "cardBox", "card0"].filter(key => key !== "card0");
+    const scenarios = [
+      [{ width: 412, height: 915 }, true, "cards-expandido-412.png", "cards-minimizado-412.png"], [{ width: 360, height: 740 }, true], [{ width: 320, height: 640 }, true],
+      [{ width: 844, height: 390 }, true, "cards-expandido-844.png", "cards-minimizado-844.png"], [{ width: 820, height: 1180 }, true], [{ width: 1280, height: 800 }, false, "cards-expandido-1280.png", "cards-minimizado-1280.png"], [{ width: 1024, height: 768 }, false],
+    ];
+    for (const [viewport, mobile, shotOpen, shotClosed] of scenarios) {
+      const { context, page } = await openWindow(viewport, { mobile });
+      await start(page);
+      const toggle = index => page.locator(".nvu-central-operation-toggle").nth(index);
+      await page.locator(".nvu-central-operation").first().scrollIntoViewIfNeeded();
+      const label = JSON.stringify(viewport);
+      const open = await measure(page, 0), other = await measure(page, 1);
+      assert.equal(open.expanded, "true"); assert(open.photo && open.photo[0] > 0, "Expanded shows the photo: " + label);
+      assert.equal(open.pressed, "true"); assert.match(open.label, /^Minimizar operação de /);
+      assert.deepEqual(open.order, ["nvu-central-driver-row", "nvu-central-vehicle-photo", "nvu-central-vehicle-line", "nvu-central-operation-stats", "nvu-central-operation-timing"]);
+      assert(!open.overflow, "No clipped content: " + label);
+      if (shotOpen) { await page.evaluate(() => window.scrollTo(0, document.querySelector(".nvu-central-jobs").getBoundingClientRect().top + scrollY - 56)); await page.screenshot({ path: path.join(output, shotOpen) }); }
+      await toggle(0).click(); await tick(page);
+      const closed = await measure(page, 0), otherAfter = await measure(page, 1);
+      assert.equal(closed.expanded, "false"); assert.equal(closed.pressed, "false"); assert.match(closed.label, /^Expandir operação de /);
+      assert.equal(closed.photo, null, "Minimized: the photo area does not exist: " + label); assert.equal(closed.photoPlaceholder, false, "Minimized: no placeholder either: " + label);
+      assert.deepEqual(closed.order, ["nvu-central-driver-row", "nvu-central-vehicle-line", "nvu-central-operation-stats", "nvu-central-operation-timing"]);
+      same(open, closed, shared, label);
+      assert.notEqual(open.arrow, closed.arrow, "The arrow changes direction");
+      assert(Math.abs(open.card[1] - closed.card[1] - open.photo[1] - 9) <= 0.6, `The card height follows the photo: ${open.card[1]} - ${closed.card[1]} vs photo ${open.photo[1]} ${label}`);
+      assert.deepEqual(otherAfter.order, other.order); assert.equal(otherAfter.expanded, "true", "Each operation toggles independently: " + label); same(other, otherAfter, ["card", "stats", "status"], "neighbour");
+      if (shotClosed) { await page.evaluate(() => window.scrollTo(0, document.querySelector(".nvu-central-jobs").getBoundingClientRect().top + scrollY - 56)); await page.screenshot({ path: path.join(output, shotClosed) }); }
+      for (let i = 0; i < 12; i++) { await toggle(0).click(); await toggle(1).click(); }
+      await tick(page);
+      const again = await measure(page, 0), againOther = await measure(page, 1);
+      assert.equal(again.expanded, "false"); assert.equal(againOther.expanded, "true", "An even number of toggles restores the neighbour");
+      same(open, again, shared, label + " after repeated toggles"); same(other, againOther, shared, label + " neighbour after repeated toggles");
+      await toggle(0).click(); await tick(page);
+      same(open, await measure(page, 0), [...shared, "card", "photo"], label + " back to expanded");
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "No horizontal overflow: " + label);
+      await context.close();
+    }
+    // long names and a vehicle without photo: same equality, nothing clipped or overlapping
+    for (const [viewport, mobile] of [[{ width: 360, height: 740 }, true], [{ width: 1280, height: 800 }, false]]) {
+      const { context, page } = await openWindow(viewport, { mobile });
+      await start(page);
+      await page.evaluate(() => { window.__noPhoto.push("iveco"); window.__mutate(o => { o.contracts.find(c => c.id === "bls2").name = "Operação de transporte internacional de grãos – contrato BLS 150 especial"; o.vehicles.find(v => v.id === "iveco").name = "Iveco S-Way 570 Highway Edition com nome muito longo"; o.users = o.users.map(u => u.id === "bruno" ? { ...u, name: "Bruno Henrique de Albuquerque e Silva Nascimento Lima" } : u); }); });
+      await tick(page); await tick(page);
+      const label = "long " + JSON.stringify(viewport);
+      const index = await page.locator(".nvu-central-operation").evaluateAll(nodes => nodes.findIndex(n => /Iveco/.test(n.innerText)));
+      assert(index >= 0, "The long-name operation is listed");
+      const open = await measure(page, index);
+      assert(open.photo && open.photoPlaceholder, "Unavailable photo still shows its placeholder when expanded: " + label);
+      assert(!open.overflow, "Long names stay inside the card: " + label);
+      const geometry = await page.evaluate(index => { const card = document.querySelectorAll(".nvu-central-operation")[index], c = card.getBoundingClientRect(), r = n => n.getBoundingClientRect(), row = card.querySelector(".nvu-central-driver-row"), line = card.querySelector(".nvu-central-vehicle-line"); const parts = [...line.children].map(r); return { inside: [...card.querySelectorAll("*")].every(n => { const b = r(n); return b.width === 0 || (b.left >= c.left - 1 && b.right <= c.right + 1); }), lineOverlap: parts.some((a, i) => parts.some((b, j) => j > i && a.left < b.right - 0.5 && b.left < a.right - 0.5)), rowOverlap: [...row.children].map(r).some((a, i, all) => all.some((b, j) => j > i && a.left < b.right - 0.5 && b.left < a.right - 0.5)) }; }, index);
+      assert.deepEqual(geometry, { inside: true, lineOverlap: false, rowOverlap: false }, "Long names do not overlap or spill: " + label);
+      await page.locator(".nvu-central-operation-toggle").nth(index).click(); await tick(page);
+      const closed = await measure(page, index);
+      assert.equal(closed.photo, null); assert.equal(closed.photoPlaceholder, false, "Minimized hides the placeholder as well: " + label);
+      same(open, closed, shared, label);
+      await context.close();
+    }
+  });
+
   await check("Perfil aberto com a lista rolada: topo da página, sem rolagem herdada nem bloqueios residuais; Voltar restaura a lista", async () => {
     const androidAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
     for (const viewport of [{ width: 390, height: 640 }, { width: 844, height: 390 }, { width: 1280, height: 720 }, { width: 412, height: 700, android: true }, { width: 915, height: 412, android: true }]) {

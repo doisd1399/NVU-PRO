@@ -396,7 +396,7 @@ try {
     await page.waitForFunction(()=>window.__writes.length===1);
     assert.equal((await page.evaluate(()=>window.__writes))[0].data.targetAmount,300000);
   });
-  await check("Horizontal central: centered columns of equal height with room around them, left column and compact job rows, from large to small windows",async()=>{
+  await check("Horizontal central: centered columns of equal height with room around them, left column and stacked operation cards, from large to small windows",async()=>{
     await fresh();
     await page.setViewportSize({width:1280,height:800});
     await page.evaluate(()=>window.__scenario({many:true}));
@@ -425,10 +425,10 @@ try {
       assert(wide.doc.inner-wide.jobs.bottom>=18,"Room between the cards and the bottom of the screen: "+info);
       assert(wide.doc.scroll<=wide.doc.inner+1&&wide.doc.scrollWidth<=wide.doc.width,"The management center fits the window: "+info);
       assert(wide.list.overflow==="auto"&&wide.list.scroll>wide.list.client,"The job list scrolls inside its card: "+info);
-      assert(wide.rows.length===8&&wide.rows.every(rowHeight=>rowHeight<=140),"Operations use compact rows: "+info);
+      assert(wide.rows.length===8&&new Set(wide.rows.map(Math.round)).size===1&&wide.rows[0]>=250,"Every operation is the same stacked card (photo shown) in every window: "+info);
       assert(wide.buttons.length===6&&wide.buttons.every(buttonHeight=>buttonHeight>=30&&buttonHeight<=64),"The six management buttons share the left column height: "+info);
-      assert(Math.abs((wide.photo.right-wide.photo.left)/wide.photo.height-16/9)<=.03,"The vehicle photo is a 16:9 rectangle, not a square: "+info);
-      assert(wide.info.right-wide.info.left<=21&&wide.info.height<=21&&wide.info.right<=wide.photo.right&&wide.info.top>=wide.photo.top,"The information button is small and stays on the photo: "+info);
+      assert(Math.abs((wide.photo.right-wide.photo.left)/wide.photo.height-3.1)<=.05,"The vehicle photo keeps the approved wide rectangle: "+info);
+      assert(wide.info.right-wide.info.left<=36&&wide.info.height<=36&&wide.info.top>=wide.photo.bottom,"The information button sits in the vehicle line, beside the contract, not on the photo: "+info);
       assert(wide.chip.height<=26,"The period button stays compact: "+info);
     }
     await page.setViewportSize({width:1280,height:800});

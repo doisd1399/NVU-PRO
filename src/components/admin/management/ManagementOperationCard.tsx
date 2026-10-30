@@ -1,6 +1,6 @@
 import { useSessionStore } from "../../../context/AppContext";
-import React, { useEffect, useState } from "react";
-import { Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
+import React, { useEffect, useId, useState } from "react";
+import { ChevronDown, Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
 import { StableImage } from "../../common/StableImage";
 import { useVehiclePhoto } from "../../../hooks/useVehiclePhoto";
 import { ManagementDialog } from "./ManagementDialog";
@@ -55,17 +55,23 @@ function PaintsDialog({ operation, onClose }: { operation: ManagementOperation; 
   </ManagementDialog>;
 }
 
-/** New management card; the driver dashboard's legacy cards are not mounted here. */
+/**
+ * New management card. The expanded and the minimized operation render the same driver row, vehicle line, figures card
+ * and time line from the same markup and the same styles; the only differences are the vehicle photo block (not rendered
+ * at all when minimized) and the direction of the arrow. Each card keeps its own state.
+ */
 export function ManagementOperationCard({ operation, onInfo, onDriver, active = true }: {
   operation: ManagementOperation; onInfo: () => void; onDriver: () => void; active?: boolean;
 }) {
   const [paintsOpen, setPaintsOpen] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const photoId = useId();
   const { currentUser } = useSessionStore();
   useEffect(() => { if (!active) setPaintsOpen(false); }, [active]);
-  const photo = useVehiclePhoto(operation.driverId && operation.simulatorId && operation.vehicleId
+  const photo = useVehiclePhoto(expanded && operation.driverId && operation.simulatorId && operation.vehicleId
     ? { userId: operation.driverId, simulatorId: operation.simulatorId, vehicleId: operation.vehicleId, vehicleName: operation.vehicleName }
     : null, operation.companyId);
-  return <article className="nvu-central-operation" data-operation-id={operation.id}>
+  return <article className="nvu-central-operation" data-operation-id={operation.id} data-expanded={expanded}>
     <div className="nvu-central-driver-row">
       <button type="button" className="nvu-central-driver" onClick={onDriver} aria-label={`Ver perfil de ${operation.driverName}`}>
         <StableImage src={operation.driverPhoto} persistentViewerId={currentUser?.id} persistentAssetId={`management-avatar:${operation.companyId}:${operation.driverId}`} alt="" wrapperClassName="nvu-central-avatar" className="object-cover" loading="lazy"
@@ -73,15 +79,17 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
         <strong>{operation.driverName}</strong>
       </button>
       <span className="nvu-central-job-status" data-state={operation.state}><i aria-hidden="true" />{statusLabels[operation.state]}</span>
+      <button type="button" className="nvu-central-operation-toggle" aria-expanded={expanded} aria-controls={photoId} onClick={() => setExpanded(value => !value)}
+        aria-label={`${expanded ? "Minimizar" : "Expandir"} operação de ${operation.driverName}`}><ChevronDown size={20} strokeWidth={2.2} aria-hidden="true" /></button>
     </div>
-    <div className="nvu-central-vehicle-photo">
+    {expanded && <div id={photoId} className="nvu-central-vehicle-photo">
       <StableImage src={photo.src} onLoad={photo.onImageLoad} onError={photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
         loading="lazy" fallback={<div className="nvu-central-photo-empty"><Truck size={30} /><span>{photo.remoteStatus === "loading" && !photo.src ? "Carregando foto do veículo…" : "Foto do veículo indisponível"}</span></div>} />
-      <button type="button" onClick={onInfo} className="nvu-central-operation-info" aria-label={`Ver informações de ${operation.vehicleName}`}><Info size={20} strokeWidth={1.7} /></button>
-    </div>
+    </div>}
     <div className="nvu-central-vehicle-line">
       <button type="button" className="nvu-central-paint-button" onClick={() => setPaintsOpen(true)} aria-label={`Ver pinturas de ${operation.vehicleName}`}><Download size={19} strokeWidth={1.7} /></button>
       <div className="nvu-central-vehicle-name"><strong>{operation.vehicleName}</strong>{operation.showTrailer && <small>{operation.trailerName || "Sem reboque"}</small>}</div>
+      <button type="button" onClick={onInfo} className="nvu-central-operation-info" aria-label={`Ver informações de ${operation.vehicleName}`}><Info size={18} strokeWidth={1.8} /></button>
       <span className="nvu-central-operation-name" title={operation.name}>{operation.name}</span>
     </div>
     <div className="nvu-central-operation-stats">
