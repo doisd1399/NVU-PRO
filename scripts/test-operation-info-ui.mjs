@@ -145,7 +145,9 @@ try {
     assert.equal(await page.getByRole("button", { name: "Estatísticas", exact: true }).getAttribute("aria-pressed"), "true");
     await page.screenshot({ path: path.join(output, "profile-statistics.png") });
     await page.evaluate(() => window.scrollTo(0, 400));
-    await page.getByRole("button", { name: "Voltar", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Voltar", exact: true }).count(), 0, "No back button over the cover");
+    assert.equal(await page.locator(".nvu-driver-reference-back").count(), 0);
+    await page.evaluate(() => window.__go(-1)); // the system back (history) entry; the real handler calls history.back() in the BrowserRouter
     await page.waitForFunction(() => window.__route.pathname === "/admin/fleet");
     assert.equal((await route(page)).state.activeTab, "operations");
     await page.getByTestId("management-dashboard").waitFor();
@@ -296,6 +298,47 @@ try {
     }
   });
 
+  await check("Perfil: sem botão de voltar na capa, empresa compacta e card Resultados recolhível com rolagem própria", async () => {
+    for (const [viewport, mobile] of [[{ width: 412, height: 915 }, true], [{ width: 360, height: 740 }, true], [{ width: 844, height: 390 }, true], [{ width: 1280, height: 800 }, false]]) {
+      const { context, page } = await openWindow(viewport, { mobile });
+      await start(page);
+      const label = JSON.stringify(viewport);
+      await infoButton(page, "Iveco S Way").click(); await sheet(page).waitFor();
+      await page.getByRole("button", { name: "Visualizar perfil" }).click();
+      await page.locator(".nvu-driver-reference").waitFor(); await tick(page); await tick(page);
+      assert.equal(await page.getByRole("button", { name: "Voltar", exact: true }).count(), 0, "No back button: " + label);
+      assert.equal(await page.locator(".nvu-cover-hero button").evaluateAll(nodes => nodes.filter(node => /voltar/i.test(node.getAttribute("aria-label") || "")).length), 0);
+      const company = await page.evaluate(() => { const card = document.querySelector(".nvu-profile-company-card"), logo = document.querySelector(".nvu-profile-company-logo"); const r = card.getBoundingClientRect(), l = logo.getBoundingClientRect(); return { height: r.height, logo: l.width, label: card.querySelector("div > span")?.textContent, strong: card.querySelector("strong")?.textContent }; });
+      assert(company.height <= 62 && company.logo <= 40 && company.label === "Empresa atual" && company.strong === "DC Transportes", "Compact company card: " + JSON.stringify(company) + label);
+      // order: summary, company, classification history, Resultados
+      const order = await page.evaluate(() => [...document.querySelectorAll(".nvu-profile-ranking-layout > section")].map(node => node.getAttribute("aria-label") || node.querySelector("h3")?.textContent));
+      assert.deepEqual(order.slice(-3), ["Empresa atual", "Histórico de classificação", "Resultados"], "Resultados comes after the classification history: " + JSON.stringify(order));
+      const toggle = page.locator("[data-nvu-profile-results] .nvu-profile-history-toggle");
+      assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(await page.locator(".nvu-profile-results-scroll").count(), 0, "Closed: nothing is mounted");
+      await toggle.scrollIntoViewIfNeeded(); await toggle.click(); await tick(page);
+      assert.equal(await toggle.getAttribute("aria-expanded"), "true");
+      const region = page.locator(".nvu-profile-results-scroll");
+      await region.waitFor();
+      const text = await region.innerText();
+      assert.match(text, /Semana/); assert.match(text, /Mês/); assert.match(text, /Ganhos no período/); assert.match(text, /Viagens concluídas/); assert.match(text, /Média por viagem/); assert.match(text, /Por dia/);
+      assert.doesNotMatch(text, /Relatórios|Relatório de viagens/, "The report links stay on the Resultados page");
+      // the figures belong to this driver only (Bruno: 3 trips in the fixture)
+      assert.match(text, /\b3\b[\s\S]*Viagens concluídas/);
+      const scroll = await region.evaluate(node => { const c = getComputedStyle(node); return { overflowY: c.overflowY, client: node.clientHeight, scroll: node.scrollHeight, max: parseFloat(c.maxHeight) }; });
+      assert.equal(scroll.overflowY, "auto"); assert(scroll.client <= scroll.max + 1 && scroll.client <= viewport.height * 0.6, "Own scroll area with a bounded height: " + JSON.stringify(scroll) + label);
+      const before = await page.evaluate(() => window.scrollY);
+      await region.evaluate(node => { node.scrollTop = node.scrollHeight; });
+      assert.equal(await page.evaluate(() => window.scrollY), before, "Scrolling the card does not scroll the page: " + label);
+      await page.evaluate(() => window.scrollTo(0, 0)); // the page itself keeps scrolling normally
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "No horizontal overflow: " + label);
+      if (viewport.width === 412) { await region.evaluate(node => { node.scrollTop = 0; }); await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight)); await page.screenshot({ path: path.join(output, "perfil-resultados-expandido.png") }); }
+      await toggle.click(); await tick(page);
+      assert.equal(await toggle.getAttribute("aria-expanded"), "false"); assert.equal(await page.locator(".nvu-profile-results-scroll").count(), 0);
+      await context.close();
+    }
+  });
+
   await check("Perfil aberto com a lista rolada: topo da página, sem rolagem herdada nem bloqueios residuais; Voltar restaura a lista", async () => {
     const androidAgent = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36";
     for (const viewport of [{ width: 390, height: 640 }, { width: 844, height: 390 }, { width: 1280, height: 720 }, { width: 412, height: 700, android: true }, { width: 915, height: 412, android: true }]) {
@@ -321,7 +364,7 @@ try {
       assert.equal(m.dialogs, 0, "No dialog left: " + label);
       await page.evaluate(() => window.scrollTo(0, 300));
       assert((await page.evaluate(() => window.scrollY)) > 0, "The profile scrolls: " + label);
-      await page.getByRole("button", { name: "Voltar", exact: true }).click();
+      await page.evaluate(() => window.__go(-1));
       await page.waitForFunction(() => window.__route.pathname === "/admin/fleet");
       await page.getByTestId("management-dashboard").waitFor(); await tick(page); await tick(page);
       const back = await page.evaluate(() => window.scrollY);

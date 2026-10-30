@@ -36,7 +36,7 @@ function App(){
  (window as any).__nvu513={engine,database,release,sync:()=>engine.synchronize(),get uploadCalls(){return uploadCalls},trips,summary};
  return <main className="nvu-driver-workspace" style={{maxWidth:440,margin:'20px auto',padding:16}}>
   <h1 style={{fontSize:20,fontWeight:700,marginBottom:12}}>Histórico de viagens</h1>
-  <div className="nvu-driver-activity-list">{trips.map(trip=><DriverActivityRow key={trip.id} trip={trip} company={{companyName:'Empresa de teste'}} simulatorLabel="GTO" onDetails={()=>setSelected(`${trip.origem} → ${trip.destino}`)} />)}</div>
+  <div className="nvu-driver-activity-list">{trips.map(trip=><DriverActivityRow key={trip.id} trip={trip} company={{companyName:'Empresa de teste'}} onDetails={()=>setSelected(`${trip.origem} → ${trip.destino}`)} />)}</div>
   <p data-testid="confirmed-count" style={{margin:'16px 0'}}>Confirmadas: {summary.totalViagens}</p><p>{selected}</p><p role="alert">{error}</p>
   <button type="button" onClick={()=>void save()}>Lançar viagem</button>
   <button type="button" onClick={()=>void engine.synchronize()} style={{marginLeft:14}}>Sincronizar</button>

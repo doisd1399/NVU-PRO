@@ -21,6 +21,8 @@ export interface DriverProfilePresentation {
   viewerId: string;
   /** The profile belongs to someone else (a company manager is looking at a driver). */
   viewingOther?: boolean;
+  /** Trips of the viewed driver; when present the summary ends with the collapsible "Resultados" card. */
+  results?: { trips: NormalizedTrip[]; loading: boolean };
   company: { id: string; name: string; logo?: string | null } | null;
   companyLoading?: boolean;
   vehicle: {

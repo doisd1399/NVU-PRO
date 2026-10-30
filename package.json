@@ -37,6 +37,7 @@
     "test:operation-info-ui": "node scripts/test-operation-info-ui.mjs",
     "test:operation-info-view": "node --import tsx scripts/test-operation-info-view.mts",
     "test:change-vehicle-command": "npm --prefix functions run build && node functions/scripts/test-change-vehicle-command.cjs",
+    "test:activity-row-no-simulator": "node scripts/test-activity-row-no-simulator.mjs",
     "test:central-gestao-r4": "node scripts/test-central-gestao-r4-contract.mjs",
     "test:central-gestao-r6": "node scripts/test-central-gestao-r6-contract.mjs",
     "test:r3-modal-photo-interactions": "node scripts/test-r3-modal-photo-interactions.mjs",

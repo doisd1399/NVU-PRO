@@ -2487,7 +2487,7 @@ export default function TripHistory({
               <h2 className="nvu-driver-activity-day">{driverDateLabel(day.date, { day: "numeric", month: "short" })}</h2>
               {day.trips.map(trip => <DriverActivityRow key={trip.id} trip={trip}
                 company={companiesMap.get(String(trip.empresaId || (trip as any).companyId || (trip as any).company_id || ""))}
-                number={tripNumberById.get(String(trip.id))} simulatorLabel={resolveTripSimulatorCode(trip, simulators)} onDetails={() => setSelectedTrip(trip as any)}
+                number={tripNumberById.get(String(trip.id))} onDetails={() => setSelectedTrip(trip as any)}
                 onEdit={canEditTrip(trip as any) ? () => setEditingTrip(trip as any) : undefined}
                 onDelete={canDeleteTrip(trip as any) ? () => { resetModerationForm(); setDeletingTrip(trip as any); } : undefined} />)}
             </React.Fragment>)}

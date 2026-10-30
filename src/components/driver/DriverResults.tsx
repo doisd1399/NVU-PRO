@@ -8,7 +8,7 @@ import type { ReportPeriod } from "../../lib/tripReportHistory";
 import { getMonthlyRange, getWeeklyRange } from "../../lib/metricsEngine";
 
 export function DriverResults({ trips, loading, onTripsReport, onOperationReport }: {
-  trips: NormalizedTrip[]; loading: boolean; onTripsReport: () => void; onOperationReport: () => void;
+  trips: NormalizedTrip[]; loading: boolean; onTripsReport?: () => void; onOperationReport?: () => void;
 }) {
   const [period, setPeriod] = useState<ReportPeriod>("mensal");
   const [selected, setSelected] = useState("");
@@ -67,10 +67,10 @@ export function DriverResults({ trips, loading, onTripsReport, onOperationReport
           </div>)}
       </div>
     </section>
-    <section className="nvu-driver-paper nvu-driver-report-links" aria-labelledby="nvu-driver-reports-title">
+    {onTripsReport && onOperationReport && <section className="nvu-driver-paper nvu-driver-report-links" aria-labelledby="nvu-driver-reports-title">
       <h2 id="nvu-driver-reports-title">Relatórios</h2>
       <button type="button" onClick={onTripsReport}><span><strong>Relatório de viagens</strong><small>Detalhamento dos registros</small></span><ChevronRight size={18} /></button>
       <button type="button" onClick={onOperationReport}><span><strong>Resumo por operação</strong><small>Resultados agrupados</small></span><ChevronRight size={18} /></button>
-    </section>
+    </section>}
   </div>;
 }

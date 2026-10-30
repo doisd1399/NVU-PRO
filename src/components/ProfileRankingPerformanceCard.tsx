@@ -1,3 +1,4 @@
+import { ProfileResultsCard } from "./driver/ProfileResultsCard";
 import { ModalSelect } from "./ui/ModalSelect";
 import React, { useId, useMemo, useState } from "react";
 import { DriverProfileSummary, type ProfilePresentation } from "./driver/DriverProfileSummary";
@@ -547,6 +548,7 @@ export const ProfileRankingPerformanceCard = React.memo(
             ? <CompanyProfileSummary presentation={presentation} periodControl={periodControl} trips={props.ownTrips} loading={Boolean(props.ownTripsLoading)} start={range.start} end={range.end}/>
             : <DriverProfileSummary presentation={presentation} periodControl={periodControl} trips={props.ownTrips} loading={Boolean(props.ownTripsLoading)} start={range.start} end={range.end}/>}
           {historyCard}
+          {presentation.kind !== "company" && presentation.results && <ProfileResultsCard trips={presentation.results.trips} loading={presentation.results.loading}/>}
         </> : <>
         {!props.companyProfile && !props.hideScopeSelector && !presentation && (
           <div

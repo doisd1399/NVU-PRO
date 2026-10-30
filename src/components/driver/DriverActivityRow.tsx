@@ -6,8 +6,8 @@ import { driverDateLabel } from "../../lib/driverWorkspace";
 import { getNomeContratoHistorico } from "../../lib/utils";
 import { TripSendStatus } from "./TripSendStatus";
 
-export function DriverActivityRow({ trip, company, number, simulatorLabel, onDetails, onEdit, onDelete }: {
-  trip: any; company?: any; number?: number; simulatorLabel?: string; onDetails: () => void; onEdit?: () => void; onDelete?: () => void;
+export function DriverActivityRow({ trip, company, number, onDetails, onEdit, onDelete }: {
+  trip: any; company?: any; number?: number; onDetails: () => void; onEdit?: () => void; onDelete?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -33,7 +33,7 @@ export function DriverActivityRow({ trip, company, number, simulatorLabel, onDet
     <button type="button" className="nvu-driver-activity-main" onClick={onDetails} aria-label={`Ver viagem ${title}`}>
       <strong>{title}</strong><span>{number ? `Viagem ${number} · ` : ""}{driverDateLabel(date, { hour: "2-digit", minute: "2-digit" })}</span>
     </button>
-    <div className="nvu-driver-activity-value"><strong>{formatTripHistoryMoney(trip)}</strong><span>{simulatorLabel}</span><TripSendStatus trip={trip} showConfirmed /></div>
+    <div className="nvu-driver-activity-value"><strong>{formatTripHistoryMoney(trip)}</strong><TripSendStatus trip={trip} showConfirmed /></div>
     <button ref={toggle} type="button" className="nvu-driver-more" aria-label={`Opções da viagem ${title}`}
       aria-expanded={open} aria-controls={menuId} onClick={() => setOpen(value => !value)}><MoreVertical size={19} /></button>
     {open && <div id={menuId} className="nvu-driver-trip-actions" aria-label="Ações da viagem">

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Building2, Mail, Phone } from "lucide-react";
+import { Building2, Mail, Phone } from "lucide-react";
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { ProfileCoverHero } from "../../components/common/ProfileCoverHero";
@@ -9,6 +9,10 @@ import { DriverProfileToolbar } from "../../components/driver/DriverProfileToolb
 import type { DriverProfileView } from "../../components/driver/DriverProfileSummary";
 import { DriverPerformanceCard } from "../../components/DriverPerformanceCard";
 import { useTripHistory } from "../../hooks/useTripHistory";
+import { filterAndSortTripHistory } from "../../lib/tripHistoryEngine";
+import { applySimulatorCurrencyContext } from "../../lib/metricsEngine";
+import { normalizeTrip } from "../../lib/tripNormalizer";
+import { getCanonicalTripDriverId } from "../../lib/tripIdentity";
 import { useVehiclePhoto } from "../../hooks/useVehiclePhoto";
 import { selectCurrentOperationJob } from "../../lib/currentOperation";
 import { getDriverLevelData } from "../../lib/levelUtils";
@@ -59,13 +63,9 @@ export default function DriverProfileReference() {
   const photoSimulatorId = resolveVehiclePhotoOperationSimulatorId(currentJob as any, company as any, "", simulators as any[], allCompanies as any[], vehicle ? [vehicle] : []);
   const vehiclePhoto = useVehiclePhoto(currentJob?.vehicleId && photoSimulatorId ? { userId: driverId, simulatorId: photoSimulatorId, vehicleId: String(currentJob.vehicleId), vehicleName: vehicle?.name } : null, companyId || "");
   const simulatorLabel = company ? resolveSimulatorDisplayLabel(company as any, simulators as any[], allCompanies as any[]) || "Simulador" : "Simulador";
-  // The back control stays under the app header while the page scrolls.
-  const [backTop, setBackTop] = useState(60);
-  useEffect(() => {
-    const measure = () => setBackTop(Math.round((document.querySelector(".nvu-admin-header")?.getBoundingClientRect().bottom || 52) + 8));
-    measure(); window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, [driverId]);
+  // Same figures as the driver's own Resultados page, computed from this driver's trips only.
+  const resultTrips = useMemo(() => filterAndSortTripHistory(historicoTrips.filter(trip => getCanonicalTripDriverId(normalizeTrip(trip as any)) === driverId), { periodPreset: "todos" })
+    .map(trip => applySimulatorCurrencyContext(trip, companies, simulators)), [historicoTrips, driverId, companies, simulators]);
   const goBack = () => { if (state.returnUrl) navigate(state.returnUrl, { state: state.returnState }); else navigate(-1); };
 
   if (!driver) {
@@ -77,7 +77,6 @@ export default function DriverProfileReference() {
       <div className="nvu-driver-reference-hero">
         <ProfileCoverHero key={driverId} scope="driver" profileId={driverId} profile={driver} name={name} description="Motorista Parceiro" avatar={resolveDriverPhoto(driver)}
           viewerId={currentUser?.id || ""} simulator={simulatorLabel} simulatorOpen={false} onSimulator={() => undefined} canEdit={false} readOnlySimulator />
-        <button type="button" className="nvu-driver-reference-back" aria-label="Voltar" style={{ top: backTop }} onClick={goBack}><ArrowLeft size={20} aria-hidden="true" /></button>
       </div>
       <div className="nvu-driver-surface" data-page="profile">
         <DriverProfileToolbar view={view} onViewChange={setView} infoOpen={infoOpen} onInfo={() => setInfoOpen(value => !value)} onEdit={() => undefined} canEdit={false} />
@@ -90,7 +89,7 @@ export default function DriverProfileReference() {
         {companyId ? <DriverPerformanceCard
           rankingScope={scope} hideScopeSelector
           profilePresentation={{
-            view, periodType, onPeriodChange: setPeriodType, onScopeChange: setScope, viewerId: currentUser?.id || "", viewingOther: true,
+            view, periodType, onPeriodChange: setPeriodType, onScopeChange: setScope, viewerId: currentUser?.id || "", viewingOther: true, results: { trips: resultTrips, loading },
             company: company ? { id: String((company as any).id), name: (company as any).companyName || (company as any).name || "Empresa vinculada", logo: (company as any).logoUrl || (company as any).logoURL || (company as any).companyLogoURL } : null,
             companyLoading: false,
             vehicle: currentJob?.vehicleId ? { id: String(currentJob.vehicleId), name: vehicle?.name || "Veículo atual", photo: vehiclePhoto.src, onPhotoLoad: vehiclePhoto.onImageLoad, onPhotoError: vehiclePhoto.onImageError } : null,
