@@ -2,6 +2,8 @@ name: APK Debug
 
 on:
   workflow_dispatch:
+  push:
+    branches: [dist-build]
 
 permissions:
   contents: read
