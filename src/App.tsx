@@ -65,6 +65,7 @@ const PublicProfile = lazy(() => import("./pages/PublicProfile"));
 
 const SeniorPanel = lazy(() => import("./pages/admin/SeniorPanel"));
 const DriverProfileIsolated = lazy(() => import("./pages/admin/DriverProfileIsolated"));
+const DriverProfileReference = lazy(() => import("./pages/admin/DriverProfileReference"));
 
 const RecordTrip = lazy(() => import("./pages/driver/RecordTrip"));
 const RecruitmentApply = lazy(() => import("./pages/RecruitmentApply"));
@@ -817,6 +818,7 @@ function AppRouteContent() {
           <Route path="news" element={<NewsFeed />} />
           <Route path="manual" element={<LazyRoute><Manual /></LazyRoute>} />
           <Route path="driver/:id" element={<LazyRoute><DriverProfileIsolated /></LazyRoute>} />
+          <Route path="driver/:id/perfil" element={<LazyRoute><DriverProfileReference /></LazyRoute>} />
         </Route>
 
         {/* Driver Routes */}

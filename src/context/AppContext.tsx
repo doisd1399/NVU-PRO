@@ -645,7 +645,8 @@ export interface OperationalStoreType {
   startJob: (jobId: string) => Promise<void>;
   startAutomaticOperation: (next: QueueNext, vehicleId: string) => Promise<void>;
   finishJob: (jobId: string) => Promise<ConfirmedOperationCompletion>;
-  cancelJob: (jobId: string) => Promise<void>;
+  cancelJob: (jobId: string) => Promise<boolean>;
+  changeJobVehicle: (jobId: string, vehicleId: string) => Promise<void>;
   deleteJob: (jobId: string) => Promise<void>;
   requestNewJobDemand: () => Promise<void>;
   cancelJobDemand: () => Promise<void>;
@@ -4468,7 +4469,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     return execution;
   };
 
-  const cancelJob = async (jobId: string) => {
+  const cancelJob = async (jobId: string): Promise<boolean> => {
     let prevJobState: Job | undefined;
     try {
       console.log(
@@ -4478,7 +4479,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!jobId) {
         console.error("[cancelJob] ERRO: jobId é nulo ou indefinido!");
         toast.error("Erro: ID do trabalho ausente.");
-        return;
+        return false;
       }
       const uid = getCurrentUserId();
       const commandScope = operationalCommandScopeRef.current;
@@ -4490,7 +4491,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         const confirmedJob = mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: jobId } as Job);
         setJobs(current => current.map(job => job.id === jobId ? mergeManagedOperationAcknowledgement(job, confirmedJob) : job).filter(job => !job.archived));
         toast.success("Trabalho cancelado com sucesso!");
-        return;
+        return true;
       }
       console.log("[cancelJob] User UID:", uid);
 
@@ -4500,7 +4501,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!docSnap.exists()) {
         console.error("[cancelJob] Documento não encontrado no Firestore!");
         toast.error("Erro: Operação não encontrada no servidor.");
-        return;
+        return false;
       }
 
       console.log(
@@ -4552,6 +4553,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         );
       }
       toast.success("Trabalho cancelado com sucesso!");
+      return true;
     } catch (e: any) {
       console.error("[cancelJob] ERRO FATAL:", e);
       // Rollback da UI
@@ -4573,7 +4575,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         style: { minWidth: "350px", whiteSpace: "pre-wrap" },
       });
       handleFirebaseError(e);
+      return false;
     }
+  };
+
+  /** Links another vehicle of the same company to an open job. Throws, so the caller can offer a retry. */
+  const changeJobVehicle = async (jobId: string, vehicleId: string): Promise<void> => {
+    const uid = getCurrentUserId();
+    const commandScope = operationalCommandScopeRef.current;
+    const target = jobs.find(job => job.id === jobId);
+    const companyId = target?.companyId || activeCompanyId;
+    if (!jobId || !vehicleId || !companyId) throw new Error("Selecione o trabalho e o veículo.");
+    const result = await canonicalOperationCommandService.executeManaged({ action: "changeVehicle", companyId, jobId, vehicleId });
+    assertOperationalCommandScope(uid, commandScope);
+    const confirmedJob = mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: jobId } as Job);
+    setJobs(current => current.map(job => job.id === jobId ? mergeManagedOperationAcknowledgement(job, confirmedJob) : job));
+    toast.success("Veículo da operação atualizado.");
   };
 
   const deleteJob = async (jobId: string) => {
@@ -5360,6 +5377,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
   const stableStartAutomaticOperation = useStableEvent(startAutomaticOperation);
   const stableFinishJob = useStableEvent(finishJob);
   const stableCancelJob = useStableEvent(cancelJob);
+  const stableChangeJobVehicle = useStableEvent(changeJobVehicle);
   const stableDeleteJob = useStableEvent(deleteJob);
   const stableRequestJoinCompany = useStableEvent(requestJoinCompany);
   const stableCancelRequestJoinCompany = useStableEvent(cancelRequestJoinCompany);
@@ -5818,6 +5836,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       startAutomaticOperation: stableStartAutomaticOperation,
       finishJob: stableFinishJob,
       cancelJob: stableCancelJob,
+      changeJobVehicle: stableChangeJobVehicle,
       deleteJob: stableDeleteJob,
       requestNewJobDemand: stableRequestNewJobDemand,
       cancelJobDemand: stableCancelJobDemand,

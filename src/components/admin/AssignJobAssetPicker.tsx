@@ -47,6 +47,8 @@ type Props = {
   vehicles?: PickerVehicle[];
   trailers?: PickerTrailer[];
   vehicleUsageById?: Map<string, number | null>;
+  /** Vehicle already linked to the job being edited: it is marked and cannot be confirmed again. */
+  currentId?: string;
   onClose: () => void;
   onSelect: (id: string) => void;
 };
@@ -56,7 +58,7 @@ const normalizeText = (value: unknown) =>
 
 export function AssignJobAssetPicker({
   kind, open, selectedId, contracts = [], sequences = [], vehicles = [], trailers = [],
-  vehicleUsageById, onClose, onSelect,
+  vehicleUsageById, currentId, onClose, onSelect,
 }: Props) {
   const automatic = useOptionalAutomaticOperations();
   const id = useId();
@@ -71,7 +73,7 @@ export function AssignJobAssetPicker({
   const title = kind === "contract" ? "Escolher operação" : "Escolher veículo";
   const subtitle = kind === "contract"
     ? "Selecione a operação que será encaminhada."
-    : "Escolha o veículo para este trabalho.";
+    : currentId ? "Escolha o novo veículo deste trabalho." : "Escolha o veículo para este trabalho.";
   const draftItem = kind === "contract"
     ? contracts.find((contract) => contract.id === draftId)
     : vehicles.find((vehicle) => vehicle.id === draftId);
@@ -187,7 +189,7 @@ export function AssignJobAssetPicker({
     setCollapsedFolders((current) => ({ ...current, [folderId]: !current[folderId] }));
   };
   const confirmSelection = () => {
-    if (!draftItem) return;
+    if (!draftItem || draftItem.id === currentId) return;
     onSelect(draftItem.id);
     onClose();
   };
@@ -292,7 +294,7 @@ export function AssignJobAssetPicker({
                     <span className="nvu-assignment-choice-copy">
                       <strong>{vehicle.name}</strong>
                       <span className="nvu-assignment-choice-description"><Users size={14} strokeWidth={1.7} />
-                        {usageCount == null ? "Vínculos em consulta" : usageCount === 0 ? "Sem motoristas vinculados" : "Em uso por " + usageCount + " motorista" + (usageCount === 1 ? "" : "s")}
+                        {currentId === vehicle.id && "Veículo atual · "}{usageCount == null ? "Vínculos em consulta" : usageCount === 0 ? "Sem motoristas vinculados" : "Em uso por " + usageCount + " motorista" + (usageCount === 1 ? "" : "s")}
                       </span>
                     </span>
                     {radio}
@@ -306,7 +308,7 @@ export function AssignJobAssetPicker({
         </div>
         <footer className="nvu-assignment-picker-footer">
           <button type="button" className="nvu-assignment-button nvu-assignment-picker-cancel" onClick={onClose}>Cancelar</button>
-          <button type="button" className="nvu-assignment-button nvu-assignment-primary" disabled={!draftItem} onClick={confirmSelection}>
+          <button type="button" className="nvu-assignment-button nvu-assignment-primary" disabled={!draftItem || draftItem.id === currentId} onClick={confirmSelection}>
             {kind === "contract" ? "Usar operação" : "Usar veículo"}
           </button>
         </footer>

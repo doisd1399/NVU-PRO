@@ -1,0 +1,314 @@
+import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
+
+// Real AdminLayout -> Fleet -> OperationsTab (management center), the "Informações da operação" sheet and its four flows
+// (profile of the driver, trips of the operation, change of vehicle, cancellation) with the built production CSS. Only the
+// session, remote and ranking adapters are fixtures (scripts/fixtures/operation-info-fixtures.tsx); the commands record
+// what they were asked to do. Writes always go to those fakes: nothing here touches a real Firebase project.
+const root = process.cwd();
+const output = path.resolve(process.env.NVU_OPERATION_INFO_QA_DIR || "verification/operation-info");
+await fs.mkdir(output, { recursive: true });
+let playwright;
+try { playwright = await import("playwright"); }
+catch { playwright = await import(pathToFileURL(path.join(process.env.CODEX_PRIMARY_RUNTIME_NODE_MODULES, "playwright/index.mjs")).href); }
+const vehicleBytes = await fs.readFile("scripts/fixtures/central-management/vehicle.jpg");
+const photo = `data:image/jpeg;base64,${vehicleBytes.toString("base64")}`;
+const avatar = `data:image/png;base64,${(await fs.readFile("scripts/fixtures/central-management/avatar.png")).toString("base64")}`;
+const cssFiles = (await fs.readdir("dist/assets")).filter(name => name.endsWith(".css")).sort((a, b) => Number(!a.startsWith("index-")) - Number(!b.startsWith("index-")));
+assert(cssFiles.some(name => name.startsWith("index-")), "Build the app before running the UI check");
+const css = (await Promise.all(cssFiles.map(name => fs.readFile(path.join("dist/assets", name), "utf8")))).join("\n");
+const fixtures = await fs.readFile("scripts/fixtures/operation-info-fixtures.tsx", "utf8");
+const adapters = new Set(["AppContext.tsx", "CompanyContext.tsx", "NotificationsContext.tsx", "firebase.ts", "routePreload.ts", "rankingPhotoWarmup.ts", "usePersistentRankingImage.ts", "useTripHistory.ts", "useDriverTrips.ts", "useMissingOperationTrip.ts", "SimpleAutomationCompletionBridge.tsx", "CompactProfileEditorModal.tsx", "NotificationCenter.tsx", "ProfileModal.tsx", "useVehiclePhoto.ts", "workModeAvailabilityService.ts", "simpleAutomationCityService.ts", "operationIntegrityGuard.ts", "uploadService.ts", "useProfileRanking.ts", "useTripsRealtime.ts", "AutomaticOperationsProvider.tsx", "useLocalOperationPending.ts", "operationalGoalAccess.ts", "CanonicalTripMigrationService.ts", "CanonicalTripCommandService.ts", "CanonicalTripOperationService.ts", "syncManager.ts", "tripModerationService.ts", "ProPendingAuthButton.tsx", "ProPendingRetryButton.tsx", "ProAttemptDiagnosticDetails.tsx", "FailedHistoryRegistrationRecovery.tsx", "OperationResultModal.tsx"]);
+const secondary = new Set(["VehiclesTab.tsx", "TrailersTab.tsx", "DriversTab.tsx", "ContractsTab.tsx", "RecruitmentTab.tsx", "GtoObserverSetup.tsx", "Reports.tsx"]);
+const bundle = await build({
+  stdin: { resolveDir: root, sourcefile: "operation-info-ui.tsx", loader: "tsx", contents: `
+import React from "react";import {createRoot} from "react-dom/client";import {MemoryRouter,Routes,Route,useLocation,useNavigate} from "react-router-dom";
+import AdminLayout from "./src/layouts/AdminLayout";import Fleet from "./src/pages/admin/Fleet";import DriverProfileReference from "./src/pages/admin/DriverProfileReference";
+import {WorkspaceScrollMemory} from "./src/components/common/WorkspaceScrollMemory";import {startProfileCoverSync} from "./src/services/profileCoverService";import {handleSafeAppBack} from "./src/lib/safeBackNavigation";window.__back=()=>handleSafeAppBack({canGoBack:true});
+startProfileCoverSync();
+function Probe(){const location=useLocation(),navigate=useNavigate();window.__route={pathname:location.pathname,state:location.state};window.__go=navigate;return null;}
+createRoot(document.getElementById("root")).render(<MemoryRouter initialEntries={[{pathname:"/admin/fleet",state:{activeTab:"operations"}}]}><Probe/><WorkspaceScrollMemory scope="qa:company"/><Routes><Route path="/admin" element={<AdminLayout/>}><Route path="fleet" element={<Fleet/>}/><Route path="driver/:id/perfil" element={<DriverProfileReference/>}/><Route path="*" element={<div>Destino</div>}/></Route><Route path="*" element={<div>Outra página</div>}/></Routes></MemoryRouter>);
+` },
+  bundle: true, write: false, outfile: path.join(output, "fixture.js"), format: "iife", platform: "browser", jsx: "automatic", loader: { ".css": "empty" }, logLevel: "error",
+  define: { "process.env.NODE_ENV": '"test"', "import.meta.env.BASE_URL": '"/"', "import.meta.env.PROD": "false", "import.meta.env.DEV": "false", "import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID": '""', __AVATAR__: JSON.stringify(avatar), __VEHICLE__: JSON.stringify(photo) },
+  plugins: [{ name: "opinfo-adapters", setup(plugin) {
+    plugin.onResolve({ filter: /^opinfo-fixtures$/ }, () => ({ path: "fixtures", namespace: "opinfo-fixture" }));
+    plugin.onLoad({ filter: /.*/, namespace: "opinfo-fixture" }, () => ({ contents: fixtures, resolveDir: root, loader: "tsx" }));
+    plugin.onResolve({ filter: /^firebase\/(auth|firestore)$/ }, args => ["/profileCoverService.ts", "/companyDescriptionService.ts", "/useCompanyDescription.ts", "/CompanyTab.tsx", "/TripHistory.tsx", "/OperationsTab.tsx", "/useOperationalGoal.ts"].some(file => args.importer.endsWith(file)) ? { path: "fixtures", namespace: "opinfo-fixture" } : undefined);
+    plugin.onLoad({ filter: /src\/.*\.tsx?$/ }, args => adapters.has(path.basename(args.path)) || secondary.has(path.basename(args.path)) ? { contents: 'export * from "opinfo-fixtures";export {default} from "opinfo-fixtures";', resolveDir: root, loader: "tsx" } : undefined);
+  } }],
+});
+const js = bundle.outputFiles.find(file => file.path.endsWith(".js")).text;
+const ORIGIN = "http://127.0.0.1:43830";
+const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${css}</style></head><body><div id="root"></div><script>${js.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
+const browser = await playwright.chromium.launch({ headless: true, ...(process.env.NVU_CHROMIUM_EXECUTABLE ? { executablePath: process.env.NVU_CHROMIUM_EXECUTABLE } : {}), args: ["--no-sandbox", "--disable-dev-shm-usage"] });
+const errors = [], outbound = [], results = [];
+async function check(name, run) { await run(); results.push({ name, pass: true }); console.log("PASS " + name); }
+
+
+async function openWindow(viewport, { mobile = true } = {}) {
+  const context = await browser.newContext({ viewport, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, timezoneId: "America/Sao_Paulo" });
+  await context.route("**/*", async route => {
+    const url = new URL(route.request().url());
+    if (url.hostname === "cover-qa.test") return route.fulfill({ body: vehicleBytes, contentType: "image/jpeg", headers: { "access-control-allow-origin": "*" } });
+    if (url.hostname !== "127.0.0.1") { outbound.push(url.href); return route.abort(); }
+    if (url.pathname.endsWith(".woff2")) return route.fulfill({ contentType: "font/woff2", body: await fs.readFile(path.join(root, "public", url.pathname)) });
+    return route.fulfill({ contentType: "text/html", body: html });
+  });
+  const page = await context.newPage();
+  page.on("pageerror", error => errors.push(error.message));
+  return { context, page };
+}
+async function start(page, theme = "dark") {
+  await page.goto(ORIGIN + "/");
+  await page.waitForFunction(() => window.__go);
+  await page.evaluate(theme => { document.documentElement.classList.toggle("dark", theme === "dark"); window.dispatchEvent(new CustomEvent("nvu:theme-change", { detail: theme })); }, theme);
+  await page.getByTestId("management-dashboard").waitFor();
+  await page.evaluate(() => document.fonts.ready);
+}
+const infoButton = (page, vehicle) => page.getByRole("button", { name: `Ver informações de ${vehicle}`, exact: true });
+const sheet = page => page.getByTestId("operation-info-sheet");
+const route = page => page.evaluate(() => window.__route);
+const ops = page => page.evaluate(() => ({ cancels: window.__ops.cancels, vehicleChanges: window.__ops.vehicleChanges }));
+const jobsState = page => page.evaluate(() => Object.fromEntries(window.__jobs().map(job => [job.id, { status: job.status, vehicleId: job.vehicleId }])));
+const tick = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+const box = (page, selector) => page.locator(selector).first().evaluate(node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; });
+
+try {
+  await check("Information sheet: bottom panel with the real data of each operation (same operation name, different jobs)", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 780 });
+    await start(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await infoButton(page, "Scania G").click();
+    await sheet(page).waitFor();
+    const text = await sheet(page).innerText();
+    assert.match(text, /Ana Souza/); assert.match(text, /DC Transportes · GTO/); assert.match(text, /BLS - 150/); assert.match(text, /Em andamento/);
+    assert.match(text, /Tempo restante\s+\d+d · \d+h · \d+min/); assert.match(text, /40%/); assert.match(text, /4 de 10 entregas/); assert.match(text, /6 restantes/);
+    assert.deepEqual(await page.locator(".nvu-op-sheet-action").evaluateAll(nodes => nodes.map(node => node.textContent.trim())), ["Visualizar perfil", "Viagens da operação", "Trocar veículo", "Cancelar trabalho"]);
+    assert.equal(await page.getByRole("progressbar", { name: "Progresso da operação" }).getAttribute("aria-valuenow"), "40");
+    const geometry = await page.evaluate(() => {
+      const dialog = document.querySelector(".nvu-central-sheet"), r = dialog.getBoundingClientRect(), s = getComputedStyle(dialog), photo = document.querySelector(".nvu-op-sheet-photo").getBoundingClientRect();
+      const last = [...document.querySelectorAll(".nvu-op-sheet-action")].at(-1).getBoundingClientRect();
+      return { bottom: r.bottom, innerHeight, top: r.top, radius: s.borderTopLeftRadius, background: s.backgroundColor, photo: [photo.width, photo.height], lastBottom: last.bottom, bodyOverflow: document.body.style.overflow, overlay: getComputedStyle(document.querySelector(".nvu-central-overlay")).backgroundColor };
+    });
+    assert(Math.abs(geometry.bottom - geometry.innerHeight) <= 1 && parseFloat(geometry.radius) >= 20, "Anchored to the bottom with rounded top corners: " + JSON.stringify(geometry));
+    assert(geometry.lastBottom < geometry.bottom - 14 && geometry.top >= 0, "Room under the last button and every control reachable: " + JSON.stringify(geometry));
+    assert(Math.abs(geometry.photo[0] - geometry.photo[1]) <= 1, "Square photo: " + JSON.stringify(geometry));
+    assert.equal(geometry.bodyOverflow, "hidden", "The page behind cannot scroll");
+    assert.equal(geometry.background, "rgb(26, 37, 45)");
+    const colors = await page.evaluate(() => { const c = selector => getComputedStyle(document.querySelector(selector)); return { action: c(".nvu-op-sheet-action").backgroundColor, arrow: c(".nvu-op-sheet-arrow").backgroundColor, text: c(".nvu-op-sheet-driver strong").color, muted: c(".nvu-op-sheet-driver span").color, danger: c('.nvu-op-sheet-action[data-danger="true"]').color, dangerArrow: c('.nvu-op-sheet-action[data-danger="true"] .nvu-op-sheet-arrow').color, status: c(".nvu-op-sheet-status").color }; });
+    assert.deepEqual(colors, { action: "rgb(35, 53, 62)", arrow: "rgb(64, 85, 98)", text: "rgb(243, 247, 249)", muted: "rgb(179, 192, 203)", danger: "rgb(255, 136, 0)", dangerArrow: "rgb(255, 136, 0)", status: "rgb(36, 207, 222)" });
+    await page.screenshot({ path: path.join(output, "sheet-portrait.png") });
+    // the other job has the same operation name: its own driver, progress and overdue state
+    await page.keyboard.press("Escape"); await sheet(page).waitFor({ state: "detached" });
+    await infoButton(page, "Iveco S Way").click(); await sheet(page).waitFor();
+    const other = await sheet(page).innerText();
+    assert.match(other, /Bruno Lima/); assert.match(other, /3 de 12 entregas/); assert.match(other, /25%/); assert.match(other, /Atrasado/); assert.match(other, /Prazo vencido/);
+    assert.doesNotMatch(other, /Ana Souza/);
+    assert.equal(await page.getByRole("heading", { name: "Informações da operação" }).count(), 1);
+    await context.close();
+  });
+
+  await check("Close paths: button, scrim, Escape and the Android Back button; the scroll of the page is restored", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 780 });
+    await start(page);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    for (const how of ["button", "scrim", "escape", "back"]) {
+      await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+      if (how === "button") await page.getByRole("button", { name: "Fechar informações da operação" }).click();
+      if (how === "scrim") await page.mouse.click(195, 40);
+      if (how === "escape") await page.keyboard.press("Escape");
+      if (how === "back") await page.evaluate(() => window.__back());
+      await sheet(page).waitFor({ state: "detached" });
+      assert.notEqual(await page.evaluate(() => document.body.style.overflow), "hidden", how);
+    }
+    await context.close();
+  });
+
+  await check("Visualizar perfil: the page of the driver of the operation (not the signed-in user), Resumo first, then Estatísticas; Back restores the center", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 844 });
+    await start(page);
+    await infoButton(page, "Iveco S Way").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Visualizar perfil" }).click();
+    await page.waitForFunction(() => window.__route.pathname === "/admin/driver/bruno/perfil");
+    const state = (await route(page)).state;
+    assert.equal(state.companyId, "dc"); assert.equal(state.returnUrl, "/admin/fleet"); assert.equal(state.returnState.activeTab, "operations");
+    await page.locator(".nvu-driver-reference").waitFor();
+    assert.equal(await page.locator(".nvu-cover-copy h2").innerText(), "Bruno Lima");
+    assert.equal(await page.getByRole("button", { name: "Resumo", exact: true }).getAttribute("aria-pressed"), "true");
+    assert.equal(await page.getByRole("button", { name: "Estatísticas", exact: true }).getAttribute("aria-pressed"), "false");
+    assert.equal(await page.locator(".nvu-central-sheet").count(), 0, "The sheet is closed on the profile");
+    await page.getByRole("button", { name: "Estatísticas", exact: true }).click();
+    assert.equal(await page.getByRole("button", { name: "Estatísticas", exact: true }).getAttribute("aria-pressed"), "true");
+    await page.screenshot({ path: path.join(output, "profile-statistics.png") });
+    await page.evaluate(() => window.scrollTo(0, 400));
+    await page.getByRole("button", { name: "Voltar", exact: true }).click();
+    await page.waitForFunction(() => window.__route.pathname === "/admin/fleet");
+    assert.equal((await route(page)).state.activeTab, "operations");
+    await page.getByTestId("management-dashboard").waitFor();
+    // another driver: Ana, in the same company
+    await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Visualizar perfil" }).click();
+    await page.waitForFunction(() => window.__route.pathname === "/admin/driver/ana/perfil");
+    assert.equal(await page.locator(".nvu-cover-copy h2").innerText(), "Ana Souza");
+    await context.close();
+  });
+
+  await check("Viagens da operação: only the trips of the selected job, newest first, fixed header and its own scroll", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 600 });
+    await start(page);
+    for (const [vehicle, count, driver] of [["Scania G", 4, "Ana Souza"], ["Iveco S Way", 3, "Bruno Lima"]]) {
+      await infoButton(page, vehicle).click(); await sheet(page).waitFor();
+      await page.getByRole("button", { name: "Viagens da operação" }).click();
+      await page.getByTestId("operation-trips-sheet").waitFor();
+      await page.locator(".nvu-op-trips-list .nvu-trip-card").first().waitFor();
+      assert.equal((await page.getByTestId("operation-trips-count").innerText()).trim(), `${count} viagens`);
+      assert.equal(await page.locator(".nvu-op-trips-list .nvu-trip-card").count(), count, vehicle);
+      const panel = await page.getByTestId("operation-trips-sheet").innerText();
+      assert.match(panel, new RegExp(driver)); assert.doesNotMatch(panel, /Outra operação/);
+      // newest first: the card values increase with the trip number, which follows the date
+      const values = await page.locator(".nvu-op-trips-list .nvu-trip-card").evaluateAll(nodes => nodes.map(node => Number((node.innerText.match(/R\$\s*([\d.]+),/) || [])[1]?.replaceAll(".", "") || 0)));
+      assert.deepEqual([...values].sort((a, b) => b - a), values, "Newest first: " + values);
+      const header = await box(page, ".nvu-op-trips-summary");
+      const scroller = await page.locator(".nvu-op-trips-list").evaluate(node => { node.scrollTop = 9999; return { overflow: getComputedStyle(node).overflowY, client: node.clientHeight, scroll: node.scrollHeight, top: node.scrollTop }; });
+      assert.equal(scroller.overflow, "auto");
+      assert.deepEqual(await box(page, ".nvu-op-trips-summary"), header, "The header stays fixed while the list scrolls");
+      if (count === 4) { assert(scroller.scroll > scroller.client && scroller.top > 0, "The list scrolls inside the panel: " + JSON.stringify(scroller)); await page.screenshot({ path: path.join(output, "trips-sheet.png") }); }
+      await page.getByRole("button", { name: "Fechar viagens da operação" }).click();
+      await page.getByTestId("operation-trips-sheet").waitFor({ state: "detached" });
+      await sheet(page).waitFor();
+      await page.keyboard.press("Escape"); await sheet(page).waitFor({ state: "detached" });
+    }
+    // the job of the other company never shows here and has no entry in the center
+    assert.equal(await page.locator(".nvu-central-operation").count(), 2);
+    await context.close();
+  });
+
+  await check("Trocar veículo: catalog of the company with folders, usage and the current vehicle; one selection; discard on close; validated save", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 780 });
+    await start(page);
+    await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Trocar veículo" }).click();
+    const dialog = page.getByRole("dialog", { name: "Escolher veículo" });
+    await dialog.waitFor();
+    const names = await dialog.getByRole("radio").evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-label")));
+    assert.deepEqual([...names].sort(), ["DAF XF 480", "Iveco S Way", "Scania G", "Volvo FH 540"], "Only vehicles of this company, none in maintenance: " + names);
+    const folders = await dialog.locator(".nvu-assignment-folder-heading strong").allInnerTexts();
+    assert.deepEqual(folders, ["Cavalos A", "Cavalos B", "Sem pasta"]);
+    assert.match(await dialog.getByRole("radio", { name: "Scania G" }).innerText(), /Veículo atual/);
+    assert.match(await dialog.getByRole("radio", { name: "Iveco S Way" }).innerText(), /Em uso por 1 motorista/);
+    const use = dialog.getByRole("button", { name: "Usar veículo" });
+    assert.equal(await use.isDisabled(), true, "The current vehicle cannot be confirmed again");
+    await dialog.getByRole("searchbox", { name: "Buscar veículo" }).fill("volvo");
+    assert.deepEqual(await dialog.getByRole("radio").evaluateAll(nodes => nodes.map(node => node.getAttribute("aria-label"))), ["Volvo FH 540"]);
+    await dialog.getByRole("radio", { name: "Volvo FH 540" }).click();
+    assert.equal(await use.isEnabled(), true);
+    // closing discards the selection and writes nothing
+    await dialog.getByRole("button", { name: "Cancelar" }).click(); await dialog.waitFor({ state: "detached" });
+    assert.deepEqual((await ops(page)).vehicleChanges, []);
+    await page.getByRole("button", { name: "Trocar veículo" }).click();
+    const again = page.getByRole("dialog", { name: "Escolher veículo" });
+    assert.equal(await again.getByRole("button", { name: "Usar veículo" }).isDisabled(), true, "A new opening starts without the discarded selection");
+    // double click on the confirmation: one command only
+    await page.evaluate(() => { window.__ops.delay = 400; });
+    await again.getByRole("radio", { name: "Volvo FH 540" }).click();
+    await again.getByRole("button", { name: "Usar veículo" }).dblclick();
+    await page.getByText("Trocando o veículo da operação…").waitFor();
+    await page.getByText("Trocando o veículo da operação…").waitFor({ state: "detached" });
+    assert.deepEqual((await ops(page)).vehicleChanges, [{ id: "job-a", vehicleId: "volvo" }]);
+    assert.deepEqual(await jobsState(page), { "job-a": { status: "active", vehicleId: "volvo" }, "job-b": { status: "active", vehicleId: "iveco" }, "job-c": { status: "active", vehicleId: "foreign-truck" } });
+    await page.keyboard.press("Escape"); await sheet(page).waitFor({ state: "detached" });
+    await infoButton(page, "Volvo FH 540").waitFor();
+    assert.equal(await infoButton(page, "Scania G").count(), 0, "The center shows the new vehicle");
+    await context.close();
+  });
+
+  await check("Trocar veículo: network failure keeps the old vehicle and offers a retry; offline and finished jobs are refused before writing", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 780 });
+    await start(page);
+    await page.evaluate(() => { window.__ops.failVehicle = 1; });
+    await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Trocar veículo" }).click();
+    let dialog = page.getByRole("dialog", { name: "Escolher veículo" });
+    await dialog.getByRole("radio", { name: "DAF XF 480" }).click(); await dialog.getByRole("button", { name: "Usar veículo" }).click();
+    const failure = page.getByRole("alert");
+    await failure.waitFor();
+    assert.match(await failure.innerText(), /O veículo não está disponível/);
+    assert.equal((await jobsState(page))["job-a"].vehicleId, "scania", "A failed write leaves the link untouched");
+    await page.getByRole("button", { name: "Tentar novamente" }).click();
+    await page.getByRole("alert").waitFor({ state: "detached" });
+    assert.deepEqual((await ops(page)).vehicleChanges, [{ id: "job-a", vehicleId: "daf" }, { id: "job-a", vehicleId: "daf" }]);
+    assert.equal((await jobsState(page))["job-a"].vehicleId, "daf");
+    // offline: refused locally, nothing is sent
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.evaluate(() => { Object.defineProperty(navigator, "onLine", { value: false, configurable: true }); window.dispatchEvent(new Event("offline")); });
+    if (!await sheet(page).count()) await infoButton(page, "DAF XF 480").click();
+    await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Trocar veículo" }).click();
+    dialog = page.getByRole("dialog", { name: "Escolher veículo" });
+    await dialog.getByRole("radio", { name: "Volvo FH 540" }).click(); await dialog.getByRole("button", { name: "Usar veículo" }).click();
+    assert.match(await page.getByRole("alert").innerText(), /Sem conexão/);
+    assert.equal((await ops(page)).vehicleChanges.length, 2);
+    await context.close();
+  });
+
+  await check("Cancelar trabalho: confirmation first; nothing is written before it; one command; failure and retry; the trips stay", async () => {
+    const { context, page } = await openWindow({ width: 390, height: 780 });
+    await start(page);
+    await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Cancelar trabalho" }).click();
+    const dialog = page.getByRole("dialog", { name: "Cancelar trabalho" });
+    await dialog.waitFor();
+    assert.equal((await dialog.locator("p").first().innerText()).trim(), "Deseja cancelar o trabalho BLS - 150 de Ana Souza? As viagens já registradas serão preservadas.");
+    assert.deepEqual((await ops(page)).cancels, [], "No write before the confirmation");
+    const confirm = dialog.getByRole("button", { name: "Confirmar cancelamento" });
+    assert.equal(await confirm.evaluate(node => getComputedStyle(node).backgroundColor), "rgb(255, 136, 0)");
+    await dialog.getByRole("button", { name: "Voltar", exact: true }).click(); await dialog.waitFor({ state: "detached" });
+    assert.deepEqual((await ops(page)).cancels, []); await sheet(page).waitFor();
+    await page.evaluate(() => { window.__ops.failCancel = 1; window.__ops.delay = 300; });
+    await page.getByRole("button", { name: "Cancelar trabalho" }).click();
+    await dialog.waitFor();
+    await confirm.dblclick();
+    await dialog.getByRole("alert").waitFor();
+    assert.match(await dialog.getByRole("alert").innerText(), /Não foi possível cancelar/);
+    assert.deepEqual((await ops(page)).cancels, ["job-a"], "Repeated clicks send one command");
+    assert.equal((await jobsState(page))["job-a"].status, "active");
+    await confirm.click();
+    await dialog.waitFor({ state: "detached" }); await sheet(page).waitFor({ state: "detached" });
+    assert.deepEqual((await ops(page)).cancels, ["job-a", "job-a"]);
+    assert.equal((await jobsState(page))["job-a"].status, "cancelled");
+    assert.equal(await page.locator(".nvu-central-operation").count(), 1, "The center keeps only the other job");
+    assert.equal((await jobsState(page))["job-b"].status, "active");
+    await context.close();
+  });
+
+  for (const [label, width, height, mobile, theme] of [["small phone", 360, 640, true, "dark"], ["phone landscape", 844, 390, true, "dark"], ["phone landscape, low", 720, 340, true, "dark"], ["tablet", 820, 1180, false, "light"], ["desktop", 1366, 768, false, "dark"]]) {
+    await check(`Sheet adapts to the screen (${label} ${width}x${height}): every control reachable, nothing cut, room below the last button`, async () => {
+      const { context, page } = await openWindow({ width, height }, { mobile });
+      await start(page, theme);
+      await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+      const m = await page.evaluate(() => {
+        const dialog = document.querySelector(".nvu-central-sheet"), r = dialog.getBoundingClientRect(), actions = [...document.querySelectorAll(".nvu-op-sheet-action")].map(node => node.getBoundingClientRect());
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, innerWidth, innerHeight, scrolls: dialog.scrollHeight > dialog.clientHeight + 1, actions: actions.map(a => [a.top, a.bottom, a.left, a.right]), overflowX: document.documentElement.scrollWidth > innerWidth + 1 };
+      });
+      const info = label + JSON.stringify(m);
+      assert(m.top >= 0 && Math.abs(m.bottom - m.innerHeight) <= 1 && m.left >= 0 && m.right <= m.innerWidth + 1 && !m.overflowX, info);
+      if (!m.scrolls) assert(m.actions.every(([t, b, l, r]) => t >= m.top && b <= m.bottom - 8 && l >= m.left && r <= m.right), "All four buttons inside the panel: " + info);
+      else {
+        // a panel taller than the screen scrolls inside itself: the last button can be reached
+        await page.locator('.nvu-op-sheet-action[data-action="cancel"]').scrollIntoViewIfNeeded();
+        const last = await box(page, '.nvu-op-sheet-action[data-action="cancel"]');
+        assert(last.bottom <= m.innerHeight && last.top >= 0, "Reachable by scrolling: " + info);
+      }
+      await page.screenshot({ path: path.join(output, `sheet-${label.replaceAll(/[ ,]+/g, "-")}.png`) });
+      await context.close();
+    });
+  }
+
+  assert.deepEqual(errors, []);
+  assert.deepEqual(outbound, []);
+  console.log(`OPERATION_INFO_UI_PASS ${results.length} checks`);
+} finally { await browser.close(); }

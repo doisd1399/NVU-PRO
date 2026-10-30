@@ -14,6 +14,8 @@ export type ManagementOperation = {
   completed: number; required: number; progress: number; remaining: number;
   deadline: string; deadlineTimestamp?: number; timeRemaining: string; nearDeadline: boolean;
   state: "active" | "pending" | "overdue" | "ready";
+  /** Raw job status; lets the information card tell a finished or cancelled job from an open one. */
+  jobStatus?: string;
 };
 const statusLabels = { active: "Em andamento", pending: "Não iniciado", overdue: "Atrasado", ready: "Aguardando conclusão" };
 

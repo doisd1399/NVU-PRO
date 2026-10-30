@@ -1,9 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useActivityStore, useOperationalStore, useSessionStore } from "../../../context/AppContext";
 import { useCompanyStore } from "../../../context/CompanyContext";
 import { ManagementDashboard, type ManagementAction } from "../../../components/admin/management/ManagementDashboard";
 import { ManagementDialog } from "../../../components/admin/management/ManagementDialog";
+import { OperationInfoSheet, type OperationInfoAction } from "../../../components/admin/management/OperationInfoSheet";
+import { OperationTripsSheet } from "../../../components/admin/management/OperationTripsSheet";
+import AssignJobAssetPicker from "../../../components/admin/AssignJobAssetPicker";
+import { countFleetAssetUsage } from "../../../lib/fleetUsage";
 import type { ManagementOperation } from "../../../components/admin/management/ManagementOperationCard";
 import { RankingPeriodModal } from "../../../components/RankingPeriodModal";
 import { useTripHistory } from "../../../hooks/useTripHistory";
@@ -11,9 +15,9 @@ import { auth } from "../../../lib/firebase";
 import { useOperationalGoal } from "../../../hooks/useOperationalGoal";
 import { useNetworkOnline } from "../../../hooks/useNetworkOnline";
 import { managementCacheKey, readManagementCache, writeManagementCache } from "../../../lib/managementOfflineCache";
-import { deriveCurrentOperationProgress, selectCurrentOperationJobs } from "../../../lib/currentOperation";
+import { deriveCurrentOperationProgress, selectCanonicalOperationTrips, selectCurrentOperationJobs } from "../../../lib/currentOperation";
 import { operationDateMs, resolveOperationContract } from "../../../lib/operationResultSummary";
-import { normalizeTrip, calculateWeeklyMetrics, getWeeklyRange, getMonthlyRange } from "../../../lib/metricsEngine";
+import { normalizeTrip, calculateWeeklyMetrics, getWeeklyRange, getMonthlyRange, applySimulatorCurrencyContext } from "../../../lib/metricsEngine";
 import { isTrailerlessSimulator, resolveSimulatorId } from "../../../lib/resolveSimulator";
 import { resolveVehiclePhotoOperationSimulatorId } from "../../../lib/vehiclePhotoIdentity";
 import { resolveSimulatorDisplayLabel } from "../../../lib/simulatorOptions";
@@ -43,8 +47,8 @@ function savedSummaryPeriod(key: string, companyId: string) {
 /** Data adapter only. Both mobile and desktop mount the new management view. */
 export default function OperationsTab({ active = true }: { active?: boolean }) {
   const { currentUser } = useSessionStore();
-  const { companies, activeCompanyId, allCompanyMembers } = useCompanyStore();
-  const { users, contracts, jobs, vehicles, trailers, simulators, cancelJob, rejectJobDemand, operationalDataReady, operationalDataRefreshing } = useOperationalStore();
+  const { companies, activeCompanyId, allCompanyMembers, allCompanyMembersReady } = useCompanyStore();
+  const { users, contracts, jobs, vehicles, trailers, simulators, sequences, cancelJob, changeJobVehicle, rejectJobDemand, operationalDataReady, operationalDataRefreshing } = useOperationalStore();
   const { jobDemands } = useActivityStore();
   const { historicoTrips = [], loading: historyLoading, refreshing: historyRefreshing, error: historyError } = useTripHistory(activeCompanyId, { userId: currentUser?.id });
   const navigate = useNavigate();
@@ -59,6 +63,11 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const [periodOpen, setPeriodOpen] = useState(false);
   const [infoId, setInfoId] = useState<string | null>(null);
   const [jobToCancel, setJobToCancel] = useState<string | null>(null);
+  const [tripsId, setTripsId] = useState<string | null>(null);
+  const [vehicleJobId, setVehicleJobId] = useState<string | null>(null);
+  const [vehicleAttempt, setVehicleAttempt] = useState<{ jobId: string; vehicleId: string; status: "saving" | "error"; message: string } | null>(null);
+  const vehicleSaveRef = useRef(false);
+  const cancelSaveRef = useRef(false);
   const [cancelSaving, setCancelSaving] = useState(false);
   const [cancelError, setCancelError] = useState("");
   const [requestsOpen, setRequestsOpen] = useState(false);
@@ -70,7 +79,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
 
   useEffect(() => {
     if (active) return;
-    setInfoId(null); setJobToCancel(null); setGoalOpen(false); setPeriodOpen(false); setRequestsOpen(false);
+    setInfoId(null); setJobToCancel(null); setTripsId(null); setVehicleJobId(null); setGoalOpen(false); setPeriodOpen(false); setRequestsOpen(false);
   }, [active]);
   useEffect(() => {
     if (!active) return;
@@ -79,7 +88,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     return () => window.clearInterval(timer);
   }, [active]);
   useEffect(() => {
-    setInfoId(null); setJobToCancel(null); setGoalOpen(false); setPeriodOpen(false);
+    setInfoId(null); setJobToCancel(null); setTripsId(null); setVehicleJobId(null); setGoalOpen(false); setPeriodOpen(false);
     setResumoPeriod(initialPeriod.period); setResumoStartDate(initialPeriod.startDate); setResumoEndDate(initialPeriod.endDate);
     setPeriodOwner(periodStorageKey);
   }, [periodStorageKey]);
@@ -155,7 +164,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
         completed, required, remaining: Math.max(0, required - completed), progress: required ? Math.min(100, Math.max(0, Math.round(completed / required * 100))) : 0,
         deadline: due ? dateFormat.format(new Date(due)) : "Não definido", deadlineTimestamp: due,
         timeRemaining: !due ? "Não definido" : diff <= 0 ? "Prazo vencido" : `${Math.floor(diff / 86400000)}d · ${Math.floor(diff / 3600000) % 24}h · ${Math.floor(diff / 60000) % 60}min`,
-        nearDeadline: Boolean(due && diff <= 2 * 86400000), state,
+        nearDeadline: Boolean(due && diff <= 2 * 86400000), state, jobStatus: String(job.status || ""),
       };
     });
   }, [activeCompany, activeCompanyId, companies, contracts, historicoTrips, jobs, now, selectedSimulatorId, simulators, trailers, users, vehicles]);
@@ -183,11 +192,59 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const visibleTripCount = useSaved ? validCached!.value.tripCount : metrics.filteredTrips.length;
   const visibleGoalRevenue = useSaved ? validCached!.value.goalRevenue : goalRevenue;
   const info = visibleOperations.find(operation => operation.id === infoId);
+  const openJobStatuses = ["pending", "active", "delayed", "awaiting_completion"];
+  // Trips of one job: the canonical projection (job identity, driver, company and contract), newest first. Two jobs
+  // with the same operation name never share trips.
+  const tripsOperation = visibleOperations.find(operation => operation.id === tripsId);
+  const tripsJob = tripsId ? jobs.find(job => job.id === tripsId) : undefined;
+  const operationTrips = useMemo(() => tripsJob
+    ? selectCanonicalOperationTrips(tripsJob as any, historicoTrips as any[], String(tripsJob.driverId || "")).map(trip => applySimulatorCurrencyContext(normalizeTrip(trip), companies, simulators))
+    : [], [tripsJob, historicoTrips, companies, simulators]);
+  // Vehicles of this company that can be linked to the job (a vehicle in maintenance cannot; sharing follows the
+  // assignment screen: several drivers may use the same vehicle).
+  const vehicleOperation = visibleOperations.find(operation => operation.id === vehicleJobId);
+  const vehicleChoices = useMemo(() => vehicleOperation ? vehicles.filter(vehicle => vehicle.companyId === vehicleOperation.companyId && vehicle.status !== "maintenance" && (vehicle as any).deleted !== true) : [], [vehicleOperation?.companyId, vehicles]);
+  const vehicleUsageById = useMemo(() => new Map(vehicleChoices.map(vehicle => [vehicle.id, allCompanyMembersReady
+    ? countFleetAssetUsage({ jobs, members: allCompanyMembers, contracts, assetId: vehicle.id, kind: "vehicle", companyId: activeCompanyId })
+    : null] as [string, number | null])), [vehicleChoices, allCompanyMembersReady, jobs, allCompanyMembers, contracts, activeCompanyId]);
+  const failureMessage = (error: unknown, fallback: string) => {
+    const code = String((error as any)?.code || "");
+    const message = String((error as any)?.message || "");
+    return /^functions\/(failed-precondition|permission-denied|not-found|invalid-argument)$/.test(code) && message && !/^internal$/i.test(message) ? message : fallback;
+  };
+  const changeVehicle = async (jobId: string, vehicleId: string) => {
+    if (vehicleSaveRef.current) return;
+    const job = jobs.find(item => item.id === jobId);
+    const choice = job && vehicles.find(vehicle => vehicle.id === vehicleId && vehicle.companyId === job.companyId && vehicle.status !== "maintenance" && (vehicle as any).deleted !== true);
+    const fail = (message: string) => setVehicleAttempt({ jobId, vehicleId, status: "error", message });
+    if (!job || !openJobStatuses.includes(String(job.status))) { fail("Este trabalho já foi encerrado."); return; }
+    if (!choice || choice.id === job.vehicleId) { fail("Escolha um veículo disponível diferente do atual."); return; }
+    if (!online) { fail("Sem conexão. Conecte-se para trocar o veículo."); return; }
+    vehicleSaveRef.current = true;
+    setVehicleAttempt({ jobId, vehicleId, status: "saving", message: "" });
+    try { await changeJobVehicle(jobId, vehicleId); setVehicleAttempt(null); }
+    catch (error) { fail(failureMessage(error, "Não foi possível trocar o veículo. Tente novamente.")); }
+    finally { vehicleSaveRef.current = false; }
+  };
+  const confirmCancel = async () => {
+    if (cancelSaveRef.current || !jobToCancel) return;
+    const job = jobs.find(item => item.id === jobToCancel);
+    if (!canManageGoal) { setCancelError("Somente administradores da empresa podem cancelar trabalhos."); return; }
+    if (!job || !openJobStatuses.includes(String(job.status))) { setCancelError("Este trabalho já foi encerrado."); return; }
+    if (!online) { setCancelError("Sem conexão. Conecte-se para cancelar o trabalho."); return; }
+    cancelSaveRef.current = true; setCancelSaving(true); setCancelError("");
+    try {
+      const done = await cancelJob(jobToCancel);
+      if (done === false) setCancelError("Não foi possível cancelar o trabalho. Tente novamente.");
+      else { setJobToCancel(null); setInfoId(null); }
+    } catch (error) { setCancelError(failureMessage(error, "Não foi possível cancelar o trabalho. Tente novamente.")); }
+    finally { cancelSaveRef.current = false; setCancelSaving(false); }
+  };
   const pendingDemands = jobDemands.filter(demand => demand.companyId === activeCompanyId && demand.status === "pending");
   useEffect(() => { void preloadImages(operations.map(operation => operation.driverPhoto).filter(Boolean), 6); }, [operations]);
   const onDriver = (operation: ManagementOperation) => {
     setInfoId(null);
-    navigate(`/admin/driver/${operation.driverId}`, { state: { returnUrl: "/admin/fleet", returnState: { activeTab: "operations" }, companyId: operation.companyId } });
+    navigate(`/admin/driver/${operation.driverId}/perfil`, { state: { returnUrl: "/admin/fleet", returnState: { activeTab: "operations" }, companyId: operation.companyId } });
   };
   const onAction = (action: ManagementAction) => {
     if (action === "assign") { commitNavigation(() => navigate("/admin/assign")); return; }
@@ -221,20 +278,24 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
         <div className="nvu-central-dialog-actions"><button type="button" disabled={goalSaving} onClick={() => setGoalOpen(false)}>Cancelar</button><button type="submit" disabled={goalSaving || !canManageGoal} data-primary="true">{goalSaving ? "Salvando…" : "Salvar meta"}</button></div>
       </form>
     </ManagementDialog>}
-    {info && <ManagementDialog title="Informações da operação" onClose={() => setInfoId(null)}>
-      <div className="nvu-central-dialog-body"><dl className="nvu-central-info-list">
-        {[["Motorista", info.driverName], ["Empresa", info.companyName], ["Operação", info.name], ["Simulador", info.simulatorLabel], ["Veículo", info.vehicleName], ...(info.showTrailer ? [["Reboque", info.trailerName || "Sem reboque"]] : []), ["Entregas", `${info.completed}/${info.required || "—"}`], ["Prazo limite", info.deadline], ["Tempo restante", info.timeRemaining]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
-      </dl><div className="nvu-central-dialog-actions"><button type="button" onClick={() => onDriver(info)}>Perfil do motorista</button><button type="button" onClick={() => navigate(`/admin/contract/${info.contractId}`)}>Ver operação</button><button type="button" data-danger="true" onClick={() => { setCancelError(""); setJobToCancel(info.id); }}>Cancelar trabalho</button></div></div>
-    </ManagementDialog>}
-    {jobToCancel && <ManagementDialog title="Cancelar trabalho?" onClose={() => { if (!cancelSaving) setJobToCancel(null); }}><div className="nvu-central-dialog-body">
-      <p>O motorista perderá o acesso à finalização deste trabalho.</p>{cancelError && <p role="alert">{cancelError}</p>}
-      <div className="nvu-central-dialog-actions"><button type="button" disabled={cancelSaving} onClick={() => setJobToCancel(null)}>Voltar</button><button type="button" data-danger="true" disabled={cancelSaving} onClick={async () => {
-        setCancelSaving(true); setCancelError("");
-        try { await cancelJob(jobToCancel); setJobToCancel(null); setInfoId(null); }
-        catch { setCancelError("Não foi possível cancelar o trabalho. Tente novamente."); }
-        finally { setCancelSaving(false); }
-      }}>{cancelSaving ? "Cancelando…" : "Confirmar cancelamento"}</button></div>
+    {info && <OperationInfoSheet operation={info} now={now.getTime()} canManage={canManageGoal} onClose={() => setInfoId(null)} onAction={(action: OperationInfoAction) => {
+      if (action === "profile") onDriver(info);
+      else if (action === "trips") setTripsId(info.id);
+      else if (action === "vehicle") setVehicleJobId(info.id);
+      else { setCancelError(""); setJobToCancel(info.id); }
+    }} />}
+    {tripsOperation && tripsJob && <OperationTripsSheet operation={tripsOperation} job={tripsJob as any} trips={operationTrips} companyTrips={historicoTrips as any[]} loading={historyLoading && !historicoTrips.length} error={historyError} onClose={() => setTripsId(null)} />}
+    {vehicleOperation && !vehicleAttempt && <AssignJobAssetPicker kind="vehicle" open selectedId={vehicleOperation.vehicleId} currentId={vehicleOperation.vehicleId} vehicles={vehicleChoices as any} sequences={sequences as any} vehicleUsageById={vehicleUsageById}
+      onClose={() => setVehicleJobId(null)} onSelect={vehicleId => { const jobId = vehicleOperation.id; setVehicleJobId(null); void changeVehicle(jobId, vehicleId); }} />}
+    {vehicleAttempt && <ManagementDialog title="Trocar veículo" busy={vehicleAttempt.status === "saving"} onClose={() => setVehicleAttempt(null)}><div className="nvu-central-dialog-body">
+      {vehicleAttempt.status === "saving" ? <p role="status">Trocando o veículo da operação…</p> : <><p role="alert">{vehicleAttempt.message}</p>
+        <div className="nvu-central-dialog-actions"><button type="button" onClick={() => setVehicleAttempt(null)}>Fechar</button>
+          <button type="button" data-primary="true" onClick={() => void changeVehicle(vehicleAttempt.jobId, vehicleAttempt.vehicleId)}>Tentar novamente</button></div></>}
     </div></ManagementDialog>}
+    {jobToCancel && (() => { const target = visibleOperations.find(operation => operation.id === jobToCancel); return <ManagementDialog title="Cancelar trabalho" busy={cancelSaving} onClose={() => { if (!cancelSaving) setJobToCancel(null); }}><div className="nvu-central-dialog-body">
+      <p>Deseja cancelar o trabalho {target?.name || "selecionado"} de {target?.driverName || "motorista"}? As viagens já registradas serão preservadas.</p>{cancelError && <p role="alert">{cancelError}</p>}
+      <div className="nvu-central-dialog-actions"><button type="button" disabled={cancelSaving} onClick={() => setJobToCancel(null)}>Voltar</button><button type="button" data-orange="true" disabled={cancelSaving} onClick={() => void confirmCancel()}>{cancelSaving ? "Cancelando…" : "Confirmar cancelamento"}</button></div>
+    </div></ManagementDialog>; })()}
     {requestsOpen && <ManagementDialog title="Solicitações de trabalho" onClose={() => setRequestsOpen(false)}><div className="nvu-central-dialog-body">
       {pendingDemands.map(demand => <div className="nvu-central-paint" key={demand.id}><h3>{formatDriverName(users.find(user => user.id === demand.driverId)?.name || "Motorista")}</h3><div className="nvu-central-dialog-actions">
         <button type="button" onClick={() => navigate("/admin/assign", { state: { preselectedDriverId: demand.driverId } })}>Encaminhar</button>

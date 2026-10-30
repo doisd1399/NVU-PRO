@@ -8,9 +8,11 @@ import "./ProfileCoverHero.css";
 
 const Editor = lazy(() => import("../ProfileCoverEditorModal"));
 
-export function ProfileCoverHero({ scope, profileId, profile, name, description, avatar, viewerId, simulator, simulatorOpen, onSimulator, canEdit = false }: {
+export function ProfileCoverHero({ scope, profileId, profile, name, description, avatar, viewerId, simulator, simulatorOpen, onSimulator, canEdit = false, readOnlySimulator = false }: {
   scope: ProfileCoverScope; profileId: string; profile: unknown; name: string; description: string;
   avatar: string; viewerId: string; simulator: string; simulatorOpen: boolean; onSimulator: () => void; canEdit?: boolean;
+  /** Viewing another person's profile: the simulator chip only shows the value. */
+  readOnlySimulator?: boolean;
 }) {
   const target = { scope, profileId };
   const cover = useProfileCover(viewerId, target, resolveProfileCover(profile));
@@ -51,7 +53,7 @@ export function ProfileCoverHero({ scope, profileId, profile, name, description,
     <div className="nvu-cover-identity">
       <StableImage src={avatar} persistentViewerId={viewerId} persistentAssetId={`${scope}-profile:${profileId}`} alt={scope === "company" ? `Logo de ${name}` : `Foto de ${name}`} wrapperClassName="nvu-cover-avatar" className="object-cover" fallback={<Icon size={29}/>} loading="eager" referrerPolicy="no-referrer"/>
       <div className="nvu-cover-copy"><h2>{name}</h2><p>{description}</p></div>
-      <button type="button" className="nvu-cover-simulator" aria-label={scope === "company" ? "Selecionar simulador da empresa" : "Selecionar simulador"} aria-expanded={simulatorOpen} aria-haspopup="dialog" onClick={onSimulator}><span>{simulator}</span><ChevronDown size={17}/></button>
+      <button type="button" className="nvu-cover-simulator" aria-label={readOnlySimulator ? `Simulador: ${simulator}` : scope === "company" ? "Selecionar simulador da empresa" : "Selecionar simulador"} aria-expanded={readOnlySimulator ? undefined : simulatorOpen} aria-haspopup={readOnlySimulator ? undefined : "dialog"} disabled={readOnlySimulator} onClick={onSimulator}><span>{simulator}</span>{!readOnlySimulator && <ChevronDown size={17}/>}</button>
     </div>
     {canEdit && cover.pending && <div className="nvu-cover-sync" role="status"><span>{cover.failed ? "Capa salva no aparelho. Sincronização pendente." : "Capa salva no aparelho. Aguardando sincronização."}</span>{cover.failed && <button type="button" onClick={cover.retry}>Tentar novamente</button>}</div>}
     {editing && canEdit && <Suspense fallback={<span className="sr-only" role="status">Abrindo edição da capa…</span>}><Editor key={`${scope}:${profileId}`} viewerId={viewerId} target={target} image={cover.src} onClose={() => { setEditing(false); setShowCoverActions(false); coverTrigger.current?.focus({ preventScroll: true }); }}/></Suspense>}

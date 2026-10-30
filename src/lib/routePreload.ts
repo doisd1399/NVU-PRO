@@ -143,6 +143,9 @@ export function preloadRoute(path: string): Promise<void> {
   if (normalized.startsWith("/apply/")) {
     dynamicKey = "/apply/:companyId";
     dynamicLoaders = [() => import("../pages/RecruitmentApply")];
+  } else if (/^\/admin\/driver\/[^/]+\/perfil$/.test(normalized)) {
+    dynamicKey = "/admin/driver/:id/perfil";
+    dynamicLoaders = [() => import("../pages/admin/DriverProfileReference")];
   } else if (normalized.startsWith("/admin/driver/")) {
     dynamicKey = "/admin/driver/:id";
     dynamicLoaders = [() => import("../pages/admin/DriverProfileIsolated")];

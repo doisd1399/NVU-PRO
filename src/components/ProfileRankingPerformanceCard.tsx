@@ -61,10 +61,13 @@ export function ProfileRankingOverview({
   result,
   scope,
   onOpenRanking,
+  viewingOther = false,
 }: {
   result: ProfileRankingResult;
   scope: ProfileRankingScope;
   onOpenRanking: () => void;
+  /** Another person's profile (opened by a company manager): the copy is in the third person. */
+  viewingOther?: boolean;
 }) {
   const { summary, status } = result;
   const ready = status === "ready";
@@ -98,9 +101,9 @@ export function ProfileRankingOverview({
           : summary.activeParticipants === 1
             ? "Somente um participante registrou viagens neste período."
               : summary.isLeader && summary.comparableCurrency
-                ? "Você lidera este ranking por ganhos."
+                ? viewingOther ? "O motorista lidera este ranking por ganhos." : "Você lidera este ranking por ganhos."
                 : summary.comparableCurrency
-                  ? "Sua posição na classificação por ganhos."
+                  ? viewingOther ? "Posição do motorista na classificação por ganhos." : "Sua posição na classificação por ganhos."
                   : "Classificação pelo número de viagens.";
 
   return (
@@ -176,7 +179,7 @@ export function ProfileRankingOverview({
       {ready && summary.hasActivity && summary.next && (
         <div className="nvu-stats-extra rounded-[16px] border border-slate-200 dark:border-white/10 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-nvu-muted">
-            Logo acima de você
+            {viewingOther ? "Logo acima do motorista" : "Logo acima de você"}
           </p>
           <div className="flex flex-wrap items-start justify-between gap-2 mt-2">
             <div className="min-w-0">
@@ -251,7 +254,7 @@ export function ProfileRankingOverview({
               />
             </div>
             <p className="text-xs text-slate-500 dark:text-nvu-muted mt-2">
-              Você: {currency(summary.current)} · Líder:{" "}
+              {viewingOther ? "Motorista" : "Você"}: {currency(summary.current)} · Líder:{" "}
               {currency(summary.leader)}
             </p>
           </div>
@@ -587,6 +590,7 @@ export const ProfileRankingPerformanceCard = React.memo(
             result={result}
             scope={scope}
             onOpenRanking={openRanking}
+            viewingOther={presentation?.kind !== "company" && Boolean((presentation as { viewingOther?: boolean } | undefined)?.viewingOther)}
           />
         </section>
         <section className={cn(cardClass, "nvu-stats-career")}>

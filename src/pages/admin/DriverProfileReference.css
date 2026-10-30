@@ -1,0 +1,10 @@
+/* Another driver's profile in the management app: same cover/identity/toolbar as the driver's own profile, plus a back button on the cover. */
+.nvu-driver-reference-hero { position: relative; }
+.nvu-driver-reference-back { position: fixed; top: 60px; left: max(12px, calc(50% - 456px + 10px)); z-index: 30; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; color: #f3f7f9; background: #0b1319b3; border: 1px solid #ffffff2e; backdrop-filter: blur(6px); }
+.nvu-driver-reference-back:focus-visible { outline: 2px solid var(--nvu-accent, #24cfde); outline-offset: 2px; }
+.nvu-driver-reference-info { display: grid; gap: 10px; margin: 0 0 12px; padding: 14px 16px; border: 1px solid var(--nvu-line); border-radius: 16px; background: var(--nvu-surface); color: var(--nvu-text); }
+.nvu-driver-reference-info > div { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.nvu-driver-reference-info span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.nvu-driver-reference-info small { display: block; color: var(--nvu-muted); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+.nvu-driver-reference-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 80px 16px; color: var(--nvu-muted); }
+.nvu-driver-reference-empty button { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--nvu-line); color: var(--nvu-text); }

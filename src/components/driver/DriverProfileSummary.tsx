@@ -19,6 +19,8 @@ export interface DriverProfilePresentation {
   onPeriodChange: (period: RankingAggregatePeriodType) => void;
   onScopeChange: (scope: "internal" | "global") => void;
   viewerId: string;
+  /** The profile belongs to someone else (a company manager is looking at a driver). */
+  viewingOther?: boolean;
   company: { id: string; name: string; logo?: string | null } | null;
   companyLoading?: boolean;
   vehicle: {

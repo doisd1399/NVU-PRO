@@ -39,7 +39,7 @@ import { useLandscapeWorkspace } from "../hooks/useLandscapeWorkspace";
 import { useLandscapeFillHeight } from "../hooks/useLandscapeFillHeight";
 import "../components/driver/DriverLandscapeProfile.css";
 import "../components/admin/CompanyLandscape.css";
-import { isProfileCoverPage } from "../lib/profileCover";
+import { isAdminDriverProfileViewPath, isProfileCoverPage } from "../lib/profileCover";
 import { useProfileChrome } from "../hooks/useProfileChrome";
 import { cn } from "../lib/utils";
 import { auth } from "../lib/firebase";
@@ -110,9 +110,10 @@ export default function AdminLayout() {
   const isAdminCompanyRoute = location.pathname.startsWith("/admin/fleet");
   const fleetTab = (location.state as { activeTab?: string } | null)?.activeTab;
   const isCentralManagementRoute = isAdminCompanyRoute && (!fleetTab || fleetTab === "operations");
-  const isCompanyProfileRoute = isAdminCompanyRoute && fleetTab === "company";
+  const isDriverProfileViewRoute = isAdminDriverProfileViewPath(location.pathname);
+  const isCompanyProfileRoute = (isAdminCompanyRoute && fleetTab === "company") || isDriverProfileViewRoute;
   const isCoverPage = isProfileCoverPage(location.pathname, location.state);
-  const isLegacyCoverPage = isCoverPage && !isAdminCompanyRoute;
+  const isLegacyCoverPage = isCoverPage && !isAdminCompanyRoute && !isDriverProfileViewRoute;
   // Horizontal screens: the company profile pages (cover pages) share the driver's cover box and keep their content, with
   // lists scrolling inside their own card, in the visible area (CompanyLandscape.css, DriverLandscapeProfile.css).
   const landscapeWorkspace = useLandscapeWorkspace();

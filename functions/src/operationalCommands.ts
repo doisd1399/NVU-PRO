@@ -8,7 +8,7 @@ type Data = Record<string, any>;
 type Tx = FirebaseFirestore.Transaction;
 type DB = FirebaseFirestore.Firestore;
 type Context = functions.https.CallableContext;
-type Action = "assign" | "start" | "startAutomatic" | "cancel" | "archive";
+type Action = "assign" | "start" | "startAutomatic" | "cancel" | "archive" | "changeVehicle";
 const running = ["active", "delayed", "awaiting_completion"];
 const terminal = ["completed", "cancelled"];
 const digest = (v: unknown): string => createHash("sha256").update(JSON.stringify(v)).digest("hex");
@@ -56,12 +56,12 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
   if (!uid) fail("unauthenticated", "Faça login para confirmar a operação.");
   const data = input && typeof input === "object" && !Array.isArray(input) ? input as Data : {};
   const action = text(data.action) as Action;
-  if (!["assign", "start", "startAutomatic", "cancel", "archive"].includes(action)) fail("invalid-argument", "Ação operacional inválida.");
+  if (!["assign", "start", "startAutomatic", "cancel", "archive", "changeVehicle"].includes(action)) fail("invalid-argument", "Ação operacional inválida.");
   const companyId = id(data.companyId, "Empresa"), requestId = id(data.requestId, "Pedido");
   const automatic = action === "startAutomatic";
   const creates = action === "assign" || automatic;
   const args: Data = automatic ? { companyId, queueId: id(data.queueId, "Fila"), contractId: id(data.contractId, "Operação"), vehicleId: id(data.vehicleId, "Veículo"), previewToken: id(data.previewToken, "Confirmação da fila"), configRevision: Number(data.configRevision) } : action === "assign" ? { companyId, contractId: id(data.contractId, "Operação"), driverId: id(data.driverId, "Motorista"), vehicleId: id(data.vehicleId, "Veículo"),
-    trailerId: text(data.trailerId) || null, deadlineDays: data.deadlineDays == null ? null : Number(data.deadlineDays) } : { companyId, jobId: id(data.jobId, "Trabalho") };
+    trailerId: text(data.trailerId) || null, deadlineDays: data.deadlineDays == null ? null : Number(data.deadlineDays) } : action === "changeVehicle" ? { companyId, jobId: id(data.jobId, "Trabalho"), vehicleId: id(data.vehicleId, "Veículo") } : { companyId, jobId: id(data.jobId, "Trabalho") };
   const fingerprint = digest([action, args]);
   const requestRef = db.collection("operationalCommandRequests").doc(digest([uid, requestId]));
   // Deterministic across transport retries and processes, but bound to the actor.
@@ -79,7 +79,9 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
     if (!companyDoc.exists || !actorDoc.exists) fail("permission-denied", "Conta ou empresa não encontrada.");
     const company = companyDoc.data() || {};
     assertAccount(actorDoc.data() || {});
-    assertCompany(company);
+    // Changing the vehicle of an existing job is also available to companies that have not opted in to the managed
+    // commands: their jobs cannot be edited from the client (security rules), so this callable is the only writer.
+    assertCompany(company, action !== "changeVehicle");
     const authorization = await tx.get(db.doc(`company_access/${companyId}/members/${uid}`));
     const isManager = manager(context, company, actorMembers, authorization.data() || {});
     const jobRef = creates ? generatedJobRef : db.collection("trabalhos").doc(args.jobId);
@@ -150,6 +152,26 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
       if (!terminal.includes(text(old.status))) fail("failed-precondition", "Somente trabalhos encerrados podem ser retirados da listagem.");
       job = { ...old, archived: true, archivedAt: old.archivedAt || now, operationalRevision: Number(old.operationalRevision || 0) + 1 };
       tx.update(jobRef, { archived: true, archivedAt: job.archivedAt, operationalRevision: job.operationalRevision });
+    } else if (action === "changeVehicle") {
+      // Only the vehicle link changes: deliveries, deadline, progress and every recorded trip stay as they are.
+      if (![...running, "pending"].includes(text(old.status))) fail("failed-precondition", "Somente trabalhos pendentes ou em andamento podem trocar de veículo.");
+      const previousVehicleId = text(field(old, "vehicleId", "veiculoId"));
+      if (args.vehicleId === previousVehicleId) fail("failed-precondition", "Este já é o veículo da operação.");
+      const next = await assets(tx, db, companyId, args.vehicleId, null);
+      const live = running.includes(text(old.status));
+      const [previousAsset, others] = live && previousVehicleId
+        ? await Promise.all([tx.get(db.collection("veiculos").doc(previousVehicleId)), tx.get(db.collection("trabalhos").where("companyId", "==", companyId).where("vehicleId", "==", previousVehicleId).where("status", "in", running))])
+        : [null, null];
+      const revision = Number(old.operationalRevision || 0) + 1;
+      const changes = { vehicleId: args.vehicleId, vehicleName: text(next.vehicle.name), vehiclePlate: text(next.vehicle.plate), previousVehicleId: previousVehicleId || null, vehicleChangedAt: now, vehicleChangedBy: uid, operationalRevision: revision, updatedAt: now };
+      job = { ...old, ...changes };
+      tx.update(jobRef, changes);
+      if (live) {
+        tx.update(db.collection("veiculos").doc(args.vehicleId), { status: "in_use" });
+        // A shared vehicle stays in use while another running job still links to it.
+        if (previousAsset?.exists && previousAsset.get("companyId") === companyId && previousAsset.get("status") === "in_use" && !others!.docs.some(row => row.id !== jobRef.id && row.get("deleted") !== true))
+          tx.update(previousAsset.ref, { status: "available" });
+      }
     } else {
       if (old.status === "completed") fail("failed-precondition", "Uma operação concluída não pode ser cancelada.");
       if (![...running, "pending", "cancelled"].includes(text(old.status))) fail("failed-precondition", "Estado de trabalho inválido.");

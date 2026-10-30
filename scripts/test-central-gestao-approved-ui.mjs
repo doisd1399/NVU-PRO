@@ -256,7 +256,7 @@ try {
   await check("Cancel confirmation stays separate from information and updates actual job service",async()=>{
     await page.getByRole("button",{name:"Ver informações de Iveco S Way"}).click();
     await page.getByRole("button",{name:"Cancelar trabalho",exact:true}).click();
-    const dialog=page.getByRole("dialog",{name:"Cancelar trabalho?"});await dialog.waitFor();
+    const dialog=page.getByRole("dialog",{name:"Cancelar trabalho"});await dialog.waitFor();
     await page.keyboard.press("Escape");assert.equal(await page.getByRole("dialog").count(),1);
     await page.getByRole("button",{name:"Cancelar trabalho",exact:true}).click();await dialog.getByRole("button",{name:"Confirmar cancelamento"}).click();
     assert.deepEqual(await page.evaluate(()=>window.__cancels),["operation"]);

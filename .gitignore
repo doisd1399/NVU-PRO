@@ -57,3 +57,4 @@ functions/lib/
 SOURCE-QA-SHA256.json
 *-debug.log
 firebase-debug.*.log
+verification/operation-info/

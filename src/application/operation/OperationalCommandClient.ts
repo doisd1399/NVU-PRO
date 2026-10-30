@@ -1,5 +1,5 @@
 export type OperationalCommandInput = {
-  action: "assign" | "start" | "startAutomatic" | "cancel" | "archive";
+  action: "assign" | "start" | "startAutomatic" | "cancel" | "archive" | "changeVehicle";
   companyId: string;
   jobId?: string;
   contractId?: string;
@@ -78,7 +78,7 @@ export class OperationalCommandClient {
     const status = result?.job?.status;
     const validStatus = input.action === "assign" ? status === "pending" : (input.action === "start" || input.action === "startAutomatic")
       ? ["active", "delayed", "awaiting_completion"].includes(status)
-      : input.action === "cancel" ? status === "cancelled" : ["completed", "cancelled"].includes(status) && result?.job?.archived === true;
+      : input.action === "cancel" ? status === "cancelled" : input.action === "changeVehicle" ? ["pending", "active", "delayed", "awaiting_completion"].includes(status) && result.job?.vehicleId === input.vehicleId : ["completed", "cancelled"].includes(status) && result?.job?.archived === true;
     if (!result?.success || result.version !== 1 || result.action !== input.action || result.requestId !== requestId ||
         !result.jobId || result.job?.id !== result.jobId || result.job?.companyId !== input.companyId ||
         (input.jobId && result.jobId !== input.jobId) ||
