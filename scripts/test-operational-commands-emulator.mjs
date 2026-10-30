@@ -258,6 +258,52 @@ try {
     await cancel(b.jobId);
     assert.equal((await db.doc("veiculos/vehicle-a").get()).get("status"), "maintenance");
   });
+  const changeVehicle = (jobId, vehicleId, actor = owner, requestId, companyId = "a") => command({ action: "changeVehicle", companyId, jobId, vehicleId }, actor, requestId);
+  await test("changeVehicle: a running job moves to the new vehicle; the old one is released; deliveries and deadline are untouched", async () => {
+    const a = await assign(); await start(a.jobId);
+    const before = (await db.doc(`trabalhos/${a.jobId}`).get()).data();
+    const result = await changeVehicle(a.jobId, "vehicle-a2");
+    const job = (await db.doc(`trabalhos/${a.jobId}`).get()).data();
+    assert.equal(job.vehicleId, "vehicle-a2"); assert.equal(job.previousVehicleId, "vehicle-a"); assert.equal(job.vehicleChangedBy, "owner-a");
+    for (const key of ["status", "driverId", "contractId", "totalDeliveries", "dueAt", "trailerId", "companyId"]) assert.deepEqual(job[key] ?? null, before[key] ?? null, key);
+    assert.equal(result.job.vehicleId, "vehicle-a2");
+    assert.equal((await db.doc("veiculos/vehicle-a2").get()).get("status"), "in_use");
+    assert.equal((await db.doc("veiculos/vehicle-a").get()).get("status"), "available");
+    assert.equal((await state("driver-a").get()).get("currentJobId"), a.jobId, "The driver keeps the same running operation");
+  });
+  await test("changeVehicle: a shared vehicle stays in use while another running job still links it", async () => {
+    const a = await assign(), b = await assign({ driverId: "driver-b" });
+    await start(a.jobId); await start(b.jobId, driver2);
+    await changeVehicle(a.jobId, "vehicle-a2");
+    assert.equal((await db.doc("veiculos/vehicle-a").get()).get("status"), "in_use");
+    assert.equal((await db.doc(`trabalhos/${b.jobId}`).get()).get("vehicleId"), "vehicle-a");
+  });
+  await test("changeVehicle: replay with the same request id applies once; refused vehicles, foreign data and finished jobs change nothing", async () => {
+    const a = await assign(); await start(a.jobId);
+    await changeVehicle(a.jobId, "vehicle-a2", owner, "same-request");
+    const again = await changeVehicle(a.jobId, "vehicle-a2", owner, "same-request");
+    assert.equal(again.replayed, true);
+    assert.equal((await db.doc(`trabalhos/${a.jobId}`).get()).get("operationalRevision") > 0, true);
+    await denied(() => changeVehicle(a.jobId, "vehicle-a2"), "failed-precondition"); // already the current vehicle
+    await denied(() => changeVehicle(a.jobId, "vehicle-b"), "failed-precondition"); // vehicle of another company
+    await db.doc("veiculos/vehicle-a").update({ status: "maintenance" });
+    await denied(() => changeVehicle(a.jobId, "vehicle-a"), "failed-precondition"); // in maintenance
+    await denied(() => changeVehicle(a.jobId, "missing"), "failed-precondition");
+    await denied(() => changeVehicle(a.jobId, "vehicle-a2", owner, undefined, "b"), "not-found"); // a job of company a is not reachable through company b
+    await denied(() => changeVehicle(a.jobId, "vehicle-a2", ctx("owner-b"), undefined, "b"), "not-found"); // nor by the manager of company b
+    await cancel(a.jobId);
+    await db.doc("veiculos/vehicle-a").update({ status: "available" });
+    await denied(() => changeVehicle(a.jobId, "vehicle-a"), "failed-precondition"); // cancelled job
+    assert.equal((await db.doc(`trabalhos/${a.jobId}`).get()).get("vehicleId"), "vehicle-a2");
+  });
+  await test("changeVehicle: only a manager of the company; the driver, a stranger and an anonymous caller are refused; clients cannot write the link", async () => {
+    const a = await assign(); await start(a.jobId);
+    await denied(() => changeVehicle(a.jobId, "vehicle-a2", driver));
+    await denied(() => changeVehicle(a.jobId, "vehicle-a2", ctx("owner-b")));
+    await denied(() => changeVehicle(a.jobId, "vehicle-a2", {}), "unauthenticated");
+    await denied(() => updateDoc(doc(client("owner-a"), `trabalhos/${a.jobId}`), { vehicleId: "vehicle-a2" }));
+    assert.equal((await db.doc(`trabalhos/${a.jobId}`).get()).get("vehicleId"), "vehicle-a");
+  });
   await test("completion: unproven legacy completed flag and bare progress are not server proof", async () => {
     const a = await assign(); await start(a.jobId);
     await db.doc(`trabalhos/${a.jobId}`).update({ progress: 1 });
