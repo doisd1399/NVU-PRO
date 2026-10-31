@@ -1,3 +1,4 @@
+import { corporateNotificationTab } from "../lib/notificationNavigation";
 import { RetainedWorkspaceOutlet } from "../components/common/RetainedWorkspaceOutlet";
 import { NvuWordmark } from "../components/common/NvuWordmark";
 import { resolveNewsSessionSimulator } from "../lib/newsSimulator";
@@ -526,14 +527,8 @@ export default function AdminLayout() {
                   : "text-gray-700 dark:text-nvu-text-soft hover:text-gray-950 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-nvu-strip",
               )}
             onOpen={(notification) => {
-              const type = notification.type ?? notification.tipo;
-              if (type === "RH_APPLICATION") {
-                navigate("/admin/fleet", { state: { activeTab: "hr" } });
-              } else if (type === "WORK_REQUEST" || type === "OPERATION_COMPLETED") {
-                navigate("/admin/fleet", { state: { activeTab: "operations" } });
-              } else {
-                navigate("/admin/fleet");
-              }
+              const tab = corporateNotificationTab(notification as Record<string, any>);
+              navigate("/admin/fleet", tab ? { state: { activeTab: tab } } : undefined);
             }}
           />
           <button type="button" aria-label="Abrir perfil do administrador" onClick={() => { setProfileEditorMode("driver"); setIsProfileModalOpen(true); }} className={cn(

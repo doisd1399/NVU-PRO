@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { doc, getDoc } from "firebase/firestore";
 import { PeriodSelector, DateRange } from "./PeriodSelector";
 import { CompanyPerformanceCard } from "../../../components/CompanyPerformanceCard";
+import { CompanyRecruitmentNotice } from "../../../components/admin/CompanyRecruitmentNotice";
 import { StableImage } from "../../../components/common/StableImage";
 import {
   parseISO,
@@ -78,6 +79,8 @@ function CompanyTab({
     updateCompany,
     createCompany,
     deleteCompany,
+    recruitmentApplications,
+    driverRequests,
   } = useCompanyStore();
   const { jobs, contracts, simulators } = useOperationalStore();
   // Keep the targeted Senior handoff locally as a render fallback. The shared
@@ -931,6 +934,8 @@ function CompanyTab({
       )}
 
       <HistoryReadCoverageNotice coverage={companyHistoryCoverage} hasError={Boolean(companyHistoryError)} error={companyHistoryError} readCoverage={companyHistoryReadCoverage} backgroundRefresh={companyHistoryReady} />
+      {canManageCompanyProfile(currentUser?.id || "", activeCompany, memberships, seniorCompanyId) &&
+        <CompanyRecruitmentNotice companyId={activeCompanyId} applications={recruitmentApplications || []} requests={driverRequests || []} />}
       <CompanyPerformanceCard
           profilePresentation={{ kind: "company", view: profileView, periodType: profilePeriod, onPeriodChange: setProfilePeriod,
             onScopeChange: () => undefined, viewerId: currentUser?.id || "", company: activeCompany,

@@ -46,6 +46,7 @@
     "test:ranking-companies-settlement": "node --import tsx scripts/test-ranking-companies-settlement.mts",
     "test:ranking-history-theme-ui": "node scripts/test-ranking-history-theme-ui.mjs",
     "test:status-bar-ui": "node --import tsx scripts/test-status-bar-ui.mts",
+    "test:recruitment-unification": "node --import tsx scripts/test-recruitment-unification.mts",
     "test:company-catalog": "node --import tsx scripts/test-company-catalog.mts",
     "test:join-companies-ui": "node --import tsx scripts/test-join-companies-ui.mts",
     "test:profile-menu-layout": "node scripts/test-profile-menu-layout.mjs",

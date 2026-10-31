@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
 import JoinCompany from "../../src/pages/driver/JoinCompany";
 
 // Real "Empresas" screen with an injected read model: the session, the company catalog (whose first load can fail), the
@@ -33,6 +33,12 @@ export const withdrawApplication = async (companyId: string, applicationId: stri
   return { success: true, withdrawn: true, companyId, applicationId };
 };
 
+// Stand-in for the company's recruitment form (/apply/:companyId): records where it was opened and where it returns to.
+function ApplyForm() {
+  const { companyId } = useParams(); const location = useLocation();
+  return <p data-testid="apply-form" data-company={companyId} data-return={(location.state as any)?.returnTo || ""}>Formulário de inscrição</p>;
+}
+
 function App() {
   const [attempted, setAttempted] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -61,7 +67,7 @@ function App() {
     cancelRequestJoinCompany: async (id: string) => { state.cancelled.push(id); setRequests(rows => rows.filter(row => row.id !== id)); },
     pendingApplications: { applications, loading: false, queryError: false },
   };
-  return <Context.Provider value={value}><Routes><Route path="/driver/companies" element={<JoinCompany mode="browse" />} /></Routes></Context.Provider>;
+  return <Context.Provider value={value}><Routes><Route path="/driver/companies" element={<JoinCompany mode="browse" />} /><Route path="/apply/:companyId" element={<ApplyForm />} /></Routes></Context.Provider>;
 }
 history.replaceState({}, "", "/driver/companies");
 createRoot(document.getElementById("root")!).render(<BrowserRouter><App /></BrowserRouter>);

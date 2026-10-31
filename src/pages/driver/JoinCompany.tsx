@@ -11,6 +11,7 @@ import { MyCompanyApplications, type MyApplicationRow } from "../../components/d
 import { useCurrentUserPendingApplications } from "../../hooks/useCurrentUserPendingApplications";
 import { loadMembershipCapabilities, withdrawApplication } from "../../services/applicationWithdrawService";
 import { withdrawFailureMessage } from "../../services/applicationWithdrawCore";
+import { applyRoute } from "../../lib/applyReturn";
 import { companyApplyState, isCompanyListable, toApplicationDate } from "../../lib/companyCatalog";
 import {
   UserCog,
@@ -38,14 +39,12 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
     companyCatalogAttempted,
     loadCompanyCatalog,
     memberships,
-    requestJoinCompany,
     cancelRequestJoinCompany,
     driverRequests,
   } = useCompanyStore();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSimulatorId, setSelectedSimulatorId] = useState("");
-  const [isRequestingId, setIsRequestingId] = useState<string | null>(null);
 
   // The catalog is loaded by the screen that needs it (idempotent: a loaded or in-flight catalog is reused).
   useEffect(() => { void loadCompanyCatalog().catch(() => undefined); }, []);
@@ -149,16 +148,11 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
   }, [pendingApplications, myRequests, allCompanies]);
   const appliedCompanyIds = useMemo(() => new Set(applicationRows.map((row) => row.companyId).filter(Boolean)), [applicationRows]);
 
-  const handleRequest = async (companyId: string) => {
-    setIsRequestingId(companyId);
-    try {
-      // Never hold the action behind an artificial delay.
-      await requestJoinCompany(companyId);
-    } catch {
-      // The context reports the failure; keep the selected company available.
-    } finally {
-      setIsRequestingId(null);
-    }
+  // "Inscrever-se" opens the company's recruitment form: the application HR reviews, with the driver's data and photo.
+  // (The old one-tap request carried no data and did not reach the company's Recursos Humanos.)
+  const handleRequest = (companyId: string) => {
+    const route = applyRoute(companyId, location.pathname);
+    navigate(route.to, { state: route.state });
   };
 
   // Only companies that can receive candidates are offered; the order is alphabetical. The number of members is not shown:
@@ -197,7 +191,7 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
             {browse ? "Empresas" : "Encontre sua Frota"}
           </h1>
           <p className="nvu-page-description text-gray-500 dark:text-nvu-muted mt-2 max-w-[280px] sm:max-w-md mx-auto">
-            {browse ? "Conheça as empresas de cada simulador e envie uma solicitação. Você continua na sua empresa atual até ser aprovado." : "Pesquise o nome da empresa ou frota e envie sua solicitação de acesso."}
+            {browse ? "Conheça as empresas de cada simulador e envie sua inscrição: o Recursos Humanos da empresa analisa. Você continua na sua empresa atual até ser aprovado." : "Pesquise o nome da empresa ou frota e envie sua inscrição para análise do Recursos Humanos."}
           </p>
         </div>
       )}
@@ -280,7 +274,7 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
         ) : (
           filteredCompanies.map((company) => {
             const applyState = companyApplyState(company, memberCompanyIds, appliedCompanyIds);
-            const stateLabel = { member: "Você participa", applied: "Inscrição enviada", closed: "Recrutamento fechado", open: "Solicitar" }[applyState];
+            const stateLabel = { member: "Você participa", applied: "Inscrição enviada", closed: "Recrutamento fechado", open: "Inscrever-se" }[applyState];
             return (
             <div
               key={company.id}
@@ -329,19 +323,13 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
 
               <Button
                 onClick={() => handleRequest(company.id)}
-                disabled={isRequestingId === company.id || applyState !== "open"}
-                aria-label={applyState === "open" ? `Solicitar entrada em ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
+                disabled={applyState !== "open"}
+                aria-label={applyState === "open" ? `Inscrever-se em ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
                 className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
               >
-                {isRequestingId === company.id ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin"></div>
-                  </div>
-                ) : (
-                  <span className="relative z-10 flex items-center justify-center">
-                    {stateLabel}
-                  </span>
-                )}
+                <span className="relative z-10 flex items-center justify-center">
+                  {stateLabel}
+                </span>
                 {/* Shine effect logic */}
                 {applyState === "open" && <div className="absolute inset-0 -translate-x-[150%] animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-[-20deg] z-0"></div>}
               </Button>

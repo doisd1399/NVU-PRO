@@ -120,6 +120,7 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
     activeCompanyId,
     companies,
     recruitmentApplications,
+    driverRequests,
     updateRecruitmentSettings,
     approveRecruitmentApplication,
     rejectRecruitmentApplication,
@@ -616,6 +617,8 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
 
+  const legacyRequestCount = (driverRequests || []).filter((request) => request.empresaId === activeCompanyId && request.status === "pending").length;
+
   // Quick action for auto save text area blurring
   const handleBlurSave = () => {
     handleSaveSettings();
@@ -683,6 +686,17 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
           </button>
         </div>
       </div>
+
+      {legacyRequestCount > 0 && (
+        <div role="status" data-testid="legacy-requests-notice" className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3">
+          <p className="min-w-0 flex-1 text-[13px] font-medium text-amber-900 dark:text-amber-100">
+            {legacyRequestCount === 1 ? "1 solicitação antiga de entrada aguarda" : `${legacyRequestCount} solicitações antigas de entrada aguardam`} na aba Motoristas.
+            Novas candidaturas chegam aqui, em Candidatos.
+          </p>
+          <button type="button" onClick={() => navigate("/admin/fleet", { state: { activeTab: "drivers" } })}
+            className="rounded-lg border border-amber-300 dark:border-amber-500/40 px-3 py-1.5 text-[12px] font-bold text-amber-900 dark:text-amber-100">Ver solicitações</button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-6 border-b border-gray-100 dark:border-nvu-line mt-4">

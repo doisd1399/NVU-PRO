@@ -57,6 +57,12 @@ service cloud.firestore {
         company.get('active', true) != false && company.get('isActive', true) != false &&
         !(company.get('status', 'active').lower() in ['deleted', 'archived', 'disabled', 'blocked']);
     }
+    // A company that closed its recruitment (recruitmentSettings.isActive == false), or that is deleted/archived, receives
+    // no new applications or join requests, whatever the app screen shows.
+    function companyAcceptsApplications(companyId) {
+      let path = /databases/$(database)/documents/frotas/$(companyId);
+      return companyIsUsable(companyId) && get(path).data.get('recruitmentSettings', {}).get('isActive', true) != false;
+    }
     function hasActiveCompanyAccess(companyId, userId) {
       let access = accessData(companyId, userId);
       let path = /databases/$(database)/documents/users/$(userId);
@@ -840,6 +846,7 @@ service cloud.firestore {
       );
       allow create: if isAuthenticated() &&
         request.resource.data.motoristaId == request.auth.uid && request.resource.data.status == 'pending' &&
+        request.resource.data.empresaId is string && companyAcceptsApplications(request.resource.data.empresaId) &&
         !request.resource.data.keys().hasAny(['approvalAuthorityVersion', 'approvedBy', 'approvedAt', 'accessRevokedAt']);
       allow update: if isAuthenticated() &&
         isCompanyManager(resource.data.empresaId);
@@ -912,6 +919,7 @@ service cloud.firestore {
       allow create: if validCompanyRegistration() ||
         (isAuthenticated() && request.resource.data.get('type', 'driver_application') == 'driver_application' &&
           request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending' &&
+          request.resource.data.companyId is string && companyAcceptsApplications(request.resource.data.companyId) &&
           !request.resource.data.keys().hasAny(['approvalAuthorityVersion', 'approvedBy', 'approvedAt', 'accessRevokedAt']));
       // The temporary legacy access function keeps the Senior panel usable
       // while the shared password mode is active. Replace it with a custom

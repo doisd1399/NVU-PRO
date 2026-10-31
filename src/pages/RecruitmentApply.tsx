@@ -1,7 +1,8 @@
 import { CachedImage } from "../components/common/CachedImage";
 import { resolveSimulatorId } from "../lib/resolveSimulator";
+import { safeApplyReturnTo } from "../lib/applyReturn";
 import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 import { useOperationalStore, useSessionStore } from "../context/AppContext";
 import { useCompanyStore } from "../context/CompanyContext";
 import {
@@ -139,6 +140,8 @@ const PENDING_RECRUITMENT_APPLICATION_ID_KEY =
 export default function RecruitmentApply() {
   const { companyId } = useParams();
   const navigate = useNavigate();
+  // Where the driver came from ("Inscrever-se" in Empresas / Pendências); empty when the form was opened from a link.
+  const returnTo = safeApplyReturnTo(useLocation().state);
   const { sessionUiReady, currentUser } = useSessionStore();
   const {
     allCompanies,
@@ -711,7 +714,7 @@ export default function RecruitmentApply() {
       }
       // Every submitted driver application enters the shared Pendências surface.
       // The durable session pointer above lets that page resolve this exact request.
-      navigate("/pending-applications", { replace: true });
+      navigate(returnTo || "/pending-applications", { replace: true, state: returnTo ? { focus: "applications" } : undefined });
     } catch (e: any) {
       alert("Erro ao enviar solicitação: " + (e?.message || e));
     } finally {
@@ -735,7 +738,7 @@ export default function RecruitmentApply() {
                   setSelectedCompanyId("");
                   setStep(1);
                 } else {
-                  navigate("/");
+                  navigate(returnTo || "/");
                 }
               }}
               className="p-1.5 sm:p-2 flex shrink-0 items-center justify-center text-slate-500 hover:text-slate-900 dark:text-nvu-muted dark:hover:text-white transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-nvu-strip"
@@ -1285,7 +1288,7 @@ export default function RecruitmentApply() {
                       Nova Inscrição
                     </Button>
                     <Button
-                      onClick={() => navigate("/")}
+                      onClick={() => navigate(returnTo || "/")}
                       className="bg-slate-900 hover:bg-slate-800 text-white px-8 h-12 rounded-xl flex items-center justify-center gap-2 text-[15px] font-bold shadow-md dark:shadow-none w-full sm:w-auto transition-colors"
                     >
                       Acompanhar Status <ArrowRight size={18} />

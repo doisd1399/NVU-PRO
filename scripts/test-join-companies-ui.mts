@@ -50,10 +50,19 @@ try {
   assert.equal(await button("DC Transportes: Você participa").isDisabled(), true);
   assert.equal(await button("Rápida Logística: Recrutamento fechado").isDisabled(), true);
   assert.equal(await button("Sul Fretes: Inscrição enviada").isDisabled(), true);
-  assert.equal(await button("Solicitar entrada em Norte Cargas").isDisabled(), false);
-  await button("Solicitar entrada em Norte Cargas").click();
-  await page.waitForFunction(() => (window as any).qaJoin.requested.length === 1);
-  assert.deepEqual((await q()).requested, ["norte"]);
+  assert.equal(await button("Inscrever-se em Norte Cargas").isDisabled(), false);
+  assert.match(await page.getByText("Inscrever-se", { exact: true }).first().innerText(), /Inscrever-se/);
+  await button("Inscrever-se em Norte Cargas").click();
+  // The driver is taken to the company's recruitment form (the one HR reviews), not to a one-tap request.
+  await page.getByTestId("apply-form").waitFor();
+  assert.equal(await page.getByTestId("apply-form").getAttribute("data-company"), "norte");
+  assert.equal(await page.getByTestId("apply-form").getAttribute("data-return"), "/driver/companies", "the form knows where to come back to");
+  assert.deepEqual((await q()).requested, [], "no one-tap request is created any more");
+  await page.goBack(); await page.getByRole("heading", { name: "Empresas" }).waitFor();
+  // Coming back remounts the screen: choose the simulator again for the rest of the checks.
+  await page.getByRole("button", { name: /Selecione um simulador|Selecionar simulador/ }).first().click();
+  await page.getByRole("option", { name: "GTO" }).or(page.getByText("GTO", { exact: true }).last()).first().click();
+  await cards.first().waitFor();
   checks.push("Only an open company can be requested; linked, applied and closed companies are disabled with their own label");
 
   // 5. Search and the empty state
