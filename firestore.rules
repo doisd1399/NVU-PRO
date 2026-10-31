@@ -569,7 +569,8 @@ service cloud.firestore {
         data.get('roles', ['driver']) is list && data.get('roles', ['driver']).hasOnly(['driver']) &&
         data.get('companyId', '') in ['', null] && data.get('empresaId', '') in ['', null] &&
         data.get('memberships', {}) == {} && data.get('permissions', []) == [] &&
-        data.get('status', 'pending') == 'pending';
+        // The app creates the account document as 'active' at the first login; authorization lives in company_access.
+        data.get('status', 'pending') in ['pending', 'active'];
     }
     function validCompanyIdentity(data) {
       return data.companyName is string && data.companyName.size() > 0 && data.companyName.size() <= 200 &&
@@ -591,7 +592,10 @@ service cloud.firestore {
 
     // 1. users
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      // Private contacts and account controls: the owner, and the managers of the company the user belongs to
+      // (trip moderation reads the driver's document in a transaction). Directories use public_users.
+      allow read: if isOwner(userId) ||
+        (isAuthenticated() && companyIdFromMap(resource.data) != '' && isCompanyManager(companyIdFromMap(resource.data)));
       allow create: if validUserIdentity(request.resource.data) && !request.resource.data.keys().hasAny(['pendingAccountCommand', 'accountActionState']) && noDriverProfileFlagOnCreate() && (isSenior() ||
         (isOwner(userId) && validOwnUserCreate(request.resource.data) && !requestedPrivilegedUserRole() && validInitialAccountModeration()) ||
         (
