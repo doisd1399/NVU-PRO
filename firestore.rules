@@ -498,6 +498,14 @@ service cloud.firestore {
         ]);
     }
 
+    // The personal-profile entitlement is granted only by the server (membership commands) or Senior.
+    function preservesDriverProfileFlag() {
+      return isSenior() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['driverProfileEnabled']);
+    }
+    function noDriverProfileFlagOnCreate() {
+      return isSenior() || !request.resource.data.keys().hasAny(['driverProfileEnabled']);
+    }
+
     function preservesAccountModeration() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pendingAccountCommand', 'accountActionState']) &&
         (isSenior() || !request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -570,7 +578,7 @@ service cloud.firestore {
     // 1. users
     match /users/{userId} {
       allow read: if isOwner(userId);
-      allow create: if validUserIdentity(request.resource.data) && !request.resource.data.keys().hasAny(['pendingAccountCommand', 'accountActionState']) && (isSenior() ||
+      allow create: if validUserIdentity(request.resource.data) && !request.resource.data.keys().hasAny(['pendingAccountCommand', 'accountActionState']) && noDriverProfileFlagOnCreate() && (isSenior() ||
         (isOwner(userId) && validOwnUserCreate(request.resource.data) && !requestedPrivilegedUserRole() && validInitialAccountModeration()) ||
         (
           !isOwner(userId) &&
@@ -589,7 +597,7 @@ service cloud.firestore {
           companyIdFromMap(resource.data) == companyIdFromMap(request.resource.data) &&
           isCompanyManager(companyIdFromMap(request.resource.data))
         )
-      ) && preservesOwnOperationalModeration(userId) && preservesAccountModeration() &&
+      ) && preservesOwnOperationalModeration(userId) && preservesAccountModeration() && preservesDriverProfileFlag() &&
         (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['profileCoverURL', 'profileCoverRevision', 'profileCoverUpdatedAt']) ||
           isOwner(userId) || isSenior());
       allow delete: if hasLegacySeniorPanelAccess() || isSenior();

@@ -1,5 +1,5 @@
 export type MembershipCommand = {
-  action: "remove" | "approve-application" | "approve-request" | "set-role";
+  action: "remove" | "approve-application" | "approve-request" | "set-role" | "leave" | "leave-preview";
   companyId: string;
   targetUserId?: string;
   applicationId?: string;

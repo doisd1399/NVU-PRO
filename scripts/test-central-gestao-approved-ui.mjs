@@ -16,11 +16,10 @@ catch { playwright = await import(pathToFileURL(path.join(process.env.CODEX_PRIM
 const photo = `data:image/jpeg;base64,${(await fs.readFile("scripts/fixtures/central-management/vehicle.jpg")).toString("base64")}`;
 const avatar = `data:image/png;base64,${(await fs.readFile("scripts/fixtures/central-management/avatar.png")).toString("base64")}`;
 const assets = await fs.readdir("dist/assets");
-// The management styles live in the chunk of the operations tab, or in the shared "OperationInfoSheet" chunk now that the
-// Teams options sheet uses them too.
-const cssFiles = ["vendor", "index", "DriverWorkspace", "ProfileCoverHero", "ModalSelect", "RankingPeriodModal", "OperationsTab", "OperationInfoSheet"]
-  .flatMap(prefix => assets.filter(name => name.startsWith(prefix + "-") && name.endsWith(".css")));
-assert.equal(cssFiles.length, 7, "Build the app before running the UI check");
+// Which chunk holds the management styles changes with what else imports them (operations tab, Teams sheet, the profile's
+// "Sair da empresa" dialog). Load every built stylesheet, the main one first, like the other UI checks do.
+const cssFiles = assets.filter(name => name.endsWith(".css")).sort((a, b) => Number(!a.startsWith("index-")) - Number(!b.startsWith("index-")));
+assert(cssFiles.some(name => name.startsWith("index-")), "Build the app before running the UI check");
 const css = (await Promise.all(cssFiles.map(name => fs.readFile(path.join("dist/assets", name), "utf8")))).join("\n");
 const fixtures = `
 import React,{useSyncExternalStore} from "react";

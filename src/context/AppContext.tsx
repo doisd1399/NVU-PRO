@@ -170,6 +170,8 @@ export interface User {
   profileCoverURL?: string;
   profileCoverRevision?: string;
   whatsapp?: string;
+  /** Granted by the server only: the driver already has (or had) an approved link and may keep a personal profile without a company. */
+  driverProfileEnabled?: boolean;
   applicationSubmitted?: boolean;
   /** Documento da inscrição que está sendo acompanhada nesta sessão/conta. */
   currentRecruitmentApplicationId?: string;

@@ -23,7 +23,7 @@ import {
  * "browse": "Empresas", open to a driver who already has a company; it lists the public catalog, shows which companies the
  * driver already belongs to or applied to, and "Minhas inscrições". It never changes the current link.
  */
-export default function JoinCompany({ mode = "join" }: { mode?: "join" | "browse" }) {
+export default function JoinCompany({ mode = "join", onBack, initialFocus }: { mode?: "join" | "browse"; onBack?: () => void; initialFocus?: "applications" }) {
   const browse = mode === "browse";
   const navigate = useNavigate();
   const location = useLocation();
@@ -54,8 +54,8 @@ export default function JoinCompany({ mode = "join" }: { mode?: "join" | "browse
     useCurrentUserPendingApplications(browse ? currentUser?.id : undefined, browse ? currentUser?.email : undefined);
   const applicationsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (browse && (location.state as { focus?: string } | null)?.focus === "applications") applicationsRef.current?.scrollIntoView({ block: "start" });
-  }, [browse, location.state]);
+    if (browse && ((location.state as { focus?: string } | null)?.focus === "applications" || initialFocus === "applications")) applicationsRef.current?.scrollIntoView({ block: "start" });
+  }, [browse, location.state, initialFocus]);
 
   const activeSimulators = simulators.filter((s:any) => s.active !== false).sort((a:any, b:any) => a.name.localeCompare(b.name));
   const getSimulatorLabel = (company: any) =>
@@ -161,7 +161,7 @@ export default function JoinCompany({ mode = "join" }: { mode?: "join" | "browse
     <div className="w-full max-w-7xl mx-auto py-4 sm:py-10 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-10">
         <button
-          onClick={() => (browse ? (window.history.length > 1 ? navigate(-1) : navigate("/driver/profile")) : navigate("/select-profile"))}
+          onClick={() => (onBack ? onBack() : browse ? (window.history.length > 1 ? navigate(-1) : navigate("/driver/profile")) : navigate("/select-profile"))}
           className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text transition-colors"
         >
           <ArrowLeft size={16} />

@@ -85,6 +85,7 @@ import { ProfileModal } from "../../components/ProfileModal";
 import { SimulatorSelectionModal } from "../../components/SimulatorSelectionModal";
 import { DriverPerformanceCard } from "../../components/DriverPerformanceCard";
 import { useDriverTrips } from "../../hooks/useDriverTrips";
+import { LeaveCompanyCard } from "../../components/driver/LeaveCompanyCard";
 import { HistoryReadCoverageNotice } from "../../components/common/HistoryReadCoverageNotice";
 import { HistoryMoneySummary } from "../../components/common/HistoryMoneySummary";
 import { summarizeTripMoney } from "../../lib/tripMoneySummary";
@@ -1046,6 +1047,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                     <ClipboardList size={15} aria-hidden="true" /> Minhas inscrições
                   </button>
                 </div>
+                {activeCompanyId && <LeaveCompanyCard companyId={activeCompanyId} enabled={isInfoOpen} />}
               </div>
             )}
 

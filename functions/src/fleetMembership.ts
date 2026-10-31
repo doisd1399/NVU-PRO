@@ -6,6 +6,7 @@ import { hasSeniorClaim } from "./authorization";
 import { membershipCommandReceipt, readMembershipCommandStatus, runMembershipTransaction, type MembershipCommandReceipt } from "./membershipCommandReceipt";
 import { driverDisplayIdentity } from "./driverDisplayIdentity";
 import { recruitmentIdentityPatch } from "./recruitmentIdentity";
+import { leaveFleetMemberCore, previewLeaveFleetMember } from "./fleetMembershipLeave";
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const id = (value: unknown, label: string) => {
@@ -157,7 +158,7 @@ export async function approveFleetMemberCore(db: FirebaseFirestore.Firestore, co
     const now = admin.firestore.FieldValue.serverTimestamp();
     const memberships = { ...(target.user.memberships || {}), [companyId]: { role: roles.includes("admin") ? "admin" : "driver", roles, status: "active" } };
     const profilePatch = recruitment ? recruitmentIdentityPatch(target.user, application, documentId, now) : {};
-    tx.update(target.userSnap.ref, { companyId, status: "active", memberships, updatedAt: now,
+    tx.update(target.userSnap.ref, { companyId, status: "active", memberships, updatedAt: now, driverProfileEnabled: true,
       ...(recruitment ? profilePatch : {
         name: text(target.user.name) || text(application.fullName) || "Motorista",
         ...(!target.user.profilePhotoURL && application.applicationPhotoURL ? { profilePhotoURL: application.applicationPhotoURL } : {}),
@@ -217,6 +218,13 @@ export async function executeFleetMembershipCommand(db: FirebaseFirestore.Firest
         targetUserId:uid,companyId,roles,createdAt:now});
       return {success:true,companyId,userId:uid,roles};
     });
+  }
+  if (input?.action === "leave" || input?.action === "leave-preview") {
+    // The departing account is always the caller; a supplied target can only repeat it.
+    if (text(input.targetUserId) && text(input.targetUserId) !== context.auth.uid)
+      throw new functions.https.HttpsError("permission-denied", "A saída só pode ser feita pela própria conta.");
+    return input.action === "leave" ? leaveFleetMemberCore(db, context, id(input.companyId, "Empresa"), receipt)
+      : previewLeaveFleetMember(db, context, id(input.companyId, "Empresa"));
   }
   if (input?.action === "remove") return removeFleetMemberCore(db, context, id(input.targetUserId, "Motorista"), id(input.companyId, "Empresa"), text(input.reason) || "removed_from_fleet", receipt);
   if (input?.action === "approve-application") return approveFleetMemberCore(db, context, { companyId: id(input.companyId, "Empresa"), applicationId: id(input.applicationId, "Inscrição") }, receipt);

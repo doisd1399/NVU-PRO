@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo } from "react";
+import React, { Suspense, lazy, useEffect, useMemo } from "react";
 import { ArrowLeft, ClipboardClock } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useSessionStore } from "../context/AppContext";
 import { useCompanyStore } from "../context/CompanyContext";
 import { useCurrentUserPendingApplications } from "../hooks/useCurrentUserPendingApplications";
 import { PendingApplicationsCarousel } from "../components/recruitment/PendingApplicationsCarousel";
+// Loaded only for accounts the server enabled, so its styles stay out of the startup bundle.
+const PersonalArea = lazy(() => import("../components/driver/PersonalArea").then(module => ({ default: module.PersonalArea })));
 
 export default function PendingApplications() {
   const navigate = useNavigate();
@@ -65,6 +67,24 @@ export default function PendingApplications() {
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-nvu-page">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800 dark:border-slate-400" />
       </div>
+    );
+  }
+
+  // An account the server enabled keeps a personal profile (history, results, companies, applications) with no company.
+  if (currentUser.driverProfileEnabled === true) {
+    return (
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-nvu-page"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800 dark:border-slate-400" /></div>}>
+        <PersonalArea
+          currentUser={currentUser}
+          applications={pendingApplications}
+          applicationsLoading={pendingApplicationsLoading}
+          applicationsFailed={Boolean(pendingApplicationsQueryError)}
+          companies={pendingApplicationCompanies}
+          onRetry={() => refreshSession("pending-applications-retry")}
+          onLogout={() => void handleLogout()}
+          onHome={handleBackToStart}
+        />
+      </Suspense>
     );
   }
 
