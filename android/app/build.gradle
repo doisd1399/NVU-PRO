@@ -25,8 +25,8 @@ android {
         applicationId "com.nvu.operacional"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 530
-        versionName "1.0.530"
+        versionCode 531
+        versionName "1.0.531"
         // OTA channel is pinned to this native binary version. Future Web bundles
         // must be published to the matching channel and pass signature checks.
         resValue "string", "capawesome_live_update_default_channel", "production-" + versionCode
