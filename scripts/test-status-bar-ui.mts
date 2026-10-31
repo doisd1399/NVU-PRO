@@ -71,6 +71,23 @@ try {
   await theme("light"); assert.equal(await statusIcons(), "LIGHT");
   checks.push("theme switch with the page open");
 
+  // The driver's "Operação atual": the photo is full bleed under the status bar in the light theme, even when it mounts late.
+  await page.goto(url("dashboard") + "&late=1"); 
+  await theme("light");
+  assert.equal(await statusIcons(), "DARK", "before the banner exists the icons stay white (never dark on a late photo)");
+  await page.waitForSelector("#hero"); await settle(); await page.waitForTimeout(250); await settle();
+  assert.equal(await statusIcons(), "DARK", "light theme, full-bleed photo under the status bar: white icons");
+  await place(-8, "active");
+  assert.equal(await statusIcons(), "DARK");
+  await place(-260, "settled");
+  assert.equal(await statusIcons(), "LIGHT", "scrolled past the photo in the light theme: dark icons");
+  await place(-8, "active");
+  assert.equal(await statusIcons(), "DARK", "back on the photo: white icons");
+  checks.push("driver 'Operação atual' (photo under the status bar, late mount) -> white icons; scrolled -> dark");
+  await page.goto(url("dashboard"));
+  await theme("light"); await settle(); assert.equal(await statusIcons(), "DARK", "banner present from the first render");
+  checks.push("driver dashboard, banner present at start -> white icons");
+
   assert.deepEqual(errors, []);
   console.log("STATUS_BAR_UI_PASS", checks.length);
 } finally { await browser.close(); await server.close(); }

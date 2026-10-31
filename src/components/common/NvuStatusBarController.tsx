@@ -35,8 +35,9 @@ export default function NvuStatusBarController() {
     && !isProfileCoverPage(normalizedPathname, location.state))
     || (normalizedPathname === "/admin/fleet" && (location.state as { activeTab?: string } | null)?.activeTab === "company");
   const [profileChromeSettled, setProfileChromeSettled] = useState(false);
-  // True only while the banner photo really reaches the status bar. Below the app bar the status bar sits on the page surface.
-  const [heroUnderStatusBar, setHeroUnderStatusBar] = useState(false);
+  // True while the banner photo reaches the status bar. Until the banner is measured it is assumed to (white icons), so
+  // a photo that mounts late is never shown with dark icons; only a banner measured BELOW the app bar flips it.
+  const [heroUnderStatusBar, setHeroUnderStatusBar] = useState(true);
   const appliedStatus = useRef<SystemBarsStyle | null>(null);
   const appliedNavigation = useRef<SystemBarsStyle | null>(null);
 
@@ -47,11 +48,13 @@ export default function NvuStatusBarController() {
     // The horizontal Painel do motorista uses a solid app bar (no banner image behind it).
     if (!nativeAndroid || !isProfileBannerRoute || landscapeWorkspace) {
       setProfileChromeSettled(false);
-      setHeroUnderStatusBar(false);
+      setHeroUnderStatusBar(true);
       return;
     }
 
     let frame = 0;
+    let heroRetries = 0;
+    let retryTimer = 0;
     let disposed = false;
     const readChromeState = () => {
       frame = 0;
@@ -60,8 +63,10 @@ export default function NvuStatusBarController() {
       const settled = header?.dataset.nvuHeroChrome === "settled";
       setProfileChromeSettled((current) => current === settled ? current : settled);
       const hero = Array.from(document.querySelectorAll<HTMLElement>(".nvu-profile-hero, .nvu-cover-hero")).find(node => node.getClientRects().length > 0);
-      const under = Boolean(hero) && hero!.getBoundingClientRect().top < statusBarZone();
+      const under = hero ? hero.getBoundingClientRect().top < statusBarZone() : true;
       setHeroUnderStatusBar((current) => current === under ? current : under);
+      // The banner may mount after this first read (lazy page): look again shortly, a bounded number of times.
+      if (!hero && heroRetries < 30 && !disposed) { heroRetries += 1; retryTimer = window.setTimeout(scheduleRead, 100); }
     };
     const scheduleRead = () => {
       if (frame) return;
@@ -85,6 +90,7 @@ export default function NvuStatusBarController() {
       window.removeEventListener("scroll", scheduleRead);
       window.removeEventListener("resize", scheduleRead);
       if (frame) window.cancelAnimationFrame(frame);
+      if (retryTimer) window.clearTimeout(retryTimer);
       observer?.disconnect();
     };
   }, [nativeAndroid, isProfileBannerRoute, landscapeWorkspace, normalizedPathname]);
