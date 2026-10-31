@@ -47,3 +47,17 @@ check("Entry points: route /driver/companies, Profile buttons and the browse mod
   assert.match(layout, /pathname\.includes\("\/driver\/join"\)/, "The redirect of /driver/join is untouched");
 });
 console.log(`COMPANY_CATALOG_PASS ${checks} checks`);
+
+// One pending application per company: only a live pending driver application of that same company blocks a new one.
+{
+  const { hasPendingApplicationForCompany: blocked } = await import("../src/lib/companyCatalog.ts");
+  const pending = { companyId: "a", status: "pending", isCurrent: true, type: "driver_application" };
+  assert.equal(blocked([pending], "a"), true);
+  assert.equal(blocked([pending], "b"), false, "another company's application does not block");
+  assert.equal(blocked([{ ...pending, status: "withdrawn", isCurrent: false }], "a"), false, "a withdrawn one does not block");
+  assert.equal(blocked([{ ...pending, status: "rejected" }, { ...pending, status: "approved" }], "a"), false);
+  assert.equal(blocked([{ ...pending, isCurrent: false }], "a"), false, "a superseded one does not block");
+  assert.equal(blocked([{ ...pending, type: "company_registration" }], "a"), false, "a company registration is another flow");
+  assert.equal(blocked([{ companyId: "a", status: "pending" }], "a"), true, "legacy rows without type/isCurrent still block");
+  console.log("PENDING_PER_COMPANY_PASS");
+}

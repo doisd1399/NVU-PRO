@@ -252,6 +252,8 @@ export const rejectRecruitmentApplication = functions.https.onCall(
       const userSnapshot = await transaction.get(identity.userRef);
       const notificationSnapshot = await transaction.get(notificationRef);
 
+      if (application.status === "withdrawn")
+        throw new functions.https.HttpsError("failed-precondition", "O candidato retirou esta inscrição.");
       if (application.status !== "rejected") {
         transaction.set(
           applicationRef,

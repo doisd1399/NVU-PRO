@@ -39,3 +39,9 @@ export function toApplicationDate(value: unknown): Date | null {
   }
   return date && Number.isFinite(date.getTime()) ? date : null;
 }
+
+/** A pending driver application of this company blocks a new one; applications to other companies never do. */
+export function hasPendingApplicationForCompany(rows: Array<Record<string, any>>, companyId: string): boolean {
+  return rows.some(row => String(row.type || row.registrationType || "driver_application") !== "company_registration" &&
+    row.companyId === companyId && row.status === "pending" && row.isCurrent !== false);
+}

@@ -1,5 +1,5 @@
 export type MembershipCommand = {
-  action: "remove" | "approve-application" | "approve-request" | "set-role" | "leave" | "leave-preview";
+  action: "remove" | "approve-application" | "approve-request" | "set-role" | "leave" | "leave-preview" | "withdraw-application" | "capabilities";
   companyId: string;
   targetUserId?: string;
   applicationId?: string;
@@ -27,6 +27,8 @@ export async function executeFleetMembershipClient(command: MembershipCommand, p
   };
   const validate = (data: any) => {
     assertOwner();
+    // A capability listing is not about one company.
+    if (command.action === "capabilities" && data?.success === true) return data;
     if (data?.success !== true || data.companyId !== command.companyId ||
         (data.commandId && data.commandId !== payload.diagnosticId) ||
         (command.targetUserId && (data.userId || data.targetUserId) && (data.userId || data.targetUserId) !== command.targetUserId) ||

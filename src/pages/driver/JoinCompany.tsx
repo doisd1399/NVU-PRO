@@ -9,6 +9,8 @@ import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { StableImage } from "../../components/common/StableImage";
 import { MyCompanyApplications, type MyApplicationRow } from "../../components/driver/MyCompanyApplications";
 import { useCurrentUserPendingApplications } from "../../hooks/useCurrentUserPendingApplications";
+import { loadMembershipCapabilities, withdrawApplication } from "../../services/applicationWithdrawService";
+import { withdrawFailureMessage } from "../../services/applicationWithdrawCore";
 import { companyApplyState, isCompanyListable, toApplicationDate } from "../../lib/companyCatalog";
 import {
   UserCog,
@@ -52,6 +54,22 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
 
   const { applications: pendingApplications, loading: applicationsLoading, queryError: applicationsFailed } =
     useCurrentUserPendingApplications(browse ? currentUser?.id : undefined, browse ? currentUser?.email : undefined);
+  // Withdrawing a full application is a server command: offered only once the published server lists it.
+  const [canWithdraw, setCanWithdraw] = useState(false);
+  useEffect(() => {
+    if (!browse) return;
+    let current = true;
+    loadMembershipCapabilities().then(list => { if (current) setCanWithdraw(list.includes("withdraw-application")); }, () => undefined);
+    return () => { current = false; };
+  }, [browse, currentUser?.id]);
+  // One command id per application: a retry after a lost answer replays the same command.
+  const withdrawIds = useRef(new Map<string, string>());
+  const withdrawRow = async (row: MyApplicationRow) => {
+    const key = `${row.companyId}:${row.id}`;
+    if (!withdrawIds.current.has(key)) withdrawIds.current.set(key, `withdraw-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`);
+    try { await withdrawApplication(row.companyId, row.id, withdrawIds.current.get(key)!); }
+    catch (error) { throw new Error(withdrawFailureMessage(error)); }
+  };
   const applicationsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (browse && ((location.state as { focus?: string } | null)?.focus === "applications" || initialFocus === "applications")) applicationsRef.current?.scrollIntoView({ block: "start" });
@@ -185,7 +203,7 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
       )}
 
       {browse && <div ref={applicationsRef} className="max-w-2xl mx-auto px-4 sm:px-0 mb-8 scroll-mt-20">
-        <MyCompanyApplications rows={applicationRows} loading={applicationsLoading} failed={Boolean(applicationsFailed)} onCancelRequest={cancelRequestJoinCompany} />
+        <MyCompanyApplications rows={applicationRows} loading={applicationsLoading} failed={Boolean(applicationsFailed)} onCancelRequest={cancelRequestJoinCompany} onWithdrawApplication={canWithdraw ? withdrawRow : undefined} />
       </div>}
 
       {/* SIMULATOR SELECT */}

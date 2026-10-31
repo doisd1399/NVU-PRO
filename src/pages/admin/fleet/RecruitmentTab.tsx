@@ -839,6 +839,10 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60 uppercase tracking-widest shrink-0">
                             <CheckCircle2 size={10} className="mr-1" /> Aprovado
                           </span>
+                        ) : app.status === "withdrawn" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-50 dark:bg-nvu-surface text-gray-600 dark:text-nvu-muted border border-gray-200 dark:border-nvu-line uppercase tracking-widest shrink-0">
+                            Retirada
+                          </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200/60 uppercase tracking-widest shrink-0">
                             <XCircle size={10} className="mr-1" /> Recusado
@@ -1031,6 +1035,11 @@ function AdminRecruitment({ onFormOpen }: { onFormOpen?: (isOpen: boolean) => vo
                     {selectedHistoryApp.status === "rejected" && (
                       <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200/50">
                         Recusado
+                      </span>
+                    )}
+                    {selectedHistoryApp.status === "withdrawn" && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-gray-50 text-gray-600 border border-gray-200">
+                        Retirada pelo candidato
                       </span>
                     )}
                     <span className="text-[11px] text-gray-500 dark:text-nvu-muted font-medium tracking-wide">

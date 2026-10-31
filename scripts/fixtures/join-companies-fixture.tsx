@@ -19,12 +19,27 @@ const catalog = [
   company("wbds1", "Outro Simulador", { simulatorId: "wbds", simulatorName: "WBDS" }),
 ];
 if (location.search.includes("offline=1")) Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
-const state: any = (window as any).qaJoin = { loads: [] as boolean[], failNext: true, requested: [] as string[], cancelled: [] as string[] };
+const state: any = (window as any).qaJoin = { loads: [] as boolean[], failNext: true, requested: [] as string[], cancelled: [] as string[],
+  withdrawn: [] as any[], withdrawFailures: [] as any[], withdrawDelay: 0, removeApplication: (_id: string) => undefined as void };
+// Stand-in for src/services/applicationWithdrawService.ts: the server command is scripted from the test.
+const withdrawOffered = location.search.includes("withdraw=1"); // read before the URL is rewritten below
+export const loadMembershipCapabilities = async () => withdrawOffered ? ["withdraw-application"] : [];
+export const withdrawApplication = async (companyId: string, applicationId: string, diagnosticId: string) => {
+  state.withdrawn.push({ companyId, applicationId, diagnosticId });
+  await new Promise(resolve => setTimeout(resolve, state.withdrawDelay));
+  const failure = state.withdrawFailures.shift();
+  if (failure) throw failure;
+  state.removeApplication(applicationId);
+  return { success: true, withdrawn: true, companyId, applicationId };
+};
 
 function App() {
   const [attempted, setAttempted] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [applications, setApplications] = useState([{ id: "app-sul", userId: "me", companyId: "sul", status: "pending", type: "driver_application", companyName: "Sul Fretes", simulatorName: "GTO",
+      createdAt: { seconds: Math.floor(Date.parse("2026-10-25T12:00:00.000Z") / 1000) } }]);
+  state.removeApplication = (id: string) => setApplications(rows => rows.filter(row => row.id !== id));
   const [requests, setRequests] = useState([{ id: "req-rural", motoristaId: "me", empresaId: "rural", status: "pending", createdAt: "2026-10-20T12:00:00.000Z" }]);
   const loadCompanyCatalog = async (force = false) => {
     if (loaded && !force) return catalog;
@@ -44,8 +59,7 @@ function App() {
     driverRequests: requests,
     requestJoinCompany: async (id: string) => { state.requested.push(id); },
     cancelRequestJoinCompany: async (id: string) => { state.cancelled.push(id); setRequests(rows => rows.filter(row => row.id !== id)); },
-    pendingApplications: { applications: [{ id: "app-sul", userId: "me", companyId: "sul", status: "pending", type: "driver_application", companyName: "Sul Fretes", simulatorName: "GTO",
-      createdAt: { seconds: Math.floor(Date.parse("2026-10-25T12:00:00.000Z") / 1000) } }], loading: false, queryError: false },
+    pendingApplications: { applications, loading: false, queryError: false },
   };
   return <Context.Provider value={value}><Routes><Route path="/driver/companies" element={<JoinCompany mode="browse" />} /></Routes></Context.Provider>;
 }

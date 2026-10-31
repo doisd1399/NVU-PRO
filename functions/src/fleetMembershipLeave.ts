@@ -138,8 +138,11 @@ export async function leaveFleetMemberCore(db: DB, context: functions.https.Call
       return { asset, shared: others.docs.some(row => !closing.has(row.id) && row.get("deleted") !== true) };
     }));
 
-    const records = state.applications.filter(row => row.get("accessRevokedReason") !== "left_company" || row.get("isCurrent") !== false);
-    const requests = state.requests.filter(row => row.get("accessRevokedReason") !== "left_company" || row.get("isCurrent") !== false);
+    // A withdrawn application is already closed history; the exit must not rewrite it as rejected.
+    const open = (row: FirebaseFirestore.QueryDocumentSnapshot) => row.get("status") !== "withdrawn" &&
+      (row.get("accessRevokedReason") !== "left_company" || row.get("isCurrent") !== false);
+    const records = state.applications.filter(open);
+    const requests = state.requests.filter(open);
     if (target.members.docs.length + state.simulatorMembers.docs.length + records.length + requests.length + state.cancellable.length * 3 > 400)
       throw refuse("failed-precondition", "O vínculo requer manutenção administrativa antes da saída.", "LEAVE_NEEDS_MAINTENANCE");
 

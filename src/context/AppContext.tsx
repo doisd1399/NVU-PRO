@@ -9,6 +9,7 @@ import { presentConfirmedOperationResult } from "../services/operationCompletion
 import { canonicalTripRepository } from "../repositories/CanonicalTripRepository";
 import { operationOutbox, OPERATION_OUTBOX_CHANGED, mirrorOperationStart, mirrorOperationCapturePause, pendingOperationTripCount } from "../services/operationOutbox";
 import { automaticOperationJobId } from "../application/operation/DurableOperationOutbox";
+import { hasPendingApplicationForCompany } from "../lib/companyCatalog";
 import { needsSessionReconnect, nextSessionGeneration } from "../lib/sessionRefreshPolicy";
 import { operationalRequestId } from "../lib/operationalRequestId";
 import { automaticQueueScope, readOperationalQueueCache } from "../lib/operationalQueueCache";
@@ -267,7 +268,7 @@ export interface RecruitmentApplication {
   hasExperience?: boolean;
   primaryVehicle: string;
   secondaryVehicle: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "withdrawn";
   flowVersion?: number;
   isCurrent?: boolean;
   supersededAt?: string;
@@ -3785,58 +3786,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
 
       }
 
-      // Cada envio é uma nova instância do fluxo. O histórico continua visível
-      // ao RH, mas nunca bloqueia ou é reutilizado para montar esta inscrição.
+      // Cada envio é uma nova instância do fluxo. O histórico continua visível ao RH e nunca é reutilizado.
+      // Inscrições são independentes por empresa: enviar uma para a empresa B não substitui a da empresa A. Só uma
+      // inscrição pendente da MESMA empresa bloqueia um novo envio (o servidor também ignora a mais antiga).
       const createdAt = new Date().toISOString();
-      if (data.userId || normalizedEmail) {
+      if (data.userId) {
+        let ownApplications: Array<Partial<RecruitmentApplication>> = [];
         try {
-          const previousQueries = [
-            data.userId
-              ? query(
-                  collection(db, "recruitment_applications"),
-                  where("userId", "==", data.userId),
-                )
-              : null,
-            normalizedEmail && auth.currentUser?.emailVerified
-              ? query(
-                  collection(db, "recruitment_applications"),
-                  where("email", "==", normalizedEmail),
-                )
-              : null,
-          ].filter(Boolean) as ReturnType<typeof query>[];
-          const previousSnapshots = await Promise.all(
-            previousQueries.map((previousQuery) => getDocs(previousQuery)),
-          );
-          const previousRefs = new Map<string, any>();
-          previousSnapshots.forEach((snapshot) =>
-            snapshot.docs.forEach((previousApplication) => {
-              const previousData = previousApplication.data() as Partial<RecruitmentApplication>;
-              const previousType = String(
-                previousData.type ||
-                  previousData.registrationType ||
-                  "driver_application",
-              );
-              // Driver submissions replace only older driver submissions.
-              // A simultaneous company registration is an independent flow
-              // and must remain pending/visible until the NVU evaluates it.
-              if (previousType !== "company_registration") {
-                previousRefs.set(previousApplication.id, previousApplication.ref);
-              }
-            }),
-          );
-          await Promise.all(
-            Array.from(previousRefs.values()).map((previousRef) =>
-              updateDoc(previousRef, {
-                isCurrent: false,
-                supersededAt: createdAt,
-              }),
-            ),
-          );
-        } catch (historyError) {
-          console.warn(
-            "Não foi possível marcar todo o histórico como substituído; a nova inscrição continuará independente.",
-            historyError,
-          );
+          ownApplications = (await getDocs(query(collection(db, "recruitment_applications"), where("userId", "==", data.userId))))
+            .docs.map((row) => row.data() as Partial<RecruitmentApplication>);
+        } catch (lookupError) {
+          // A failed lookup must not block a first application; the server still resolves a duplicate at approval.
+          console.warn("Não foi possível conferir inscrições anteriores desta empresa.", lookupError);
+        }
+        if (hasPendingApplicationForCompany(ownApplications, data.companyId)) {
+          throw new Error("Você já tem uma inscrição aguardando resposta desta empresa. Aguarde ou retire a inscrição em Minhas inscrições.");
         }
       }
       const applicationRef = doc(collection(db, "recruitment_applications"));

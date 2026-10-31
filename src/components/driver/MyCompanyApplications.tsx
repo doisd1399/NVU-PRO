@@ -17,18 +17,27 @@ export type MyApplicationRow = {
 const dateFormat = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 
 /**
- * "Minhas inscrições": the driver's own pending applications. Only the simple work request can be withdrawn here
- * (the owner may already delete it); a full application is answered by the company's HR.
+ * "Minhas inscrições": the driver's own pending applications. The simple work request is withdrawn by deleting it;
+ * a full application is withdrawn through the server, offered only when `onWithdrawApplication` is given (the server
+ * has to know the command). Either way the row stays until the data confirms it is gone.
  */
-export function MyCompanyApplications({ rows, loading, failed, onCancelRequest }: {
+export function MyCompanyApplications({ rows, loading, failed, onCancelRequest, onWithdrawApplication }: {
   rows: MyApplicationRow[]; loading: boolean; failed: boolean; onCancelRequest: (id: string) => Promise<void>;
+  onWithdrawApplication?: (row: MyApplicationRow) => Promise<void>;
 }) {
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const cancel = async (id: string) => {
+  const [problem, setProblem] = useState<{ id: string; message: string } | null>(null);
+  const cancel = async (row: MyApplicationRow) => {
     if (cancelling) return;
-    setCancelling(id);
-    try { await onCancelRequest(id); setConfirming(null); } catch { /* the context reports the failure; keep the row */ } finally { setCancelling(null); }
+    setCancelling(row.id); setProblem(null);
+    try {
+      if (row.kind === "recruitment") await onWithdrawApplication!(row); else await onCancelRequest(row.id);
+      setConfirming(null);
+    } catch (error) {
+      // The simple request's failure is reported by the context; the server command's is worded by its caller.
+      if (row.kind === "recruitment") setProblem({ id: row.id, message: (error as Error)?.message || "Não foi possível retirar a inscrição agora." });
+    } finally { setCancelling(null); }
   };
   return <section className="nvu-my-applications" aria-labelledby="nvu-my-applications-title" aria-busy={loading} data-testid="my-applications">
     <h2 id="nvu-my-applications-title" className="flex items-center gap-2 text-[15px] font-bold text-gray-900 dark:text-nvu-text">
@@ -50,13 +59,20 @@ export function MyCompanyApplications({ rows, loading, failed, onCancelRequest }
             </div>
             <span className="shrink-0 rounded-full border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">Aguardando avaliação</span>
           </div>
-          {row.kind === "request" && (confirming === row.id
-            ? <div className="mt-3 flex items-center justify-end gap-2">
-                <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="rounded-xl border border-gray-200 dark:border-nvu-line px-3 py-2 text-xs font-semibold text-gray-700 dark:text-nvu-text-soft">Manter</button>
-                <button type="button" disabled={busy} onClick={() => void cancel(row.id)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
-                  {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}Retirar solicitação</button>
-              </div>
-            : <div className="mt-3 flex justify-end"><button type="button" onClick={() => setConfirming(row.id)} className="text-xs font-semibold text-gray-500 dark:text-nvu-muted underline underline-offset-2">Retirar solicitação</button></div>)}
+          {(row.kind === "request" || onWithdrawApplication) && (() => {
+            const label = row.kind === "request" ? "Retirar solicitação" : "Retirar inscrição";
+            return confirming === row.id
+              ? <div className="mt-3 space-y-2">
+                  {row.kind === "recruitment" && <p className="text-xs text-gray-500 dark:text-nvu-muted">A empresa deixará de ver esta inscrição. Você poderá se inscrever de novo depois.</p>}
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="rounded-xl border border-gray-200 dark:border-nvu-line px-3 py-2 text-xs font-semibold text-gray-700 dark:text-nvu-text-soft">Manter</button>
+                    <button type="button" disabled={busy} aria-busy={busy} onClick={() => void cancel(row)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                      {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{label}</button>
+                  </div>
+                </div>
+              : <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setProblem(null); setConfirming(row.id); }} className="text-xs font-semibold text-gray-500 dark:text-nvu-muted underline underline-offset-2">{label}</button></div>;
+          })()}
+          {problem?.id === row.id && <p role="alert" className="mt-2 text-xs font-semibold text-red-600 dark:text-red-300">{problem.message}</p>}
         </li>;
       })}
     </ul>}

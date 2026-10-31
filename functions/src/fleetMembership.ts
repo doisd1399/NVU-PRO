@@ -7,6 +7,7 @@ import { membershipCommandReceipt, readMembershipCommandStatus, runMembershipTra
 import { driverDisplayIdentity } from "./driverDisplayIdentity";
 import { recruitmentIdentityPatch } from "./recruitmentIdentity";
 import { leaveFleetMemberCore, previewLeaveFleetMember } from "./fleetMembershipLeave";
+import { membershipCapabilities, withdrawApplicationCore, WITHDRAWN } from "./fleetApplications";
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 const id = (value: unknown, label: string) => {
@@ -49,7 +50,7 @@ export async function removeFleetMemberCore(db: FirebaseFirestore.Firestore, con
       .filter(row => row.get("empresaId") === companyId).map(row => [row.id, row])).values()] };
     const email = text(target.user.email).toLowerCase();
     const needsRejection = (row: FirebaseFirestore.QueryDocumentSnapshot) =>
-      row.get("status") !== "rejected" || row.get("isCurrent") !== false || row.get("accessRevokedReason") !== "removed_from_fleet";
+      row.get("status") !== WITHDRAWN && (row.get("status") !== "rejected" || row.get("isCurrent") !== false || row.get("accessRevokedReason") !== "removed_from_fleet");
     const revokedApplications = applications.docs.filter(row => {
       const data = row.data();
       return data.type !== "company_registration" &&
@@ -145,11 +146,19 @@ export async function approveFleetMemberCore(db: FirebaseFirestore.Firestore, co
           (application.approvalAuthorityVersion !== 1 && !target.active))
         throw new functions.https.HttpsError("permission-denied", "A inscrição precisa ser confirmada novamente pelo gestor da empresa.");
     }
+    if (application.status === WITHDRAWN)
+      throw new functions.https.HttpsError("failed-precondition", "O candidato retirou esta inscrição. Peça uma nova inscrição.");
     if (application.isCurrent === false || application.accessRevokedAt || application.accessRevokedReason === "removed_from_fleet")
       throw new functions.https.HttpsError("failed-precondition", "Inscrição revogada. Envie uma nova solicitação.");
-    if (recruitment && target.user.currentRecruitmentApplicationId && target.user.currentRecruitmentApplicationId !== documentId &&
-        target.user.currentRecruitmentType === "driver_application")
-      throw new functions.https.HttpsError("failed-precondition", "Esta inscrição foi substituída por uma inscrição mais recente.");
+    if (recruitment && !input.repair) {
+      // Supersession is per company: a newer application of the same candidate to the same company replaces this one.
+      // Applications to other companies are independent and never affect it.
+      const sameCompany = await tx.get(db.collection("recruitment_applications").where("userId", "==", uid));
+      const newer = sameCompany.docs.find(row => row.id !== documentId && text(row.get("companyId")) === companyId &&
+        row.get("type") !== "company_registration" && row.get("isCurrent") !== false &&
+        ["pending", "approved"].includes(text(row.get("status"))) && millis(row.get("createdAt")) > millis(application.createdAt));
+      if (newer) throw new functions.https.HttpsError("failed-precondition", "Esta inscrição foi substituída por uma inscrição mais recente.");
+    }
     if (target.revoked && (input.repair || millis(application.createdAt) <= millis(target.authorization.revokedAt)))
       throw new functions.https.HttpsError("failed-precondition", "O vínculo foi removido. É necessária uma nova inscrição e aprovação.");
     if (!["pending", "rejected", "approved"].includes(application.status))
@@ -219,6 +228,8 @@ export async function executeFleetMembershipCommand(db: FirebaseFirestore.Firest
       return {success:true,companyId,userId:uid,roles};
     });
   }
+  if (input?.action === "capabilities") return membershipCapabilities();
+  if (input?.action === "withdraw-application") return withdrawApplicationCore(db, context, { companyId: input.companyId, applicationId: input.applicationId }, receipt);
   if (input?.action === "leave" || input?.action === "leave-preview") {
     // The departing account is always the caller; a supplied target can only repeat it.
     if (text(input.targetUserId) && text(input.targetUserId) !== context.auth.uid)

@@ -12,6 +12,7 @@ const server = await createServer({ configFile: false, root, plugins: [{ name: "
   const clean = id.split("?")[0];
   if (["src/context/AppContext.tsx", "src/context/CompanyContext.tsx"].some(file => clean === path.join(root, file))) return fixture;
   if (clean === path.join(root, "src/hooks/useCurrentUserPendingApplications.ts")) return fixture;
+  if (clean === path.join(root, "src/services/applicationWithdrawService.ts")) return fixture;
   if (clean === path.join(root, "src/lib/firebase.ts")) return "export const db={}; export const auth={currentUser:null}; export const functions={};";
 } }, react()], server: { host: "127.0.0.1", port: 4198, strictPort: true, hmr: false } });
 await server.listen();
@@ -80,6 +81,30 @@ try {
   assert.deepEqual((await q()).cancelled, ["req-rural"]);
   await page.waitForFunction(() => document.querySelectorAll('[data-testid="my-applications"] li').length === 1);
   checks.push("Minhas inscrições lists both kinds with dates; only the simple request can be withdrawn, after a confirmation");
+
+  // 6a. With the server not offering the command (old Functions), a full application cannot be withdrawn here.
+  // (asserted above: no button). Now the published server lists it.
+  await page.goto("http://127.0.0.1:4198/scripts/fixtures/join-companies.html?withdraw=1");
+  await page.getByTestId("my-applications").locator('li[data-kind="recruitment"]').getByRole("button", { name: "Retirar inscrição" }).waitFor();
+  const recruitment = page.getByTestId("my-applications").locator('li[data-kind="recruitment"]');
+  await recruitment.getByRole("button", { name: "Retirar inscrição" }).click();
+  assert.match(await recruitment.innerText(), /A empresa deixará de ver esta inscrição\. Você poderá se inscrever de novo depois\./);
+  await recruitment.getByRole("button", { name: "Manter" }).click();
+  assert.deepEqual((await q()).withdrawn, [], "Keeping writes nothing");
+  // A lost answer keeps the row, words the failure and the retry replays the same command id; a double click sends once.
+  await page.evaluate(() => { const s = (window as any).qaJoin; s.withdrawDelay = 200; s.withdrawFailures = [Object.assign(new Error("x"), { code: "functions/unavailable", details: { diagnosticId: "w-ref-1" } })]; });
+  await recruitment.getByRole("button", { name: "Retirar inscrição" }).click();
+  await recruitment.getByRole("button", { name: "Retirar inscrição" }).dblclick();
+  await recruitment.getByRole("alert").waitFor();
+  assert.equal((await q()).withdrawn.length, 1, "double click sends one command");
+  assert.match(await recruitment.getByRole("alert").innerText(), /Não foi possível confirmar a retirada\. Tente novamente\. Referência: w-ref-1\./);
+  assert.equal(await recruitment.count(), 1, "a failure keeps the application visible");
+  await recruitment.getByRole("button", { name: "Retirar inscrição" }).click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="my-applications"] li[data-kind="recruitment"]') === null);
+  const sent = (await q()).withdrawn;
+  assert.equal(sent.length, 2); assert.equal(sent[1].diagnosticId, sent[0].diagnosticId, "the retry reuses the command id");
+  assert.deepEqual([sent[1].companyId, sent[1].applicationId], ["sul", "app-sul"]);
+  checks.push("A full application can be withdrawn only when the server offers it; confirmation, single send, same command id on retry, row removed after the server confirms");
 
   // 6b. Layout: nothing overflows horizontally on a phone
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
