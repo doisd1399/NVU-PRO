@@ -133,6 +133,11 @@ export { reconcileOperationTrips } from "./reconcileOperationTrips";
 export { completeCanonicalOperation } from "./completeCanonicalOperation";
 export { operationalCommand, prepareCompanyOperationalCommands, notifyOperationalAssignment } from "./operationalCommands";
 export { finalizeCanonicalOperation } from "./finalizeCanonicalOperation";
+export {
+  ensureRankingParticipantOperations,
+  syncRankingParticipantOperations,
+  syncRankingVehicleChange,
+} from "./rankingParticipantOperations";
 
 export { reconcileOperationProjectionOnTripWrite } from "./reconcileOperationProjectionOnTripWrite";
 

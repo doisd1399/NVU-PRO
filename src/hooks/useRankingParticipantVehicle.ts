@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, query, startAfter, where } from "firebase/firestore";
-import { db } from "../lib/firebase";
-import { selectCurrentOperationJob, operationAssignmentTimestamp, operationSelectionDriverId } from "../lib/currentOperation";
-import { resolveVehiclePhotoSimulatorId, resolveVehiclePhotoOperationSimulatorId, resolveVehiclePhotoOperationSimulatorEvidence } from "../lib/vehiclePhotoIdentity";
+import { httpsCallable } from "firebase/functions";
+import { db, functions } from "../lib/firebase";
+import { selectCurrentOperationJob, operationAssignmentTimestamp } from "../lib/currentOperation";
+import { resolveVehiclePhotoOperationSimulatorId } from "../lib/vehiclePhotoIdentity";
+import { readProjectionRows as readProjection } from "../services/rankingProjectionReader";
+import { ownerOf, scopeJobs, selectFromProjectionRows, selectParticipantOperation, vehiclesNeedingEvidence } from "../lib/rankingParticipantSelection";
 import { clearVehiclePhotoIdentitySnapshot, readVehiclePhotoIdentitySnapshot, writeVehiclePhotoIdentitySnapshot, type VehiclePhotoSnapshotScope } from "../services/vehiclePhotoIdentitySnapshot";
 
 export type ParticipantVehicleContext = VehiclePhotoSnapshotScope & {
@@ -30,7 +33,6 @@ const OPERATIONS_PAGE_SIZE = 100;
 const cache = new Map<string, CachedParticipantVehicle>();
 const inflight = new Map<string, Promise<CachedParticipantVehicle>>();
 
-const ownerOf = (job: Record<string, any>) => operationSelectionDriverId(job) || String(job.userId || "").trim();
 const DRIVER_FIELDS = ["driverId", "motoristaId", "assignedDriverId", "userId", "driver_id", "motorista_id"];
 
 async function readByDriverField(field: string, participantId: string): Promise<{ rows: Record<string, any>[]; fromCache: boolean }> {
@@ -55,9 +57,29 @@ async function readByDriverField(field: string, participantId: string): Promise<
   return { rows, fromCache };
 }
 
+/**
+ * The server keeps a compact row set per participant (rankingParticipantOperations). It is read first: one document
+ * instead of the participant's whole job history and vehicle documents. A missing document is created once by the server.
+ * Anything unavailable (older server, offline without cache) returns null and the caller uses the full-history path.
+ */
+async function readProjectionRows(participantId: string) {
+  return readProjection(participantId, {
+    readDocument: async (id) => {
+      const snapshot = await getDoc(doc(db, "rankingParticipantOperations", id));
+      return { exists: snapshot.exists(), data: snapshot.exists() ? snapshot.data() : null, fromCache: snapshot.metadata?.fromCache === true };
+    },
+    ensure: async (id) => (await httpsCallable<{ participantId: string }, any>(functions, "ensureRankingParticipantOperations", { timeout: 20_000 })({ participantId: id })).data,
+  });
+}
+
 async function loadParticipantVehicle(participantId: string, companyId?: string, context: ParticipantVehicleContext = {}): Promise<CachedParticipantVehicle> {
   const normalizedParticipantId = String(participantId || "").trim();
   if (!normalizedParticipantId) return { expiresAt: Date.now() + CACHE_TTL_MS, operation: null, vehicle: null };
+  const projected = await readProjectionRows(normalizedParticipantId);
+  if (projected) {
+    const picked = selectFromProjectionRows(projected.rows, normalizedParticipantId, companyId || undefined, context);
+    return { expiresAt: Date.now() + CACHE_TTL_MS, operation: picked.operation, vehicle: picked.vehicle, authoritative: !projected.fromCache && !picked.unresolvedContext };
+  }
   const candidates = new Map<string, Record<string, any>>();
   const results = await Promise.allSettled(DRIVER_FIELDS.map((field) => readByDriverField(field, normalizedParticipantId)));
   const successful = results.filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof readByDriverField>>> => result.status === "fulfilled");
@@ -66,29 +88,11 @@ async function loadParticipantVehicle(participantId: string, companyId?: string,
   // but do not misreport a total permissions/network failure as no operation.
   if (!successful.length) throw (results.find((result) => result.status === "rejected") as PromiseRejectedResult)?.reason || new Error("RANKING_OPERATION_QUERIES_FAILED");
   let authoritative = successful.length === DRIVER_FIELDS.length && successful.every((result) => !result.value.fromCache);
-  const requestedSimulator = context.simulatorId && context.simulatorId !== "all"
-    ? resolveVehiclePhotoSimulatorId({ simulatorId: context.simulatorId }, context.simulators || [], context.companies || [])
-    : "";
-  const scopedJobs = [...candidates.values()].filter((job) => ownerOf(job) === normalizedParticipantId
-    && (!companyId || String(job.companyId || job.empresaId || "").trim() === companyId));
-  const companies = context.companies || [];
-  const simulators = context.simulators || [];
-  const companyById = new Map(companies.map((company) => [String(company.id), company]));
-  const companyForJob = (job: Record<string, any>) => companyById.get(String(job.companyId || job.empresaId || ""));
-  const unresolvedVehicleIds = new Set<string>();
-  if (context.simulatorId && context.simulatorId !== "all" && requestedSimulator) {
-    // Historical operations may lack simulator fields but their linked vehicle
-    // may contain explicit canonical evidence. Read each distinct vehicle once,
-    // and only for jobs genuinely missing simulator evidence. Never infer it
-    // from the ranking filter, company name, or vehicle model.
-    for (const job of scopedJobs) {
-      const evidence = resolveVehiclePhotoOperationSimulatorEvidence(job, companyForJob(job), "", simulators, companies);
-      const vehicleId = String(job.vehicleId || job.veiculoId || "").trim();
-      if (!evidence.conflict && !evidence.simulatorId && vehicleId) unresolvedVehicleIds.add(vehicleId);
-    }
-  }
+  const scopedJobs = scopeJobs([...candidates.values()], normalizedParticipantId, companyId || undefined);
+  // Historical operations may lack simulator fields but their linked vehicle may contain explicit canonical evidence.
+  // Read each distinct vehicle once, and only for jobs genuinely missing simulator evidence.
   const vehicleEvidence = new Map<string, Record<string, any> | null>();
-  const pendingVehicleIds = [...unresolvedVehicleIds];
+  const pendingVehicleIds = vehiclesNeedingEvidence(scopedJobs, context);
   let nextVehicle = 0, vehicleReadIncomplete = false;
   await Promise.all(Array.from({ length: Math.min(4, pendingVehicleIds.length) }, async () => {
     while (nextVehicle < pendingVehicleIds.length) {
@@ -97,50 +101,14 @@ async function loadParticipantVehicle(participantId: string, companyId?: string,
         const snapshot = await getDoc(doc(db, "veiculos", vehicleId));
         vehicleEvidence.set(vehicleId, snapshot.exists() ? { ...snapshot.data(), id: snapshot.id } : null);
       } catch {
-        // An incomplete permission/network scan must not erase an offline
-        // identity snapshot as though missing metadata were authoritative.
+        // An incomplete permission/network scan must not erase an offline identity snapshot.
         vehicleReadIncomplete = true;
       }
     }
   }));
   if (vehicleReadIncomplete) authoritative = false;
-  let unresolvedContext = false;
-  const allJobs: Record<string, any>[] = scopedJobs.filter((job) => {
-    if (!context.simulatorId || context.simulatorId === "all") return true;
-    if (!requestedSimulator) return false;
-    const vehicleId = String(job.vehicleId || job.veiculoId || "").trim();
-    const resolved = resolveVehiclePhotoOperationSimulatorEvidence(
-      job, companyForJob(job), context.simulatorId, simulators, companies, [vehicleEvidence.get(vehicleId)],
-    );
-    // Incomplete simulator evidence is NOT proof that a previously cached
-    // vehicle disappeared. Keep the verified scoped offline snapshot until a
-    // canonical result can replace it.
-    const raw = resolveVehiclePhotoOperationSimulatorEvidence(
-      job, companyForJob(job), "", simulators, companies, [vehicleEvidence.get(vehicleId)],
-    );
-    if (!raw.simulatorId && vehicleId) unresolvedContext = true;
-    return resolved.simulatorId === requestedSimulator;
-  }).map((job) => ({ ...job, driverId: ownerOf(job) }));
+  const { operation, unresolvedContext } = selectParticipantOperation(scopedJobs, normalizedParticipantId, companyId || undefined, context, vehicleEvidence);
   if (unresolvedContext) authoritative = false;
-  // Completed assignments are evidence that prevents an older active
-  // assignment from resurfacing, so the canonical selector must see all jobs.
-  const active = selectCurrentOperationJob(
-    allJobs,
-    normalizedParticipantId,
-    companyId || undefined,
-  ) as Record<string, any> | null;
-  const lastUsed = allJobs
-    .filter((job) => {
-      const status = String(job.status || "").trim().toLowerCase();
-      const vehicleId = String(job.vehicleId || job.veiculoId || "").trim();
-      const hasStartedEvidence = Boolean(job.startedAt || job.completedAt || job.started_at || job.completed_at);
-      const isUsedState = ["active", "awaiting_completion", "delayed", "completed"].includes(status);
-      return vehicleId && (isUsedState || hasStartedEvidence)
-        && status !== "cancelled" && status !== "canceled" && status !== "invalid";
-    })
-    .sort((a, b) => operationAssignmentTimestamp(b) - operationAssignmentTimestamp(a)
-      || String(b.id).localeCompare(String(a.id)))[0] || null;
-  const operation = active || lastUsed;
   let vehicle: Record<string, any> | null = null;
   const vehicleId = String(operation?.vehicleId || operation?.veiculoId || "").trim();
   if (vehicleId) {

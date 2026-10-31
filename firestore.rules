@@ -100,6 +100,20 @@ service cloud.firestore {
       return isAuthenticated() && (isCompanyManager(companyId) || hasActiveCompanyAccess(companyId, request.auth.uid));
     }
 
+    // Operational records belong to one company. A member (or the company's managers) reads them; a driver also keeps
+    // reading the jobs that are his own after leaving. Nobody reads another company's records. A missing document stays
+    // "does not exist" instead of "denied" so existence checks keep working.
+    function companyOfRecord() {
+      return resource.data.get('companyId', resource.data.get('empresaId', ''));
+    }
+    function readsOwnCompanyRecord() {
+      return isAuthenticated() && (isSenior() || (companyOfRecord() is string && companyOfRecord() != '' && isCompanyMember(companyOfRecord())));
+    }
+    function readsOwnDriverRecord() {
+      return readsOwnCompanyRecord() || (isAuthenticated() &&
+        (resource.data.get('driverId', '') == request.auth.uid || resource.data.get('motoristaId', '') == request.auth.uid));
+    }
+
     function preservesTripReceiptEvidence() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'comprovanteUrl', 'imageHash', 'gtoReceiptAnalyzed',
@@ -631,6 +645,13 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
+    // Compact "current vehicle" facts per participant for the Ranking, written only by the server
+    // (rankingParticipantOperations). It replaces reading another company's job history.
+    match /rankingParticipantOperations/{participantId} {
+      allow read: if isAuthenticated();
+      allow write: if false;
+    }
+
     // 2. frotas (companies)
     match /frotas/{id} {
       // Private company documents are scoped; public directory uses public_companies.
@@ -645,7 +666,8 @@ service cloud.firestore {
 
     // 3. veiculos
     match /veiculos/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
       allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
@@ -653,7 +675,8 @@ service cloud.firestore {
 
     // 4. reboques
     match /reboques/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
       allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
@@ -661,7 +684,8 @@ service cloud.firestore {
 
     // 5. contratos
     match /contratos/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
       allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
@@ -669,28 +693,32 @@ service cloud.firestore {
 
     // English aliases still used by the historical trip repository.
     match /vehicles/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
       allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     match /trailers/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
       allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     match /contracts/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() && isCompanyManager(request.resource.data.companyId);
       allow update: if isAuthenticated() && isCompanyManager(resource.data.companyId) && request.resource.data.companyId == resource.data.companyId;
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
     match /sequencias/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());
+      allow list: if readsOwnCompanyRecord();
       allow create: if isAuthenticated() &&
         request.resource.data.companyId is string &&
         isCompanyManager(request.resource.data.companyId);
@@ -729,7 +757,8 @@ service cloud.firestore {
 
     // 6. trabalhos
     match /trabalhos/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnDriverRecord());
+      allow list: if readsOwnDriverRecord();
       allow create: if isAuthenticated() &&
         isCompanyManager(request.resource.data.companyId) && validLegacyJobCreate();
       // Progress, lastValidatedTripId, lastDeletedTripId and terminal status are
@@ -857,7 +886,8 @@ service cloud.firestore {
 
     // 9. jobDemands
     match /jobDemands/{id} {
-      allow read: if isAuthenticated();
+      allow get: if isAuthenticated() && (resource == null || readsOwnDriverRecord());
+      allow list: if readsOwnDriverRecord();
       allow create: if isAuthenticated() &&
         request.resource.data.driverId is string &&
         (
