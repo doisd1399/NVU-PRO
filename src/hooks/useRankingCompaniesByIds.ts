@@ -1,3 +1,4 @@
+import { ABSENT_RECHECK_MS, settleCompanyChunks, type ChunkResult } from "../lib/rankingCompaniesSettlement";
 import { withTimeout } from "../lib/asyncTimeout";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -34,6 +35,8 @@ type RankingCompaniesEntry = {
   retryTimer: ReturnType<typeof setTimeout> | null;
   retryAttempt: number;
   hasCompleteSnapshot: boolean;
+  /** Ids the server confirmed it does not list (deleted companies). */
+  absentIds?: string[];
   serverConfirmed: boolean;
 };
 
@@ -130,14 +133,15 @@ function readPersistedState(ids: string[]): RankingCompaniesState | null {
     const saved = raw ? JSON.parse(raw) : null;
     if (!saved || !Array.isArray(saved.ids) || saved.ids.join("|") !== ids.join("|") || !Array.isArray(saved.companies)) return null;
     const savedIds = new Set(saved.companies.map((company: any) => typeof company?.id === "string" ? company.id : ""));
-    if (savedIds.size !== ids.length || !ids.every(id => savedIds.has(id))) return null;
+    const savedAbsent = new Set<string>(Array.isArray(saved.absent) ? saved.absent.filter((id: unknown): id is string => typeof id === "string") : []);
+    if (!ids.every(id => savedIds.has(id) || savedAbsent.has(id))) return null;
     return { companies: saved.companies, loading: false, refreshing: false, error: null, complete: true, serverConfirmed: true, stale: true };
   } catch { return null; }
 }
 function persistCompleteState(entry: RankingCompaniesEntry) {
   try {
     if (typeof localStorage === "undefined") return;
-    localStorage.setItem(`nvu.ranking.companies.v501.${entry.key}`, JSON.stringify({ ids: entry.ids, companies: entry.state.companies, cachedAt: Date.now() }));
+    localStorage.setItem(`nvu.ranking.companies.v501.${entry.key}`, JSON.stringify({ ids: entry.ids, companies: entry.state.companies, absent: entry.absentIds || [], cachedAt: Date.now() }));
     const keys = Object.keys(localStorage).filter(key => key.startsWith("nvu.ranking.companies.v501."));
     keys.sort((a, b) => Number(JSON.parse(localStorage.getItem(a) || "{}").cachedAt || 0) - Number(JSON.parse(localStorage.getItem(b) || "{}").cachedAt || 0));
     keys.slice(0, Math.max(0, keys.length - 12)).forEach(key => localStorage.removeItem(key));
@@ -254,25 +258,9 @@ function loadEntry(entry: RankingCompaniesEntry) {
     .then((results) => {
       if (isAuthTeardownActive() || cache.get(entry.key) !== entry) return;
 
-      const merged = new Map<string, any>();
-      let firstError: unknown = null;
+      const { merged, firstError, confirmed, absent } = settleCompanyChunks(entry.ids, results as ChunkResult[]);
 
-      results.forEach((result) => {
-        if (result.status === "rejected") {
-          firstError ||= result.reason;
-          return;
-        }
-        result.value.docs.forEach((document) => {
-          merged.set(document.id, { ...document.data(), id: document.id });
-        });
-      });
-
-      const allSourcesSucceeded = results.every(
-        (result) => result.status === "fulfilled",
-      );
-
-      const allIdentitiesPresent = entry.ids.every(id => merged.has(id));
-      if (allSourcesSucceeded && allIdentitiesPresent) {
+      if (confirmed) {
         entry.hasCompleteSnapshot = true;
         entry.serverConfirmed = true;
         entry.retryAttempt = 0;
@@ -286,7 +274,8 @@ function loadEntry(entry: RankingCompaniesEntry) {
           complete: true,
           serverConfirmed: true,
         };
-        entry.expiresAt = Date.now() + CACHE_TTL_MS;
+        entry.absentIds = absent;
+        entry.expiresAt = Date.now() + (absent.length ? ABSENT_RECHECK_MS : CACHE_TTL_MS);
         persistCompleteState(entry);
       } else {
         // Do not cache a successful subset as the requested company set. A

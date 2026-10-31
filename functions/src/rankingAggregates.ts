@@ -8,6 +8,8 @@ import {
   RANKING_TIME_ZONE,
   RANKING_PERIOD_POLICY,
   periodFromKey as sharedPeriodFromKey,
+  RANKING_HISTORY_WINDOW_DAYS,
+  RANKING_RECENT_WINDOW_DAYS,
   periodsForDate as sharedPeriodsForDate,
   parseDate as sharedParseDate,
 } from "./rankingCalendar";
@@ -1156,13 +1158,17 @@ export const ensureRankingAggregates = functions
       );
     }
 
-    // The public callable is only a bootstrap/reconciliation path for recent
-    // rankings. It must never become an authenticated full-history scanner.
-    const oldestAllowedStart = Date.now() - 70 * 24 * 60 * 60 * 1000;
+    // The public callable is a bootstrap/reconciliation path for recent rankings and a one-time build of closed
+    // months/weeks for the classification history. It must never become an authenticated full-history scanner: one
+    // period per call, bounded to the history window, and a closed period that already exists is never rebuilt.
+    const oldestAllowedStart = Date.now() - RANKING_HISTORY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+    const recentWindowStart = Date.now() - RANKING_RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
     const newestAllowedStart = Date.now() + 24 * 60 * 60 * 1000;
     if (
       period.start.getTime() < oldestAllowedStart ||
-      period.start.getTime() > newestAllowedStart
+      period.start.getTime() > newestAllowedStart ||
+      // Older than the recent window: only a period that has already closed.
+      (period.start.getTime() < recentWindowStart && period.end.getTime() >= Date.now())
     ) {
       throw new functions.https.HttpsError(
         "failed-precondition",
@@ -1195,7 +1201,9 @@ export const ensureRankingAggregates = functions
         data.complete === true &&
         reconciledAt > 0 &&
         period.end.getTime() < Date.now() &&
-        Date.now() - reconciledAt <= RECONCILE_AFTER_MS
+        (Date.now() - reconciledAt <= RECONCILE_AFTER_MS ||
+          // Closed history is kept once it was reconciled after the period ended.
+          (period.start.getTime() < recentWindowStart && reconciledAt >= period.end.getTime()))
       ) {
         return { success: true, status: "ready", periodKey: period.key, periodClosed: period.end.getTime() < Date.now() };
       }

@@ -64,9 +64,10 @@
 .nvu-profile-company-logo img { width: 100%; height: 100%; object-fit: cover; }
 .nvu-profile-company-name { min-width: 0; color: var(--profile-text); font-size: 12px; font-weight: 500; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nvu-profile-history { overflow: hidden; border: 1px solid var(--profile-border); border-radius: 12px; }
-.nvu-profile-history-toggle { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 47px; padding: 8px 10px; border: 0; background: transparent; color: var(--profile-text); text-align: left; font: 500 12px/1.35 "NVU Podium", system-ui, sans-serif; cursor: pointer; }
-.nvu-profile-history-toggle > span:nth-child(2) { flex: 1; min-width: 0; }
-.nvu-profile-history-toggle > svg { flex: none; color: var(--profile-muted); }
+/* Scoped: the driver profile sheet defines a generic .nvu-profile-history-toggle (dark fallback text) that would win here. */
+.nvu-ranking-profile-modal .nvu-profile-history-toggle { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 47px; padding: 8px 10px; border: 0; background: transparent; color: var(--profile-text); text-align: left; font: 500 12px/1.35 "NVU Podium", system-ui, sans-serif; cursor: pointer; }
+.nvu-ranking-profile-modal .nvu-profile-history-toggle > span:nth-child(2) { flex: 1; min-width: 0; }
+.nvu-ranking-profile-modal .nvu-profile-history-toggle > svg { flex: none; color: var(--profile-muted); }
 .nvu-profile-history-icon { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 8px; background: color-mix(in srgb, var(--profile-muted) 9%, transparent); color: var(--profile-muted); }
 .nvu-profile-history-body { padding: 0 10px 10px; }
 .nvu-profile-history-types { display: flex; gap: 10px; padding-top: 3px; }

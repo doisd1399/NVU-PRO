@@ -7,6 +7,13 @@ export const RANKING_PERIOD_POLICY = "SAO_PAULO_CALENDAR";
 // O período é elegível no instante seguinte ao fechamento local; não há
 // atraso adicional de publicação neste contrato.
 export const PUBLICATION_DELAY_MINUTES = 0;
+/**
+ * Consolidation windows, shared by the callable and the app. A period that started within the recent window is
+ * (re)reconciled hourly; a CLOSED period up to the history window is built once and then kept (closed history does not
+ * change). Anything older is never scanned: it stays "não consolidado".
+ */
+export const RANKING_RECENT_WINDOW_DAYS = 70;
+export const RANKING_HISTORY_WINDOW_DAYS = 240;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
