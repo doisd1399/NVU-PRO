@@ -834,6 +834,7 @@ function AppRouteContent() {
           <Route index element={<Navigate to="profile" replace />} />
           <Route path="profile" element={<DriverProfile />} />
           <Route path="join" element={<LazyRoute><JoinCompany /></LazyRoute>} />
+          <Route path="companies" element={<LazyRoute><JoinCompany mode="browse" /></LazyRoute>} />
           <Route path="trip" element={<LazyRoute><RecordTrip /></LazyRoute>} />
           <Route path="history" element={<TripHistory />} />
           <Route path="news" element={<NewsFeed />} />

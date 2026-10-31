@@ -50,6 +50,7 @@ import {
   Phone,
   Mail,
   Building2,
+  ClipboardList,
   Gamepad2,
   Settings,
   Package,
@@ -1034,6 +1035,16 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
                       </div>
                     </div>
                   )}
+                </div>
+                <div className="flex flex-wrap gap-2 border-t border-slate-100 dark:border-nvu-line pt-4" data-testid="profile-companies-entry">
+                  <button type="button" onClick={() => navigate("/driver/companies")}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-nvu-line px-3.5 py-2 text-[13px] font-semibold text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-strip">
+                    <Building2 size={15} aria-hidden="true" /> Encontrar empresas
+                  </button>
+                  <button type="button" onClick={() => navigate("/driver/companies", { state: { focus: "applications" } })}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-nvu-line px-3.5 py-2 text-[13px] font-semibold text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-strip">
+                    <ClipboardList size={15} aria-hidden="true" /> Minhas inscrições
+                  </button>
                 </div>
               </div>
             )}

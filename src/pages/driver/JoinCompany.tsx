@@ -1,21 +1,32 @@
 import { ModalSelect } from "../../components/ui/ModalSelect";
-import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { Button } from "../../components/ui/Button";
 import { resolveSimulatorId } from "../../lib/resolveSimulator";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { StableImage } from "../../components/common/StableImage";
+import { MyCompanyApplications, type MyApplicationRow } from "../../components/driver/MyCompanyApplications";
+import { useCurrentUserPendingApplications } from "../../hooks/useCurrentUserPendingApplications";
+import { companyApplyState, isCompanyListable, toApplicationDate } from "../../lib/companyCatalog";
 import {
   UserCog,
   Building2,
   Search,
   ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
 
-export default function JoinCompany() {
+/**
+ * "join": the first-access screen of a driver without a company (unchanged behaviour).
+ * "browse": "Empresas", open to a driver who already has a company; it lists the public catalog, shows which companies the
+ * driver already belongs to or applied to, and "Minhas inscrições". It never changes the current link.
+ */
+export default function JoinCompany({ mode = "join" }: { mode?: "join" | "browse" }) {
+  const browse = mode === "browse";
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useSessionStore();
   const { simulators } = useOperationalStore();
   const {
@@ -24,7 +35,7 @@ export default function JoinCompany() {
     companyCatalogLoaded,
     companyCatalogAttempted,
     loadCompanyCatalog,
-    allCompanyMembers,
+    memberships,
     requestJoinCompany,
     cancelRequestJoinCompany,
     driverRequests,
@@ -34,12 +45,17 @@ export default function JoinCompany() {
   const [selectedSimulatorId, setSelectedSimulatorId] = useState("");
   const [isRequestingId, setIsRequestingId] = useState<string | null>(null);
 
-  // The driver recruitment screen must not trigger the company catalog
-  // loading on initial mount. The catalog is requested only by flows that
-  // actually need company selection, avoiding unnecessary loading cycles.
+  // The catalog is loaded by the screen that needs it (idempotent: a loaded or in-flight catalog is reused).
+  useEffect(() => { void loadCompanyCatalog().catch(() => undefined); }, []);
+  const retryCatalog = () => { void loadCompanyCatalog(true).catch(() => undefined); };
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+
+  const { applications: pendingApplications, loading: applicationsLoading, queryError: applicationsFailed } =
+    useCurrentUserPendingApplications(browse ? currentUser?.id : undefined, browse ? currentUser?.email : undefined);
+  const applicationsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    return;
-  }, []);
+    if (browse && (location.state as { focus?: string } | null)?.focus === "applications") applicationsRef.current?.scrollIntoView({ block: "start" });
+  }, [browse, location.state]);
 
   const activeSimulators = simulators.filter((s:any) => s.active !== false).sort((a:any, b:any) => a.name.localeCompare(b.name));
   const getSimulatorLabel = (company: any) =>
@@ -54,7 +70,7 @@ export default function JoinCompany() {
     (r) => r.motoristaId === currentUser?.id && r.status === "pending",
   );
 
-  if (myPendingRequest) {
+  if (!browse && myPendingRequest) {
     const company = allCompanies.find((c) => c.id === myPendingRequest.empresaId);
     return (
       <div className="w-full max-w-7xl mx-auto py-4 sm:py-10 px-4 sm:px-6">
@@ -94,6 +110,27 @@ export default function JoinCompany() {
   }
 
   // Not linked to any company yet
+  const memberCompanyIds = useMemo(() => new Set((memberships || [])
+    .filter((member) => member.userId === currentUser?.id && member.status === "active").map((member) => member.companyId)), [memberships, currentUser?.id]);
+  const myRequests = driverRequests.filter((r) => r.motoristaId === currentUser?.id && r.status === "pending");
+  const applicationRows = useMemo<MyApplicationRow[]>(() => {
+    const byId = new Map(allCompanies.map((company: any) => [company.id, company]));
+    const rows: MyApplicationRow[] = [
+      ...pendingApplications.filter((app: any) => String(app.type || app.registrationType || "driver_application") !== "company_registration").map((app: any) => {
+        const company: any = byId.get(String(app.companyId || ""));
+        return { id: app.id, kind: "recruitment" as const, companyId: String(app.companyId || ""), companyName: String(app.companyName || company?.companyName || ""),
+          companyLogo: app.companyLogoURL || company?.logoUrl, simulatorName: app.simulatorName || company?.simulatorName, createdAt: app.createdAt };
+      }),
+      ...myRequests.map((request) => {
+        const company: any = byId.get(request.empresaId);
+        return { id: request.id, kind: "request" as const, companyId: request.empresaId, companyName: String(company?.companyName || ""),
+          companyLogo: company?.logoUrl, simulatorName: company?.simulatorName, createdAt: request.createdAt };
+      }),
+    ];
+    return rows.sort((a, b) => (toApplicationDate(b.createdAt)?.getTime() || 0) - (toApplicationDate(a.createdAt)?.getTime() || 0));
+  }, [pendingApplications, myRequests, allCompanies]);
+  const appliedCompanyIds = useMemo(() => new Set(applicationRows.map((row) => row.companyId).filter(Boolean)), [applicationRows]);
+
   const handleRequest = async (companyId: string) => {
     setIsRequestingId(companyId);
     try {
@@ -106,27 +143,17 @@ export default function JoinCompany() {
     }
   };
 
-  // Calculate member counts
-  const companiesWithCount = allCompanies
-    .map((c) => ({
-      ...c,
-      memberCount:
-        allCompanyMembers?.filter((m) => m.companyId === c.id).length || 0,
-    }))
-    .sort(
-      (a, b) =>
-        b.memberCount - a.memberCount ||
-        a.companyName.localeCompare(b.companyName),
-    );
-
-  const filteredCompanies = companiesWithCount.filter((c) => {
-    if (!selectedSimulatorId) return false;
-    const matchesSimulator =
-      resolveSimulatorId(c as any, simulators as any[], allCompanies as any[]) ===
-      selectedSimulatorId;
-    const matchesSearch = c.companyName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSimulator && matchesSearch;
-  });
+  // Only companies that can receive candidates are offered; the order is alphabetical. The number of members is not shown:
+  // the member list the app holds is limited to the driver's own scope and would not be the company's real size.
+  const filteredCompanies = allCompanies
+    .filter((c) => {
+      if (!selectedSimulatorId || !isCompanyListable(c)) return false;
+      const matchesSimulator = resolveSimulatorId(c as any, simulators as any[], allCompanies as any[]) === selectedSimulatorId;
+      const matchesSearch = String(c.companyName || "").toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSimulator && matchesSearch;
+    })
+    .slice()
+    .sort((a, b) => String(a.companyName || "").localeCompare(String(b.companyName || "")));
 
   const isSearching = searchTerm.length > 0;
 
@@ -134,7 +161,7 @@ export default function JoinCompany() {
     <div className="w-full max-w-7xl mx-auto py-4 sm:py-10 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-10">
         <button
-          onClick={() => navigate("/select-profile")}
+          onClick={() => (browse ? (window.history.length > 1 ? navigate(-1) : navigate("/driver/profile")) : navigate("/select-profile"))}
           className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text transition-colors"
         >
           <ArrowLeft size={16} />
@@ -149,13 +176,17 @@ export default function JoinCompany() {
             <Building2 size={28} strokeWidth={2} />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-nvu-text tracking-tight">
-            Encontre sua Frota
+            {browse ? "Empresas" : "Encontre sua Frota"}
           </h1>
           <p className="nvu-page-description text-gray-500 dark:text-nvu-muted mt-2 max-w-[280px] sm:max-w-md mx-auto">
-            Pesquise o nome da empresa ou frota e envie sua solicitação de acesso.
+            {browse ? "Conheça as empresas de cada simulador e envie uma solicitação. Você continua na sua empresa atual até ser aprovado." : "Pesquise o nome da empresa ou frota e envie sua solicitação de acesso."}
           </p>
         </div>
       )}
+
+      {browse && <div ref={applicationsRef} className="max-w-2xl mx-auto px-4 sm:px-0 mb-8 scroll-mt-20">
+        <MyCompanyApplications rows={applicationRows} loading={applicationsLoading} failed={Boolean(applicationsFailed)} onCancelRequest={cancelRequestJoinCompany} />
+      </div>}
 
       {/* SIMULATOR SELECT */}
       <div className="max-w-2xl mx-auto px-4 sm:px-0 mb-4">
@@ -198,12 +229,15 @@ export default function JoinCompany() {
       {/* LIST */}
       <div className="space-y-3 max-w-2xl mx-auto px-4 sm:px-0">
         {!companyCatalogAttempted || companiesLoading ? (
-          <div className="text-center py-12 text-sm text-gray-500 dark:text-nvu-muted">
+          <div role="status" aria-busy="true" className="text-center py-12 text-sm text-gray-500 dark:text-nvu-muted">
             Carregando empresas...
           </div>
         ) : !companyCatalogLoaded ? (
-          <div className="text-center py-12 text-sm text-red-500 dark:text-red-400">
-            Não foi possível carregar as empresas. Reabra esta página para tentar novamente.
+          <div role="alert" className="text-center py-12 text-sm text-red-500 dark:text-red-400">
+            <p>{offline ? "Sem conexão. Conecte-se à internet para ver as empresas." : "Não foi possível carregar as empresas agora."}</p>
+            <button type="button" onClick={retryCatalog} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-nvu-line px-4 py-2 text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft">
+              <RefreshCw size={14} aria-hidden="true" /> Tentar novamente
+            </button>
           </div>
         ) : !selectedSimulatorId ? (
           <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface">
@@ -219,16 +253,20 @@ export default function JoinCompany() {
           <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface">
             <Search size={32} className="mx-auto text-gray-300 mb-3" />
             <p className="text-[15px] font-medium text-gray-900 dark:text-nvu-text">
-              Nenhuma empresa encontrada
+              {isSearching ? "Nenhuma empresa encontrada" : "Nenhuma empresa neste simulador por enquanto"}
             </p>
             <p className="text-sm text-gray-500 dark:text-nvu-muted mt-1">
-              Verifique a ortografia ou tente outro termo.
+              {isSearching ? "Verifique a ortografia ou tente outro termo." : "Escolha outro simulador ou volte mais tarde."}
             </p>
           </div>
         ) : (
-          filteredCompanies.map((company) => (
+          filteredCompanies.map((company) => {
+            const applyState = companyApplyState(company, memberCompanyIds, appliedCompanyIds);
+            const stateLabel = { member: "Você participa", applied: "Inscrição enviada", closed: "Recrutamento fechado", open: "Solicitar" }[applyState];
+            return (
             <div
               key={company.id}
+              data-apply-state={applyState}
               className="flex items-center p-3 sm:p-4 bg-white dark:bg-nvu-surface rounded-2xl border border-gray-100 dark:border-nvu-line hover:border-blue-200 dark:border-blue-500/30 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.05)] transition-all group"
             >
               <div className="flex-1 flex items-center gap-3 sm:gap-4 min-w-0 pr-4">
@@ -264,10 +302,6 @@ export default function JoinCompany() {
                     {company.companyName}
                   </h3>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-3 mt-1 sm:mt-1.5">
-                    <span className="text-xs font-medium text-gray-500 dark:text-nvu-muted bg-gray-50 dark:bg-nvu-page px-2 py-0.5 rounded-md border border-gray-100 dark:border-nvu-line">
-                      {company.memberCount}{" "}
-                      {company.memberCount === 1 ? "membro" : "membros"}
-                    </span>
                     <span className="hidden sm:inline px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-md text-xs font-bold tracking-wide border border-blue-100 dark:border-blue-500/20/50">
                       {getSimulatorLabel(company)}
                     </span>
@@ -277,7 +311,8 @@ export default function JoinCompany() {
 
               <Button
                 onClick={() => handleRequest(company.id)}
-                disabled={isRequestingId === company.id}
+                disabled={isRequestingId === company.id || applyState !== "open"}
+                aria-label={applyState === "open" ? `Solicitar entrada em ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
                 className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
               >
                 {isRequestingId === company.id ? (
@@ -286,14 +321,15 @@ export default function JoinCompany() {
                   </div>
                 ) : (
                   <span className="relative z-10 flex items-center justify-center">
-                    Solicitar
+                    {stateLabel}
                   </span>
                 )}
                 {/* Shine effect logic */}
-                <div className="absolute inset-0 -translate-x-[150%] animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-[-20deg] z-0"></div>
+                {applyState === "open" && <div className="absolute inset-0 -translate-x-[150%] animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-[-20deg] z-0"></div>}
               </Button>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
