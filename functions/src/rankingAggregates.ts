@@ -23,6 +23,10 @@ const PAGE_SIZE = 500;
 const WRITE_BATCH_SIZE = 350;
 const LOCK_TTL_MS = 10 * 60 * 1000;
 const RECONCILE_AFTER_MS = 60 * 60 * 1000;
+/** The open week/month is kept current trip by trip by updateRankingAggregatesOnTripWrite; this call only reconciles it. A rebuild
+ * reads every trip of the period through up to 10 range queries (5 date fields x 2 encodings, each trip matching ~3 of them) plus every
+ * company, so an open period asked for again within this window is answered "ready" instead of being rebuilt on every screen open. */
+const OPEN_PERIOD_RECONCILE_AFTER_MS = 15 * 60 * 1000;
 const RANKING_CHECKPOINT_VERSION = 5;
 const FAILED_RETRY_COOLDOWN_MS = 15 * 60 * 1000;
 const DATE_FIELDS = [
@@ -1200,10 +1204,11 @@ export const ensureRankingAggregates = functions
         data.periodPolicy === RANKING_PERIOD_POLICY &&
         data.complete === true &&
         reconciledAt > 0 &&
-        period.end.getTime() < Date.now() &&
-        (Date.now() - reconciledAt <= RECONCILE_AFTER_MS ||
-          // Closed history is kept once it was reconciled after the period ended.
-          (period.start.getTime() < recentWindowStart && reconciledAt >= period.end.getTime()))
+        (period.end.getTime() < Date.now()
+          ? (Date.now() - reconciledAt <= RECONCILE_AFTER_MS ||
+            // Closed history is kept once it was reconciled after the period ended.
+            (period.start.getTime() < recentWindowStart && reconciledAt >= period.end.getTime()))
+          : Date.now() - reconciledAt <= OPEN_PERIOD_RECONCILE_AFTER_MS)
       ) {
         return { success: true, status: "ready", periodKey: period.key, periodClosed: period.end.getTime() < Date.now() };
       }

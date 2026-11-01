@@ -48,6 +48,31 @@ try {
     assert.equal((await run(oldKey)).status, "ready");
     assert.equal((await snap.ref.get()).get("lastReconciledAt").toMillis(), after);
   });
+  // The OPEN period is kept current by the trip trigger. Asking again must not rebuild it (a rebuild scans every trip of the period).
+  const openKey = monthKey(0);
+  await test("the open month is rebuilt once, then answered ready for 15 minutes without another scan", async () => {
+    const first = await run(openKey);
+    assert.ok(["rebuilt", "ready"].includes(first.status), first.status);
+    const doc = (await db.collection("ranking_aggregates").where("periodKey", "==", openKey).get()).docs[0];
+    assert.ok(doc, "the open aggregate exists");
+    const stamp = doc.get("lastReconciledAt").toMillis();
+    const again = await run(openKey);
+    assert.equal(again.status, "ready"); assert.equal(again.periodClosed, false);
+    assert.equal((await doc.ref.get()).get("lastReconciledAt").toMillis(), stamp, "no new scan: the reconciliation stamp did not move");
+  });
+  await test("the open month is reconciled again after 15 minutes", async () => {
+    const doc = (await db.collection("ranking_aggregates").where("periodKey", "==", openKey).get()).docs[0];
+    const old = admin.firestore.Timestamp.fromMillis(Date.now() - 16 * 60 * 1000);
+    await doc.ref.update({ lastReconciledAt: old });
+    const rebuilt = await run(openKey);
+    assert.equal(rebuilt.status, "rebuilt");
+    assert.ok((await doc.ref.get()).get("lastReconciledAt").toMillis() > old.toMillis());
+  });
+  await test("an open month whose aggregate is incomplete is rebuilt even if recent", async () => {
+    const doc = (await db.collection("ranking_aggregates").where("periodKey", "==", openKey).get()).docs[0];
+    await doc.ref.update({ complete: false });
+    assert.equal((await run(openKey)).status, "rebuilt");
+  });
   await test("a period beyond the history window is refused", async () => {
     await assert.rejects(run(tooOld), error => String(error.code).includes("failed-precondition"));
   });
