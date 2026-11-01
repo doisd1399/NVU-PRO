@@ -322,9 +322,10 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
   --idle-success: #7fb59f;
   --idle-icon-paper: #1c3038;
 }
-.nvu-idle-heading { padding: 28px 4px 6px; margin: 0; text-align: center; }
-.nvu-idle-heading h1 { margin: 0 0 12px; color: var(--idle-text); font-size: clamp(20px, 5.2vw, 26px); line-height: 1.35; letter-spacing: -.025em; font-weight: 600; }
-.nvu-idle-heading p { display: inline-block; max-width: 100%; margin: 0; padding: 8px 14px; border: 1px solid var(--idle-line); border-radius: 10px; color: var(--idle-muted); background: var(--idle-paper); font-size: 12px; line-height: 1.5; }
+/* Same title and description sizes as the working panel (19px / 10px), a little higher on the page. */
+.nvu-idle-heading { padding: 12px 4px 4px; margin: 0; text-align: center; }
+.nvu-idle-heading h1 { margin: 0 0 6px; color: var(--idle-text); font-size: 19px; line-height: 1.3; letter-spacing: -.025em; font-weight: 550; }
+.nvu-idle-heading p { display: inline-block; max-width: 100%; margin: 0; padding: 4px 9px; border: 1px solid var(--idle-line); border-radius: 8px; color: var(--idle-muted); background: var(--idle-paper); font-size: var(--nvu-driver-dashboard-description-size, 10px); line-height: 1.35; }
 .nvu-idle-company { display: flex; align-items: center; gap: 16px; padding: 20px 16px; border: 1px solid var(--idle-line); border-radius: 14px; background: var(--idle-paper); min-width: 0; }
 .nvu-idle-company .nvu-idle-company-logo { width: 48px; height: 48px; flex-shrink: 0; border-radius: 10px; background: var(--idle-icon-paper); color: var(--idle-accent); }
 .nvu-idle-company-identity { display: flex; flex: 1; flex-direction: column; gap: 5px; min-width: 0; }
