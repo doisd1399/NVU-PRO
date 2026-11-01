@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useState } from "react";
-import { ArrowLeft, Building2, ClipboardClock, ClipboardList, Mail, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, ClipboardClock, Mail, Phone, UserRound } from "lucide-react";
 import { StableImage } from "../common/StableImage";
 // The Resultados card and its figures are styled by these two sheets; they are normally loaded by the company profile.
 import "./DriverWorkspace.css";
@@ -31,7 +31,7 @@ type Props = {
  * applications) and never asks for a company scope. Shown only to accounts the server enabled (`driverProfileEnabled`).
  */
 export function PersonalArea({ currentUser, applications, applicationsLoading, applicationsFailed, companies, onRetry, onLogout, onHome }: Props) {
-  const [view, setView] = useState<"home" | "companies" | "applications">("home");
+  const [view, setView] = useState<"home" | "companies">("home");
   const trips = useDriverTrips(currentUser.id);
   const { simulators } = useOperationalStore();
   // Past work is shown with the currency of the simulator it was done in, whichever company it belonged to.
@@ -41,7 +41,7 @@ export function PersonalArea({ currentUser, applications, applicationsLoading, a
 
   if (view !== "home") return <div className="min-h-screen bg-slate-50 dark:bg-nvu-page font-sans" data-testid="personal-companies">
     <Suspense fallback={<div className="p-8 text-center text-sm text-slate-500" role="status">Carregando…</div>}>
-      <JoinCompany mode="browse" onBack={() => setView("home")} initialFocus={view === "applications" ? "applications" : undefined} />
+      <JoinCompany mode="browse" onBack={() => setView("home")} />
     </Suspense>
   </div>;
 
@@ -71,10 +71,7 @@ export function PersonalArea({ currentUser, applications, applicationsLoading, a
           <div className="flex items-center gap-2 min-w-0"><Mail size={15} className="text-blue-600 shrink-0" aria-hidden="true" /><dt className="sr-only">Email</dt><dd className="truncate font-semibold text-slate-800 dark:text-white">{currentUser.email || "Não informado"}</dd></div>
           <div className="flex items-center gap-2 min-w-0"><Phone size={15} className="text-green-600 shrink-0" aria-hidden="true" /><dt className="sr-only">WhatsApp</dt><dd className="truncate font-semibold text-slate-800 dark:text-white">{currentUser.whatsapp || "Não informado"}</dd></div>
         </dl>
-        <div className="grid grid-cols-2 gap-2">
-          <button type="button" className={button} onClick={() => setView("companies")}><Building2 size={15} aria-hidden="true" /> Encontrar empresas</button>
-          <button type="button" className={button} onClick={() => setView("applications")}><ClipboardList size={15} aria-hidden="true" /> Minhas inscrições</button>
-        </div>
+        <button type="button" className={`${button} w-full`} onClick={() => setView("companies")}><Building2 size={15} aria-hidden="true" /> Empresas e inscrições</button>
       </section>
 
       {(applications.length > 0 || applicationsLoading || applicationsFailed) && <section className="bg-white dark:bg-nvu-surface rounded-3xl border border-slate-100 dark:border-nvu-line shadow-xl dark:shadow-none p-5" aria-label="Pendências">

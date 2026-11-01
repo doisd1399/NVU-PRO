@@ -33,8 +33,8 @@ try {
   const text = await page.locator("body").innerText();
   assert.match(text, /Meu perfil/); assert.match(text, /Sem empresa vinculada/);
   assert.match(text, /David Canto/); assert.match(text, /david@example\.test/); assert.match(text, /11999990000/);
-  assert.equal(await page.getByRole("button", { name: "Encontrar empresas" }).count(), 1);
-  assert.equal(await page.getByRole("button", { name: "Minhas inscrições" }).count(), 1);
+  assert.equal(await page.getByRole("button", { name: "Empresas e inscrições" }).count(), 1, "one entry for companies and applications");
+  assert.equal(await page.getByRole("button", { name: "Encontrar empresas" }).count() + await page.getByRole("button", { name: "Minhas inscrições" }).count(), 0, "the two duplicated buttons are gone");
   assert.equal(await page.getByRole("button", { name: "Desconectar" }).count(), 1);
   assert.match(text, /2 viagens registradas em 2 empresas\./);
   checks.push("Personal area: identity, contacts, empresas, inscrições and trips of every past company");
@@ -48,16 +48,13 @@ try {
   checks.push("Resultados is a collapsible card that opens its own scrolling region");
 
   // 4. Empresas inside the same page, with Voltar returning to the personal area.
-  await page.getByRole("button", { name: "Encontrar empresas" }).click();
-  await page.getByRole("heading", { name: "Empresas" }).waitFor();
+  await page.getByRole("button", { name: "Empresas e inscrições" }).click();
+  await page.getByRole("heading", { name: "Empresas", exact: true }).waitFor();
+  await page.getByTestId("my-applications").waitFor();
   assert.equal((await q()).loads >= 1, true, "the catalog loads by itself");
   await page.getByRole("button", { name: "Voltar" }).click();
   await page.getByTestId("personal-area").waitFor();
-  await page.getByRole("button", { name: "Minhas inscrições" }).click();
-  await page.getByRole("heading", { name: "Empresas" }).waitFor();
-  await page.getByRole("button", { name: "Voltar" }).click();
-  await page.getByTestId("personal-area").waitFor();
-  checks.push("Empresas and Minhas inscrições open inside the page and Voltar returns to the personal area");
+  checks.push("Empresas e inscrições opens inside the page (with Minhas inscrições at the top) and Voltar returns to the personal area");
 
   // 5. A pending application appears; logout and home work.
   await page.goto(url("?pending=1"));

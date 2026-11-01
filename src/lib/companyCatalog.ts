@@ -16,6 +16,12 @@ export function isRecruitmentOpen(company: CompanyLike | null | undefined): bool
   return company?.recruitmentSettings?.isActive !== false;
 }
 
+/** Cards show the company by its first two words ("Cooper log Transporte Ltda" -> "Cooper log"); the full name stays in the title. */
+export function shortCompanyName(name: unknown): string {
+  const words = String(name ?? "").trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).join(" ");
+}
+
 export type CompanyApplyState = "member" | "applied" | "closed" | "open";
 
 /** What the card of a company offers to this driver. A link and a pending application win over the open/closed flag. */

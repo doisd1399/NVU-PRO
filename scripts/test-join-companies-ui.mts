@@ -39,20 +39,23 @@ try {
   const cards = page.locator("[data-apply-state]");
   await cards.first().waitFor();
   const rows = await cards.evaluateAll(nodes => nodes.map(node => [node.querySelector("h3")?.textContent, node.getAttribute("data-apply-state")]));
-  assert.deepEqual(rows, [["DC Transportes", "member"], ["Norte Cargas", "open"], ["Rápida Logística", "closed"], ["Rural Express", "applied"], ["Sul Fretes", "applied"], ["Zeta Frotas", "open"]]);
+  assert.deepEqual(rows, [["Cooper log", "open"], ["DC Transportes", "member"], ["Norte Cargas", "open"], ["Rápida Logística", "closed"], ["Rural Express", "applied"], ["Sul Fretes", "applied"], ["Zeta Frotas", "open"]]);
   const text = await page.locator("body").innerText();
   for (const hidden of ["Excluída Ltda", "Pendente SA", "Outro Simulador"]) assert(!text.includes(hidden), hidden + " must not be offered");
   assert.doesNotMatch(text, /\bmembros?\b/, "No made-up member counts");
-  checks.push("Only listable companies of the chosen simulator, alphabetical; member / applied / closed / open states; no member count");
+  assert.equal(await cards.locator("text=GTO").count(), 0, "The company card does not show the simulator");
+  assert.equal(await cards.nth(0).locator("h3").getAttribute("title"), "Cooper log Transporte e Logística Ltda", "The full name stays available");
+  checks.push("Only listable companies of the chosen simulator, alphabetical; member / applied / closed / open states; no member count; company shown by its first two words, without the simulator");
 
   // 4. Buttons follow the state
   const button = (name: string) => page.getByRole("button", { name: new RegExp(name) });
   assert.equal(await button("DC Transportes: Você participa").isDisabled(), true);
   assert.equal(await button("Rápida Logística: Recrutamento fechado").isDisabled(), true);
   assert.equal(await button("Sul Fretes: Inscrição enviada").isDisabled(), true);
-  assert.equal(await button("Inscrever-se em Norte Cargas").isDisabled(), false);
-  assert.match(await page.getByText("Inscrever-se", { exact: true }).first().innerText(), /Inscrever-se/);
-  await button("Inscrever-se em Norte Cargas").click();
+  assert.equal(await button("Enviar inscrição para Norte Cargas").isDisabled(), false);
+  assert.equal(await page.getByText("Enviar", { exact: true }).first().innerText(), "Enviar");
+  assert.equal(await page.getByText("Inscrever-se", { exact: true }).count(), 0, "The button now says Enviar");
+  await button("Enviar inscrição para Norte Cargas").click();
   // The driver is taken to the company's recruitment form (the one HR reviews), not to a one-tap request.
   await page.getByTestId("apply-form").waitFor();
   assert.equal(await page.getByTestId("apply-form").getAttribute("data-company"), "norte");
@@ -80,6 +83,8 @@ try {
   assert.equal(mineRows.length, 2);
   assert.match(mineRows[0].text || "", /Sul Fretes.*25 de out\. de 2026.*Aguardando avaliação/);
   assert.match(mineRows[1].text || "", /Rural Express.*20 de out\. de 2026.*Aguardando avaliação/);
+  assert.doesNotMatch(mineRows[1].text || "", /Cargas|Ltda|GTO/, "Minhas inscrições: first two words of the company, no simulator");
+  assert.match(mineRows[0].text || "", /Enviada em 25 de out\. de 2026/, "The date is shown whole, not cut");
   assert.equal(await mine.locator('li[data-kind="recruitment"]').getByRole("button").count(), 0, "A full application is answered by HR: no withdraw here");
   await mine.locator('li[data-kind="request"]').getByRole("button", { name: "Retirar solicitação" }).click();
   await mine.getByRole("button", { name: "Manter" }).click();

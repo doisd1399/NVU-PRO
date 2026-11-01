@@ -733,7 +733,11 @@ export default function RecruitmentApply() {
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => {
-                if (company) {
+                // Step 2 (the form) goes back to the company's page. With a company chosen in this page's own selector, back
+                // returns to the selector. A company that came from the address (the "Enviar" button of Empresas) is reloaded
+                // from it, so clearing it here would change nothing: leave the page and go back to where the driver came from.
+                if (step === 2) setStep(1);
+                else if (company && !hasDirectCompany) {
                   setCompany(null);
                   setSelectedCompanyId("");
                   setStep(1);

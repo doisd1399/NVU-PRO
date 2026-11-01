@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ClipboardClock, Loader2 } from "lucide-react";
 import { StableImage } from "../common/StableImage";
-import { toApplicationDate } from "../../lib/companyCatalog";
+import { shortCompanyName, toApplicationDate } from "../../lib/companyCatalog";
 
 export type MyApplicationRow = {
   id: string;
@@ -40,42 +40,47 @@ export function MyCompanyApplications({ rows, loading, failed, onCancelRequest, 
     } finally { setCancelling(null); }
   };
   return <section className="nvu-my-applications" aria-labelledby="nvu-my-applications-title" aria-busy={loading} data-testid="my-applications">
-    <h2 id="nvu-my-applications-title" className="flex items-center gap-2 text-[15px] font-bold text-gray-900 dark:text-nvu-text">
-      <ClipboardClock size={18} aria-hidden="true" /> Minhas inscrições
-    </h2>
-    {rows.length === 0 ? <p role="status" className="mt-2 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface px-4 py-4 text-sm text-gray-500 dark:text-nvu-muted">
+    <div className="flex items-center justify-between gap-3">
+      <h2 id="nvu-my-applications-title" className="flex items-center gap-2 text-[15px] font-bold text-gray-900 dark:text-nvu-text">
+        <ClipboardClock size={18} aria-hidden="true" /> Minhas inscrições
+      </h2>
+      {rows.length > 0 && <span aria-label={`${rows.length} ${rows.length === 1 ? "inscrição aguardando" : "inscrições aguardando"}`} className="min-w-6 rounded-full bg-amber-100 dark:bg-amber-500/15 px-2 py-0.5 text-center text-[11px] font-bold text-amber-700 dark:text-amber-300">{rows.length}</span>}
+    </div>
+    {rows.length === 0 ? <p role="status" className="mt-3 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface px-4 py-5 text-center text-sm text-gray-500 dark:text-nvu-muted">
       {loading ? "Carregando suas inscrições…" : failed ? "Não foi possível carregar suas inscrições agora." : "Você não tem inscrições aguardando resposta."}
-    </p> : <ul className="mt-3 space-y-2">
+    </p> : <ul className="mt-3 space-y-3">
       {rows.map(row => {
         const date = toApplicationDate(row.createdAt);
         const busy = cancelling === row.id;
-        return <li key={`${row.kind}:${row.id}`} data-kind={row.kind} className="rounded-2xl border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface p-3">
+        const label = row.kind === "request" ? "Retirar solicitação" : "Retirar inscrição";
+        const canWithdraw = row.kind === "request" || Boolean(onWithdrawApplication);
+        return <li key={`${row.kind}:${row.id}`} data-kind={row.kind} className="rounded-2xl border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface p-4 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)]">
           <div className="flex items-center gap-3">
-            <StableImage src={row.companyLogo} alt="" loading="lazy" wrapperClassName="h-10 w-10 shrink-0 rounded-full border border-gray-100 dark:border-nvu-line" className="object-cover" referrerPolicy="no-referrer"
+            <StableImage src={row.companyLogo} alt="" loading="lazy" wrapperClassName="h-12 w-12 shrink-0 rounded-full border border-gray-100 dark:border-nvu-line" className="object-cover" referrerPolicy="no-referrer"
               fallback={<span className="flex h-full w-full items-center justify-center bg-blue-50 dark:bg-blue-500/10 text-sm font-bold text-blue-700 dark:text-blue-300">{(row.companyName || "?").slice(0, 2).toUpperCase()}</span>} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[14px] font-bold text-gray-900 dark:text-nvu-text">{row.companyName || "Empresa"}</p>
-              <p className="truncate text-xs text-gray-500 dark:text-nvu-muted">{[row.simulatorName, date ? `Enviada em ${dateFormat.format(date)}` : "Data indisponível"].filter(Boolean).join(" · ")}</p>
+              <p title={row.companyName} className="truncate text-[15px] font-bold leading-tight text-gray-900 dark:text-nvu-text">{shortCompanyName(row.companyName) || "Empresa"}</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-nvu-muted">{date ? `Enviada em ${dateFormat.format(date)}` : "Data indisponível"}</p>
             </div>
-            <span className="shrink-0 rounded-full border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">Aguardando avaliação</span>
           </div>
-          {(row.kind === "request" || onWithdrawApplication) && (() => {
-            const label = row.kind === "request" ? "Retirar solicitação" : "Retirar inscrição";
-            return confirming === row.id
-              ? <div className="mt-3 space-y-2">
-                  {row.kind === "recruitment" && <p className="text-xs text-gray-500 dark:text-nvu-muted">A empresa deixará de ver esta inscrição. Você poderá se inscrever de novo depois.</p>}
-                  <div className="flex items-center justify-end gap-2">
-                    <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="rounded-xl border border-gray-200 dark:border-nvu-line px-3 py-2 text-xs font-semibold text-gray-700 dark:text-nvu-text-soft">Manter</button>
-                    <button type="button" disabled={busy} aria-busy={busy} onClick={() => void cancel(row)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
-                      {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{label}</button>
-                  </div>
-                </div>
-              : <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setProblem(null); setConfirming(row.id); }} className="text-xs font-semibold text-gray-500 dark:text-nvu-muted underline underline-offset-2">{label}</button></div>;
-          })()}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 dark:border-nvu-line pt-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden="true" />Aguardando avaliação
+            </span>
+            {canWithdraw && confirming !== row.id && <button type="button" onClick={() => { setProblem(null); setConfirming(row.id); }}
+              className="rounded-xl border border-gray-200 dark:border-nvu-line px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip">{label}</button>}
+          </div>
+          {canWithdraw && confirming === row.id && <div className="mt-3 space-y-2 rounded-xl bg-gray-50 dark:bg-nvu-page p-3">
+            {row.kind === "recruitment" && <p className="text-xs text-gray-500 dark:text-nvu-muted">A empresa deixará de ver esta inscrição. Você poderá se inscrever de novo depois.</p>}
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" disabled={busy} onClick={() => setConfirming(null)} className="rounded-xl border border-gray-200 dark:border-nvu-line px-3 py-2 text-xs font-semibold text-gray-700 dark:text-nvu-text-soft">Manter</button>
+              <button type="button" disabled={busy} aria-busy={busy} onClick={() => void cancel(row)} className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-60">
+                {busy && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{label}</button>
+            </div>
+          </div>}
           {problem?.id === row.id && <p role="alert" className="mt-2 text-xs font-semibold text-red-600 dark:text-red-300">{problem.message}</p>}
         </li>;
       })}
     </ul>}
   </section>;
 }
-

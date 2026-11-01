@@ -5,14 +5,13 @@ import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { Button } from "../../components/ui/Button";
 import { resolveSimulatorId } from "../../lib/resolveSimulator";
-import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { StableImage } from "../../components/common/StableImage";
 import { MyCompanyApplications, type MyApplicationRow } from "../../components/driver/MyCompanyApplications";
 import { useCurrentUserPendingApplications } from "../../hooks/useCurrentUserPendingApplications";
 import { loadMembershipCapabilities, withdrawApplication } from "../../services/applicationWithdrawService";
 import { withdrawFailureMessage } from "../../services/applicationWithdrawCore";
 import { applyRoute } from "../../lib/applyReturn";
-import { companyApplyState, isCompanyListable, toApplicationDate } from "../../lib/companyCatalog";
+import { companyApplyState, isCompanyListable, shortCompanyName, toApplicationDate } from "../../lib/companyCatalog";
 import {
   UserCog,
   Building2,
@@ -75,13 +74,6 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
   }, [browse, location.state, initialFocus]);
 
   const activeSimulators = simulators.filter((s:any) => s.active !== false).sort((a:any, b:any) => a.name.localeCompare(b.name));
-  const getSimulatorLabel = (company: any) =>
-    resolveSimulatorDisplayLabel(
-      company,
-      simulators as any[],
-      allCompanies as any[],
-    ) || company?.simulatorName || "Global Truck";
-
   // Check if there is an active request
   const myPendingRequest = driverRequests.find(
     (r) => r.motoristaId === currentUser?.id && r.status === "pending",
@@ -148,7 +140,7 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
   }, [pendingApplications, myRequests, allCompanies]);
   const appliedCompanyIds = useMemo(() => new Set(applicationRows.map((row) => row.companyId).filter(Boolean)), [applicationRows]);
 
-  // "Inscrever-se" opens the company's recruitment form: the application HR reviews, with the driver's data and photo.
+  // "Enviar" opens the company's recruitment form: the application HR reviews, with the driver's data and photo.
   // (The old one-tap request carried no data and did not reach the company's Recursos Humanos.)
   const handleRequest = (companyId: string) => {
     const route = applyRoute(companyId, location.pathname);
@@ -274,7 +266,7 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
         ) : (
           filteredCompanies.map((company) => {
             const applyState = companyApplyState(company, memberCompanyIds, appliedCompanyIds);
-            const stateLabel = { member: "Você participa", applied: "Inscrição enviada", closed: "Recrutamento fechado", open: "Inscrever-se" }[applyState];
+            const stateLabel = { member: "Você participa", applied: "Inscrição enviada", closed: "Recrutamento fechado", open: "Enviar" }[applyState];
             return (
             <div
               key={company.id}
@@ -304,27 +296,19 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
                       {company.companyName.substring(0, 2).toUpperCase()}
                     </div>
                   )}
-                  <span className="sm:hidden px-1.5 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-md text-[9px] font-bold tracking-wide truncate max-w-[60px]">
-                    {getSimulatorLabel(company)}
-                  </span>
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 dark:text-nvu-text tracking-tight truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    {company.companyName}
+                  <h3 title={company.companyName} className="text-[15px] sm:text-[16px] font-bold text-gray-900 dark:text-nvu-text tracking-tight truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {shortCompanyName(company.companyName)}
                   </h3>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-3 mt-1 sm:mt-1.5">
-                    <span className="hidden sm:inline px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-md text-xs font-bold tracking-wide border border-blue-100 dark:border-blue-500/20/50">
-                      {getSimulatorLabel(company)}
-                    </span>
-                  </div>
                 </div>
               </div>
 
               <Button
                 onClick={() => handleRequest(company.id)}
                 disabled={applyState !== "open"}
-                aria-label={applyState === "open" ? `Inscrever-se em ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
+                aria-label={applyState === "open" ? `Enviar inscrição para ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
                 className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
               >
                 <span className="relative z-10 flex items-center justify-center">

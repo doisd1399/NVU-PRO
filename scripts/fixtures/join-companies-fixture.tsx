@@ -13,8 +13,8 @@ export const useCurrentUserPendingApplications = () => useContext(Context).pendi
 
 const company = (id: string, name: string, extra: Record<string, unknown> = {}) => ({ id, companyName: name, simulatorId: "gto", simulatorName: "GTO", ownerName: "Dono", cnpj: "", status: "active", ...extra });
 const catalog = [
-  company("dc", "DC Transportes"), company("norte", "Norte Cargas"), company("rapida", "Rápida Logística", { recruitmentSettings: { isActive: false } }),
-  company("sul", "Sul Fretes"), company("rural", "Rural Express"), company("zeta", "Zeta Frotas"),
+  company("cooper", "Cooper log Transporte e Logística Ltda"), company("dc", "DC Transportes"), company("norte", "Norte Cargas"), company("rapida", "Rápida Logística", { recruitmentSettings: { isActive: false } }),
+  company("sul", "Sul Fretes"), company("rural", "Rural Express Cargas Ltda"), company("zeta", "Zeta Frotas"),
   company("excluida", "Excluída Ltda", { deleted: true }), company("pendente", "Pendente SA", { status: "pending" }),
   company("wbds1", "Outro Simulador", { simulatorId: "wbds", simulatorName: "WBDS" }),
 ];
