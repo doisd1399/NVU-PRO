@@ -9826,6 +9826,18 @@ public class GtoObserverService extends Service {
         startActivity(intent);
     }
 
+    /** Only the display cutout at the top (the camera hole), not the status bar: the receipt card sits at the very top. */
+    private int cutoutTopInsetPx() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && windowManager != null) {
+            try {
+                Insets insets = windowManager.getCurrentWindowMetrics().getWindowInsets()
+                    .getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout());
+                return Math.max(0, insets.top);
+            } catch (Exception ignored) {}
+        }
+        return 0;
+    }
+
     private int safeTopInsetPx() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && windowManager != null) {
             try {
@@ -23574,7 +23586,7 @@ public class GtoObserverService extends Service {
                 PixelFormat.TRANSLUCENT);
             int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
             NativeTripReceiptCardView.position(this, card, params, realDisplayMetrics(),
-                horizontal[0] + dp(8), safeTopInsetPx() + dp(8), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
+                horizontal[0] + dp(8), cutoutTopInsetPx(), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
             if (!cardVisibility.acquire(card)) return;
             hideTripRegisteredCard();
             String pendingStage = prefs.getString("driverStagePendingKey", "");
@@ -23607,7 +23619,7 @@ public class GtoObserverService extends Service {
         int width = tripRegisteredCardParams.width, x = tripRegisteredCardParams.x, y = tripRegisteredCardParams.y;
         int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
         NativeTripReceiptCardView.position(this, tripRegisteredCardView, tripRegisteredCardParams, realDisplayMetrics(),
-            horizontal[0] + dp(8), safeTopInsetPx() + dp(8), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
+            horizontal[0] + dp(8), cutoutTopInsetPx(), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
         if (width != tripRegisteredCardParams.width || x != tripRegisteredCardParams.x || y != tripRegisteredCardParams.y) {
             try { windowManager.updateViewLayout(tripRegisteredCardView, tripRegisteredCardParams); }
             catch (RuntimeException error) { recordOverlayFailure(error); }

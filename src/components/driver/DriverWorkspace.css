@@ -54,7 +54,7 @@ body .nvu-driver-workspace .nvu-profile-stack .nvu-profile-hero.nvu-driver-hero 
 .nvu-driver-surface[data-page="dashboard"] { padding-top: 12px; }
 .nvu-driver-page-heading[data-page="dashboard"] { text-align: center; margin: 0 0 var(--nvu-page-description-gap, 18px); }
 .nvu-driver-page-heading[data-page="dashboard"] h1 { font-size: 19px; font-weight: 550; }
-.nvu-driver-page-heading[data-page="dashboard"] p { display: inline-block; max-width: 100%; padding: 4px 9px; border: 1px solid var(--driver-line); border-radius: 8px; background: var(--driver-paper); font-size: var(--nvu-page-description-size, 11px); line-height: 1.35; margin: 6px 0 0; }
+.nvu-driver-page-heading[data-page="dashboard"] p { display: inline-block; max-width: 100%; padding: 4px 9px; border: 1px solid var(--driver-line); border-radius: 8px; background: var(--driver-paper); font-size: var(--nvu-driver-dashboard-description-size, 10px); line-height: 1.35; margin: 6px 0 0; }
 .nvu-driver-profile-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .nvu-driver-profile-heading button { display: grid; place-items: center; width: 36px; height: 36px; color: var(--driver-muted); border-radius: 10px; background: var(--driver-paper); border: 1px solid var(--driver-line); }
 .nvu-driver-profile-tools { display: flex; gap: 8px; }
@@ -96,14 +96,11 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
 .nvu-driver-start-work > * { position: relative; z-index: 1; }
 .nvu-driver-start-work:hover:not(:disabled) { filter: brightness(1.08); }
 .nvu-driver-start-work:disabled::after, .nvu-driver-start-work[aria-busy="true"]::after, [inert] .nvu-driver-start-work::after { animation: none; }
-.nvu-driver-operation-info { position: absolute; top: 6px; right: 6px; width: 40px; height: 40px; display: grid; place-items: center; color: #fff; background: rgba(12,20,29,.16); border: 0; border-radius: 50%; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); transition: background .2s ease; }
-.nvu-driver-operation-info:hover { background: rgba(12,20,29,.36); }
 .nvu-current-operation-body { padding: 8px 12px 6px; gap: 7px; }
 .nvu-current-operation-vehicle { padding-block: 5px; }
 .nvu-current-operation-body .nvu-driver-operation-metrics > .flex-1 { padding-block: 5px; }
 .nvu-current-operation-body ~ .nvu-driver-operation-timing { padding-block: 6px 8px; }
 .nvu-current-operation-body ~ .nvu-driver-status-row { min-height: 40px; padding-block: 6px; }
-.nvu-driver-operation-info:focus-visible { outline: 2px solid #51c6d1; outline-offset: -3px; }
 @keyframes nvu-driver-glass-reflection {
   0%, 8% { opacity: 0; transform: translateX(0) skewX(-18deg); }
   16% { opacity: .85; }
@@ -112,23 +109,21 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
 }
 @media (prefers-reduced-motion: reduce) {
   .nvu-driver-start-work::after { animation: none; }
-  .nvu-driver-start-work, .nvu-driver-operation-info { transition: none; }
+  .nvu-driver-start-work { transition: none; }
 }
 .nvu-driver-start-work:disabled { opacity: .45; cursor: not-allowed; }
 .nvu-driver-start-work > svg { width: 15px; height: 15px; }
-/* The current operation uses a quiet, equal-width pair. Scoped overrides keep
-   the queue and work-request buttons on their existing presentation. */
+/* The current operation's action: a quiet full-width button with the glass reflection and, below it, the remaining time.
+   Scoped overrides keep the queue and work-request buttons on their existing presentation. */
 .nvu-driver-operation-timing {
   --timing-surface: #f2f5f7;
   --timing-line: #dce3e9;
   --timing-remaining: var(--nvu-operation-warning, #b8660d);
   --timing-reflection: rgb(255 255 255 / .95);
   --timing-reflection-edge: rgb(32 169 184 / .34);
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: stretch;
-  gap: 10px;
-  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   min-width: 0;
 }
 .dark .nvu-driver-operation-timing {
@@ -138,50 +133,27 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
   --timing-reflection: rgb(255 255 255 / .28);
   --timing-reflection-edge: rgb(81 198 209 / .18);
 }
-.nvu-driver-operation-timing > .nvu-driver-remaining-time,
 .nvu-driver-operation-timing > .nvu-driver-start-work {
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  justify-content: center;
   width: 100%;
   min-width: 0;
   height: auto;
   min-height: 44px;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 8px;
+  padding: 6px 12px;
   border: 1px solid var(--timing-line);
   border-radius: 10px;
   background: var(--timing-surface);
   color: var(--driver-text, #182332);
+  font-size: 13px;
+  font-weight: 600;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-.nvu-driver-remaining-time > svg {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  color: var(--driver-muted, #788393);
-}
-.nvu-driver-operation-timing > .nvu-driver-remaining-time { justify-content: center; text-align: center; }
-.nvu-driver-remaining-time > div { display: flex; flex-direction: column; align-items: center; min-width: 0; gap: 1px; }
-.nvu-driver-remaining-time small {
-  color: var(--driver-muted, #788393);
-  font-size: 9px;
-  font-weight: 500;
-  line-height: 1.25;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.nvu-driver-remaining-time strong {
-  color: var(--timing-remaining);
-  font-size: 11.5px;
-  font-weight: 600;
-  line-height: 1.35;
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-.nvu-driver-operation-timing > .nvu-driver-start-work { justify-content: center; font-size: 12px; font-weight: 600; }
 .nvu-driver-operation-timing > .nvu-driver-start-work > svg {
   display: block;
   width: 16px;
@@ -210,18 +182,31 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
 .nvu-driver-operation-timing > .nvu-driver-start-work:disabled::after,
 .nvu-driver-operation-timing > .nvu-driver-start-work[aria-busy="true"]::after,
 [inert] .nvu-driver-operation-timing > .nvu-driver-start-work::after { animation: none; opacity: 0; }
-@media (min-width: 640px) {
-  .nvu-driver-operation-timing { padding: 12px 16px; }
+.nvu-driver-remaining-time {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 0;
+  color: var(--driver-muted, #788393);
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.nvu-driver-remaining-time > svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--driver-muted, #788393); }
+.nvu-driver-remaining-time > span { white-space: nowrap; }
+.nvu-driver-remaining-time > strong {
+  color: var(--timing-remaining);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 @media (max-width: 359px) {
-  .nvu-driver-operation-timing { gap: 8px; }
-  .nvu-driver-operation-timing > .nvu-driver-remaining-time,
-  .nvu-driver-operation-timing > .nvu-driver-start-work { padding-inline: 6px; gap: 4px; }
-  .nvu-driver-operation-timing > .nvu-driver-start-work { font-size: 11px; }
-  .nvu-driver-remaining-time small { font-size: 8px; }
-  .nvu-driver-remaining-time strong { font-size: 10.5px; }
-  .nvu-driver-remaining-time > svg { width: 12px; height: 12px; }
-  .nvu-driver-operation-timing > .nvu-driver-start-work > svg { width: 12px; height: 12px; }
+  .nvu-driver-operation-timing > .nvu-driver-start-work { padding-inline: 8px; font-size: 12px; }
+  .nvu-driver-remaining-time { font-size: 10.5px; }
+  .nvu-driver-remaining-time > strong { font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .nvu-driver-operation-timing > .nvu-driver-start-work::after { animation: none; opacity: 0; }

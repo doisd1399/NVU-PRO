@@ -1,4 +1,5 @@
 import { CachedImage } from "../../common/CachedImage";
+import { registrationSimulatorLabel } from "../../../lib/registrationSimulators";
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Building2, ChevronLeft, Users } from "lucide-react";
@@ -100,7 +101,7 @@ export function SeniorRegistrationReview({ registration: reg, onClose, onImage, 
                             </label>
                             <input
                               readOnly
-                              value={reg.simulatorName || "N/A"}
+                              value={registrationSimulatorLabel(reg)}
                               className="w-full bg-slate-50 dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-lg px-3 h-10 text-[14px] outline-none text-slate-900 dark:text-nvu-text cursor-default font-medium"
                             />
     </div>

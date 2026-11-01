@@ -7,6 +7,7 @@ import { buildCanonicalProductionAudit } from "./canonicalProductionAudit";
 import { requireActiveSenior } from "./seniorAccountCommands";
 import { approveFleetMemberCore } from "./fleetMembership";
 export { manageFleetMembership } from "./fleetMembership";
+export { manageCompanyGroup } from "./companyGroups";
 export { ensureCompanyAccess, syncCompanyAccessOnMembershipWrite, syncCompanyPublicProfile, syncCompanyAccessOnUserWrite } from "./companyAccess";
 export { classifyRemainingDebt } from "./remainingDebtClassifier";
 export { manageOperationalGoal } from "./operationalGoals";

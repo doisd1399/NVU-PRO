@@ -31,9 +31,14 @@ public final class NativeReceiptRuntimeTest {
   ck("approved wider receipt fits both columns",NativeReceiptCardLayoutPolicy.width(1536,0,0,1.5f)==660);
   ck("reference card centered",NativeReceiptCardLayoutPolicy.x(1536,0,0,660)==438);
   ck("asymmetric cutout does not shift visual center",NativeReceiptCardLayoutPolicy.x(2048,88,16,880)==584);
-  ck("approved card is closer to top",NativeReceiptCardLayoutPolicy.y(691,0,0,118)==53);
+  ck("card sits at the very top with a small breathing space",NativeReceiptCardLayoutPolicy.y(691,0,0,118,1.5f)==17);
+  ck("breathing space is far smaller than the old 7.6% of the height",NativeReceiptCardLayoutPolicy.y(691,0,0,118,1.5f)<Math.round(691*0.076f));
+  ck("breathing space has a floor of 8 dp (small screens)",NativeReceiptCardLayoutPolicy.breathing(400,2f)==16);
+  ck("breathing space is 2.5% of the height in between",NativeReceiptCardLayoutPolicy.breathing(1000,2f)==25&&NativeReceiptCardLayoutPolicy.breathing(1600,3f)==40);
+  ck("breathing space is capped at 16 dp (tablets)",NativeReceiptCardLayoutPolicy.breathing(2400,2f)==32&&NativeReceiptCardLayoutPolicy.breathing(2400,3f)==48);
+  ck("a top cutout pushes the card down by exactly its height",NativeReceiptCardLayoutPolicy.y(691,40,0,118,1.5f)==57);
   ck("narrow screen stays in safe region",NativeReceiptCardLayoutPolicy.width(300,20,40,1.5f)==240);
-  ck("tall card respects safe top",NativeReceiptCardLayoutPolicy.y(200,30,20,250)==30);
+  ck("tall card respects the cutout and breathing space",NativeReceiptCardLayoutPolicy.y(200,30,20,250,1.5f)==42);
 
   android.content.Context context=new android.content.Context();
   NativeTripReceiptCardView card=new NativeTripReceiptCardView(context,r);

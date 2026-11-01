@@ -306,18 +306,17 @@ try{
    await go('/driver/profile',{profileTab:'profile'});
   });
  }
- if(approved502)for(const theme of ['light','dark'])for(const width of [320,390,768])await check('Operação compacta, foto preservada e identidade legível '+theme+' '+width,async()=>{
+ if(approved502)for(const theme of ['light','dark'])for(const width of [320,390,768])await check('Operação (Painel do motorista): card novo, foto 2,3:1 e identidade legível '+theme+' '+width,async()=>{
    await go('/driver/profile',{profileTab:'dashboard'});await page.setViewportSize({width,height:867});await page.evaluate(theme=>{document.documentElement.classList.toggle('dark',theme==='dark');scrollTo(0,0);},theme);await tick();
    const metrics=await page.evaluate(()=>{
-    const bar=document.querySelector('[data-nvu-operation-identity]'),surface=document.querySelector('.nvu-driver-surface[data-page="dashboard"]'),body=document.querySelector('.nvu-current-operation-body'),photo=document.querySelector('.nvu-driver-vehicle-photo > button'),description=document.querySelector('.nvu-driver-page-heading[data-page="dashboard"] p');
-    const actualHeight=body.getBoundingClientRect().height,photoBefore=photo.getBoundingClientRect().height;
-    body.style.padding=innerWidth>=640?'16px 16px 12px':'12px 12px 8px';body.style.gap='10px';
-    const previousHeight=body.getBoundingClientRect().height;body.removeAttribute('style');
-    const style=getComputedStyle(bar),text=getComputedStyle(bar.querySelector('h2')),b=bar.getBoundingClientRect(),s=surface.getBoundingClientRect(),d=description.getBoundingClientRect(),p=photo.getBoundingClientRect();
-    return {actualHeight,previousHeight,photoBefore,photoAfter:p.height,crop:getComputedStyle(photo.querySelector('img')).objectFit,identityGap:s.y-b.bottom,color:text.color,paper:style.backgroundColor,subtitleSize:getComputedStyle(description).fontSize,descriptionGap:p.y-d.bottom,overflow:document.documentElement.scrollWidth>innerWidth+1};
+    const bar=document.querySelector('[data-nvu-operation-identity]'),surface=document.querySelector('.nvu-driver-surface[data-page="dashboard"]'),card=document.querySelector('.nvu-driver-op-card'),photo=document.querySelector('.nvu-driver-op-photo'),description=document.querySelector('.nvu-driver-page-heading[data-page="dashboard"] p'),title=document.querySelector('.nvu-driver-page-heading[data-page="dashboard"] h1');
+    const style=getComputedStyle(bar),text=getComputedStyle(bar.querySelector('h2')),b=bar.getBoundingClientRect(),s=surface.getBoundingClientRect(),d=description.getBoundingClientRect(),p=photo.getBoundingClientRect(),c=getComputedStyle(card);
+    return {ratio:p.width/p.height,crop:getComputedStyle(photo.querySelector('img')).objectFit,identityGap:s.y-b.bottom,color:text.color,paper:style.backgroundColor,subtitleSize:getComputedStyle(description).fontSize,title:title.textContent,descriptionGap:p.y-d.bottom,
+     driverRow:card.querySelectorAll('.nvu-central-driver-row,.nvu-central-avatar,.nvu-central-job-status').length,cardBg:c.backgroundColor,cardBorder:c.borderTopWidth,overflow:document.documentElement.scrollWidth>innerWidth+1};
    });
-   assert(metrics.previousHeight>=metrics.actualHeight+10,JSON.stringify(metrics));assert.equal(metrics.photoBefore,width>=640?256:176);assert.equal(metrics.photoAfter,metrics.photoBefore);assert.equal(metrics.crop,'cover');
-   assert(metrics.identityGap>=3&&metrics.identityGap<=9,JSON.stringify(metrics));assert.equal(metrics.subtitleSize,'11px');assert(metrics.descriptionGap>=18,JSON.stringify(metrics));assert(!metrics.overflow);
+   assert(Math.abs(metrics.ratio-2.3)<.05,JSON.stringify(metrics));assert.equal(metrics.crop,'cover');assert.equal(metrics.title,'Painel do motorista');assert.equal(metrics.driverRow,0);
+   assert(metrics.identityGap>=3&&metrics.identityGap<=9,JSON.stringify(metrics));assert.equal(metrics.subtitleSize,'10px');assert(metrics.descriptionGap>=18,JSON.stringify(metrics));assert(!metrics.overflow);
+   assert(theme==='dark'||metrics.cardBorder==='1px',JSON.stringify(metrics));
    assert.equal(metrics.color,theme==='light'?'rgb(24, 35, 50)':'rgb(245, 248, 250)',JSON.stringify(metrics));
    if(width===390)await page.screenshot({path:path.join(output,'operation-compact-'+theme+'.png')});
   });

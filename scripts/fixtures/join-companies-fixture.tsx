@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
+import "../../src/index.css";
 import JoinCompany from "../../src/pages/driver/JoinCompany";
 
 // Real "Empresas" screen with an injected read model: the session, the company catalog (whose first load can fail), the

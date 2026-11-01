@@ -900,7 +900,7 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
         infoOpen={isInfoOpen} onInfo={() => setIsInfoOpen(value => !value)} onEdit={() => setIsEditProfileOpen(true)}/> :
       (activeTab !== "dashboard" || displayActiveJob) && <header className="nvu-driver-page-heading" data-page={activeTab}>
         <div>
-          <h1>{activeTab === "dashboard" ? (landscapeWorkspace ? "Painel do motorista" : "Operação atual") : activeTab === "results" ? "Resultados" : "Atividade"}</h1>
+          <h1>{activeTab === "dashboard" ? "Painel do motorista" : activeTab === "results" ? "Resultados" : "Atividade"}</h1>
           {activeTab === "dashboard" && <p>Acompanhe suas entregas e o prazo.</p>}
           {activeTab === "results" && <p>Ganhos e relatórios</p>}
           {(activeTab === "activity" || activeTab === "operations") && <p>Suas viagens e operações</p>}

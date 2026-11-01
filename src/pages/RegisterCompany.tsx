@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useOperationalStore, useSessionStore } from "../context/AppContext";
 import { Card, CardContent } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
-import { SafeSelect } from "../components/ui/SafeSelect";
+import { MultiSelectField } from "../components/ui/MultiSelectField";
 import { db, storage, auth } from "../lib/firebase";
 import { signInWithGoogleAccount } from "../services/googleAuthService";
 import { collection, addDoc, doc, setDoc } from "firebase/firestore";
@@ -159,8 +159,11 @@ export default function RegisterCompany() {
     email: "",
     whatsapp: "",
     cnpj: generateCnpj(),
+    // The first chosen simulator stays in simulatorId/simulatorName (older readers); every chosen one is in the arrays.
     simulatorName: "",
     simulatorId: "",
+    simulatorIds: [] as string[],
+    simulatorNames: [] as string[],
     companyLogoURL: "",
     ownerPhotoUrl: "",
   });
@@ -168,6 +171,18 @@ export default function RegisterCompany() {
   const activeSimulators = (Array.isArray(simulators) ? simulators : []).filter(
     (s: any) => s.active !== false,
   );
+
+  const handleSimulatorsChange = (simulatorIds: string[]) => {
+    // Always in the order of the catalog, so "the first simulator" does not depend on the order of the taps.
+    const chosen = activeSimulators.filter((sim: any) => simulatorIds.includes(sim.id));
+    setFormData((current) => ({
+      ...current,
+      simulatorIds: chosen.map((sim: any) => sim.id),
+      simulatorNames: chosen.map((sim: any) => String(sim.name || "")),
+      simulatorId: chosen[0]?.id || "",
+      simulatorName: chosen[0]?.name || "",
+    }));
+  };
 
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [ownerPhotoPreview, setOwnerPhotoPreview] = useState<string | null>(
@@ -634,10 +649,13 @@ export default function RegisterCompany() {
                       className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-nvu-muted cursor-not-allowed shadow-none"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
-                      Simulador
-                    </label>
+                  <div className="sm:col-span-2">
+                    <div className="flex items-baseline justify-between">
+                      <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
+                        Simuladores
+                      </label>
+                      <span className="text-[11.5px] text-slate-400 dark:text-nvu-muted">escolha um ou mais</span>
+                    </div>
                     {simulatorsLoading ? (
                       <div
                         role="status"
@@ -655,26 +673,19 @@ export default function RegisterCompany() {
                         Nenhum simulador disponível no sistema.
                       </div>
                     ) : (
-                      <SafeSelect
-                        title="Selecionar simulador"
-                        placeholder="Selecione..."
-                        value={formData.simulatorId}
-                        options={activeSimulators.map((sim: any) => ({
-                          value: sim.id,
-                          label: sim.name,
-                        }))}
-                        onChange={(simulatorId) => {
-                          const selected = activeSimulators.find(
-                            (sim: any) => sim.id === simulatorId,
-                          );
-                          setFormData((current) => ({
-                            ...current,
-                            simulatorId,
-                            simulatorName: selected?.name || "",
-                          }));
-                        }}
-                        emptyMessage="Nenhum simulador disponível."
-                      />
+                      <>
+                        <MultiSelectField
+                          title="Selecionar simuladores"
+                          placeholder="Selecione um ou mais…"
+                          options={activeSimulators.map((sim: any) => ({ value: sim.id, label: sim.name }))}
+                          values={formData.simulatorIds}
+                          onChange={handleSimulatorsChange}
+                          emptyMessage="Nenhum simulador disponível."
+                        />
+                        <p className="mt-1.5 ml-0.5 text-[12px] leading-relaxed text-slate-500 dark:text-nvu-muted">
+                          Cada simulador cria um ambiente próprio da empresa (frota, operações e ranking), com o mesmo nome, logo e proprietário.
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
@@ -689,7 +700,7 @@ export default function RegisterCompany() {
                     Cancelar
                   </Button>
                   <Button
-                    disabled={submitting || uploadingImage || !formData.simulatorId}
+                    disabled={submitting || uploadingImage || formData.simulatorIds.length === 0}
                     type="submit"
                     className="w-full sm:w-2/3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl h-12 text-[15px] font-bold shadow-sm transition-all disabled:opacity-50"
                   >

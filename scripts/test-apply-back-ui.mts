@@ -36,6 +36,18 @@ try {
   await page.getByRole("button", { name: "Continuar Inscrição" }).first().click();
   await page.getByRole("button", { name: /Enviar Inscrição|Enviar inscrição|Enviar Solicitação/i }).first().waitFor({ timeout: 5000 }).catch(() => undefined);
   assert.equal(await page.getByRole("button", { name: "Continuar Inscrição" }).count(), 0, "the form is open");
+  // The photo field is the same card as "Foto do proprietário", worded for the driver.
+  const card = page.getByTestId("driver-photo-card");
+  await card.waitFor();
+  assert.match(await card.innerText(), /Foto do motorista/);
+  assert.match(await card.innerText(), /Obrigatória · o RH verá esta foto/);
+  assert.equal(await page.getByText("Remover foto", { exact: true }).count(), 0, "no photo chosen yet");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGP8z8Dwn4EIwESMolGFAAQoAQ3Z5pnPAAAAAElFTkSuQmCC", "base64");
+  await card.locator('input[type="file"]').setInputFiles({ name: "motorista.png", mimeType: "image/png", buffer: png });
+  await card.getByRole("button", { name: "Remover foto" }).waitFor({ timeout: 8000 });
+  await card.getByRole("button", { name: "Remover foto" }).click();
+  await card.getByText("Obrigatória · o RH verá esta foto").waitFor();
+  checks.push("Step 2 shows the 'Foto do motorista' card; choosing a photo offers 'Remover foto' and removing brings the hint back");
   await back().click();
   await page.getByRole("button", { name: "Continuar Inscrição" }).first().waitFor();
   assert.equal(new URL(page.url()).pathname, "/apply/norte", "step 2 goes back to the company page, not out of the application");

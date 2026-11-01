@@ -437,7 +437,7 @@ try {
       assert(wide.list.overflow==="auto"&&wide.list.scroll>wide.list.client,"The job list scrolls inside its card: "+info);
       assert(wide.rows.length===8&&new Set(wide.rows.map(Math.round)).size===1&&wide.rows[0]>=250,"Every operation is the same stacked card (photo shown) in every window: "+info);
       assert(wide.buttons.length===6&&wide.buttons.every(buttonHeight=>buttonHeight>=30&&buttonHeight<=64),"The six management buttons share the left column height: "+info);
-      assert(Math.abs((wide.photo.right-wide.photo.left)/wide.photo.height-3.1)<=.05,"The vehicle photo keeps the approved wide rectangle: "+info);
+      assert(Math.abs((wide.photo.right-wide.photo.left)/wide.photo.height-2.3)<=.05,"The vehicle photo has the proportion of the driver's current operation (2.3, not cropped to a thin strip): "+info);
       assert(wide.info.right-wide.info.left<=36&&wide.info.height<=36&&wide.info.top>=wide.photo.bottom,"The information button sits in the vehicle line, beside the contract, not on the photo: "+info);
       assert(wide.chip.height<=26,"The period button stays compact: "+info);
     }
@@ -450,7 +450,7 @@ try {
     const narrow=await read();
     assert(!narrow.flagged,JSON.stringify(narrow));
     assert(narrow.summary.top<narrow.actions.top&&narrow.actions.top<narrow.jobs.top&&Math.abs(narrow.jobs.left-narrow.summary.left)<=1&&narrow.rows.every(rowHeight=>rowHeight>250),"Portrait keeps the single column and the full cards: "+JSON.stringify(narrow));
-    assert(Math.abs((narrow.photo.right-narrow.photo.left)/narrow.photo.height-3.1)<=.03&&narrow.info.height>=28&&narrow.chip.height>=26,"Portrait keeps the approved photo, information button and period button: "+JSON.stringify(narrow));
+    assert(Math.abs((narrow.photo.right-narrow.photo.left)/narrow.photo.height-2.3)<=.03&&narrow.info.height>=28&&narrow.chip.height>=26,"Portrait keeps the 2.3 photo, information button and period button: "+JSON.stringify(narrow));
     await page.evaluate(()=>window.__scenario({many:false}));
   });
   await check("Smartphone in landscape: one narrow scrolling column, summary and shortcuts in view, hint to the jobs",async()=>{

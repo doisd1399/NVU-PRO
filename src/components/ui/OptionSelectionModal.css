@@ -66,3 +66,16 @@
 .nvu-modal-select-chevron { flex-shrink: 0; color: #8591a0; }
 @media (max-height: 520px) { .nvu-options-dialog { max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); } }
 @media (prefers-reduced-motion: reduce) { .nvu-options-item { transition: none; } }
+
+/* Multiple choice (MultiOptionSelectionModal): the rows toggle, nothing is applied before "Confirmar". */
+.nvu-options-checkbox { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 7px; border: 2px solid var(--options-muted); color: transparent; transition: background-color 120ms, border-color 120ms; }
+.nvu-options-item[aria-selected="true"] .nvu-options-checkbox { background: var(--options-accent); border-color: var(--options-accent); color: #fff; }
+.dark .nvu-options-item[aria-selected="true"] .nvu-options-checkbox { color: #06222a; }
+.nvu-options-item[aria-selected="true"] .nvu-options-copy > span { font-weight: 700; }
+.nvu-options-footer { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding: 12px 14px 14px; border-top: 1px solid var(--options-line); }
+.nvu-options-clear { min-height: 44px; padding: 0 12px; color: var(--options-muted); font-size: 13px; font-weight: 600; }
+.nvu-options-clear:disabled { opacity: .45; cursor: not-allowed; }
+.nvu-options-confirm { flex: 1; min-height: 44px; padding: 0 16px; border-radius: 12px; background: var(--options-accent); color: #fff; font-size: 14px; font-weight: 700; }
+.dark .nvu-options-confirm { color: #06222a; }
+.nvu-options-confirm:disabled { opacity: .45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .nvu-options-checkbox { transition: none; } }

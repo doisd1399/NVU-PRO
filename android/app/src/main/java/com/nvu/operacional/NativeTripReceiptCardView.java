@@ -197,13 +197,13 @@ final class NativeTripReceiptCardView extends LinearLayout {
     private int dp(float value) { return Math.max(1, Math.round(value * getResources().getDisplayMetrics().density)); }
 
     static void position(Context context, View view, WindowManager.LayoutParams params,
-        DisplayMetrics screen, int safeLeft, int safeTop, int safeRightInset, int safeBottomInset) {
+        DisplayMetrics screen, int safeLeft, int cutoutTop, int safeRightInset, int safeBottomInset) {
         params.gravity = Gravity.TOP | Gravity.LEFT;
         params.width = NativeReceiptCardLayoutPolicy.width(screen.widthPixels,
             safeLeft, safeRightInset, screen.density);
         params.x = NativeReceiptCardLayoutPolicy.x(screen.widthPixels, safeLeft, safeRightInset, params.width);
         int height = view.getHeight() > 0 ? view.getHeight() : Math.round(85 * screen.density);
-        params.y = NativeReceiptCardLayoutPolicy.y(screen.heightPixels, safeTop, safeBottomInset, height);
+        params.y = NativeReceiptCardLayoutPolicy.y(screen.heightPixels, cutoutTop, safeBottomInset, height, screen.density);
         applyPassThroughOpacity(context, params);
     }
 

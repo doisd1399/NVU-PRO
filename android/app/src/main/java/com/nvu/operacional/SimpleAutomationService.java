@@ -3096,6 +3096,18 @@ public final class SimpleAutomationService extends Service {
         return metrics;
     }
 
+    /** Only the display cutout at the top (the camera hole), not the status bar: the receipt card sits at the very top. */
+    private int cutoutTopInsetPx() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && windowManager != null) {
+            try {
+                Insets insets = windowManager.getCurrentWindowMetrics().getWindowInsets()
+                    .getInsetsIgnoringVisibility(WindowInsets.Type.displayCutout());
+                return Math.max(0, insets.top);
+            } catch (Exception ignored) {}
+        }
+        return 0;
+    }
+
     private int safeTopInsetPx() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && windowManager != null) {
             try {
@@ -3337,12 +3349,13 @@ public final class SimpleAutomationService extends Service {
                     | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
             params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
-            params.y = safeTopInsetPx() + dp(8);
+            // Messages and receipt cards share one top position: cutout + a small breathing space.
+            params.y = cutoutTopInsetPx() + NativeReceiptCardLayoutPolicy.breathing(realDisplayMetrics().heightPixels, getResources().getDisplayMetrics().density);
             params.x = 0;
             if (receipt != null) {
                 int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
                 NativeTripReceiptCardView.position(this, chip, params, realDisplayMetrics(),
-                    horizontal[0] + dp(8), safeTopInsetPx() + dp(8),
+                    horizontal[0] + dp(8), cutoutTopInsetPx(),
                     horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
             } else NativeTripReceiptCardView.applyPassThroughOpacity(this, params);
             if (!cardVisibility.acquire(chip)) return;
@@ -3383,7 +3396,7 @@ public final class SimpleAutomationService extends Service {
         int width = statusChipParams.width, x = statusChipParams.x, y = statusChipParams.y;
         int[] horizontal = NativeTripReceiptCardView.safeHorizontalInsets(windowManager);
         NativeTripReceiptCardView.position(this, statusChipView, statusChipParams, realDisplayMetrics(),
-            horizontal[0] + dp(8), safeTopInsetPx() + dp(8), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
+            horizontal[0] + dp(8), cutoutTopInsetPx(), horizontal[1] + dp(8), safeBottomInsetPx() + dp(8));
         if (width != statusChipParams.width || x != statusChipParams.x || y != statusChipParams.y) {
             try { windowManager.updateViewLayout(statusChipView, statusChipParams); } catch (RuntimeException ignored) {}
         }

@@ -11,7 +11,7 @@ import { useCurrentUserPendingApplications } from "../../hooks/useCurrentUserPen
 import { loadMembershipCapabilities, withdrawApplication } from "../../services/applicationWithdrawService";
 import { withdrawFailureMessage } from "../../services/applicationWithdrawCore";
 import { applyRoute } from "../../lib/applyReturn";
-import { companyApplyState, isCompanyListable, shortCompanyName, toApplicationDate } from "../../lib/companyCatalog";
+import { APPLY_STATE_LABEL, companyApplyState, isCompanyListable, shortCompanyName, toApplicationDate, type CompanyApplyState } from "../../lib/companyCatalog";
 import {
   UserCog,
   Building2,
@@ -19,6 +19,14 @@ import {
   ArrowLeft,
   RefreshCw,
 } from "lucide-react";
+
+/** One look per situation, all on the same 100 px button: only "Enviar" is the call to action. */
+const APPLY_STATE_BUTTON: Record<CompanyApplyState, string> = {
+  open: "bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95",
+  member: "bg-teal-50 text-teal-700 border border-teal-200 dark:bg-[rgba(36,207,222,.14)] dark:text-[#24cfde] dark:border-[rgba(36,207,222,.34)]",
+  applied: "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-[#3b2e1f] dark:text-[#ffc16b] dark:border-[rgba(255,193,107,.34)]",
+  closed: "bg-slate-100 text-slate-500 border border-slate-200 dark:bg-nvu-strip dark:text-nvu-muted dark:border-nvu-line",
+};
 
 /**
  * "join": the first-access screen of a driver without a company (unchanged behaviour).
@@ -266,7 +274,7 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
         ) : (
           filteredCompanies.map((company) => {
             const applyState = companyApplyState(company, memberCompanyIds, appliedCompanyIds);
-            const stateLabel = { member: "Você participa", applied: "Inscrição enviada", closed: "Recrutamento fechado", open: "Enviar" }[applyState];
+            const stateLabel = APPLY_STATE_LABEL[applyState];
             return (
             <div
               key={company.id}
@@ -309,9 +317,9 @@ export default function JoinCompany({ mode = "join", onBack, initialFocus }: { m
                 onClick={() => handleRequest(company.id)}
                 disabled={applyState !== "open"}
                 aria-label={applyState === "open" ? `Enviar inscrição para ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
-                className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
+                className={`shrink-0 h-10 w-[100px] sm:w-28 px-2 text-[13px] font-bold whitespace-nowrap rounded-xl transition-all relative overflow-hidden group/btn disabled:opacity-100 ${APPLY_STATE_BUTTON[applyState]}`}
               >
-                <span className="relative z-10 flex items-center justify-center">
+                <span className="relative z-10 flex items-center justify-center whitespace-nowrap">
                   {stateLabel}
                 </span>
                 {/* Shine effect logic */}

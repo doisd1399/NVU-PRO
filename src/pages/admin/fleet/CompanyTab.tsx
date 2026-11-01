@@ -28,6 +28,9 @@ import { PeriodSelector, DateRange } from "./PeriodSelector";
 import { CompanyPerformanceCard } from "../../../components/CompanyPerformanceCard";
 import { CompanyRecruitmentNotice } from "../../../components/admin/CompanyRecruitmentNotice";
 import { StableImage } from "../../../components/common/StableImage";
+import { CompanySimulatorsSection } from "../../../components/admin/CompanySimulatorsSection";
+import { addSummary, groupFailureMessage, groupSimulatorRows, simulatorsToAdd, type GroupSimulatorRow } from "../../../services/companyGroupCore";
+import { addCompanySimulators, loadCompanyGroupCapabilities, renameCompanyGroup } from "../../../services/companyGroupService";
 import {
   parseISO,
   isWithinInterval,
@@ -270,6 +273,11 @@ function CompanyTab({
   const [isSaving, setIsSaving] = useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // One company, several simulators: what the published server offers, and the fleets added in this session (shown at once;
+  // the shared company list catches up when the new memberships arrive).
+  const [groupCapabilities, setGroupCapabilities] = useState<string[]>([]);
+  const [addedFleets, setAddedFleets] = useState<GroupSimulatorRow[]>([]);
+  const [addedSimulatorIds, setAddedSimulatorIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     companyName: "",
@@ -323,6 +331,38 @@ function CompanyTab({
       })),
     [simulatorOptions],
   );
+
+  const isCompanyOwner = Boolean(activeCompany && currentUser?.id && (activeCompany.ownerId === currentUser.id || activeCompany.userId === currentUser.id));
+  const isSeniorOfCompany = Boolean(activeCompany && seniorCompanyId && seniorCompanyId === activeCompany.id);
+  const canRenameCompany = isCompanyOwner || isSeniorOfCompany;
+  const groupRows = useMemo(() => {
+    const rows = groupSimulatorRows(activeCompany, companies as any[], simulators as any[]);
+    return [...rows, ...addedFleets.filter(added => !rows.some(row => row.companyId === added.companyId))];
+  }, [activeCompany, companies, simulators, addedFleets]);
+  const groupAddable = useMemo(() => simulatorsToAdd(activeCompany, companies as any[], simulators as any[])
+    .filter(option => !addedSimulatorIds.includes(option.value)), [activeCompany, companies, simulators, addedSimulatorIds]);
+  const hasOtherFleets = groupRows.length > 1;
+  // The list of added fleets belongs to the company that was being edited.
+  React.useEffect(() => { setAddedFleets([]); setAddedSimulatorIds([]); }, [activeCompany?.id]);
+  React.useEffect(() => {
+    if (!isEditing || isAddingNew) return;
+    let current = true;
+    loadCompanyGroupCapabilities().then(list => { if (current) setGroupCapabilities(list); }, () => undefined);
+    return () => { current = false; };
+  }, [isEditing, isAddingNew, currentUser?.id]);
+  const handleAddSimulators = async (simulatorIds: string[]) => {
+    if (!activeCompany) throw new Error("Empresa não encontrada.");
+    try {
+      const result = await addCompanySimulators(activeCompany.id, simulatorIds);
+      const known = new Set(groupRows.map(row => row.companyId));
+      setAddedFleets(current => [...current, ...[...result.created, ...result.existing].filter(row => row.companyId && !known.has(row.companyId))
+        .map(row => ({ companyId: row.companyId, label: row.simulatorName, current: false }))]);
+      setAddedSimulatorIds(current => [...new Set([...current, ...result.created.map(row => row.simulatorId), ...result.existing.map(row => row.simulatorId)])]);
+      const message = addSummary(result);
+      toast.success(message);
+      return message;
+    } catch (error) { throw new Error(groupFailureMessage(error)); }
+  };
 
   const logoCompanyRef = useRef(activeCompany?.id);
   React.useEffect(() => {
@@ -416,19 +456,31 @@ function CompanyTab({
         // The banner editor is an administrative identity surface: it may
         // change the company name/logo, while simulator assignment remains
         // owned by the existing operational controls.
+        const nextName = String(companyData.companyName || "").trim().replace(/\s+/g, " ");
+        if (!nextName) {
+          throw new Error("Nome da empresa é obrigatório.");
+        }
+        const nameChanged = nextName !== String(activeCompany.companyName || "").trim();
+        // Only the owner (or a Senior) renames. The name belongs to every simulator of the company, so the server writes
+        // it to all of them; a company with one simulator is still renamed directly when the server cannot do it.
+        const renameThroughServer = nameChanged && canRenameCompany && (groupCapabilities.includes("rename") || hasOtherFleets);
+        if (renameThroughServer) {
+          if (!groupCapabilities.includes("rename")) {
+            throw new Error("Para trocar o nome de uma empresa com vários simuladores, o servidor precisa estar atualizado. Tente novamente mais tarde.");
+          }
+          try { await renameCompanyGroup(activeCompany.id, nextName); }
+          catch (error) { throw new Error(groupFailureMessage(error)); }
+        }
         const editableCompanyData = {
-          companyName: String(companyData.companyName || "").trim(),
           ownerName: companyData.ownerName,
           whatsapp: companyData.whatsapp,
           logoUrl: companyData.logoUrl,
+          ...(nameChanged && canRenameCompany && !renameThroughServer ? { companyName: nextName } : {}),
         };
-        if (!editableCompanyData.companyName) {
-          throw new Error("Nome da empresa é obrigatório.");
-        }
         await updateCompany(activeCompany.id, editableCompanyData);
         setFormData({
           ...companyData,
-          companyName: editableCompanyData.companyName,
+          companyName: nextName,
           simulatorId:
             activeCompanySimulatorOption?.canonicalId ||
             activeCompany.simulatorId ||
@@ -634,6 +686,33 @@ function CompanyTab({
                   />
                 </div>
               </>
+            )}
+            {isEditing && !isAddingNew && canRenameCompany && (
+              <div>
+                <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1" htmlFor="company-name-edit">
+                  Nome da Empresa
+                </label>
+                <input
+                  id="company-name-edit"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  maxLength={200}
+                  className="w-full bg-slate-50 dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
+                  required
+                />
+                <p className="mt-1.5 ml-1 text-[12px] text-slate-500 dark:text-nvu-muted">
+                  O novo nome vale para todos os simuladores da empresa.
+                </p>
+              </div>
+            )}
+            {isEditing && !isAddingNew && (
+              <CompanySimulatorsSection
+                rows={groupRows}
+                addable={groupAddable}
+                canAdd={canRenameCompany && groupCapabilities.includes("add-simulators")}
+                onAdd={handleAddSimulators}
+              />
             )}
             <div>
               <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">

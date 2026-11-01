@@ -16,7 +16,7 @@
   bubbleParams=new android.view.WindowManager.LayoutParams(68,32,1,8,0);
   bubbleParams.x=79;bubbleParams.y=45;windowManager.addView(bubbleView,bubbleParams);}
  int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
- int safeTopInsetPx(){return 0;} int safeBottomInsetPx(){return 0;}
+ int safeTopInsetPx(){return 0;} int cutoutTopInsetPx(){return 0;} int safeBottomInsetPx(){return 0;}
  int overlayType(){return 1;}
  android.util.DisplayMetrics realDisplayMetrics(){return getResources().getDisplayMetrics();}
  void recordOverlayFailure(Throwable e){errors++;}

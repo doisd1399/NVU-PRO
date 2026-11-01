@@ -24,6 +24,14 @@ export function shortCompanyName(name: unknown): string {
 
 export type CompanyApplyState = "member" | "applied" | "closed" | "open";
 
+/** Short texts of the card button: they must fit one line of a 100 px button, so no sentence is used here. */
+export const APPLY_STATE_LABEL: Record<CompanyApplyState, string> = {
+  member: "Já participa",
+  applied: "Enviado",
+  closed: "Fechado",
+  open: "Enviar",
+};
+
 /** What the card of a company offers to this driver. A link and a pending application win over the open/closed flag. */
 export function companyApplyState(company: CompanyLike, memberCompanyIds: ReadonlySet<string>, appliedCompanyIds: ReadonlySet<string>): CompanyApplyState {
   if (memberCompanyIds.has(company.id)) return "member";

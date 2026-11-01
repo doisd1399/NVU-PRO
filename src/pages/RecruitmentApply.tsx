@@ -1035,13 +1035,17 @@ export default function RecruitmentApply() {
                         <label className="text-[15px] font-semibold text-slate-800 dark:text-nvu-text">
                           Identificação
                         </label>
-                        <div className="flex flex-col sm:flex-row gap-4 bg-slate-50/50 dark:bg-nvu-page/50 p-4 rounded-2xl border border-slate-200 dark:border-nvu-line/60 w-full overflow-hidden">
-                          <div className="relative group shrink-0 pt-0.5">
+                        {/* Same card as "Foto do proprietário" in the company registration, worded for the driver. */}
+                        <div
+                          data-testid="driver-photo-card"
+                          className="flex items-center gap-4 bg-slate-50/50 dark:bg-nvu-surface p-3.5 rounded-2xl border border-slate-200 dark:border-nvu-line/60 w-full"
+                        >
+                          <div className="relative group shrink-0">
                             {photoPreview ? (
-                              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white dark:border-nvu-line shadow-sm relative">
+                              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-white dark:border-nvu-line shadow-sm relative">
                                 <CachedImage
                                   src={photoPreview}
-                                  alt="Preview"
+                                  alt="Foto do motorista"
                                   className="w-full h-full object-cover"
                                   referrerPolicy="no-referrer"
                                 />
@@ -1052,57 +1056,33 @@ export default function RecruitmentApply() {
                                       type="file"
                                       accept="image/*"
                                       className="hidden"
+                                      aria-label="Trocar a foto do motorista"
                                       onChange={handleImageSelect}
                                     />
                                   </label>
                                 </div>
                               </div>
                             ) : (
-                              <label className="w-16 h-16 rounded-full bg-slate-100 dark:bg-nvu-strip border border-dashed border-slate-300 dark:border-nvu-line flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-nvu-strip transition-colors">
+                              <label className="w-14 h-14 rounded-full bg-slate-100 dark:bg-nvu-strip border border-dashed border-slate-300 dark:border-nvu-line flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-nvu-strip transition-colors">
                                 <ImageIcon
-                                  size={20}
+                                  size={18}
                                   className="text-slate-400 dark:text-nvu-muted"
                                 />
                                 <input
                                   type="file"
                                   accept="image/*"
                                   className="hidden"
+                                  aria-label="Escolher a foto do motorista"
                                   onChange={handleImageSelect}
                                 />
                               </label>
                             )}
                           </div>
-                          <div className="flex-1 space-y-2 w-full">
-                            <div className="grid grid-cols-1 gap-2">
-                              <input
-                                required
-                                type="text"
-                                value={formData.fullName}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    fullName: e.target.value,
-                                  })
-                                }
-                                className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
-                                placeholder="Nome do motorista"
-                              />
-                              <input
-                                required
-                                disabled
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    email: e.target.value,
-                                  })
-                                }
-                                className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-nvu-muted cursor-not-allowed shadow-none"
-                                title="E-mail vinculado do Google"
-                              />
-                            </div>
-                            {photoPreview && (
+                          <div className="flex-1 min-w-0">
+                            <span className="block text-[14px] font-semibold text-slate-800 dark:text-nvu-text-soft mb-0.5">
+                              Foto do motorista
+                            </span>
+                            {photoPreview ? (
                               <button
                                 type="button"
                                 onClick={() => {
@@ -1110,13 +1090,44 @@ export default function RecruitmentApply() {
                                   setPhotoPreview(null);
                                   setFormData((f) => ({ ...f, applicationPhotoURL: "" }));
                                 }}
-                                className="text-rose-500 hover:text-rose-600 text-[12px] font-medium flex items-center gap-1 transition-colors mt-2"
+                                className="text-rose-500 hover:text-rose-600 text-[12px] font-medium flex items-center gap-1 transition-colors"
                               >
                                 Remover foto
                               </button>
+                            ) : (
+                              <p className="text-[12px] text-slate-500 dark:text-nvu-muted truncate">
+                                Obrigatória · o RH verá esta foto
+                              </p>
                             )}
                           </div>
                         </div>
+                        <input
+                          required
+                          type="text"
+                          value={formData.fullName}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              fullName: e.target.value,
+                            })
+                          }
+                          className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm"
+                          placeholder="Nome do motorista"
+                        />
+                        <input
+                          required
+                          disabled
+                          type="email"
+                          value={formData.email}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              email: e.target.value,
+                            })
+                          }
+                          className="w-full bg-slate-50 dark:bg-nvu-page/50 border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] text-slate-500 dark:text-nvu-muted cursor-not-allowed shadow-none"
+                          title="E-mail vinculado do Google"
+                        />
                       </div>
 
                       <div className="space-y-1.5 pt-2">

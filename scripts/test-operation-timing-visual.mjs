@@ -19,7 +19,7 @@ import React,{useState} from "react";import {createRoot} from "react-dom/client"
 import {DriverOperationTiming} from "./src/components/driver/DriverOperationTiming";
 window.__starts=0;function App(){const [state,set]=useState({remaining:"2d · 15h · 42min",disabled:false,busy:false});window.__timing=set;
 return <main className="nvu-workspace-theme nvu-driver-workspace" style={{padding:16}}>
-<header className="nvu-driver-page-heading" data-page="dashboard"><div><h1>Operação atual</h1><p>Acompanhe suas entregas e o prazo.</p></div></header>
+<header className="nvu-driver-page-heading" data-page="dashboard"><div><h1>Painel do motorista</h1><p>Acompanhe suas entregas e o prazo.</p></div></header>
 <article style={{background:"var(--driver-paper)",borderRadius:12}}>
 <DriverOperationTiming {...state} onStart={()=>window.__starts++}/></article></main>;}
 createRoot(document.getElementById("root")).render(<App/>);` }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
@@ -44,36 +44,30 @@ try {
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     const geometry = await page.getByTestId("driver-operation-timing").evaluate(row => {
       const rect = r => ({left:r.left,right:r.right,width:r.width,height:r.height,cx:(r.left+r.right)/2,cy:(r.top+r.bottom)/2,top:r.top,bottom:r.bottom});
-      const nodes = [...row.children];
-      const clock=nodes[0].querySelector("svg"), label=nodes[0].querySelector("div");
-      const icon=nodes[1].querySelector("svg");
-      return {row:rect(row.getBoundingClientRect()),cells:nodes.map(n=>rect(n.getBoundingClientRect())),
-        clock:rect(clock.getBoundingClientRect()), label:rect(label.getBoundingClientRect()), textAlign:getComputedStyle(nodes[0]).textAlign,
+      const button=row.querySelector("button"), time=row.querySelector('[data-testid="driver-remaining-time"]');
+      const clock=time.querySelector("svg"), label=time.querySelector("span"), value=time.querySelector("strong"), icon=button.querySelector("svg");
+      const group={left:Math.min(clock.getBoundingClientRect().left,label.getBoundingClientRect().left),right:value.getBoundingClientRect().right};
+      return {row:rect(row.getBoundingClientRect()),button:rect(button.getBoundingClientRect()),time:rect(time.getBoundingClientRect()),
+        children:[...row.children].map(n=>n.tagName),clock:rect(clock.getBoundingClientRect()),groupCenter:(group.left+group.right)/2,
         icon:{fill:getComputedStyle(icon).fill,color:getComputedStyle(icon).color},
         visibleText:row.textContent,
-        animation:getComputedStyle(nodes[1],"::after").animationDuration,
+        animation:getComputedStyle(button,"::after").animationDuration,
         overflow:document.documentElement.scrollWidth>innerWidth,
-        // The clipped reflection intentionally crosses the button's scroll
-        // bounds. Inspect its label, not that decorative overflow.
-        textOverflow:[row,...nodes.filter(n=>n.tagName!=="BUTTON"),...row.querySelectorAll("strong,small,span")].some(n=>n.scrollWidth>n.clientWidth+1),
-        fonts:nodes.map(n=>({font:getComputedStyle(n).font,scroll:n.scrollWidth,width:n.clientWidth,
-          text:[...n.querySelectorAll("strong,small,span")].map(t=>({text:t.textContent,font:getComputedStyle(t).font,width:t.getBoundingClientRect().width,scroll:t.scrollWidth}))}))};
+        // The clipped reflection intentionally crosses the button's scroll bounds. Inspect the labels, not that decoration.
+        textOverflow:[row,time,...time.querySelectorAll("strong,span"),button.querySelector("span")].some(n=>n.scrollWidth>n.clientWidth+1)};
     });
     assert(!geometry.overflow && !geometry.textOverflow,JSON.stringify({width,dark,remaining,geometry}));
-    assert.equal(geometry.cells.length,2,"Only remaining time and the start button are displayed");
+    assert.deepEqual(geometry.children,["BUTTON","P"],"Only the start button and the remaining time are displayed, in this order");
     assert(!/Prazo limite|22\/10\/2026/.test(geometry.visibleText),"The removed deadline cannot reserve a visible column");
-    assert(Math.abs(geometry.cells[0].width-geometry.cells[1].width)<1,"Time card and start button have equal widths");
-    assert(Math.abs(geometry.cells[0].height-geometry.cells[1].height)<1,"Time card and start button have equal heights");
-    if(remaining.startsWith("2d")) assert(geometry.cells[0].height<=48,"The usual remaining-time value keeps the approved compact height");
-    assert(geometry.cells[0].right<geometry.cells[1].left,"The two tiles retain a gap");
-    assert(geometry.cells.every(c=>Math.abs(c.cy-geometry.cells[0].cy)<1),"Time card and action stay aligned on one row");
+    assert(Math.abs(geometry.button.width-geometry.row.width)<1,"The start button takes the full width");
+    assert(geometry.button.height>=40,"The start button keeps a comfortable touch height");
+    assert(geometry.time.top>=geometry.button.bottom-0.5 && geometry.time.top-geometry.button.bottom<=16,"The remaining time sits right below the button");
     assert(geometry.clock.width>0 && geometry.clock.height>0,"The clock stays visible even on small screens");
-    assert(Math.abs((geometry.clock.left+geometry.label.right)/2-geometry.cells[0].cx)<1,"The clock and remaining-time text are centered together");
-    assert.equal(geometry.textAlign,"center","Remaining-time label and value use centered text");
+    if(geometry.time.height<=22) assert(Math.abs(geometry.groupCenter-geometry.row.cx)<2,"The clock and the remaining time are centered together");
     assert.equal(geometry.icon.fill,geometry.icon.color,"The start icon is fully filled with its accent color");
     assert.notEqual(geometry.icon.fill,"none");
     assert.equal(geometry.animation,"3s","The reflection repeats every three seconds");
-    results.push({width,dark,remaining,result:"PASS",tileWidth:geometry.cells[0].width,tileHeight:geometry.cells[0].height});
+    results.push({width,dark,remaining,result:"PASS",buttonWidth:geometry.button.width,buttonHeight:geometry.button.height});
     if(width===390 && remaining.startsWith("2d")) {
       await fs.mkdir("verification/operation-timing",{recursive:true});
       for(const [phase,time] of [["quiet",2400],["reflection",1000]]) {

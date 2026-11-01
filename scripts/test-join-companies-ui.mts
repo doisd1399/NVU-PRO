@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { chromium } from "playwright";
 
 // The real "Empresas" screen (/driver/companies) with an injected read model (scripts/fixtures/join-companies-fixture.tsx).
@@ -14,7 +15,7 @@ const server = await createServer({ configFile: false, root, plugins: [{ name: "
   if (clean === path.join(root, "src/hooks/useCurrentUserPendingApplications.ts")) return fixture;
   if (clean === path.join(root, "src/services/applicationWithdrawService.ts")) return fixture;
   if (clean === path.join(root, "src/lib/firebase.ts")) return "export const db={}; export const auth={currentUser:null}; export const functions={};";
-} }, react()], server: { host: "127.0.0.1", port: 4198, strictPort: true, hmr: false } });
+} }, react(), tailwindcss()], server: { host: "127.0.0.1", port: 4198, strictPort: true, hmr: false } });
 await server.listen();
 const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || process.env.NVU_CHROMIUM_EXECUTABLE, headless: true, args: ["--no-sandbox", "--disable-dev-shm-usa" + "ge", "--disable-gpu"] });
 const page = await browser.newPage({ viewport: { width: 412, height: 915 } });
@@ -49,12 +50,25 @@ try {
 
   // 4. Buttons follow the state
   const button = (name: string) => page.getByRole("button", { name: new RegExp(name) });
-  assert.equal(await button("DC Transportes: Você participa").isDisabled(), true);
-  assert.equal(await button("Rápida Logística: Recrutamento fechado").isDisabled(), true);
-  assert.equal(await button("Sul Fretes: Inscrição enviada").isDisabled(), true);
+  assert.equal(await button("DC Transportes: Já participa").isDisabled(), true);
+  assert.equal(await button("Rápida Logística: Fechado").isDisabled(), true);
+  assert.equal(await button("Sul Fretes: Enviado").isDisabled(), true);
   assert.equal(await button("Enviar inscrição para Norte Cargas").isDisabled(), false);
   assert.equal(await page.getByText("Enviar", { exact: true }).first().innerText(), "Enviar");
   assert.equal(await page.getByText("Inscrever-se", { exact: true }).count(), 0, "The button now says Enviar");
+  // Every state fits one line inside the same 100 px button (no wrapped text close to the border).
+  const shape = await page.locator("[data-apply-state] button").evaluateAll(nodes => nodes.map(node => {
+    const label = node.querySelector("span") as HTMLElement, box = node.getBoundingClientRect(), text = label.getBoundingClientRect();
+    return { text: label.textContent, width: Math.round(box.width), height: Math.round(box.height), lines: Math.round(text.height / parseFloat(getComputedStyle(label).lineHeight || "16")), inside: node.scrollWidth <= node.clientWidth };
+  }));
+  assert.ok(shape.length >= 6, "all states are listed");
+  for (const item of shape) {
+    assert.equal(item.height, 40, `${item.text}: one line, 40 px tall`);
+    assert.equal(item.width, 100, `${item.text}: same width in every state`);
+    assert.equal(item.lines, 1, `${item.text}: no wrapped text`);
+    assert.equal(item.inside, true, `${item.text}: text inside the button`);
+  }
+  assert.deepEqual([...new Set(shape.map(item => item.text))].sort(), ["Enviado", "Enviar", "Fechado", "Já participa"], "the four short labels");
   await button("Enviar inscrição para Norte Cargas").click();
   // The driver is taken to the company's recruitment form (the one HR reviews), not to a one-tap request.
   await page.getByTestId("apply-form").waitFor();

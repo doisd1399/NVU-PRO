@@ -1,15 +1,13 @@
-import { CachedImage } from "../../components/common/CachedImage";
 import { ModalPortal } from "../../components/ui/ModalPortal";
 import { useLocalOperationPending } from "../../hooks/useLocalOperationPending";
 import { toast } from "sonner";
 import { OperationSyncNotice } from "../../components/OperationSyncNotice";
-import { DriverOperationTiming } from "../../components/driver/DriverOperationTiming";
+import { DriverOperationCard } from "../../components/driver/DriverOperationCard";
 import { DiscreetDisclosure } from "../../components/common/DiscreetDisclosure";
 import { RetainedPanel } from "../../components/common/RetainedPanel";
 import { AutomaticDriverQueue } from "../../components/operations/AutomaticDriverQueue";
 import { DriverWorkRequest } from "../../components/driver/DriverWorkRequest";
 import { DriverIdlePanel, DriverPreviousWork, DriverAssignedQueue } from "../../components/driver/DriverIdlePanel";
-import { DriverStatusRow } from "../../components/driver/DriverStatusRow";
 import { useOptionalAutomaticOperations } from "../../contexts/AutomaticOperationsProvider";
 import { LandscapeOperationPanel } from "../../components/operations/LandscapeOperationPanel";
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
@@ -60,9 +58,6 @@ import {
   CalendarDays,
   ChevronsUpDown,
   ChevronsDownUp,
-  Download,
-  ImagePlus,
-  Info,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { prepareAndCommitNavigation } from "../../lib/navigationTransition";
@@ -74,7 +69,6 @@ import ErrorBoundary from "../../components/ErrorBoundary";
 import { OperationalSuspensionNotice } from "../../components/OperationalSuspensionNotice";
 import { useOperationalSuspension } from "../../hooks/useOperationalSuspension";
 import TripHistory from "./TripHistory";
-import { OperationProgressBar } from "../../components/common/OperationProgressBar";
 import { isClosedJobStatus, isRunningJobStatus, isTripRecordableJobStatus } from "../../lib/jobStatus";
 import { getProLaunchAvailability } from "../../lib/proLaunchAvailability";
 import {
@@ -1140,140 +1134,31 @@ function DashboardComponent({
             />
           </div>
         )}
-        {/* Main Job Card */}
-        <div className="order-3 flex flex-col bg-white dark:bg-nvu-page rounded-2xl sm:rounded-[24px] shadow-sm dark:shadow-none border border-gray-200 dark:border-nvu-line overflow-hidden mb-3 sm:mb-4 mt-0">
-          <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={onVehiclePhotoSelected} />
-          <div className="relative nvu-driver-vehicle-photo">
-          <button type="button" disabled={vehiclePhotoBusy || !vehicle?.id} aria-label={displayedVehiclePhoto ? "Substituir foto do veículo" : "Adicionar foto do veículo"} onClick={() => photoInputRef.current?.click()} className="relative w-full h-44 sm:h-64 overflow-hidden bg-[#151921] text-gray-400 flex items-center justify-center disabled:cursor-wait">
-            {displayedVehiclePhoto ? <CachedImage src={displayedVehiclePhoto} alt="Fotografia cadastrada do veículo" className="h-full w-full object-cover" /> : <span className="flex items-center gap-2 text-sm"><ImagePlus size={20}/> Adicionar foto do veículo</span>}
-            {vehiclePhotoBusy && <span className="absolute bottom-2 right-2 rounded-lg bg-black/70 px-3 py-1 text-xs text-white">Salvando…</span>}
-          </button>
-          <button type="button" className="nvu-driver-operation-info"
-            aria-label="Informações da operação em andamento" aria-haspopup="dialog"
-            aria-expanded={isOperationInfoOpen} aria-controls={operationInfoId}
-            onClick={() => setOperationInfoScope(currentOperationInfoScope)}>
-            <Info size={20} strokeWidth={1.6} aria-hidden="true" />
-          </button>
-          </div>
-          {vehiclePhotoError && <p role="alert" className="px-4 pt-2 text-xs text-rose-600 dark:text-rose-400">{vehiclePhotoError}</p>}
-          {vehiclePhotoPending && !vehiclePhotoBusy && <p role="status" className="px-4 pt-2 text-xs text-slate-500 dark:text-nvu-muted">Foto salva no aparelho. Sincronização pendente; será tentada quando a conexão voltar.</p>}
-          {/* Header */}
-          <div className="relative overflow-hidden bg-[#1f242d] dark:bg-nvu-page p-3 sm:p-4 w-full" style={{ display: operationReadyForManualFinish ? undefined : "none" }}>
-            {/* Subtle glow effect */}
-            <div className="absolute top-[-50%] right-[-10%] w-[150px] h-[150px] bg-white/5 rounded-full blur-[40px] pointer-events-none"></div>
-
-            {operationReadyForManualFinish ? (
-              <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
-                <div className="flex flex-col items-start min-w-0">
-                  <h3 className="text-[15px] sm:text-[18px] font-bold text-green-400 tracking-tight leading-none mb-1">
-                    {localPendingTrips > 0 ? "Entregas salvas no aparelho" : "Entregas concluídas!"}
-                  </h3>
-                  <p className="text-[10px] sm:text-[11px] font-medium text-gray-400 leading-tight">
-                    Finalize a operação para continuar. O servidor confirmará as entregas.
-                  </p>
-                </div>
-                <button
-                  onClick={handleFinishJob}
-                  disabled={isFinishing || myJob.operationSyncState === "pending_finish"}
-                  className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-full text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto text-center"
-                >
-                  {myJob.operationSyncState === "pending_finish" ? "Finalização salva" : isFinishing ? "Salvando…" : "Finalizar Operação"}
-                </button>
-              </div>
-              ) : (
-              <div className="flex justify-between items-start z-10 relative gap-3">
-                <div className="flex flex-col pr-2 min-w-0">
-                  <span className="text-[8px] sm:text-[9px] font-bold text-emerald-400 uppercase tracking-wider mb-1">
-                    TRABALHO ATIVO
-                  </span>
-                  <span className="text-[8px] sm:text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1 mt-0.5">
-                    Operação atual
-                  </span>
-                  <h3 className="font-bold text-white text-[22px] sm:text-[26px] tracking-tight leading-none mb-1.5">
-                    {contract.name}
-                  </h3>
-                  <p className="text-[10px] sm:text-[11px] text-gray-400 font-medium leading-none truncate whitespace-nowrap">
-                    Siga as especificações do transporte.
-                  </p>
-                </div>
-
-                <div className="shrink-0 flex pt-0.5">
-
-                </div>
-              </div>
-              )}
-          </div>
-
-          {/* Content Area */}
-          <div className="nvu-current-operation-body flex flex-col">
-            <PendingProOperationNotice jobId={myJob?.id} driverId={currentUser?.id}
-              companyId={activeCompanyId} confirmed={currentOperationProgress}
-              serverProgress={Number(myJob?.progress || 0)}
-              total={contract?.totalDeliveries || 0}
-              visibleHistoryCount={currentOperationTrips.length}
-              historyReady={Boolean(isIntegrated ? tripHistoryReadyOverride : driverTripsState.historyReady)} />
-            <div className="nvu-current-operation-vehicle flex items-center gap-3 rounded-xl px-1">
-              <button type="button" onClick={() => setPaintDialogOpen(true)} aria-label="Ver pinturas do veículo e reboque" title="Pinturas disponíveis" className="shrink-0 p-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-nvu-text-soft dark:hover:bg-white/10"><Download size={17} strokeWidth={1.7}/></button>
-              <div className="min-w-0 flex-1"><p className="text-base font-semibold text-slate-900 dark:text-white break-words">{vehicle?.name || "Veículo não informado"}</p><p className="text-xs text-gray-400 break-words">{!trailerlessSimulator ? trailer?.name || "Reboque não informado" : ""}</p></div><div className="border-l border-slate-200 dark:border-nvu-line pl-3 text-sm font-semibold text-slate-900 dark:text-white shrink-0">{contract.name}</div>
-              
-            </div>
-            {/* Metrics */}
-            <div className="nvu-driver-operation-metrics border border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-strip rounded-[8px] flex items-center shadow-sm dark:shadow-none mt-0.5">
-              <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-nvu-text leading-none tracking-tight mb-0.5">
-                  {realProgress}/{contract.totalDeliveries}
-                </span>
-                <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-nvu-muted uppercase tracking-wider font-semibold">
-                  Entregas
-                </span>
-              </div>
-
-              <div className="w-px h-6 bg-gray-200/60 dark:bg-nvu-line shrink-0"></div>
-
-              <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-nvu-text leading-none tracking-tight mb-0.5">
-                  {Math.max(0, contract.totalDeliveries - realProgress)}
-                </span>
-                <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-nvu-muted uppercase tracking-wider font-semibold">
-                  Faltam
-                </span>
-              </div>
-
-              <div className="w-px h-6 bg-gray-200/60 dark:bg-nvu-line shrink-0"></div>
-
-              <div className="flex-1 py-1.5 flex flex-col items-center justify-center text-center">
-                <span className="text-[14px] sm:text-[16px] font-bold text-slate-800 dark:text-nvu-text leading-none tracking-tight mb-0.5">
-                  {progressPercent.toFixed(0)}%
-                </span>
-                <span className="text-[7px] sm:text-[8px] text-gray-400 dark:text-nvu-muted uppercase tracking-wider font-semibold">
-                  Concluído
-                </span>
-              </div>
-            </div>
-
-            {/* Compact Progress bar */}
-            <div className="flex flex-col gap-1.5 mt-1 mb-0.5">
-              <OperationProgressBar
-                percent={progressPercent}
-                replayKey={
-                  progressAnimationKey ??
-                  `${location.key}:${location.pathname}:${myJob.id}`
-                }
-              />
-              <p className="text-[8px] uppercase tracking-wider font-semibold text-gray-400 dark:text-nvu-muted text-center">
-                Progresso da operação
-              </p>
-            </div>
-          </div>
-
-          {/* Remaining time and the contextual action share equal compact tiles. */}
-          <OperationSyncNotice job={myJob} />
-          <DriverOperationTiming remaining={timeRemainingText} onStart={() => void handleTripAction()}
-            disabled={!isTripRecordableJobStatus(myJob.status, realProgress, contract.totalDeliveries) || operationReadyForManualFinish || isWorkModeChecking || isSimpleAutomationStarting}
-            busy={isWorkModeChecking || isSimpleAutomationStarting} />
-          <DriverStatusRow online={Boolean(currentUser?.isOnline)} suspended={operationalSuspension.active}
-            onChange={updateUserOnlineStatus} />
-        </div>
+        {/* Main Job Card: the same card as "Trabalhos ativos" (without the driver row). */}
+        <DriverOperationCard
+          photo={{ src: displayedVehiclePhoto, busy: vehiclePhotoBusy, canEdit: Boolean(vehicle?.id), error: vehiclePhotoError || undefined, pending: vehiclePhotoPending,
+            inputRef: photoInputRef, onFileSelected: onVehiclePhotoSelected, onPick: () => photoInputRef.current?.click() }}
+          info={{ id: operationInfoId, open: isOperationInfoOpen, onOpen: () => setOperationInfoScope(currentOperationInfoScope) }}
+          finish={operationReadyForManualFinish ? {
+            heading: localPendingTrips > 0 ? "Entregas salvas no aparelho" : "Entregas concluídas!",
+            label: myJob.operationSyncState === "pending_finish" ? "Finalização salva" : isFinishing ? "Salvando…" : "Finalizar Operação",
+            disabled: isFinishing || myJob.operationSyncState === "pending_finish", onFinish: handleFinishJob } : null}
+          notice={<PendingProOperationNotice jobId={myJob?.id} driverId={currentUser?.id}
+            companyId={activeCompanyId} confirmed={currentOperationProgress}
+            serverProgress={Number(myJob?.progress || 0)}
+            total={contract?.totalDeliveries || 0}
+            visibleHistoryCount={currentOperationTrips.length}
+            historyReady={Boolean(isIntegrated ? tripHistoryReadyOverride : driverTripsState.historyReady)} />}
+          vehicle={{ name: vehicle?.name || "Veículo não informado", trailer: !trailerlessSimulator ? trailer?.name || "Reboque não informado" : "",
+            operationName: contract.name, onPaints: () => setPaintDialogOpen(true) }}
+          progress={{ done: realProgress, total: contract.totalDeliveries, remaining: Math.max(0, contract.totalDeliveries - realProgress), percent: progressPercent,
+            replayKey: String(progressAnimationKey ?? `${location.key}:${location.pathname}:${myJob.id}`) }}
+          sync={<OperationSyncNotice job={myJob} />}
+          timing={{ remaining: timeRemainingText, onStart: () => void handleTripAction(),
+            disabled: !isTripRecordableJobStatus(myJob.status, realProgress, contract.totalDeliveries) || operationReadyForManualFinish || isWorkModeChecking || isSimpleAutomationStarting,
+            busy: isWorkModeChecking || isSimpleAutomationStarting }}
+          status={{ online: Boolean(currentUser?.isOnline), suspended: operationalSuspension.active, onChange: updateUserOnlineStatus }}
+        />
       </div>
   );
   const contractRoutesCard = (contract.mode === "detailed" &&

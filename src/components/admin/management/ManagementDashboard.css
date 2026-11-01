@@ -15,6 +15,8 @@
   --central-track: #e4eef0;
   --central-arrow: #23343b;
   --central-warning: var(--nvu-operation-warning, #b8660d);
+  /* Vehicle photo of an operation card: the same proportion in "Trabalhos ativos" and in the driver's "Painel do motorista". */
+  --central-photo-ratio: 2.3;
   color: var(--central-text);
   font-family: "NVU Management", Roboto, system-ui, sans-serif;
 }
@@ -137,7 +139,7 @@ body .nvu-central-shell .nvu-admin-shell-content > main > div:first-child { padd
 .nvu-central-job-status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .nvu-central-job-status[data-state="overdue"] { color: var(--central-warning); }
 .nvu-central-job-status[data-state="pending"] { color: var(--central-muted); }
-.nvu-central-vehicle-photo { position: relative; aspect-ratio: 3.1; overflow: hidden; border-radius: 12px; background: var(--central-soft); }
+.nvu-central-vehicle-photo { position: relative; aspect-ratio: var(--central-photo-ratio, 2.3); overflow: hidden; border-radius: 12px; background: var(--central-soft); }
 .nvu-central-photo-frame { width: 100%; height: 100%; }
 .nvu-central-photo-frame img { width: 100%; height: 100%; object-fit: cover; }
 .nvu-central-photo-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; width: 100%; height: 100%; color: var(--central-muted); font-size: 11px; }

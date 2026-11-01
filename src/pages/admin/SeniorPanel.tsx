@@ -2,6 +2,8 @@ import { queryPrivateUsers, readPrivateUser } from "../../services/privateUserPr
 import { CachedImage } from "../../components/common/CachedImage";
 import { deleteCompanyCanonical } from "../../services/seniorAccountAdministrationService";
 import { uniqueCompanyMembers } from "../../lib/seniorMembers";
+import { extraRegistrationSimulatorIds, registrationSimulatorIds } from "../../lib/registrationSimulators";
+import { addCompanySimulators } from "../../services/companyGroupService";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -962,6 +964,8 @@ export default function SeniorPanel() {
         sourceRegistrationId: reg.id,
         approvedAt: companyCreatedAt,
         createdAt: companyCreatedAt,
+        // Several simulators were asked for: the first fleet starts the group; the server creates the others below.
+        ...(registrationSimulatorIds(normalizedRegistration).length > 1 ? { companyGroupId: newCompanyRef.id } : {}),
       };
 
       let finalUserId = "";
@@ -1153,6 +1157,21 @@ export default function SeniorPanel() {
       await batch.commit();
       batchCommitted = true;
 
+      // The registration asked for more simulators: each one is its own fleet of the same company, created by the server.
+      // The first fleet is already approved, so a failure here never undoes it (the owner can add them later).
+      const extraSimulatorIds = extraRegistrationSimulatorIds(normalizedRegistration, canonicalSimulatorId,
+        id => resolveSimulatorId(id, simulators as any[]) || id);
+      let extraFleets: Array<{ companyId: string; simulatorId: string; simulatorName: string }> = [];
+      if (extraSimulatorIds.length) {
+        try {
+          const added = await addCompanySimulators(newCompanyRef.id, extraSimulatorIds, reg.id);
+          extraFleets = [...added.created, ...added.existing];
+        } catch (extraError) {
+          console.warn("[SeniorPanel] Primeiro ambiente aprovado; os demais simuladores não foram criados:", extraError);
+          toast.warning("Empresa aprovada no primeiro simulador. Os outros ainda não puderam ser criados; o proprietário pode adicioná-los em Editar Empresa.");
+        }
+      }
+
       // Confirma a publicação imediatamente. Os gatilhos de Firestore usam o
       // mesmo ID determinístico, então esta chamada é idempotente e também
       // funciona como recuperação caso um gatilho tenha sofrido atraso.
@@ -1181,8 +1200,15 @@ export default function SeniorPanel() {
         ...current.filter((company) => company.id !== newCompanyRef.id),
         { id: newCompanyRef.id, ...finalCompanyPayload },
       ]);
+      if (extraFleets.length) {
+        setAllCompanies((current) => [
+          ...current,
+          ...extraFleets.filter((fleet) => !current.some((company) => company.id === fleet.companyId))
+            .map((fleet) => ({ ...finalCompanyPayload, id: fleet.companyId, simulatorId: fleet.simulatorId, simulatorName: fleet.simulatorName, companyGroupId: newCompanyRef.id })),
+        ]);
+      }
       setCompaniesTotalCount((current) =>
-        typeof current === "number" ? current + 1 : current,
+        typeof current === "number" ? current + 1 + extraFleets.length : current,
       );
       setRegistrations((current) =>
         current.map((registration) =>
