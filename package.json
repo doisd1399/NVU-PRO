@@ -292,6 +292,7 @@
     "test:offline-flow-ui": "node scripts/test-offline-flow-ui.mjs",
     "test:pending-history-rows": "node --import tsx scripts/test-pending-history-rows.mts",
     "test:driver-idle-heading-ui": "node scripts/test-driver-idle-heading-ui.mjs",
+    "test:ranking-no-layout-shift-ui": "node scripts/test-ranking-no-layout-shift-ui.mjs",
     "test:ranking-default-view": "node scripts/test-ranking-default-view.mjs",
     "test:driver-operation-card-ui": "node scripts/test-driver-operation-card-ui.mjs",
     "test:performance-offline": "npm run lint && npm run test:durable-operation-outbox && npm run test:operation-read-performance && npm run test:work-mode-fast-preflight && npm run test:fluency-476 && npm run test:offline-database-storage && npm run test:offline-sync-job-order && npm run test:operation-completion-queue-cleanup && npm run test:operation-finalization-regression && npm run test:operation-outbox-native-contract && npm run verify:canonical-operation-boundary && npm run verify:canonical-operation-read-boundary",

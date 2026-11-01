@@ -39,7 +39,10 @@
 .nvu-gamer-ranking button:focus-visible { outline: 2px solid var(--gamer-muted); outline-offset: 3px; }
 .nvu-gamer-ranking button:focus:not(:focus-visible) { outline: none; }
 
-.nvu-gamer-results { margin-top: 24px; }
+.nvu-gamer-results { position: relative; margin-top: 24px; }
+/* The "saved result · updating" line sits in the gap above the podium instead of opening a row of its own, so the page does not
+   move down and back up every time the ranking is opened and refreshed. */
+.nvu-gamer-saved-snapshot { position: absolute; left: 0; right: 0; top: -21px; height: 16px; margin: 0; overflow: hidden; text-align: center; font-size: 12px; line-height: 16px; white-space: nowrap; text-overflow: ellipsis; pointer-events: none; }
 .nvu-gamer-top-title { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: var(--gamer-muted); font-size: 11px; font-weight: 500; }
 .nvu-gamer-top-title::before { content: ""; display: block; width: 3px; height: 17px; border-radius: 2px; background: var(--gamer-accent-bright); }
 .nvu-gamer-top-title strong { color: var(--gamer-text); font-size: 16px; line-height: 1.2; font-weight: 700; }

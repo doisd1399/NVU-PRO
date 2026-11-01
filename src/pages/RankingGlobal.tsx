@@ -1352,7 +1352,7 @@ export default function RankingGlobal() {
 
         <div className="nvu-gamer-results">
           {rankingReady && (rankingAggregateState.stale || aggregateCompaniesRefreshing || aggregateCompaniesError || !rankingSourcesReady) && (
-            <p role="status" data-testid="ranking-saved-snapshot" className="mb-3 text-center text-xs text-slate-500 dark:text-nvu-muted">
+            <p role="status" data-testid="ranking-saved-snapshot" className="nvu-gamer-saved-snapshot text-slate-500 dark:text-nvu-muted">
               Último resultado salvo · {rankingAggregateState.refreshing || aggregateCompaniesRefreshing ? "atualizando" : "aguardando atualização"}
             </p>
           )}
