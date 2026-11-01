@@ -1,6 +1,5 @@
 import { readPrivateUser } from "../../../services/privateUserProfiles";
 import { CachedImage } from "../../../components/common/CachedImage";
-import { ModalPortal } from "../../../components/ui/ModalPortal";
 import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { filterAndSortTripHistory } from "../../../lib/tripHistoryEngine";
 import { applySimulatorCurrencyContext } from "../../../lib/metricsEngine";
@@ -15,7 +14,6 @@ import {
   Pencil,
   Calendar,
   Check,
-  Trash2,
   AlertTriangle,
   Camera,
   LoaderCircle,
@@ -28,9 +26,7 @@ import { PeriodSelector, DateRange } from "./PeriodSelector";
 import { CompanyPerformanceCard } from "../../../components/CompanyPerformanceCard";
 import { CompanyRecruitmentNotice } from "../../../components/admin/CompanyRecruitmentNotice";
 import { StableImage } from "../../../components/common/StableImage";
-import { CompanySimulatorsSection } from "../../../components/admin/CompanySimulatorsSection";
-import { addSummary, groupFailureMessage, groupSimulatorRows, simulatorsToAdd, type GroupSimulatorRow } from "../../../services/companyGroupCore";
-import { addCompanySimulators, loadCompanyGroupCapabilities, renameCompanyGroup } from "../../../services/companyGroupService";
+import { CompactProfileEditorModal } from "../../../components/CompactProfileEditorModal";
 import {
   parseISO,
   isWithinInterval,
@@ -79,9 +75,7 @@ function CompanyTab({
     loadCompanyById,
     activeCompanyId,
     memberships,
-    updateCompany,
     createCompany,
-    deleteCompany,
     recruitmentApplications,
     driverRequests,
   } = useCompanyStore();
@@ -265,19 +259,12 @@ function CompanyTab({
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [isProcessingLogo, setIsProcessingLogo] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [logoUploadProgress, setLogoUploadProgress] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
-  // One company, several simulators: what the published server offers, and the fleets added in this session (shown at once;
-  // the shared company list catches up when the new memberships arrive).
-  const [groupCapabilities, setGroupCapabilities] = useState<string[]>([]);
-  const [addedFleets, setAddedFleets] = useState<GroupSimulatorRow[]>([]);
-  const [addedSimulatorIds, setAddedSimulatorIds] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     companyName: "",
@@ -331,38 +318,6 @@ function CompanyTab({
       })),
     [simulatorOptions],
   );
-
-  const isCompanyOwner = Boolean(activeCompany && currentUser?.id && (activeCompany.ownerId === currentUser.id || activeCompany.userId === currentUser.id));
-  const isSeniorOfCompany = Boolean(activeCompany && seniorCompanyId && seniorCompanyId === activeCompany.id);
-  const canRenameCompany = isCompanyOwner || isSeniorOfCompany;
-  const groupRows = useMemo(() => {
-    const rows = groupSimulatorRows(activeCompany, companies as any[], simulators as any[]);
-    return [...rows, ...addedFleets.filter(added => !rows.some(row => row.companyId === added.companyId))];
-  }, [activeCompany, companies, simulators, addedFleets]);
-  const groupAddable = useMemo(() => simulatorsToAdd(activeCompany, companies as any[], simulators as any[])
-    .filter(option => !addedSimulatorIds.includes(option.value)), [activeCompany, companies, simulators, addedSimulatorIds]);
-  const hasOtherFleets = groupRows.length > 1;
-  // The list of added fleets belongs to the company that was being edited.
-  React.useEffect(() => { setAddedFleets([]); setAddedSimulatorIds([]); }, [activeCompany?.id]);
-  React.useEffect(() => {
-    if (!isEditing || isAddingNew) return;
-    let current = true;
-    loadCompanyGroupCapabilities().then(list => { if (current) setGroupCapabilities(list); }, () => undefined);
-    return () => { current = false; };
-  }, [isEditing, isAddingNew, currentUser?.id]);
-  const handleAddSimulators = async (simulatorIds: string[]) => {
-    if (!activeCompany) throw new Error("Empresa não encontrada.");
-    try {
-      const result = await addCompanySimulators(activeCompany.id, simulatorIds);
-      const known = new Set(groupRows.map(row => row.companyId));
-      setAddedFleets(current => [...current, ...[...result.created, ...result.existing].filter(row => row.companyId && !known.has(row.companyId))
-        .map(row => ({ companyId: row.companyId, label: row.simulatorName, current: false }))]);
-      setAddedSimulatorIds(current => [...new Set([...current, ...result.created.map(row => row.simulatorId), ...result.existing.map(row => row.simulatorId)])]);
-      const message = addSummary(result);
-      toast.success(message);
-      return message;
-    } catch (error) { throw new Error(groupFailureMessage(error)); }
-  };
 
   const logoCompanyRef = useRef(activeCompany?.id);
   React.useEffect(() => {
@@ -452,50 +407,7 @@ function CompanyTab({
 
       const companyData = { ...formData, logoUrl };
 
-      if (isEditing && activeCompany && !isAddingNew) {
-        // The banner editor is an administrative identity surface: it may
-        // change the company name/logo, while simulator assignment remains
-        // owned by the existing operational controls.
-        const nextName = String(companyData.companyName || "").trim().replace(/\s+/g, " ");
-        if (!nextName) {
-          throw new Error("Nome da empresa é obrigatório.");
-        }
-        const nameChanged = nextName !== String(activeCompany.companyName || "").trim();
-        // Only the owner (or a Senior) renames. The name belongs to every simulator of the company, so the server writes
-        // it to all of them; a company with one simulator is still renamed directly when the server cannot do it.
-        const renameThroughServer = nameChanged && canRenameCompany && (groupCapabilities.includes("rename") || hasOtherFleets);
-        if (renameThroughServer) {
-          if (!groupCapabilities.includes("rename")) {
-            throw new Error("Para trocar o nome de uma empresa com vários simuladores, o servidor precisa estar atualizado. Tente novamente mais tarde.");
-          }
-          try { await renameCompanyGroup(activeCompany.id, nextName); }
-          catch (error) { throw new Error(groupFailureMessage(error)); }
-        }
-        const editableCompanyData = {
-          ownerName: companyData.ownerName,
-          whatsapp: companyData.whatsapp,
-          logoUrl: companyData.logoUrl,
-          ...(nameChanged && canRenameCompany && !renameThroughServer ? { companyName: nextName } : {}),
-        };
-        await updateCompany(activeCompany.id, editableCompanyData);
-        setFormData({
-          ...companyData,
-          companyName: nextName,
-          simulatorId:
-            activeCompanySimulatorOption?.canonicalId ||
-            activeCompany.simulatorId ||
-            activeCompanySimulatorOption?.value ||
-            "",
-          simulatorName:
-            activeCompanySimulatorOption?.label ||
-            activeCompany.simulatorName ||
-            "",
-        });
-        setPendingLogoFile(null);
-        setLogoPreviewUrl(null);
-        setIsEditing(false);
-        toast.success("Dados da empresa atualizados.");
-      } else if (isAddingNew) {
+      if (isAddingNew) {
         await createCompany(companyData);
         setPendingLogoFile(null);
         setLogoPreviewUrl(null);
@@ -571,19 +483,6 @@ function CompanyTab({
     }
   };
 
-  const handleDelete = async () => {
-    if (!activeCompany) return;
-    setIsDeleting(true);
-    try {
-      await deleteCompany(activeCompany.id);
-      setShowDeleteConfirm(false);
-    } catch (e: any) {
-      alert("Erro ao excluir frota: " + e.message);
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   const isDateInRange = (dateStr?: string) => {
     if (!dateStr || !dateRange || !dateRange.from) return true;
     try {
@@ -615,13 +514,13 @@ function CompanyTab({
     [contracts, activeCompanyId, dateRange],
   );
 
-  if (isEditing || isAddingNew) {
+  if (isAddingNew) {
     return (
       <div className="nvu-company-profile-view space-y-4">
         <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-[20px] shadow-sm p-5 mt-4">
         <div className="flex items-center justify-between mb-6 border-b border-slate-100 dark:border-nvu-line pb-4">
           <h3 className="text-[17px] font-bold text-slate-900 dark:text-white tracking-tight">
-            {isEditing ? "Editar Empresa" : "Nova Empresa"}
+            Nova Empresa
           </h3>
           <Button
             type="submit"
@@ -686,33 +585,6 @@ function CompanyTab({
                   />
                 </div>
               </>
-            )}
-            {isEditing && !isAddingNew && canRenameCompany && (
-              <div>
-                <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1" htmlFor="company-name-edit">
-                  Nome da Empresa
-                </label>
-                <input
-                  id="company-name-edit"
-                  name="companyName"
-                  value={formData.companyName}
-                  onChange={handleChange}
-                  maxLength={200}
-                  className="w-full bg-slate-50 dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-12 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-white transition-all shadow-sm"
-                  required
-                />
-                <p className="mt-1.5 ml-1 text-[12px] text-slate-500 dark:text-nvu-muted">
-                  O novo nome vale para todos os simuladores da empresa.
-                </p>
-              </div>
-            )}
-            {isEditing && !isAddingNew && (
-              <CompanySimulatorsSection
-                rows={groupRows}
-                addable={groupAddable}
-                canAdd={canRenameCompany && groupCapabilities.includes("add-simulators")}
-                onAdd={handleAddSimulators}
-              />
             )}
             <div>
               <label className="block text-[14px] font-medium text-slate-700 dark:text-nvu-muted mb-1.5 ml-1">
@@ -803,17 +675,7 @@ function CompanyTab({
             </div>
           </div>
           <div className="flex items-center justify-between pt-6 mt-4 border-t border-slate-100 dark:border-nvu-line">
-            {activeCompany && isEditing ? (
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(true)}
-                className="text-rose-600 dark:text-rose-400 flex items-center gap-1.5 text-[14px] font-semibold p-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
-              >
-                <Trash2 size={16} /> Excluir
-              </button>
-            ) : (
-              <div />
-            )}
+            <div />
             {activeCompany && (
               <button
                 type="button"
@@ -833,43 +695,6 @@ function CompanyTab({
           </div>
         </form>
 
-        {showDeleteConfirm && (
-          <ModalPortal label="Excluir frota" onClose={() => setShowDeleteConfirm(false)} busy={isDeleting}><div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="nvu-viewport-modal-card flex flex-col overflow-hidden bg-white dark:bg-nvu-surface rounded-3xl max-w-sm w-full shadow-2xl relative">
-              <div className="nvu-modal-body p-6">
-              <div className="flex justify-center mb-5">
-                <div className="w-14 h-14 bg-rose-100 dark:bg-rose-500/10 rounded-full flex items-center justify-center text-rose-600 dark:text-rose-400">
-                  <AlertTriangle size={28} />
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2 text-center tracking-tight">
-                Excluir Empresa
-              </h3>
-              <p className="text-slate-600 dark:text-nvu-muted text-[14px] text-center mb-8 leading-relaxed">
-                Tem certeza que deseja excluir{" "}
-                <b>{activeCompany?.companyName}</b>? A empresa será arquivada e os vínculos serão removidos. O histórico será preservado. Encerre as operações em aberto antes de continuar.
-              </p>
-              </div>
-              <div className="flex gap-3 px-6 pb-6">
-                <Button
-                  variant="outline"
-                  className="flex-1 font-semibold border-slate-200 dark:border-nvu-line text-slate-700 dark:text-nvu-text-soft h-12 rounded-xl"
-                  onClick={() => setShowDeleteConfirm(false)}
-                  disabled={isDeleting}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleDelete}
-                  className="flex-1 font-semibold bg-rose-600 hover:bg-rose-700 text-white border-0 h-12 rounded-xl"
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? "Progresso..." : "Sim, excluir"}
-                </Button>
-              </div>
-            </div>
-          </div></ModalPortal>
-        )}
         </div>
       </div>
     );
@@ -1012,6 +837,7 @@ function CompanyTab({
         document.body
       )}
 
+      <CompactProfileEditorModal open={isEditing && !isAddingNew} mode="company" onClose={() => setIsEditing(false)} />
       <HistoryReadCoverageNotice coverage={companyHistoryCoverage} hasError={Boolean(companyHistoryError)} error={companyHistoryError} readCoverage={companyHistoryReadCoverage} backgroundRefresh={companyHistoryReady} />
       {canManageCompanyProfile(currentUser?.id || "", activeCompany, memberships, seniorCompanyId) &&
         <CompanyRecruitmentNotice companyId={activeCompanyId} applications={recruitmentApplications || []} requests={driverRequests || []} />}

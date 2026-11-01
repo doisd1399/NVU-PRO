@@ -27,6 +27,11 @@
   padding-block: 0;
 }
 
+/* Tablets and desktops: the bottom pill does not need the phone's full width. */
+@media (min-width: 768px) {
+  .nvu-workspace-dock-region > nav.nvu-driver-dock { max-width: 440px; }
+}
+
 .nvu-workspace-dock-space {
   height: var(--nvu-workspace-dock-clearance);
   min-height: var(--nvu-workspace-dock-clearance);
@@ -48,7 +53,7 @@ html:has(.nvu-workspace-dock-region) {
 @media (orientation: landscape) and (min-width: 1100px) {
   :root {
     --nvu-workspace-dock-clearance: 0px;
-    --nvu-rail-reserve: 80px;
+    --nvu-rail-reserve: 72px;
   }
 
   .nvu-workspace-dock-space { display: none; }
@@ -70,18 +75,18 @@ html:has(.nvu-workspace-dock-region) {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 6px;
+    padding: 5px;
     border-radius: 16px;
   }
 
-  /* 44px buttons; on very short windows they shrink so the whole rail stays inside the viewport
+  /* 38px buttons (a 50px rail); on very short windows they shrink so the whole rail stays inside the viewport
      (6 buttons + 5 gaps + padding/border + 12px of air above and below). */
   .nvu-workspace-dock-region .nvu-driver-dock-item {
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     min-height: 0;
-    width: max(32px, min(44px, calc((100dvh - 58px) / 6)));
-    height: max(32px, min(44px, calc((100dvh - 58px) / 6)));
+    width: max(30px, min(38px, calc((100dvh - 56px) / 6)));
+    height: max(30px, min(38px, calc((100dvh - 56px) / 6)));
     padding: 0;
     border-radius: 12px;
   }

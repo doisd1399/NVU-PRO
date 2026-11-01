@@ -63,60 +63,7 @@ try {
   await page.keyboard.press("Escape");
   checks.push("Chips removable one by one, Escape and X discard the draft, Limpar empties it");
 
-  // 3. "Simuladores da empresa": rows, tags and the add flow.
-  const section = page.getByTestId("company-simulators");
-  assert.deepEqual(await section.locator("li").allInnerTexts().then(items => items.map(item => item.replace(/\s+/g, " "))), ["GTO Ambiente atual", "ATS Ativo"]);
-  await page.evaluate(() => (window as any).qaMulti.setCanAdd(false));
-  await section.getByRole("button", { name: "Adicionar simuladores" }).waitFor({ state: "detached" });
-  assert.equal(await section.getByRole("button", { name: "Adicionar simuladores" }).count(), 0, "only the owner, with the server command published, can add");
-  await page.evaluate(() => (window as any).qaMulti.setCanAdd(true));
-  await section.getByRole("button", { name: "Adicionar simuladores" }).click();
-  const picker = page.getByRole("dialog", { name: "Adicionar simuladores" });
-  await picker.waitFor();
-  assert.deepEqual(await picker.getByRole("option").allInnerTexts().then(items => items.map(item => item.trim())), ["ETS 2", "WTDS", "PBS"], "only the simulators the company does not have");
-  await picker.getByRole("option", { name: "ETS 2" }).click();
-  await picker.getByRole("option", { name: "WTDS" }).click();
-  await picker.getByRole("button", { name: "Confirmar (2)" }).click();
-  // The confirmation says what is created before anything is created.
-  const confirmation = page.getByRole("dialog", { name: "Adicionar simuladores" });
-  await confirmation.getByRole("button", { name: "Adicionar 2 simuladores" }).waitFor();
-  const wording = await confirmation.innerText();
-  assert.match(wording, /ETS 2/); assert.match(wording, /WTDS/);
-  assert.match(wording, /frota, operações, motoristas e ranking separados/);
-  assert.match(wording, /Você será administrador de todos/);
-  assert.match(wording, /se inscrevem em cada simulador separadamente/);
-  assert.deepEqual(await page.evaluate(() => (window as any).qaMulti.added), [], "nothing was sent yet");
-  await confirmation.getByRole("button", { name: "Cancelar" }).click();
-  assert.deepEqual(await page.evaluate(() => (window as any).qaMulti.added), [], "Cancelar sends nothing");
-  checks.push("Simuladores da empresa: rows with tags, add only for the owner, picker lists only missing simulators, confirmation explains the effect and Cancelar sends nothing");
-
-  // 4. Confirm sends the exact ids; busy blocks double taps; a refusal keeps the dialog open with the reason.
-  await page.evaluate(() => { (window as any).qaMulti.delay = 300; });
-  await section.getByRole("button", { name: "Adicionar simuladores" }).click();
-  await picker.waitFor();
-  await picker.getByRole("option", { name: "ETS 2" }).click();
-  await picker.getByRole("option", { name: "PBS" }).click();
-  await picker.getByRole("button", { name: "Confirmar (2)" }).click();
-  const add = confirmation.getByRole("button", { name: "Adicionar 2 simuladores" });
-  await add.click();
-  await confirmation.getByRole("button", { name: "Adicionando…" }).waitFor();
-  assert.equal(await confirmation.getByRole("button", { name: "Cancelar" }).isDisabled(), true, "busy: Cancelar is blocked");
-  await confirmation.waitFor({ state: "detached" });
-  assert.deepEqual(await page.evaluate(() => (window as any).qaMulti.added), [["ets-2", "pbs"]], "one command with the chosen ids, in the catalog order");
-
-  await page.evaluate(() => { const state = (window as any).qaMulti; state.failNext = true; state.delay = 40; state.added.length = 0; });
-  await section.getByRole("button", { name: "Adicionar simuladores" }).click();
-  await picker.waitFor();
-  await picker.getByRole("option", { name: "WTDS" }).click();
-  await picker.getByRole("button", { name: "Confirmar (1)" }).click();
-  await confirmation.getByRole("button", { name: "Adicionar 1 simulador" }).click();
-  await confirmation.getByRole("alert").waitFor();
-  assert.match(await confirmation.getByRole("alert").innerText(), /Somente o proprietário da empresa pode fazer isso\./);
-  assert.equal(await confirmation.getByRole("button", { name: "Adicionar 1 simulador" }).isDisabled(), false, "after a refusal the owner can try again");
-  await confirmation.getByRole("button", { name: "Cancelar" }).click();
-  checks.push("Confirm sends one command with the ids; busy blocks double taps; a refusal keeps the dialog with the reason");
-
-  // 5. Small screens: the picker and the confirmation stay inside a 320 x 568 window.
+  // 3. Small screens: the picker stays inside a 320 x 568 window.
   await page.setViewportSize({ width: 320, height: 568 });
   await field.getByRole("button", { name: /Selecionar simuladores/ }).click();
   await dialog.waitFor();

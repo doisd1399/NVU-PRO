@@ -36,6 +36,20 @@
 }
 
 /* Availability row at the bottom of the card. */
-.nvu-driver-op-card > .nvu-driver-status-row { min-height: 40px; padding: 10px 2px 0; margin-top: 1px; border-top: 1px solid var(--central-line); }
+.nvu-driver-op-card > .nvu-driver-status-row { min-height: 30px; gap: 8px; padding: 6px 2px 0; margin-top: 0; border-top: 1px solid var(--central-line); }
+.nvu-driver-op-card .nvu-driver-status-dot { width: 8px; height: 8px; }
+.nvu-driver-op-card .nvu-driver-status-label { font-size: 12px; }
+.nvu-driver-op-card .nvu-driver-status-value { padding-left: 8px; font-size: 11px; }
+/* The availability switch is a little smaller so the row is not taller than its text. */
+.nvu-driver-op-card .nvu-driver-status-row > label { margin-right: -3px; transform: scale(.82); transform-origin: right center; }
+
+/* Compact lower area (start button, remaining time, availability): less height than the shared card. */
+.nvu-driver-op-card { gap: 7px; padding: 12px; }
+.nvu-driver-op-card .nvu-central-operation-stats { gap: 6px; padding: 8px 14px 9px; }
+.nvu-driver-op-card .nvu-driver-operation-timing { gap: 4px; }
+.nvu-driver-op-card .nvu-driver-operation-timing > .nvu-driver-start-work { min-height: 38px; padding-block: 4px; font-size: 12.5px; }
+.nvu-driver-op-card .nvu-driver-remaining-time { font-size: 11px; line-height: 1.2; }
+.nvu-driver-op-card .nvu-driver-remaining-time > strong { font-size: 12px; }
+.nvu-driver-op-card .nvu-driver-remaining-time > svg { width: 13px; height: 13px; }
 .nvu-driver-op-card .nvu-driver-status-label { color: var(--central-text); }
 .nvu-driver-op-card .nvu-driver-status-value { color: var(--central-muted); border-left-color: var(--central-line); }

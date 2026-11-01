@@ -54,6 +54,8 @@ body .nvu-driver-workspace .nvu-profile-stack .nvu-profile-hero.nvu-driver-hero 
 .nvu-driver-surface[data-page="dashboard"] { padding-top: 12px; }
 .nvu-driver-page-heading[data-page="dashboard"] { text-align: center; margin: 0 0 var(--nvu-page-description-gap, 18px); }
 .nvu-driver-page-heading[data-page="dashboard"] h1 { font-size: 19px; font-weight: 550; }
+/* Desktop and tablet: more air between the page description and the cards below. */
+@media (min-width: 768px) { .nvu-driver-page-heading[data-page="dashboard"] { margin-bottom: var(--nvu-page-description-gap-wide, 32px); } }
 .nvu-driver-page-heading[data-page="dashboard"] p { display: inline-block; max-width: 100%; padding: 4px 9px; border: 1px solid var(--driver-line); border-radius: 8px; background: var(--driver-paper); font-size: var(--nvu-driver-dashboard-description-size, 10px); line-height: 1.35; margin: 6px 0 0; }
 .nvu-driver-profile-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .nvu-driver-profile-heading button { display: grid; place-items: center; width: 36px; height: 36px; color: var(--driver-muted); border-radius: 10px; background: var(--driver-paper); border: 1px solid var(--driver-line); }

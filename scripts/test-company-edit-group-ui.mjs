@@ -4,8 +4,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 
-// "Editar Empresa" of the real company profile (CompanyTab inside AdminLayout and Fleet, built CSS): the company name for the owner,
-// the "Simuladores da empresa" list and the add flow. Only the stores and the group service are fixtures.
+// The new "Editar empresa" form of the real company profile (CompanyTab inside AdminLayout and Fleet, built CSS): cover, logo, name,
+// owner, WhatsApp and "Simuladores de atuação" (check adds, uncheck switches off). Only the stores and the group service are fixtures.
 const root = process.cwd(), results = [], errors = [];
 let playwright;
 try { playwright = await import("playwright"); }
@@ -16,14 +16,17 @@ const cssFiles = (await fs.readdir("dist/assets")).filter(name => name.endsWith(
 assert(cssFiles.some(name => name.startsWith("index-")), "Build the app first");
 const css = (await Promise.all(cssFiles.map(name => fs.readFile(path.join("dist/assets", name), "utf8")))).join("\n");
 const baseFixtures = await fs.readFile("scripts/fixtures/company-landscape-fixtures.tsx", "utf8");
-const adapters = new Set(["AppContext.tsx", "CompanyContext.tsx", "NotificationsContext.tsx", "firebase.ts", "routePreload.ts", "rankingPhotoWarmup.ts", "usePersistentRankingImage.ts", "useTripHistory.ts", "useDriverTrips.ts", "useMissingOperationTrip.ts", "SimpleAutomationCompletionBridge.tsx", "CompactProfileEditorModal.tsx", "NotificationCenter.tsx", "ProfileModal.tsx", "useVehiclePhoto.ts", "workModeAvailabilityService.ts", "simpleAutomationCityService.ts", "operationIntegrityGuard.ts", "uploadService.ts", "useProfileRanking.ts", "useTripsRealtime.ts", "AutomaticOperationsProvider.tsx", "useLocalOperationPending.ts", "CanonicalTripMigrationService.ts", "CanonicalTripCommandService.ts", "CanonicalTripOperationService.ts", "syncManager.ts", "tripModerationService.ts", "ProPendingAuthButton.tsx", "ProPendingRetryButton.tsx", "ProAttemptDiagnosticDetails.tsx", "FailedHistoryRegistrationRecovery.tsx", "OperationResultModal.tsx"]);
+const adapters = new Set(["AppContext.tsx", "CompanyContext.tsx", "NotificationsContext.tsx", "firebase.ts", "routePreload.ts", "rankingPhotoWarmup.ts", "usePersistentRankingImage.ts", "useTripHistory.ts", "useDriverTrips.ts", "useMissingOperationTrip.ts", "SimpleAutomationCompletionBridge.tsx", "NotificationCenter.tsx", "ProfileModal.tsx", "useVehiclePhoto.ts", "workModeAvailabilityService.ts", "simpleAutomationCityService.ts", "operationIntegrityGuard.ts", "uploadService.ts", "useProfileRanking.ts", "useTripsRealtime.ts", "AutomaticOperationsProvider.tsx", "useLocalOperationPending.ts", "CanonicalTripMigrationService.ts", "CanonicalTripCommandService.ts", "CanonicalTripOperationService.ts", "syncManager.ts", "tripModerationService.ts", "ProPendingAuthButton.tsx", "ProPendingRetryButton.tsx", "ProAttemptDiagnosticDetails.tsx", "FailedHistoryRegistrationRecovery.tsx", "OperationResultModal.tsx"]);
 const secondary = new Set(["VehiclesTab.tsx", "TrailersTab.tsx", "DriversTab.tsx", "ContractsTab.tsx", "RecruitmentTab.tsx", "GtoObserverSetup.tsx", "OperationsTab.tsx"]);
 const groupStub = `export const loadCompanyGroupCapabilities=async()=>[...(window.__group.capabilities||[])];
 export const addCompanySimulators=async(companyId,ids)=>{window.__group.calls.push(["add",companyId,ids]);if(window.__group.failAdd){const e=new Error("x");e.details={reasonCode:"GROUP_OWNER_ONLY"};throw e;}
-  return {success:true,companyId,created:ids.map(id=>({companyId:companyId+"-"+id,simulatorId:id,simulatorName:id.toUpperCase().replace("-"," ")})),existing:[],skipped:[]};};
+  return {created:ids.map(id=>({companyId:companyId+"-"+id,simulatorId:id,simulatorName:id.toUpperCase().replace("-"," ")})),existing:[],reactivated:[],skipped:[]};};
+export const deactivateCompanySimulators=async(companyId,ids)=>{window.__group.calls.push(["deactivate",companyId,ids]);if(window.__group.failDeactivate){const e=new Error("x");e.details={reasonCode:"GROUP_OPEN_OPERATIONS"};throw e;}
+  return {deactivated:ids.map(id=>({companyId:id,simulatorId:id,simulatorName:id.toUpperCase()})),alreadyInactive:[],remaining:1};};
 export const renameCompanyGroup=async(companyId,name)=>{window.__group.calls.push(["rename",companyId,name]);return {companyName:name,updated:1};};`;
 
-const variant = text => text.replace("simulatorName:'GTO',status:'active'", "simulatorName:'GTO',ownerName:'Diego',whatsapp:'11999999999',status:'active'").replace("updateCompany:load", "updateCompany:async(id,updates)=>{(window.__updates=window.__updates||[]).push([id,updates]);}");
+const catalog = text => text.replace("simulators:[{id:'gto',name:'GTO'},{id:'wbds',name:'WBDS'}]", "simulators:[{id:'gto',name:'GTO'},{id:'wbds',name:'WBDS'},{id:'ats',name:'ATS'},{id:'ets-2',name:'ETS 2'}]");
+const variant = text => catalog(text).replace("simulatorName:'GTO',status:'active'", "simulatorName:'GTO',ownerName:'Diego',whatsapp:'11999999999',status:'active'").replace("updateCompany:load", "updateCompany:async(id,updates)=>{(window.__updates=window.__updates||[]).push([id,updates]);}");
 const variants = {
   owner: variant(baseFixtures),
   stranger: variant(baseFixtures).replace("ownerId:'driver',userId:'driver'", "ownerId:'someone',userId:'someone'"),
@@ -72,104 +75,155 @@ async function open(name, capabilities, extra = {}) {
   await page.goto("http://127.0.0.1:43829/");
   await page.evaluate(({ capabilities, extra }) => { Object.assign((window).__group, { capabilities }, extra); }, { capabilities, extra });
   await page.getByRole("button", { name: "Editar empresa" }).first().click();
-  await page.getByRole("heading", { name: "Editar Empresa" }).waitFor();
+  await page.getByTestId("profile-editor").waitFor();
   return { page, context };
 }
 const calls = page => page.evaluate(() => ({ group: window.__group.calls, updates: window.__updates || [] }));
 async function check(name, run) { await run(); results.push(name); console.log("PASS " + name); }
 try {
-  await check("Owner: name field, own simulator listed, add button offered when the server lists it", async () => {
-    const { page, context } = await open("owner", ["add-simulators", "rename"]);
-    assert.equal(await page.getByLabel("Nome da Empresa").inputValue(), "DC Transportes");
-    assert.match(await page.locator("form").innerText(), /O novo nome vale para todos os simuladores da empresa\./);
-    const section = page.getByTestId("company-simulators");
-    assert.deepEqual((await section.locator("li").allInnerTexts()).map(item => item.replace(/\s+/g, " ")), ["GTO Ambiente atual"], "another company of the same owner is not listed");
-    await section.getByRole("button", { name: "Adicionar simuladores" }).waitFor();
+  const editor = page => page.getByTestId("profile-editor");
+  const save = page => page.getByRole("button", { name: "Salvar" });
+  await check("Owner: cover, logo, name, owner, WhatsApp and simulators of the company are in one form", async () => {
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"]);
+    const form = editor(page);
+    await form.getByTestId("profile-editor-cover").waitFor();
+    await form.getByRole("button", { name: "Alterar capa" }).waitFor();
+    await form.getByRole("button", { name: "Alterar logo da empresa" }).waitFor();
+    assert.equal(await form.getByLabel("Nome da empresa").inputValue(), "DC Transportes");
+    assert.equal(await form.getByLabel("Proprietário (responsável)").inputValue(), "Diego");
+    assert.equal(await form.getByLabel("WhatsApp").inputValue(), "11999999999");
+    const sims = form.getByTestId("profile-editor-simulators");
+    assert.match(await sims.innerText(), /GTO/);
+    assert.match(await form.innerText(), /O novo nome vale para todos os simuladores da empresa\./);
+    if (process.env.NVU_SHOTS) for (const theme of ["dark", "light"]) {
+      await page.evaluate(theme => { document.documentElement.classList.toggle("dark", theme === "dark"); }, theme);
+      await form.screenshot({ path: path.join(process.env.NVU_SHOTS, `company-editor-${theme}.png`) });
+    }
+    // The cover keeps the shape of the profile cover (8 / 3).
+    const box = await form.getByTestId("profile-editor-cover").boundingBox();
+    assert(Math.abs(box.width / box.height - 8 / 3) < 0.06, "cover ratio " + box.width / box.height);
     await context.close();
   });
 
-  await check("Owner renames: the server command carries the new name; the direct update no longer writes the name", async () => {
-    const { page, context } = await open("owner", ["add-simulators", "rename"]);
-    await page.getByLabel("Nome da Empresa").fill("  DC   Cargas ");
-    await page.getByRole("button", { name: "Salvar" }).click();
-    await page.waitForFunction(() => (window.__updates || []).length === 1, null, { timeout: 5000 }).catch(async () => { console.log("DEBUG", JSON.stringify(await calls(page)), (await page.locator("form").innerText()).slice(-400)); throw new Error("no update"); });
+  await check("Owner renames: the server command carries the new name; the shared fields go to the fleet without the name", async () => {
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"]);
+    await editor(page).getByLabel("Nome da empresa").fill("  DC   Cargas ");
+    await editor(page).getByLabel("WhatsApp").fill("22988887777");
+    await save(page).click();
+    await page.waitForFunction(() => (window.__updates || []).length === 1);
     const recorded = await calls(page);
     assert.deepEqual(recorded.group, [["rename", "dc", "DC Cargas"]]);
-    assert.equal(recorded.updates.length, 1); assert.equal(recorded.updates[0][0], "dc");
+    assert.equal(recorded.updates[0][0], "dc"); assert.equal(recorded.updates[0][1].whatsapp, "22988887777");
     assert.equal("companyName" in recorded.updates[0][1], false, "the name goes through the server, not through the single-fleet update");
+    await editor(page).waitFor({ state: "detached" });
     await context.close();
   });
 
   await check("Unchanged name: no rename command", async () => {
-    const { page, context } = await open("owner", ["add-simulators", "rename"]);
-    await page.getByRole("button", { name: "Salvar" }).click();
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"]);
+    await save(page).click();
     await page.waitForFunction(() => (window.__updates || []).length === 1);
     assert.deepEqual((await calls(page)).group, []);
     await context.close();
   });
 
-  await check("Server without the command: a company with one simulator is still renamed directly; the add option stays hidden", async () => {
+  await check("Server without the commands: a one-simulator company is still renamed directly; the simulator field is hidden", async () => {
     const { page, context } = await open("owner", []);
-    assert.equal(await page.getByTestId("company-simulators").getByRole("button", { name: "Adicionar simuladores" }).count(), 0);
-    await page.getByLabel("Nome da Empresa").fill("DC Direta");
-    await page.getByRole("button", { name: "Salvar" }).click();
+    assert.equal(await editor(page).getByTestId("profile-editor-simulators").count(), 0);
+    await editor(page).getByLabel("Nome da empresa").fill("DC Direta");
+    await save(page).click();
     await page.waitForFunction(() => (window.__updates || []).length === 1);
     const recorded = await calls(page);
     assert.deepEqual(recorded.group, []); assert.equal(recorded.updates[0][1].companyName, "DC Direta");
     await context.close();
   });
 
-  await check("Add flow: pick, confirm and the new simulators appear in the list at once", async () => {
-    const { page, context } = await open("owner", ["add-simulators", "rename"]);
-    const section = page.getByTestId("company-simulators");
-    await section.getByRole("button", { name: "Adicionar simuladores" }).click();
-    const picker = page.getByRole("dialog", { name: "Adicionar simuladores" });
+  await check("Checking a simulator adds it (summary first, one command on Save)", async () => {
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"]);
+    const sims = editor(page).getByTestId("profile-editor-simulators");
+    await sims.getByRole("button", { name: /Simuladores de atuação/ }).click();
+    const picker = page.getByRole("dialog", { name: "Simuladores de atuação" });
     await picker.waitFor();
-    const offered = (await picker.getByRole("option").allInnerTexts()).map(item => item.trim());
-    assert(!offered.includes("GTO"), "the simulator the company has is not offered: " + offered.join(","));
-    await picker.getByRole("option").first().click();
-    await picker.getByRole("button", { name: "Confirmar (1)" }).click();
-    await page.getByRole("button", { name: "Adicionar 1 simulador" }).click();
+    assert.deepEqual((await picker.getByRole("option").allInnerTexts()).map(item => item.trim()), ["GTO", "WBDS", "ATS", "ETS 2"]);
+    await picker.getByRole("option", { name: "ATS" }).click();
+    await picker.getByRole("button", { name: "Confirmar (2)" }).click();
+    assert.match(await editor(page).getByTestId("profile-editor-simulator-changes").innerText(), /Será adicionado: ATS/);
+    assert.deepEqual((await calls(page)).group, [], "nothing is sent before Save");
+    await save(page).click();
     await page.waitForFunction(() => window.__group.calls.some(call => call[0] === "add"));
     const recorded = await calls(page);
-    assert.equal(recorded.group[0][0], "add"); assert.equal(recorded.group[0][1], "dc"); assert.equal(recorded.group[0][2].length, 1);
-    await page.getByRole("dialog", { name: "Adicionar simuladores" }).waitFor({ state: "detached" });
-    assert.equal((await section.locator("li").count()), 2, "the new simulator is listed at once");
-    assert.match(await section.locator("li").nth(1).innerText(), /Ativo/);
+    assert.deepEqual(recorded.group, [["add", "dc", ["ats"]]]);
+    await editor(page).waitFor({ state: "detached" });
     await context.close();
   });
 
-  await check("A refusal of the server keeps the confirmation open with the reason", async () => {
-    const { page, context } = await open("owner", ["add-simulators", "rename"], { failAdd: true });
-    const section = page.getByTestId("company-simulators");
-    await section.getByRole("button", { name: "Adicionar simuladores" }).click();
-    const picker = page.getByRole("dialog", { name: "Adicionar simuladores" });
-    await picker.getByRole("option").first().click();
-    await picker.getByRole("button", { name: "Confirmar (1)" }).click();
-    await page.getByRole("button", { name: "Adicionar 1 simulador" }).click();
-    await page.getByRole("alert").filter({ hasText: "Somente o proprietário" }).waitFor();
-    assert.equal(await section.locator("li").count(), 1, "nothing was added to the list");
+  await check("Unchecking a simulator switches that fleet off; the simulator of the current environment stays", async () => {
+    const { page, context } = await open("group", ["add-simulators", "rename", "deactivate-simulators"]);
+    const sims = editor(page).getByTestId("profile-editor-simulators");
+    assert.match(await sims.innerText(), /GTO/); assert.match(await sims.innerText(), /ATS/);
+    // The chip of the current environment cannot be removed.
+    await sims.getByRole("button", { name: "Remover GTO" }).click();
+    await sims.getByRole("status").waitFor();
+    assert.match(await sims.getByRole("status").innerText(), /simulador do ambiente atual/);
+    assert.match(await sims.innerText(), /GTO/, "GTO is still chosen");
+    await sims.getByRole("button", { name: "Remover ATS" }).click();
+    assert.match(await editor(page).getByTestId("profile-editor-simulator-changes").innerText(), /Será desativado: ATS/);
+    await save(page).click();
+    await page.waitForFunction(() => window.__group.calls.some(call => call[0] === "deactivate"));
+    assert.deepEqual((await calls(page)).group, [["deactivate", "dc", ["dc-ats"]]]);
     await context.close();
   });
 
-  await check("Not the owner: no name field and no add button, but the simulators are listed", async () => {
-    const { page, context } = await open("stranger", ["add-simulators", "rename"]);
-    assert.equal(await page.getByLabel("Nome da Empresa").count(), 0);
-    const section = page.getByTestId("company-simulators");
-    assert.equal(await section.locator("li").count(), 1);
-    assert.equal(await section.getByRole("button", { name: "Adicionar simuladores" }).count(), 0);
+  await check("A refusal of the server keeps the form open and says the data was saved", async () => {
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"], { failAdd: true });
+    const sims = editor(page).getByTestId("profile-editor-simulators");
+    await sims.getByRole("button", { name: /Simuladores de atuação/ }).click();
+    const picker = page.getByRole("dialog", { name: "Simuladores de atuação" });
+    await picker.getByRole("option", { name: "ETS 2" }).click();
+    await picker.getByRole("button", { name: "Confirmar (2)" }).click();
+    await save(page).click();
+    const alert = editor(page).getByRole("alert").filter({ hasText: "Dados salvos" });
+    await alert.waitFor();
+    assert.match(await alert.innerText(), /Somente o proprietário da empresa pode fazer isso/);
+    assert.equal(await editor(page).count(), 1, "the form stays open");
     await context.close();
   });
 
-  await check("Company with several simulators: all listed (the other company is not), and rename needs the server command", async () => {
-    const { page, context } = await open("group", ["add-simulators"]);
-    const section = page.getByTestId("company-simulators");
-    assert.deepEqual((await section.locator("li").allInnerTexts()).map(item => item.replace(/\s+/g, " ")), ["GTO Ambiente atual", "ATS Ativo"]);
-    await page.getByLabel("Nome da Empresa").fill("DC Nova");
-    await page.getByRole("button", { name: "Salvar" }).click();
-    await page.getByText(/o servidor precisa estar atualizado/).waitFor();
-    const recorded = await calls(page);
-    assert.deepEqual(recorded.group, []); assert.deepEqual(recorded.updates, [], "nothing was written: one fleet must not get a name the others lack");
+  await check("Not the owner: the name is read-only and there is no simulator field", async () => {
+    const { page, context } = await open("stranger", ["add-simulators", "rename", "deactivate-simulators"]);
+    assert.equal(await editor(page).getByLabel("Nome da empresa").isDisabled(), true);
+    assert.equal(await editor(page).getByTestId("profile-editor-simulators").count(), 0);
+    assert.match(await editor(page).innerText(), /Só o proprietário da empresa troca o nome\./);
+    await context.close();
+  });
+
+  await check("Driver mode: the same form with cover, profile photo, name and WhatsApp, and no company fields", async () => {
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"]);
+    await editor(page).getByRole("button", { name: "Cancelar" }).click();
+    await editor(page).waitFor({ state: "detached" });
+    await page.getByRole("button", { name: "Abrir perfil do administrador" }).click();
+    const form = editor(page);
+    await form.waitFor();
+    assert.equal(await form.getAttribute("data-mode"), "driver");
+    await form.getByRole("button", { name: "Alterar capa" }).waitFor();
+    await form.getByRole("button", { name: "Alterar foto do perfil" }).waitFor();
+    await form.getByLabel("Nome", { exact: true }).waitFor();
+    await form.getByLabel("WhatsApp").waitFor();
+    assert.equal(await form.getByLabel("Proprietário (responsável)").count(), 0);
+    assert.equal(await form.getByTestId("profile-editor-simulators").count(), 0);
+    assert.equal(await form.getByRole("button", { name: "Excluir empresa" }).count(), 0);
+    assert.match(await form.innerText(), /Editar perfil/);
+    await context.close();
+  });
+
+  await check("Delete asks for confirmation inside the form", async () => {
+    const { page, context } = await open("owner", ["add-simulators", "rename", "deactivate-simulators"]);
+    await editor(page).getByRole("button", { name: "Excluir empresa" }).click();
+    const dialog = page.getByRole("alertdialog", { name: "Excluir empresa" });
+    await dialog.waitFor();
+    assert.match(await dialog.innerText(), /O histórico será preservado/);
+    await dialog.getByRole("button", { name: "Cancelar" }).click();
+    await dialog.waitFor({ state: "detached" });
     await context.close();
   });
   assert.deepEqual(errors, [], "no page errors");

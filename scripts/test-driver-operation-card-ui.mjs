@@ -81,6 +81,10 @@ try {
     const b = m.boxes;
     assert(b.photo.top < b.line.top && b.line.top < b.stats.top && b.stats.top < b.button.top && b.button.top < b.time.top && b.time.top < b.status.top, `${tag}: order photo > vehicle > figures > start > time > status`);
     assert(b.time.top >= b.button.bottom - .5 && b.time.top - b.button.bottom <= 16, `${tag}: the remaining time sits below the start button`);
+    // The lower area is compact: start button, remaining time and the availability row take little height.
+    assert(b.status.height <= 38, `${tag}: availability row ${b.status.height}px`);
+    assert(b.status.bottom - b.button.top <= 136, `${tag}: start button + remaining time + status take ${b.status.bottom - b.button.top}px`);
+    assert(b.button.height <= 40, `${tag}: start button ${b.button.height}px`);
     assert(Math.abs(m.ratio - 2.3) < .03, `${tag}: vehicle photo proportion ${m.ratio}`);
     assert(Math.abs(m.ratio - m.panelRatio) < .01, `${tag}: same photo proportion as "Trabalhos ativos" (${m.ratio} / ${m.panelRatio})`);
     assert.equal(m.buttonBg, m.statsBg, `${tag}: the start button has the colour of the figures card`);
@@ -99,6 +103,16 @@ try {
     results.push({ tag, ratio: +m.ratio.toFixed(3), card: m.cardBg, page: m.pageBg });
     if (width === 390) { await fs.mkdir("verification/driver-operation-card", { recursive: true }); await page.screenshot({ path: `verification/driver-operation-card/${dark ? "dark" : "light"}-390.png`, fullPage: true }); }
   }
+
+  // Desktop and tablet windows: more air between the page description and the cards (phones keep the compact gap).
+  for (const [width, height, wide] of [[1280, 800, true], [1024, 768, true], [390, 900, false]]) {
+    await page.setViewportSize({ width, height });
+    await page.evaluate(wide => { document.querySelector("main").classList.toggle("nvu-landscape-dashboard", wide); }, wide);
+    const gap = await page.evaluate(() => { const p = document.querySelector(".nvu-driver-page-heading p").getBoundingClientRect(), c = document.querySelector('[data-testid="column"]').getBoundingClientRect(); return c.top - p.bottom; });
+    if (wide) assert(gap >= 26, `${width}x${height}: ${gap}px between the description and the cards`); else assert(gap >= 12 && gap <= 22, `${width}x${height}: phones keep a compact gap (${gap}px)`);
+    results.push({ tag: `breathing ${width}x${height}`, gap });
+  }
+  await page.evaluate(() => document.querySelector("main").classList.remove("nvu-landscape-dashboard"));
 
   // Behaviour: every action of the old card still works.
   await page.setViewportSize({ width: 390, height: 900 });

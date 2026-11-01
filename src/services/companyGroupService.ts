@@ -1,6 +1,6 @@
 import { httpsCallable } from "firebase/functions";
 import { auth, functions } from "../lib/firebase";
-import { isGroupUnsupported, isRenameAcknowledged, parseAddResult, parseGroupCapabilities, type AddResult } from "./companyGroupCore";
+import { isGroupUnsupported, isRenameAcknowledged, parseAddResult, parseDeactivateResult, parseGroupCapabilities, type AddResult, type DeactivateResult } from "./companyGroupCore";
 
 const callable = httpsCallable<Record<string, unknown>, any>(functions, "manageCompanyGroup", { timeout: 25_000 });
 const known = new Map<string, { at: number; value: Promise<string[]> }>();
@@ -39,4 +39,13 @@ export async function renameCompanyGroup(companyId: string, companyName: string)
   if (!data || !isRenameAcknowledged(data, companyName.replace(/\s+/g, " ").trim()))
     throw Object.assign(new Error("O servidor não confirmou."), { code: "functions/internal", details: { reasonCode: "GROUP_ACK_INVALID", diagnosticId: id } });
   return { companyName: data.companyName, updated: Number(data.updated) || 0 };
+}
+
+/** Switches fleets of the company off without deleting anything; adding the simulator again brings the same fleet back. */
+export async function deactivateCompanySimulators(companyId: string, companyIds: string[]): Promise<DeactivateResult> {
+  const id = diagnosticId();
+  const { data } = await callable({ action: "deactivate-simulators", companyId, companyIds, diagnosticId: id });
+  const result = parseDeactivateResult(data, companyId);
+  if (!result) throw Object.assign(new Error("O servidor não confirmou."), { code: "functions/internal", details: { reasonCode: "GROUP_ACK_INVALID", diagnosticId: id } });
+  return result;
 }

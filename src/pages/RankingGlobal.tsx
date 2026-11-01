@@ -382,7 +382,10 @@ export default function RankingGlobal() {
     profileIntent?.simulatorId ? "user" : preferredProfileSimulatorValue ? "auto" : "pending",
   );
   const autoSimulatorSourceRef = useRef("");
-  const [rankingType, setRankingType] = useState<"entre" | "interno" | "global">(profileRankingType || "entre");
+  const [rankingType, setRankingType] = useState<"entre" | "interno" | "global">(
+    // The ranking opens on the view that fits the profile: Global for a driver, Empresarial for a company profile.
+    profileRankingType || (activeRole === "admin" ? "entre" : "global"),
+  );
   const [viewType, setViewType] = useState<"podio" | "lista">("podio");
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>(profileIntent?.companyId || "");
   const [selectedParticipant, setSelectedParticipant] = useState<{ item: any; rank: number } | null>(null);

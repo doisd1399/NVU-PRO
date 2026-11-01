@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { addSummary, companyGroupIdOf, fleetsOfGroup, groupFailureMessage, groupSimulatorRows, isGroupUnsupported, isRenameAcknowledged, isUsableFleet,
+import { addSummary, deactivateSummary, groupSimulatorSelection, parseDeactivateResult, simulatorChanges, companyGroupIdOf, fleetsOfGroup, groupFailureMessage, groupSimulatorRows, isGroupUnsupported, isRenameAcknowledged, isUsableFleet,
   parseAddResult, parseGroupCapabilities, simulatorsToAdd } from "../src/services/companyGroupCore.ts";
 import { extraRegistrationSimulatorIds, registrationSimulatorIds, registrationSimulatorLabel } from "../src/lib/registrationSimulators.ts";
 
@@ -63,3 +63,38 @@ assert.deepEqual(extraRegistrationSimulatorIds({ simulatorId: "gto", simulatorId
 assert.deepEqual(extraRegistrationSimulatorIds({ simulatorId: "gto", simulatorIds: ["global-truck-online", "ats"] }, "gto", id => id === "global-truck-online" ? "gto" : id), ["ats"], "the same simulator under another spelling is not extra");
 assert.deepEqual(extraRegistrationSimulatorIds({ simulatorId: "gto" }, "gto"), []);
 console.log("COMPANY_GROUP_CORE_PASS");
+
+// "Simuladores de atuação": every active catalog simulator is an option, the usable fleets of the group are the chosen ones.
+{
+  const group = fleet("a", "gto", "GTO", { companyGroupId: "a" }), ats = fleet("a-ats", "ats", "ATS", { companyGroupId: "a" });
+  const gone = fleet("a-ets", "ets-2", "ETS 2", { companyGroupId: "a", status: "archived", deactivatedForSimulator: true });
+  const selection = groupSimulatorSelection(group, [group, ats, gone], simulators);
+  assert.deepEqual(selection.selected.sort(), ["ats", "gto"], "a switched-off fleet is not chosen");
+  assert.deepEqual(selection.options.map(o => o.value), ["gto", "ats", "ets-2", "wtds"], "inactive catalog simulators are not offered");
+  assert.equal(selection.fleetByValue.get("ats"), "a-ats"); assert.equal(selection.currentValue, "gto");
+  // The same company seen from another fleet.
+  assert.equal(groupSimulatorSelection(ats, [group, ats], simulators).currentValue, "ats");
+  // A simulator the catalog no longer lists still shows as chosen.
+  const orphan = groupSimulatorSelection(fleet("o", "old-sim", "Antigo"), [], simulators);
+  assert.deepEqual(orphan.selected, ["old-sim"]); assert.ok(orphan.options.some(o => o.value === "old-sim" && o.label === "Antigo"));
+  // What saving changes.
+  assert.deepEqual(simulatorChanges(selection, ["gto", "ats"]), { add: [], remove: [] });
+  assert.deepEqual(simulatorChanges(selection, ["gto", "ats", "wtds"]), { add: ["wtds"], remove: [] });
+  assert.deepEqual(simulatorChanges(selection, ["gto"]), { add: [], remove: [{ value: "ats", companyId: "a-ats" }] });
+  assert.deepEqual(simulatorChanges(selection, ["gto", "ets-2"]), { add: ["ets-2"], remove: [{ value: "ats", companyId: "a-ats" }] });
+}
+
+// Switching simulators off: the answer is only accepted when it is for this company.
+assert.equal(parseDeactivateResult({ success: true, companyId: "x", deactivated: [] }, "a"), null);
+assert.equal(parseDeactivateResult({ success: false, companyId: "a", deactivated: [] }, "a"), null);
+const off = parseDeactivateResult({ success: true, companyId: "a", deactivated: [{ companyId: "a-ats", simulatorId: "ats", simulatorName: "ATS" }], alreadyInactive: ["a-pbs"], remaining: 2 }, "a");
+assert.deepEqual(off, { deactivated: [{ companyId: "a-ats", simulatorId: "ats", simulatorName: "ATS" }], alreadyInactive: ["a-pbs"], remaining: 2 });
+assert.equal(deactivateSummary(off!), "ATS foi desativado. O histórico fica guardado.");
+assert.equal(deactivateSummary({ deactivated: [], alreadyInactive: ["a-pbs"], remaining: 2 }), "Esses simuladores já estavam desativados.");
+assert.equal(deactivateSummary({ deactivated: [{ companyId: "1", simulatorId: "a", simulatorName: "ATS" }, { companyId: "2", simulatorId: "b", simulatorName: "WTDS" }], alreadyInactive: [], remaining: 1 }), "ATS e WTDS foram desativados. O histórico fica guardado.");
+assert.equal(groupFailureMessage({ details: { reasonCode: "GROUP_LAST_SIMULATOR" } }), "A empresa precisa continuar com pelo menos um simulador ativo.");
+assert.match(groupFailureMessage({ details: { reasonCode: "GROUP_OPEN_OPERATIONS" } }), /Finalize ou cancele as operações desse simulador/);
+// A server that predates the reactivation list still reads fine, and a reactivated simulator counts as added.
+assert.equal(addSummary({ created: [], existing: [], reactivated: [{ companyId: "a-ats", simulatorId: "ats", simulatorName: "ATS" }], skipped: [] }), "ATS foi adicionado à empresa.");
+assert.deepEqual(parseAddResult({ success: true, companyId: "a", created: [], reactivated: [{ companyId: "a-ats", simulatorId: "ats", simulatorName: "ATS" }] }, "a")?.reactivated.map(r => r.companyId), ["a-ats"]);
+console.log("COMPANY_GROUP_EDIT_CORE_PASS");

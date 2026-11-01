@@ -23,7 +23,7 @@ const safeId = (value: unknown, label: string) => {
 };
 
 /** Which actions this server understands. A client shows an option only after the server lists it. */
-export const COMPANY_GROUP_CAPABILITIES = ["add-simulators", "rename"] as const;
+export const COMPANY_GROUP_CAPABILITIES = ["add-simulators", "rename", "deactivate-simulators"] as const;
 export const companyGroupCapabilities = () => ({ success: true, capabilities: [...COMPANY_GROUP_CAPABILITIES], protocolVersion: 1 });
 
 export const MAX_SIMULATORS_PER_REQUEST = 12;
@@ -87,6 +87,8 @@ export type AddSimulatorsResult = {
   success: true; groupId: string; companyId: string;
   created: Array<{ companyId: string; simulatorId: string; simulatorName: string }>;
   existing: Array<{ companyId: string; simulatorId: string; simulatorName: string }>;
+  /** Simulators the company had switched off and that were switched back on (nothing was created: history and drivers return). */
+  reactivated: Array<{ companyId: string; simulatorId: string; simulatorName: string }>;
   skipped: Array<{ simulatorId: string; reason: "already-in-group" | "unknown-simulator" | "inactive-simulator" }>;
 };
 
@@ -117,6 +119,7 @@ export async function addCompanySimulatorsCore(db: FirebaseFirestore.Firestore, 
     fleets.forEach(({ data }) => { if (companyUsable(data)) companyAliases(data).forEach(key => usedAliases.add(key)); });
     const plan: Array<{ id: string; name: string; aliases: Set<string>; ref: FirebaseFirestore.DocumentReference; memberRef: FirebaseFirestore.DocumentReference }> = [];
     const skipped: AddSimulatorsResult["skipped"] = [];
+    const dormantBack: Array<{ ref: FirebaseFirestore.DocumentReference; id: string; name: string }> = [];
     const taken = new Set<string>();
     requested.forEach((id, index) => {
       const snap = catalog[index], entry: Data = snap.data() || {};
@@ -125,13 +128,23 @@ export async function addCompanySimulatorsCore(db: FirebaseFirestore.Firestore, 
       const aliases = simulatorAliases(id, entry.name, entry.key, entry.code);
       if ([...aliases].some(key => usedAliases.has(key) || taken.has(key))) return void skipped.push({ simulatorId: id, reason: "already-in-group" });
       aliases.forEach(key => taken.add(key));
+      // A simulator the company switched off before comes back as it was, instead of a second, empty fleet.
+      const dormant = [...fleets.values()].find(fleet => fleet.data.deactivatedForSimulator === true && [...companyAliases(fleet.data)].some(alias => aliases.has(alias)));
+      if (dormant) return void dormantBack.push({ ref: dormant.ref, id, name: text(dormant.data.simulatorName) || text(entry.name) || id });
       const key = simulatorKey(id) || simulatorKey(entry.name) || `sim${index}`;
       const ref = db.collection("frotas").doc(`${groupId}-${key}`.slice(0, 180));
       plan.push({ id, name: text(entry.name) || id, aliases, ref, memberRef: db.collection("companyMembers").doc(`${ref.id}_${ownerId}`) });
     });
     const existingFleets = await Promise.all(plan.map(item => tx.get(item.ref)));
-    const existing: AddSimulatorsResult["existing"] = [], created: AddSimulatorsResult["created"] = [];
+    const existing: AddSimulatorsResult["existing"] = [], created: AddSimulatorsResult["created"] = [], reactivated: AddSimulatorsResult["reactivated"] = [];
     const now = admin.firestore.FieldValue.serverTimestamp(), isoNow = new Date().toISOString();
+    const FieldValue = admin.firestore.FieldValue;
+    dormantBack.forEach(item => {
+      const identity = Object.fromEntries(IDENTITY_FIELDS.filter(field => source[field] !== undefined).map(field => [field, source[field]]));
+      tx.update(item.ref, { ...identity, status: "active", deactivatedForSimulator: FieldValue.delete(), deactivatedAt: FieldValue.delete(), deactivatedBy: FieldValue.delete(),
+        reactivatedAt: now, reactivatedBy: actor.uid });
+      reactivated.push({ companyId: item.ref.id, simulatorId: item.id, simulatorName: item.name });
+    });
     plan.forEach((item, index) => {
       const current = existingFleets[index];
       // A fleet of this group and simulator already exists (an earlier attempt whose answer was lost): report it.
@@ -151,7 +164,48 @@ export async function addCompanySimulatorsCore(db: FirebaseFirestore.Firestore, 
     });
     // The first fleet becomes part of the group it started (nothing else changes in it).
     if (created.length && !text(source.companyGroupId)) tx.update(sourceRef, { companyGroupId: groupId });
-    return { success: true as const, groupId, companyId, created, existing, skipped };
+    return { success: true as const, groupId, companyId, created, existing, reactivated, skipped };
+  });
+}
+
+const CLOSED_JOB_STATUS = ["completed", "cancelled", "canceled", "closed", "deleted", "concluido", "concluida", "cancelado", "cancelada"];
+export type DeactivateResult = { success: true; groupId: string; companyId: string;
+  deactivated: Array<{ companyId: string; simulatorId: string; simulatorName: string }>; alreadyInactive: string[]; remaining: number };
+
+/**
+ * Switches simulators of the company off without deleting anything: the fleet is archived (the server already treats an
+ * archived fleet as unavailable: no new operations, not listed, not ranked) and marked so that adding the simulator again
+ * brings the same fleet back with its drivers, trips and history. The company always keeps at least one simulator, and a
+ * simulator with an operation still open cannot be switched off.
+ */
+export async function deactivateCompanySimulatorsCore(db: FirebaseFirestore.Firestore, context: functions.https.CallableContext,
+  input: { companyId?: unknown; companyIds?: unknown }): Promise<DeactivateResult> {
+  const actor = actorOf(context), companyId = safeId(input.companyId, "Empresa");
+  const targets = [...new Set((Array.isArray(input.companyIds) ? input.companyIds : []).map(text).filter(Boolean))];
+  if (!targets.length) throw refuse("invalid-argument", "Escolha ao menos um simulador.", "GROUP_NO_SIMULATOR");
+  if (targets.length > MAX_SIMULATORS_PER_REQUEST) throw refuse("invalid-argument", "Simuladores demais de uma vez.", "GROUP_TOO_MANY");
+  targets.forEach(id => safeId(id, "Simulador"));
+  return db.runTransaction(async tx => {
+    const { source, groupId, fleets } = await readGroup(db, tx, companyId);
+    await assertAllowed(db, tx, actor, source);
+    const picked = targets.map(id => {
+      const fleet = fleets.get(id);
+      if (!fleet) throw refuse("invalid-argument", "Esse simulador não faz parte da empresa.", "GROUP_NOT_IN_GROUP");
+      return { id, ...fleet };
+    });
+    const alreadyInactive = picked.filter(item => item.data.deactivatedForSimulator === true).map(item => item.id);
+    const toDeactivate = picked.filter(item => item.data.deactivatedForSimulator !== true);
+    const targetIds = new Set(toDeactivate.map(item => item.id));
+    const remaining = [...fleets.entries()].filter(([id, fleet]) => companyUsable(fleet.data) && !targetIds.has(id)).length;
+    if (toDeactivate.length && remaining < 1) throw refuse("failed-precondition", "A empresa precisa continuar com pelo menos um simulador ativo.", "GROUP_LAST_SIMULATOR");
+    const jobs = await Promise.all(toDeactivate.flatMap(item => [
+      tx.get(db.collection("trabalhos").where("companyId", "==", item.id)), tx.get(db.collection("trabalhos").where("empresaId", "==", item.id))]));
+    if (jobs.some(snapshot => snapshot.docs.some(row => !CLOSED_JOB_STATUS.includes(String(row.get("status") || "").toLowerCase()))))
+      throw refuse("failed-precondition", "Finalize ou cancele as operações desse simulador antes de desativá-lo. O histórico é preservado.", "GROUP_OPEN_OPERATIONS");
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    toDeactivate.forEach(item => tx.update(item.ref, { status: "archived", deactivatedForSimulator: true, deactivatedAt: now, deactivatedBy: actor.uid }));
+    return { success: true as const, groupId, companyId, alreadyInactive, remaining,
+      deactivated: toDeactivate.map(item => ({ companyId: item.id, simulatorId: text(item.data.simulatorId), simulatorName: text(item.data.simulatorName) })) };
   });
 }
 
@@ -188,6 +242,7 @@ export const manageCompanyGroup = functions.region("us-central1").runWith({ ingr
     if (action === "capabilities") return companyGroupCapabilities();
     if (action === "add-simulators") return await addCompanySimulatorsCore(db, context, input || {});
     if (action === "rename") return await renameCompanyGroupCore(db, context, input || {});
+    if (action === "deactivate-simulators") return await deactivateCompanySimulatorsCore(db, context, input || {});
     throw refuse("invalid-argument", "Ação de empresa inválida.", "GROUP_INVALID_ACTION");
   } catch (error) {
     if (error instanceof functions.https.HttpsError) {

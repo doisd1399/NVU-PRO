@@ -158,6 +158,9 @@ try{
    assert.equal(await summary().locator('[data-nvu-profile-summary-trips]').innerText(),'31');
    assert.match(await summary().innerText(),/673\.026,00/);
    assert.equal(await summary().locator('img').getAttribute('src'),vehicleData);
+   // The vehicle photo of the summary has the size and shape of the profile cover (8 / 3, same corner radius).
+   const shape=await page.evaluate(()=>{const cover=document.querySelector('.nvu-cover-image'),photo=document.querySelector('.nvu-profile-summary-photo');const c=cover.getBoundingClientRect(),p=photo.getBoundingClientRect();return {cover:c.width/c.height,photo:p.width/p.height,coverRadius:getComputedStyle(cover).borderTopLeftRadius,photoRadius:getComputedStyle(photo).borderTopLeftRadius};});
+   assert(Math.abs(shape.cover-shape.photo)<.05,'summary photo proportion '+shape.photo+' vs cover '+shape.cover);assert.equal(shape.photoRadius,shape.coverRadius);
    assert.equal(await page.locator('[data-nvu-profile-company]').getByText('DC Transportes',{exact:true}).count(),1);
    assert.equal(await page.locator('[data-nvu-profile-company] img').getAttribute('src'),avatar);
    assert(!/01\/10|31\/10|GTO/.test(await summary().innerText()));

@@ -68,7 +68,7 @@ async function assertBottomBand(){
   const xs=[rect.left+2,rect.left+rect.width*.25,rect.left+rect.width*.5,rect.right-2],ys=[rect.top+2,dock.top+2,(dock.bottom+innerHeight)/2,innerHeight-2];
   return {background:getComputedStyle(region).backgroundColor,page:getComputedStyle(document.body).backgroundColor,bottom:rect.bottom,height:rect.height,nav:{left:dock.left,right:dock.right,top:dock.top,bottom:dock.bottom,height:dock.height},spacer:document.querySelector('.nvu-workspace-dock-space').getBoundingClientRect().height,overflow:document.documentElement.scrollWidth>innerWidth+1,blocked:xs.every(x=>ys.every(y=>region.contains(document.elementFromPoint(x,y))))};
  });
- assert.equal(band.background,band.page,JSON.stringify(band));assert.equal(band.bottom,await page.evaluate(()=>innerHeight));assert(band.blocked,'Page content must not be painted or clickable in footer band: '+JSON.stringify(band));assert(!band.overflow);assert(band.spacer>=band.height-1);assert(band.nav.height>=(compact?44:50)&&band.nav.height<=(compact?48:54),JSON.stringify(band));assert.equal(await page.locator('.nvu-driver-dock button').count(),6);return band;
+ assert.equal(band.background,band.page,JSON.stringify(band));assert.equal(band.bottom,await page.evaluate(()=>innerHeight));assert(band.blocked,'Page content must not be painted or clickable in footer band: '+JSON.stringify(band));assert(!band.overflow);assert(band.spacer>=band.height-1);assert(band.nav.height>=(compact?44:50)&&band.nav.height<=(compact?48:54),JSON.stringify(band));assert.equal(await page.locator('.nvu-driver-dock button').count(),6);const viewportWidth=await page.evaluate(()=>innerWidth);if(viewportWidth>=768)assert(band.nav.right-band.nav.left<=441,'Tablet and desktop: the bottom pill is shorter than the phone width: '+JSON.stringify(band.nav));return band;
 }
 const landscapeRail=()=>page.evaluate(()=>matchMedia('(orientation: landscape) and (min-width: 1100px)').matches);
 // Wide landscape windows: the same shared dock becomes a lateral rail, vertically centered, with slightly rounded corners.
@@ -83,7 +83,7 @@ async function assertRail(tag='',clearance=true){
  assert.equal(band.background,'rgba(0, 0, 0, 0)',info);assert.equal(band.regionEvents,'none',info);assert.equal(band.navEvents,'auto',info);assert(band.passThrough,'The empty space around the rail must not block the page: '+info);assert(band.hit,info);
  assert.equal(band.direction,'column',info);assert(band.radius>=12&&band.radius<=20,'Slightly rounded corners: '+info);
  assert(Math.abs((band.nav.top+band.nav.bottom)/2-band.viewport.height/2)<=1,'Rail must be vertically centered: '+info);
- assert(band.nav.left>=8&&band.nav.left<=24,info);assert(band.nav.width>=46&&band.nav.width<=62,info);assert(band.nav.top>=0&&band.nav.bottom<=band.viewport.height,'The whole rail must stay inside the viewport: '+info);
+ assert(band.nav.left>=8&&band.nav.left<=24,info);assert(band.nav.width>=46&&band.nav.width<=52,'The rail is a little narrower: '+info);assert(band.nav.top>=0&&band.nav.bottom<=band.viewport.height,'The whole rail must stay inside the viewport: '+info);
  assert.equal(band.spacer,0,'The landscape rail needs no bottom spacer: '+info);assert(!band.overflow,info);
  if(clearance)assert(band.contentLeft===null||band.contentLeft>=band.nav.right,'Page content must stay clear of the rail: '+info);
  assert.equal(await page.locator('.nvu-driver-dock button').count(),6);return band;

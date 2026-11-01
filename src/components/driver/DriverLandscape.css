@@ -148,3 +148,8 @@ body .nvu-landscape-dashboard .nvu-profile-cover-stack > .nvu-driver-surface { p
 @media (max-height: 520px) {
   .nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] { margin-bottom: 8px; }
 }
+
+/* Desktop and tablet windows (not phones turned sideways): more air between the page description and the cards below. */
+@media (min-width: 768px) and (min-height: 521px) {
+  .nvu-landscape-dashboard .nvu-driver-page-heading[data-page="dashboard"] { margin-bottom: 28px; }
+}

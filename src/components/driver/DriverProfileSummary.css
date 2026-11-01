@@ -11,7 +11,8 @@
 .nvu-profile-period > svg { width: 14px; height: 14px; flex-shrink: 0; color: var(--driver-muted, #65758a); }
 .nvu-profile-period button.nvu-modal-select { min-height: 22px; gap: 6px; border: 0; padding: 0; background: transparent; box-shadow: none; font-size: 10px; color: var(--driver-text, #182332); }
 .nvu-profile-period .nvu-modal-select-label { color: inherit; }
-.nvu-profile-summary-photo { display: block; width: 100%; aspect-ratio: 2.8; border-radius: 10px; background: var(--driver-strip, #edf1f4); }
+/* Same size and shape as the profile cover (ProfileCoverHero.css: 8 / 3, 15px radius, 300px at most on wide screens). */
+.nvu-profile-summary-photo { display: block; width: 100%; aspect-ratio: 8 / 3; border: 1px solid var(--driver-line, #dce4e8); border-radius: 15px; overflow: hidden; background: var(--driver-strip, #edf1f4); }
 .nvu-profile-summary-photo-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px; width: 100%; height: 100%; padding: 12px; text-align: center; font-size: 11px; color: var(--driver-muted, #65758a); }
 .nvu-profile-summary-vehicle { display: flex; flex-direction: column; gap: 3px; padding: 10px 0 12px; }
 .nvu-profile-summary-vehicle > strong { font-size: 17px; line-height: 1.3; font-weight: 650; overflow-wrap: anywhere; }
@@ -49,7 +50,7 @@
 }
 @media (min-width: 768px) {
   .nvu-profile-summary-card { padding: 20px; }
-  .nvu-profile-summary-photo { max-height: 260px; aspect-ratio: 3.2; }
+  .nvu-profile-summary-photo { max-height: 300px; aspect-ratio: 8 / 3; }
   .nvu-profile-summary-figures > div > span, .nvu-profile-company-card > div > span { font-size: 12px; }
   .nvu-profile-summary-vehicle > span { font-size: 13px; }
   .nvu-profile-summary-vehicle > strong { font-size: 20px; }

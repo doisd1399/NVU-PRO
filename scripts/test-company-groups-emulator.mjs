@@ -10,13 +10,14 @@ assert.match(process.env.FIRESTORE_EMULATOR_HOST || "", /^127\.0\.0\.1:\d+$/);
 const require = createRequire(new URL("../functions/package.json", import.meta.url));
 const admin = require(process.cwd() + "/functions/lib/firebaseAdmin.js");
 if (!admin.apps.length) admin.initializeApp({ projectId });
-const { addCompanySimulatorsCore, renameCompanyGroupCore, companyGroupCapabilities, simulatorAliases } = require("./lib/companyGroups.js");
+const { addCompanySimulatorsCore, renameCompanyGroupCore, deactivateCompanySimulatorsCore, companyGroupCapabilities, simulatorAliases } = require("./lib/companyGroups.js");
 const { refreshCompanyAccess } = require("./lib/companyAccess.js");
 const environment = await initializeTestEnvironment({ projectId, firestore: { rules: fs.readFileSync("firestore.rules", "utf8") } });
 const db = admin.firestore();
 const ctx = (uid, token = {}) => ({ auth: { uid, token } });
 const add = (companyId, simulatorIds, uid = "owner-a", token = {}, extra = {}) => addCompanySimulatorsCore(db, ctx(uid, token), { companyId, simulatorIds, ...extra });
 const rename = (companyId, companyName, uid = "owner-a", token = {}) => renameCompanyGroupCore(db, ctx(uid, token), { companyId, companyName });
+const deactivate = (companyId, companyIds, uid = "owner-a", token = {}) => deactivateCompanySimulatorsCore(db, ctx(uid, token), { companyId, companyIds });
 const failsWith = (fn, code, reason) => assert.rejects(fn, error => {
   assert.ok(String(error.code).includes(code), `expected ${code}, got ${error.code}: ${error.message}`);
   if (reason) assert.equal(error.details?.reasonCode, reason);
@@ -60,7 +61,7 @@ async function test(name, setup, fn) {
 
 try {
   await test("the server lists what it understands, so a client can hide what is not published", [], async () => {
-    assert.deepEqual(companyGroupCapabilities().capabilities, ["add-simulators", "rename"]);
+    assert.deepEqual(companyGroupCapabilities().capabilities, ["add-simulators", "rename", "deactivate-simulators"]);
     assert.equal(companyGroupCapabilities().success, true);
   });
 
@@ -184,6 +185,54 @@ try {
     await db.doc(`frotas/${created.created[0].companyId}`).update({ deleted: true, status: "deleted" });
     assert.equal((await rename("a", "Depois", "senior", { senior: true })).updated, 1);
     assert.equal((await get(`frotas/${created.created[0].companyId}`)).get("companyName"), "Só Eu", "a deleted fleet keeps its history");
+  });
+
+  await test("deactivating a simulator archives its fleet without deleting anything; the company keeps working in the others", [], async () => {
+    const created = await add("a", ["ats", "ets-2"]);
+    const ats = created.created.find(item => item.simulatorId === "ats").companyId;
+    await db.doc(`trips/t1`).set({ companyId: ats, amount: 10 });
+    const result = await deactivate("a", [ats]);
+    assert.deepEqual(result.deactivated.map(item => item.simulatorId), ["ats"]); assert.equal(result.remaining, 2); assert.deepEqual(result.alreadyInactive, []);
+    const fleet = (await get(`frotas/${ats}`)).data();
+    assert.equal(fleet.status, "archived"); assert.equal(fleet.deactivatedForSimulator, true); assert.equal(fleet.deactivatedBy, "owner-a");
+    assert.equal(fleet.companyName, "DC Transportes", "identity and data stay");
+    assert.equal((await get("trips/t1")).get("amount"), 10, "history untouched");
+    assert.equal((await get(`companyMembers/${ats}_owner-a`)).get("status"), "active", "membership rows are kept so the fleet can come back");
+    assert.equal((await get("frotas/a")).get("status"), "active");
+    // Repeating the command is harmless.
+    const again = await deactivate("a", [ats]); assert.deepEqual(again.alreadyInactive, [ats]); assert.equal(again.deactivated.length, 0);
+    // A deactivated fleet is not part of rename, and does not block the same simulator from the "taken" list.
+    assert.equal((await rename("a", "DC Nova")).updated, 2);
+    assert.equal((await get(`frotas/${ats}`)).get("companyName"), "DC Transportes");
+  });
+
+  await test("adding the simulator again brings the same fleet back (with the current identity), not a second one", [], async () => {
+    const created = await add("a", ["ats"]);
+    const ats = created.created[0].companyId;
+    await deactivate("a", [ats]);
+    await rename("a", "DC Renovada");
+    const back = await add("a", ["ats"]);
+    assert.equal(back.created.length, 0); assert.deepEqual(back.reactivated.map(item => item.companyId), [ats]);
+    const fleet = (await get(`frotas/${ats}`)).data();
+    assert.equal(fleet.status, "active"); assert.equal(fleet.deactivatedForSimulator, undefined); assert.equal(fleet.deactivatedBy, undefined);
+    assert.equal(fleet.companyName, "DC Renovada", "name was brought up to date");
+    assert.equal(fleet.reactivatedBy, "owner-a");
+    const fleets = await db.collection("frotas").where("companyGroupId", "==", "a").get();
+    assert.equal(fleets.size, 2, "no extra fleet was created");
+  });
+
+  await test("deactivation is refused for the last simulator, with an operation open, for strangers and for non members of the group", [], async () => {
+    const created = await add("a", ["ats"]);
+    const ats = created.created[0].companyId;
+    await failsWith(() => deactivate("a", ["a", ats]), "failed-precondition", "GROUP_LAST_SIMULATOR");
+    await db.doc("trabalhos/open1").set({ companyId: ats, status: "in_progress" });
+    await failsWith(() => deactivate("a", [ats]), "failed-precondition", "GROUP_OPEN_OPERATIONS");
+    assert.equal((await get(`frotas/${ats}`)).get("status"), "active");
+    await db.doc("trabalhos/open1").update({ status: "completed" });
+    await failsWith(() => deactivate("a", [ats], "manager-a"), "permission-denied", "GROUP_OWNER_ONLY");
+    await failsWith(() => deactivate("a", ["z"]), "invalid-argument", "GROUP_NOT_IN_GROUP");
+    await failsWith(() => deactivate("a", []), "invalid-argument", "GROUP_NO_SIMULATOR");
+    assert.equal((await deactivate("a", [ats], "senior", { senior: true })).deactivated.length, 1);
   });
 } finally {
   if (process.env.NVU_TEST_OUTPUT) fs.writeFileSync(process.env.NVU_TEST_OUTPUT, JSON.stringify({ projectId, results }, null, 2));
