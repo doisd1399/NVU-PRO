@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import { DurableOperationOutbox, automaticOperationJobId } from "../src/application/operation/DurableOperationOutbox.ts";
+import { DurableOperationOutbox, automaticOperationJobId, FINISH_UPLOAD_GRACE_MS, FINISH_WAIT_HINT, friendlyOperationError } from "../src/application/operation/DurableOperationOutbox.ts";
 
 let checks = 0;
 async function test(name, run) { await run(); checks++; console.log("PASS", name); }
@@ -136,5 +136,82 @@ await test("Verified native cleanup is remembered across reload without changing
   const restored=new DurableOperationOutbox(h.ports);
   assert.equal(restored.entries().find(e=>e.kind==="finish")?.nativeCleanupDone,true);
   assert.equal(restored.entries().find(e=>e.kind==="finish")?.state,"CONFIRMED");
+});
+// --- A finish must never be held hostage by a local attempt (the "Finalização salva" lock) ---------------------------------
+const serverRejects = (code: string, message: string) => Object.assign(new Error(message), { code });
+const settledOperation = (h: any) => { h.start(); h.online(true); };
+await test("A leftover local attempt blocks the finish only for a short grace, then the server decides", async () => {
+  const h = harness(); settledOperation(h); await h.outbox.synchronize("start");
+  h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish"); h.wait(true);            // an attempt that never uploads
+  await h.outbox.synchronize("finish");
+  assert.deepEqual(h.calls, ["start:request"], "inside the grace the saved receipts upload first");
+  assert.equal(h.outbox.entries().find(e => e.kind === "finish")?.error, FINISH_WAIT_HINT.trips, "the reason is recorded");
+  h.clock(100_000 + FINISH_UPLOAD_GRACE_MS + 1); await h.outbox.synchronize("finish");
+  assert.deepEqual(h.calls, ["start:request", "finish:operation"], "past the grace the finish is sent anyway");
+  assert.equal(h.outbox.entries().find(e => e.kind === "finish")?.state, "CONFIRMED", "the server accepted: the operation is completed");
+  assert.equal(h.outbox.project([h.job], "driver", "company")[0].status, "completed");
+});
+await test("The server not having every trip yet is a wait with a reason, never a rejection", async () => {
+  let ready = false;
+  const h = harness({ sendFinish: async (entry: any) => { if (!ready) throw serverRejects("functions/failed-precondition", "OPERATION_TRIPS_NOT_VALIDATED");
+    return { completed: true, jobId: entry.jobId, status: "completed", progress: 2, total: 2, operationalRevision: 2 }; } });
+  settledOperation(h); await h.outbox.synchronize("start"); h.wait(false);
+  h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish");
+  await h.outbox.synchronize("finish");
+  let finish = h.outbox.entries().find(e => e.kind === "finish")!;
+  assert.equal(finish.state, "PENDING"); assert.equal(finish.error, FINISH_WAIT_HINT.trips); assert.ok(finish.retryAt > 100_000);
+  assert.equal(h.outbox.project([h.job], "driver", "company")[0].operationSyncState, "pending_finish");
+  ready = true; h.clock(finish.retryAt + 1); await h.outbox.synchronize("finish");
+  finish = h.outbox.entries().find(e => e.kind === "finish")!;
+  assert.equal(finish.state, "CONFIRMED"); assert.equal(finish.error, undefined);
+});
+await test("Offline is a wait with its own reason; a real rejection keeps a readable message", async () => {
+  const h = harness({ sendFinish: async () => { throw serverRejects("functions/failed-precondition", "OPERATION_CAPACITY_OVERFLOW"); } });
+  settledOperation(h); await h.outbox.synchronize("start"); h.wait(false);
+  h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish");
+  h.online(false); await h.outbox.synchronize("finish");
+  assert.equal(h.outbox.entries().find(e => e.kind === "finish")?.state, "PENDING", "offline: nothing was sent");
+  h.online(true); await h.outbox.synchronize("finish");
+  const finish = h.outbox.entries().find(e => e.kind === "finish")!;
+  assert.equal(finish.state, "REJECTED"); assert.match(finish.error!, /mais viagens do que o previsto/); assert.doesNotMatch(finish.error!, /OPERATION_CAPACITY_OVERFLOW/);
+  assert.equal(h.outbox.project([h.job], "driver", "company")[0].operationSyncState, "finish_rejected");
+});
+await test("Tentar agora releases the backoff and clears the old reason", async () => {
+  const h = harness({ sendFinish: async () => { throw serverRejects("functions/failed-precondition", "OPERATION_TRIPS_NOT_VALIDATED"); } });
+  settledOperation(h); await h.outbox.synchronize("start"); h.wait(false);
+  h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish"); await h.outbox.synchronize("finish");
+  assert.ok(h.outbox.entries().find(e => e.kind === "finish")!.retryAt > 100_000);
+  h.outbox.retryNow("operation");
+  const finish = h.outbox.entries().find(e => e.kind === "finish")!;
+  assert.equal(finish.state, "PENDING"); assert.equal(finish.retryAt, 0); assert.equal(finish.error, undefined);
+});
+await test("Cancelar finalização frees the driver; it is refused while a send is in flight and for confirmed finishes", async () => {
+  const h = harness(); settledOperation(h); await h.outbox.synchronize("start");
+  h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish"); h.wait(true);
+  assert.equal(h.outbox.project([h.job], "driver", "company")[0].operationSyncState, "pending_finish");
+  assert.equal(h.outbox.cancelFinish("operation"), true);
+  assert.equal(h.outbox.entries().some(e => e.kind === "finish"), false);
+  assert.equal(h.outbox.project([h.job], "driver", "company")[0].operationSyncState, undefined, "the Finalizar button is available again");
+  assert.equal(h.outbox.cancelFinish("operation"), false, "nothing to cancel");
+  // A finish whose request is on the wire is not cancelable (its answer could still confirm it).
+  h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish-2");
+  const id = "finish:operation"; (h.outbox as any).patch("driver", id, { state: "SENDING", sendingAt: 100_000 });
+  assert.equal(h.outbox.cancelFinish("operation"), false);
+  h.clock(100_000 + 46_000); assert.equal(h.outbox.cancelFinish("operation"), true, "a send stuck for 45 s no longer blocks the cancel");
+  // A confirmed finish is history.
+  h.wait(false); h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish-3"); await h.outbox.synchronize("finish");
+  assert.equal(h.outbox.cancelFinish("operation"), false);
+});
+await test("The start still comes first: a finish waits for it and says so", async () => {
+  const h = harness(); h.start(); h.outbox.enqueueFinish({ ...h.job, status: "active" }, "finish"); h.online(true);
+  (h.ports as any).sendStart = async () => { throw serverRejects("functions/unavailable", "offline"); };
+  await h.outbox.synchronize("finish");
+  assert.equal(h.calls.length, 0); assert.equal(h.outbox.entries().find(e => e.kind === "finish")?.error, FINISH_WAIT_HINT.start);
+});
+await test("Friendly error text never leaks server codes", async () => {
+  for (const code of ["OPERATION_CAPACITY_OVERFLOW", "OPERATION_TRIPS_NOT_VALIDATED", "OPERATION_FINISH_ACK_INVALID", "OPERATION_START_ACK_INVALID"])
+    assert.doesNotMatch(friendlyOperationError(new Error(code)), /OPERATION_/);
+  assert.match(friendlyOperationError({ code: "functions/permission-denied", message: "x" }), /Sem permissão/);
+  assert.equal(friendlyOperationError(new Error("Mensagem do servidor")), "Mensagem do servidor");
 });
 console.log(`DURABLE_OPERATION_OUTBOX_PASS (${checks} checks)`);

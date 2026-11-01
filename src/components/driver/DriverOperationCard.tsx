@@ -14,7 +14,7 @@ export type DriverOperationCardProps = {
   };
   info: { id: string; open: boolean; onOpen: () => void };
   /** Only when every delivery is done and the operation waits for the driver to finish it. */
-  finish: null | { heading: string; label: string; disabled: boolean; onFinish: () => void };
+  finish: null | { heading: string; description?: string; label: string; disabled: boolean; onFinish: () => void };
   notice?: React.ReactNode;
   vehicle: { name: string; trailer?: string; operationName: string; onPaints: () => void };
   progress: { done: number; total: number; remaining: number; percent: number; replayKey: string };
@@ -40,7 +40,7 @@ export function DriverOperationCard({ photo, info, finish, notice, vehicle, prog
     {photo.error && <p role="alert" className="nvu-driver-op-photo-note" data-tone="error">{photo.error}</p>}
     {photo.pending && !photo.busy && <p role="status" className="nvu-driver-op-photo-note">Foto salva no aparelho. Sincronização pendente; será tentada quando a conexão voltar.</p>}
     {finish && <div className="nvu-driver-op-finish" data-testid="driver-operation-finish">
-      <div><strong>{finish.heading}</strong><span>Finalize a operação para continuar. O servidor confirmará as entregas.</span></div>
+      <div><strong>{finish.heading}</strong><span>{finish.description || "Finalize a operação para continuar. O servidor confirmará as entregas."}</span></div>
       <button type="button" onClick={finish.onFinish} disabled={finish.disabled}>{finish.label}</button>
     </div>}
     {notice}

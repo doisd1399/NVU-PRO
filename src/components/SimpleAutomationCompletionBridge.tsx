@@ -139,7 +139,7 @@ export function SimpleAutomationCompletionBridge({
           await authenticateNativeForPendingProTrip(expectedDriverId, {
             allowInteractiveFallback: !silent,
           });
-          const retry = await SimpleAutomation.retryPending();
+          const retry = await SimpleAutomation.retryPending({ attemptId });
           if (retry.status === "auth-required" || retry.status === "retry-unavailable") {
             throw new Error(retry.status);
           }

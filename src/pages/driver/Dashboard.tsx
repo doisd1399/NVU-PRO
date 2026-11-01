@@ -1140,7 +1140,11 @@ function DashboardComponent({
             inputRef: photoInputRef, onFileSelected: onVehiclePhotoSelected, onPick: () => photoInputRef.current?.click() }}
           info={{ id: operationInfoId, open: isOperationInfoOpen, onOpen: () => setOperationInfoScope(currentOperationInfoScope) }}
           finish={operationReadyForManualFinish ? {
-            heading: localPendingTrips > 0 ? "Entregas salvas no aparelho" : "Entregas concluídas!",
+            // "Salvas no aparelho" only while the server still needs those receipts; once it confirmed every delivery, any leftover
+            // local attempt is redundant and the operation simply is complete.
+            heading: localPendingTrips > 0 && realProgress < Number(contract.totalDeliveries || 0) ? "Entregas salvas no aparelho" : "Entregas concluídas!",
+            description: myJob.operationSyncState === "pending_finish" ? "Finalização solicitada. O servidor confirma assim que validar as viagens."
+              : myJob.operationSyncState === "finish_rejected" ? "O servidor não confirmou a finalização. Veja a mensagem abaixo." : undefined,
             label: myJob.operationSyncState === "pending_finish" ? "Finalização salva" : isFinishing ? "Salvando…" : "Finalizar Operação",
             disabled: isFinishing || myJob.operationSyncState === "pending_finish", onFinish: handleFinishJob } : null}
           notice={<PendingProOperationNotice jobId={myJob?.id} driverId={currentUser?.id}
@@ -1309,7 +1313,7 @@ function DashboardComponent({
 
       {/* Collapse the whole history, not only each trip's expanded details. */}
       <DiscreetDisclosure key={`${activeCompanyId}:${myJob.id}`} title="Viagens da operação" icon={History}
-        summary={`${currentOperationTrips.length} registradas`} testId="operation-trips-disclosure">
+        summary={`${currentOperationTrips.length} registradas${localPendingTrips > 0 && realProgress < Number(contract.totalDeliveries || 0) ? ` · ${localPendingTrips} aguardando envio` : ""}`} testId="operation-trips-disclosure">
         {operationTripHistory}
       </DiscreetDisclosure>
       </RetainedPanel>

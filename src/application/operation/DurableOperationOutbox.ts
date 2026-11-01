@@ -21,6 +21,23 @@ type Ports = {
   syncTimeoutMs?: number;
 };
 const prefix = "nvu.operation.outbox.v1.";
+/** After the driver asks to finish, saved receipts get this long to upload first. Past it the server decides: it only
+ * completes an operation whose confirmed trips match the total, so a leftover local attempt can never block it forever. */
+export const FINISH_UPLOAD_GRACE_MS = 90_000;
+/** The reasons shown while a finish waits; the server's own codes never reach the driver. */
+export const FINISH_WAIT_HINT = {
+  start: "Aguardando confirmar o início da operação.",
+  trips: "Aguardando o servidor confirmar as viagens salvas neste aparelho.",
+  network: "Aguardando conexão para confirmar a finalização.",
+} as const;
+export function friendlyOperationError(error: unknown): string {
+  const text = `${(error as any)?.code || ""} ${(error as any)?.message || error || ""}`;
+  if (/OPERATION_CAPACITY_OVERFLOW/.test(text)) return "O servidor encontrou mais viagens do que o previsto nesta operação. Peça à empresa para conferir o histórico; suas viagens foram preservadas.";
+  if (/OPERATION_TRIPS_NOT_VALIDATED/.test(text)) return FINISH_WAIT_HINT.trips;
+  if (/OPERATION_FINISH_ACK_INVALID|OPERATION_START_ACK_INVALID/.test(text)) return "O servidor respondeu de forma inesperada. Os registros locais foram preservados; tente novamente.";
+  if (/permission-denied/.test(text)) return "Sem permissão para confirmar esta operação agora. Os registros locais foram preservados.";
+  return String((error as any)?.message || "Não foi possível confirmar a operação.").slice(0, 500);
+}
 async function bounded<T>(task: Promise<T>, ms = 30_000): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   try { return await Promise.race([task, new Promise<never>((_, reject) => {
@@ -159,6 +176,27 @@ export class DurableOperationOutbox {
       ? { ...entry, state: "PENDING" as const, retryAt: 0, error: undefined } : entry);
     this.write(uid, rows);
   }
+  /** "Tentar agora": a waiting (or rejected) request is released from its backoff and sent at the next synchronize. */
+  retryNow(jobId: string) {
+    const uid = this.ports.uid();
+    if (!uid) return;
+    const rows = this.entries(uid).map(entry => entry.jobId === jobId && (entry.state === "PENDING" || entry.state === "REJECTED" ||
+      entry.state === "SENDING" && this.now() - Number(entry.sendingAt || 0) > 45_000)
+      ? { ...entry, state: "PENDING" as const, retryAt: 0, sendingAt: undefined, error: undefined } : entry);
+    this.write(uid, rows);
+  }
+  /** "Cancelar finalização": the driver is never locked behind a finish that cannot be confirmed. The operation, its trips and
+   * the saved receipts stay as they are; the "Finalizar Operação" button comes back. Not allowed while a send is in flight. */
+  cancelFinish(jobId: string): boolean {
+    const uid = this.ports.uid();
+    if (!uid) return false;
+    const rows = this.entries(uid);
+    const target = rows.find(entry => entry.kind === "finish" && entry.jobId === jobId);
+    if (!target || target.state === "CONFIRMED") return false;
+    if (target.state === "SENDING" && this.now() - Number(target.sendingAt || 0) <= 45_000) return false;
+    this.write(uid, rows.filter(entry => entry.id !== target.id));
+    return true;
+  }
   acknowledgeNativeCleanup(uid: string, id: string) {
     const entry = this.entries(uid).find(row => row.id === id);
     if (entry?.kind === "finish" && entry.state === "CONFIRMED" && !entry.nativeCleanupDone)
@@ -179,8 +217,18 @@ export class DurableOperationOutbox {
       (entry.state === "PENDING" || entry.state === "SENDING" && this.now() - Number(entry.sendingAt || 0) > 45_000) && entry.retryAt <= this.now())) {
       if (this.ports.uid() !== uid || !this.ports.online()) break;
       if (kind === "finish") {
-        if (this.startUnsettled(uid, candidate.jobId)) continue;
-        try { if (!await bounded(this.ports.canFinish(candidate), 5000)) continue; } catch { continue; }
+        if (this.startUnsettled(uid, candidate.jobId)) {
+          if (candidate.error !== FINISH_WAIT_HINT.start) this.patch(uid, candidate.id, { error: FINISH_WAIT_HINT.start });
+          continue;
+        }
+        let uploaded = false;
+        try { uploaded = await bounded(this.ports.canFinish(candidate), 5000); } catch { uploaded = false; }
+        // Saved receipts upload first, but only for a short grace: a leftover attempt (already confirmed on the server,
+        // or waiting for something only the driver can fix) must not hold the finish hostage. The server decides.
+        if (!uploaded && this.now() - candidate.createdAt < FINISH_UPLOAD_GRACE_MS) {
+          if (candidate.error !== FINISH_WAIT_HINT.trips) this.patch(uid, candidate.id, { error: FINISH_WAIT_HINT.trips });
+          continue;
+        }
       }
       if (this.ports.uid() !== uid) break;
       const latest = this.entries(uid).find(entry => entry.id === candidate.id);
@@ -207,10 +255,15 @@ export class DurableOperationOutbox {
         }
         this.patch(uid, entry.id, { state: "CONFIRMED", sendingAt: undefined, error: undefined, result });
       } catch (error: any) {
-        const transient = !this.ports.online() || retryable(error);
+        // The server has not (yet) validated every trip: normal while receipts are still being confirmed. Wait, never reject.
+        const notValidatedYet = kind === "finish" && /OPERATION_TRIPS_NOT_VALIDATED/.test(`${error?.code || ""} ${error?.message || ""}`);
+        const offline = !this.ports.online();
+        const transient = offline || notValidatedYet || retryable(error);
         this.patch(uid, entry.id, { state: transient ? "PENDING" : "REJECTED", sendingAt: undefined,
           retryAt: transient ? this.now() + Math.min(60_000, 1000 * 2 ** Math.min(6, entry.attempts - 1)) : 0,
-          error: String(error?.message || "Não foi possível confirmar a operação.").slice(0, 500) });
+          error: transient
+            ? (notValidatedYet ? FINISH_WAIT_HINT.trips : offline ? FINISH_WAIT_HINT.network : friendlyOperationError(error))
+            : friendlyOperationError(error) });
       }
     }
   }

@@ -8,6 +8,7 @@ import { TripSendStatus } from "../../components/driver/TripSendStatus";
 import { useLocalTripHistory } from "../../hooks/useLocalTripHistory";
 import { useLocalTripReceipt } from "../../hooks/useLocalTripReceipt";
 import { mergePendingHistoryTrips, isPendingHistoryTrip } from "../../lib/pendingHistoryTrips";
+import { isDefinitelyOffline } from "../../lib/connectivity";
 import { driverDateLabel, driverDayKey, driverMonthOptions, driverMonthRange, groupDriverTripsByDay } from "../../lib/driverWorkspace";
 import { useNavigate } from "react-router-dom";
 import { handleSafeRouteBack } from "../../lib/safeBackNavigation";
@@ -1306,11 +1307,15 @@ export default function TripHistory({
     return names;
   }, [currentUser?.id, currentUser?.name, users]);
 
-  // Trip documents keep the name captured at completion for audit history,
-  // while the active approved user profile is the canonical display identity.
-  // Normalize the display field before filtering so an old Google name cannot
-  // hide or relabel the current user's trips.
-  const identityNormalizedHistoryTrips = React.useMemo(
+  const [offline, setOffline] = useState(() => isDefinitelyOffline());
+  useEffect(() => {
+    const update = () => setOffline(isDefinitelyOffline());
+    window.addEventListener("online", update); window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+  // Receipts saved on this device and not yet confirmed by the server. Both the full history and the "Viagens da operação"
+  // list show them (with their send status) so a trip made offline is never invisible while it waits for the network.
+  const nativePendingRows = React.useMemo(
     () => {
       const pendingRows = pendingProTrips
         .filter((pending) =>
@@ -1335,7 +1340,8 @@ export default function TripHistory({
           status: "aguardando_envio",
           offlineSyncStatus: pending.queueStatus === "SENDING"
             ? "syncing"
-            : (pending.queueStatus === "FAILED" ? "validation_failed" : pending.queueStatus === "AUTH_REQUIRED" ? "auth_required" : "pending_sync"),
+            : (pending.queueStatus === "FAILED" ? "validation_failed" : pending.queueStatus === "AUTH_REQUIRED" ? "auth_required"
+              : offline ? "awaiting_connection" : "pending_sync"),
           createdAt: pending.queuedAt || Date.now(),
           completedAt: pending.queuedAt || Date.now(),
           createdAtLocal: new Date(pending.queuedAt || Date.now()).toISOString(),
@@ -1345,6 +1351,18 @@ export default function TripHistory({
           historyLocalCommandOnly: true,
           currency: pending.currency,
         }));
+      return pendingRows;
+    },
+    [activeCompanyId, diagnosticOwnerDriverIds, embeddedJob?.id, offline, pendingProTrips],
+  );
+
+  // Trip documents keep the name captured at completion for audit history,
+  // while the active approved user profile is the canonical display identity.
+  // Normalize the display field before filtering so an old Google name cannot
+  // hide or relabel the current user's trips.
+  const identityNormalizedHistoryTrips = React.useMemo(
+    () => {
+      const pendingRows = nativePendingRows;
       const pendingIds = new Set(pendingRows.map((trip) => trip.id));
       const observedAttempts = new Set(companyHistoryTrips.map((trip: any) => String(trip.simpleReceiptCaptureAttemptId || "")).filter(Boolean));
       return mergePendingHistoryTrips(companyHistoryTrips, [...pendingHistoryTrips,
@@ -1362,7 +1380,7 @@ export default function TripHistory({
         });
     },
     [activeCompanyId, canonicalDriverNames, companyHistoryTrips, currentUser?.id, diagnosticOwnerDriverIds,
-      deletedTripIds, embeddedJob?.id, pendingProTrips, pendingHistoryTrips],
+      deletedTripIds, embeddedJob?.id, nativePendingRows, pendingHistoryTrips],
   );
 
   const toggleExpand = React.useCallback((tripId: string) => {
@@ -1455,7 +1473,10 @@ export default function TripHistory({
       // membership again from legacy contract/date heuristics, otherwise the
       // card can show 0/N while the list manufactures 1/N, 2/N, ... labels.
       if (embeddedJob && Array.isArray(canonicalOperationTripsOverride)) {
-        return filterAndSortTripHistory(mergePendingHistoryTrips(canonicalOperationTripsOverride, pendingHistoryTrips),
+        // A receipt already confirmed on the server (same capture attempt) is not shown again as pending.
+        const observedAttempts = new Set(canonicalOperationTripsOverride.map((trip: any) => String(trip.simpleReceiptCaptureAttemptId || "")).filter(Boolean));
+        const awaitingNative = nativePendingRows.filter((trip: any) => !observedAttempts.has(String(trip.id).slice("pending-pro-".length)));
+        return filterAndSortTripHistory(mergePendingHistoryTrips(canonicalOperationTripsOverride, [...pendingHistoryTrips, ...awaitingNative]),
           { periodPreset: "todos", embeddedJob, includePending: true })
           .map((trip) => applySimulatorCurrencyContext(trip, companies, simulators));
       }
@@ -1480,6 +1501,7 @@ export default function TripHistory({
       canonicalOperationTripsOverride,
       companies,
       identityNormalizedHistoryTrips,
+      nativePendingRows,
       simulators,
       deletedTripIds,
       pendingHistoryTrips,
@@ -2448,7 +2470,7 @@ export default function TripHistory({
                     .then(() => toast.success("Diagnóstico seguro copiado."))
                     .catch(() => toast.error("Não foi possível copiar o diagnóstico seguro."));
                 }} />}
-                {(trip.queueStatus === "AUTH_REQUIRED" || String(trip.lastQueueError || "").includes("Autenticação nativa não corresponde")) && currentUser?.id === trip.driverId && <ProPendingAuthButton driverId={trip.driverId} />}
+                {(trip.queueStatus === "AUTH_REQUIRED" || String(trip.lastQueueError || "").includes("Autenticação nativa não corresponde")) && currentUser?.id === trip.driverId && <ProPendingAuthButton driverId={trip.driverId} attemptIds={[trip.attemptId]} />}
                 {canShowProPendingRetry(trip, currentUser?.id, navigator.onLine)
                   && <ProPendingRetryButton attemptId={trip.attemptId} recoverContract={presentation.recoveryAvailable} />}
               </div>

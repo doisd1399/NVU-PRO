@@ -31,12 +31,16 @@ export async function mirrorOperationCapturePause(driverId: string, companyId: s
   if (!result?.saved) throw new Error("Não foi possível salvar a pausa de captura neste aparelho.");
   pausedCapture.set(key, paused);
 }
-export async function pendingNativeOperationTripIds(driverId: string, companyId: string, jobId: string): Promise<string[]> {
+/** Native receipt states that can still reach the server on their own. AUTH_REQUIRED, PERMISSION_PAUSED, FAILED and CONFLICT wait for
+ * a person or for the server, so they never hold a finish back. */
+const NATIVE_UPLOADING = ["WAITING", "SENDING", "QUEUED", ""];
+export async function pendingNativeOperationTripIds(driverId: string, companyId: string, jobId: string, options: { uploadingOnly?: boolean } = {}): Promise<string[]> {
   if (!isSimpleAutomationNativeAvailable()) return [];
   const data = await SimpleAutomation.getReadOnlyProQueueDiagnostics({ driverId, companyId, jobId });
   return data.ownerAuthenticated ? [...new Set([...(data.pendingProTrips || []).filter(trip =>
     trip.driverId === driverId && trip.companyId === companyId && trip.jobId === jobId &&
-    !["SYNCED", "FAILED", "CONFLICT", "DISCARDED_OPERATION_COMPLETED"].includes(trip.queueStatus))
+    !["SYNCED", "FAILED", "CONFLICT", "DISCARDED_OPERATION_COMPLETED"].includes(trip.queueStatus) &&
+    (!options.uploadingOnly || NATIVE_UPLOADING.includes(trip.queueStatus)))
     .map(trip => trip.canonicalTripId || trip.tripId || trip.attemptId), ...(data.pendingGtoTripIds || [])])] : [];
 }
 export async function pendingNativeOperationTrips(uid: string, companyId: string, jobId: string) {
@@ -64,8 +68,9 @@ export const operationOutbox = new DurableOperationOutbox({
       companyId: entry.companyId, contractId: entry.job.contractId, vehicleId: entry.job.vehicleId });
   },
   sendFinish: entry => canonicalTripOperationService.finalizeOperation(entry.jobId),
+  // True when no saved receipt is still uploading by itself. The outbox gives those a short grace before the server decides.
   canFinish: async entry => pendingTripIds(entry.actorId, entry.jobId).length === 0 &&
-    await pendingNativeOperationTrips(entry.actorId, entry.companyId, entry.jobId) === 0,
+    (await pendingNativeOperationTripIds(entry.actorId, entry.companyId, entry.jobId, { uploadingOnly: true })).length === 0,
 });
 
 const cleaned = new Set<string>();

@@ -3,7 +3,11 @@ import { isSimpleAutomationNativeAvailable, SimpleAutomation } from "../lib/simp
 import { ProPendingAuthButton } from "./ProPendingAuthButton";
 import { useOperationRecovery } from "../hooks/useMissingOperationTrip";
 
-/** Pro receipts are local until the server ACK; keep them out of ranking totals. */
+/**
+ * Pro receipts are local until the server ACK and never count in ranking totals. A receipt that is only waiting for the network
+ * is NOT announced here: it is a row of "Viagens da operação" with its send status. This card appears only when the driver has to
+ * act (confirm the Google account, review a rejected receipt) or the server reports an inconsistency.
+ */
 export function PendingProOperationNotice({ jobId, driverId, companyId, confirmed, serverProgress, total, visibleHistoryCount }: {
   jobId?: string | null;
   driverId?: string | null;
@@ -15,14 +19,12 @@ export function PendingProOperationNotice({ jobId, driverId, companyId, confirme
   historyReady?: boolean;
 }) {
   const recovery = useOperationRecovery();
-  const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState(0);
-  const [authRequired, setAuthRequired] = useState(false);
+  const [authAttempts, setAuthAttempts] = useState<string[]>([]);
   useEffect(() => {
     if (!isSimpleAutomationNativeAvailable() || !jobId || !driverId || !companyId) {
-      setPending(0);
       setFailed(0);
-      setAuthRequired(false);
+      setAuthAttempts([]);
       return;
     }
     let alive = true;
@@ -30,17 +32,16 @@ export function PendingProOperationNotice({ jobId, driverId, companyId, confirme
       try {
         const status = await SimpleAutomation.getReadOnlyProQueueDiagnostics({ driverId, companyId, jobId });
         if (!status.ownerAuthenticated) {
-          if (alive) { setPending(0); setFailed(0); setAuthRequired(false); }
+          if (alive) { setFailed(0); setAuthAttempts([]); }
           return;
         }
         const matching = (status.pendingProTrips || []).filter((trip) =>
           trip.jobId === jobId && trip.driverId === driverId && trip.companyId === companyId
           && !["SYNCED", "DISCARDED_OPERATION_COMPLETED"].includes(trip.queueStatus));
         if (alive) {
-          setPending(matching.length);
           setFailed(matching.filter((trip) => ["FAILED", "CONFLICT"].includes(trip.queueStatus)).length);
-          setAuthRequired(matching.some((trip) => trip.queueStatus === "AUTH_REQUIRED"
-            || String(trip.lastQueueError || "").includes("Autenticação nativa não corresponde")));
+          setAuthAttempts(matching.filter((trip) => trip.queueStatus === "AUTH_REQUIRED"
+            || String(trip.lastQueueError || "").includes("Autenticação nativa não corresponde")).map((trip) => trip.attemptId));
         }
       } catch { /* Retry when the native bridge is ready. */ }
     };
@@ -58,13 +59,15 @@ export function PendingProOperationNotice({ jobId, driverId, companyId, confirme
   const serverConflict = recovery?.jobId === jobId && recoveryStatus === "conflict";
   const displayedServerProgress = recovery?.serverProgress ?? serverProgress;
   const displayedConfirmedCount = recovery?.confirmedCount ?? visibleHistoryCount;
-  if (!pending && !serverConflict) return null;
+  // Once the server has confirmed every delivery, leftover local attempts are redundant: nothing is asked of the driver.
+  const incomplete = total <= 0 || confirmed < total;
+  const needsAuth = authAttempts.length > 0 && incomplete;
+  const needsReview = failed > 0 && incomplete;
+  if (!serverConflict && !needsAuth && !needsReview) return null;
   return (
-    <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
+    <div role="status" data-testid="pro-attention-notice" className="rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/30 dark:text-amber-200">
       <strong>Operação atual: {confirmed}/{total || "—"} confirmadas</strong>
-      {pending > 0 && <span className="block">{pending} {pending === 1 ? "tentativa salva" : "tentativas salvas"} neste aparelho. O ranking usa apenas as viagens confirmadas.</span>}
-      {failed > 0 && (total <= 0 || confirmed < total) && <span className="block">{failed} {failed === 1 ? "tentativa exige" : "tentativas exigem"} revisão no histórico.</span>}
-      {pending > 0 && total > 0 && confirmed >= total && <span className="block">Após o servidor confirmar a finalização, as tentativas locais restantes serão descartadas automaticamente.</span>}
+      {needsReview && <span className="block">{failed} {failed === 1 ? "viagem salva exige" : "viagens salvas exigem"} revisão. Veja o histórico da operação.</span>}
       {serverConflict && <span className="block">
         A projeção operacional precisa de reconciliação: progresso armazenado {displayedServerProgress ?? "—"}, viagens canônicas confirmadas {displayedConfirmedCount ?? "—"}.{' '}
         Motivo: {recovery?.reason || "OPERATION_RECONCILIATION_CONFLICT"}. Nenhuma viagem será criada automaticamente.
@@ -72,7 +75,7 @@ export function PendingProOperationNotice({ jobId, driverId, companyId, confirme
       {serverConflict &&
         <button type="button" onClick={() => recovery?.retry()}
           className="mt-1 underline underline-offset-2">Conferir novamente</button>}
-      {authRequired && (total <= 0 || confirmed < total) && <div className="mt-2"><span className="block">Confirme a conta Google do motorista para retomar o envio.</span><ProPendingAuthButton driverId={driverId!} /></div>}
+      {needsAuth && <div className="mt-2"><span className="block">Confirme a conta Google do motorista para retomar o envio.</span><ProPendingAuthButton driverId={driverId!} attemptIds={authAttempts} /></div>}
     </div>
   );
 }
