@@ -62,6 +62,8 @@ async function openWindow(viewport, { mobile = true, userAgent } = {}) {
     if (url.pathname.endsWith(".woff2")) return route.fulfill({ contentType: "font/woff2", body: await fs.readFile(path.join(root, "public", url.pathname)) });
     return route.fulfill({ contentType: "text/html", body: html });
   });
+  // The fixtures are dated October 2026; the checks must not depend on the day they run.
+  await context.clock.setSystemTime(new Date("2026-10-30T12:00:00-03:00"));
   const page = await context.newPage();
   page.on("pageerror", error => errors.push(error.message));
   return { context, page };
@@ -538,15 +540,24 @@ try {
     await page.evaluate(() => { window.__ops.failCancel = 1; window.__ops.delay = 300; });
     await page.getByRole("button", { name: "Cancelar trabalho" }).click();
     await dialog.waitFor();
-    await confirm.dblclick();
-    await dialog.getByRole("alert").waitFor();
-    assert.match(await dialog.getByRole("alert").innerText(), /Não foi possível cancelar/);
-    assert.deepEqual((await ops(page)).cancels, ["job-a"], "Repeated clicks send one command");
-    assert.equal((await jobsState(page))["job-a"].status, "active");
+    // The answer is immediate: the server takes 300 ms here and the dialog is already gone.
+    const clicked = Date.now();
     await confirm.click();
     await dialog.waitFor({ state: "detached" }); await sheet(page).waitFor({ state: "detached" });
+    assert.ok(Date.now() - clicked < 250, "The dialog closes before the server answers");
+    await page.waitForFunction(() => window.__ops.cancels.length === 1);
+    assert.deepEqual((await ops(page)).cancels, ["job-a"], "One command is sent");
+    await page.waitForTimeout(450);
+    assert.equal((await jobsState(page))["job-a"].status, "active", "A refused cancellation leaves the job as it was");
+    await page.evaluate(() => { window.__ops.delay = 0; });
+    await infoButton(page, "Scania G").click(); await sheet(page).waitFor();
+    await page.getByRole("button", { name: "Cancelar trabalho" }).click();
+    await dialog.waitFor();
+    await confirm.click();
+    await dialog.waitFor({ state: "detached" }); await sheet(page).waitFor({ state: "detached" });
+    await page.waitForFunction(() => window.__ops.cancels.length === 2);
     assert.deepEqual((await ops(page)).cancels, ["job-a", "job-a"]);
-    assert.equal((await jobsState(page))["job-a"].status, "cancelled");
+    await page.waitForFunction(() => window.__jobs().find(job => job.id === "job-a").status === "cancelled");
     assert.equal(await page.locator(".nvu-central-operation").count(), 1, "The center keeps only the other job");
     assert.equal((await jobsState(page))["job-b"].status, "active");
     await context.close();

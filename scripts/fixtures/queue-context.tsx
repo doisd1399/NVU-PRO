@@ -7,7 +7,9 @@ export function useAutomaticOperations() {
   return useContext(AutomaticOperationsContext);
 }
 export const useOperationalStore = () => ({
+  jobs: [] as any[],
   startAutomaticOperation: async () => {
     throw new Error("Use fixture onStart");
   },
 });
+export const useSessionStore = () => ({ currentUser: { id: "fixture-driver" }, activeCompanyId: "fixture-company" });

@@ -4452,12 +4452,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       const target = jobs.find(job => job.id === jobId);
       const companyId = target?.companyId || activeCompanyId;
       if (companyId && (target?.operationalCommandVersion === 1 || companies.find(company => company.id === companyId)?.operationalCommandVersion === 1)) {
-        const result = await canonicalOperationCommandService.executeManaged({ action: "cancel", companyId, jobId });
-        assertOperationalCommandScope(uid, commandScope);
-        const confirmedJob = mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: jobId } as Job);
-        setJobs(current => current.map(job => job.id === jobId ? mergeManagedOperationAcknowledgement(job, confirmedJob) : job).filter(job => !job.archived));
-        toast.success("Trabalho cancelado com sucesso!");
-        return true;
+        // The cancel is applied on screen right away; the server decides in the
+        // background and the previous state is restored only if it refuses.
+        const previous = target;
+        if (previous) setJobs(current => current.map(job => job.id === jobId ? { ...job, status: "cancelled" as const } : job));
+        try {
+          const result = await canonicalOperationCommandService.executeManaged({ action: "cancel", companyId, jobId });
+          assertOperationalCommandScope(uid, commandScope);
+          const confirmedJob = mergeManagedConfirmedJob({ ...(result.currentJob || result.job), id: jobId } as Job);
+          setJobs(current => current.map(job => job.id === jobId ? mergeManagedOperationAcknowledgement(job, confirmedJob) : job).filter(job => !job.archived));
+          toast.success("Trabalho cancelado com sucesso!");
+          return true;
+        } catch (error) {
+          if (previous) setJobs(current => current.map(job => job.id === jobId && job.status === "cancelled" ? previous : job));
+          const code = String((error as any)?.code || ""), message = String((error as any)?.message || "");
+          toast.error(/^functions\/(failed-precondition|permission-denied|not-found|invalid-argument)$/.test(code) && message && !/^internal$/i.test(message)
+            ? message : "Não foi possível cancelar o trabalho. Ele voltou para a lista; tente novamente.");
+          return false;
+        }
       }
       console.log("[cancelJob] User UID:", uid);
 

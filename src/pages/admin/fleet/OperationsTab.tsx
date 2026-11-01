@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useActivityStore, useOperationalStore, useSessionStore } from "../../../context/AppContext";
 import { useCompanyStore } from "../../../context/CompanyContext";
 import { ManagementDashboard, type ManagementAction } from "../../../components/admin/management/ManagementDashboard";
@@ -232,13 +233,15 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     if (!canManageGoal) { setCancelError("Somente administradores da empresa podem cancelar trabalhos."); return; }
     if (!job || !openJobStatuses.includes(String(job.status))) { setCancelError("Este trabalho já foi encerrado."); return; }
     if (!online) { setCancelError("Sem conexão. Conecte-se para cancelar o trabalho."); return; }
-    cancelSaveRef.current = true; setCancelSaving(true); setCancelError("");
-    try {
-      const done = await cancelJob(jobToCancel);
-      if (done === false) setCancelError("Não foi possível cancelar o trabalho. Tente novamente.");
-      else { setJobToCancel(null); setInfoId(null); }
-    } catch (error) { setCancelError(failureMessage(error, "Não foi possível cancelar o trabalho. Tente novamente.")); }
-    finally { cancelSaveRef.current = false; setCancelSaving(false); }
+    // Immediate response: the dialog closes and the card leaves the list now.
+    // The server confirms in the background; AppContext restores the card and
+    // shows the reason if the cancellation is refused.
+    setCancelError("");
+    const jobId = jobToCancel;
+    setJobToCancel(null); setInfoId(null);
+    void Promise.resolve().then(() => cancelJob(jobId)).catch(error => {
+      toast.error(failureMessage(error, "Não foi possível cancelar o trabalho. Tente novamente."));
+    });
   };
   const pendingDemands = jobDemands.filter(demand => demand.companyId === activeCompanyId && demand.status === "pending");
   useEffect(() => { void preloadImages(operations.map(operation => operation.driverPhoto).filter(Boolean), 6); }, [operations]);

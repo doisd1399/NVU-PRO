@@ -1,4 +1,24 @@
 import type { DriverQueueView, QueueItem } from "../../functions/src/operationalQueueModel";
+import { isRunningJobStatus } from "./jobStatus";
+
+/**
+ * The server snapshot of the queue can lag behind the device by a few seconds
+ * (callable + signal + refresh). A job that this device already knows is
+ * running must never leave the "Iniciar trabalho" action on screen, so the
+ * local job wins over a stale "ready" snapshot. Pure and read-only.
+ */
+export function reconcileQueueViewWithJobs<T extends DriverQueueView | null | undefined>(
+  view: T,
+  jobs: ReadonlyArray<{ id?: string; companyId?: string; driverId?: string; status?: unknown; contractId?: string }>,
+  uid: string | null | undefined,
+  companyId: string | null | undefined,
+): T {
+  if (!view || !uid || !companyId || view.reason === "running") return view;
+  const running = jobs.find(job => job.driverId === uid && job.companyId === companyId && isRunningJobStatus(job.status));
+  if (!running) return view;
+  return { ...view, reason: "running", next: null,
+    currentJob: { id: String(running.id || ""), contractId: String(running.contractId || ""), status: String(running.status) } } as T;
+}
 
 /** Read-only projection. Eligibility and the start token always come from the server. */
 export function driverQueuePresentation(view: DriverQueueView, previewSize = 4) {

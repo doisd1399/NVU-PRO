@@ -3,14 +3,14 @@ import { createPortal } from "react-dom";
 import { ChevronDown, ChevronRight, RefreshCw, Route, WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAutomaticOperations } from "../../contexts/AutomaticOperationsProvider";
-import { useOperationalStore } from "../../context/AppContext";
+import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import type {
   QueueNext,
   QueueItem,
   QueueVehicle,
 } from "../../../functions/src/operationalQueueModel";
 import { Button } from "../ui/Button";
-import { driverQueuePresentation } from "../../lib/driverQueuePresentation";
+import { driverQueuePresentation, reconcileQueueViewWithJobs } from "../../lib/driverQueuePresentation";
 import {
   CompactVehicleChoices,
   OperationalQueueDialog,
@@ -30,11 +30,13 @@ export function AutomaticDriverQueue({ blocked = false, variant = "section", too
   toolsSlot?: HTMLElement | null;
 }) {
   const api = useAutomaticOperations(),
-    { startAutomaticOperation } = useOperationalStore();
+    { startAutomaticOperation, jobs } = useOperationalStore(),
+    { currentUser, activeCompanyId } = useSessionStore();
+  const view = reconcileQueueViewWithJobs(api.view, jobs, currentUser?.id, activeCompanyId);
   return (
     <DriverQueuePanel
       key={api.scopeKey}
-      api={api}
+      api={view === api.view ? api : { ...api, view }}
       onStart={startAutomaticOperation}
       blocked={blocked}
       variant={variant}

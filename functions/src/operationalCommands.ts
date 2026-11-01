@@ -67,31 +67,51 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
   // Deterministic across transport retries and processes, but bound to the actor.
   const generatedJobRef = db.collection("trabalhos").doc(`oc1_${digest([uid, requestId])}`);
   return db.runTransaction(async tx => {
-    const previous = await tx.get(requestRef);
+    // One parallel wave for every read that does not depend on another read.
+    // Each Firestore round trip costs ~170-250 ms between this region and the
+    // database, so the former sequence (journal -> company/actor/membership ->
+    // authorization -> job) is collapsed. Checks keep their original order.
+    const jobIdArg = creates ? null : id(args.jobId, "Trabalho");
+    const [previous, companyDoc, actorDoc, actorMembers, authorization, existingRead] = await Promise.all([
+      tx.get(requestRef), tx.get(db.collection("frotas").doc(companyId)), tx.get(db.collection("users").doc(uid!)), membership(tx, db, companyId, uid!),
+      tx.get(db.doc(`company_access/${companyId}/members/${uid}`)), jobIdArg ? tx.get(db.collection("trabalhos").doc(jobIdArg)) : Promise.resolve(null)]);
     if (previous.exists) {
       if (previous.get("actorId") !== uid || previous.get("fingerprint") !== fingerprint || previous.get("companyId") !== companyId) fail("failed-precondition", "Este pedido já foi utilizado com outros dados.");
       const saved = previous.get("result");
-      const latest = await tx.get(db.collection("trabalhos").doc(saved.jobId));
+      const latest = saved.jobId === jobIdArg && existingRead ? existingRead : await tx.get(db.collection("trabalhos").doc(saved.jobId));
       if (!latest.exists || field(latest.data() || {}, "companyId", "empresaId") !== companyId) fail("failed-precondition", "O trabalho confirmado precisa de conferência.");
       return { ...saved, currentJob: publicJob(latest.data() || {}, latest.id), replayed: true };
     }
-    const [companyDoc, actorDoc, actorMembers] = await Promise.all([tx.get(db.collection("frotas").doc(companyId)), tx.get(db.collection("users").doc(uid!)), membership(tx, db, companyId, uid!)]);
     if (!companyDoc.exists || !actorDoc.exists) fail("permission-denied", "Conta ou empresa não encontrada.");
     const company = companyDoc.data() || {};
     assertAccount(actorDoc.data() || {});
     // Changing the vehicle of an existing job is also available to companies that have not opted in to the managed
     // commands: their jobs cannot be edited from the client (security rules), so this callable is the only writer.
     assertCompany(company, action !== "changeVehicle");
-    const authorization = await tx.get(db.doc(`company_access/${companyId}/members/${uid}`));
     const isManager = manager(context, company, actorMembers, authorization.data() || {});
     const jobRef = creates ? generatedJobRef : db.collection("trabalhos").doc(args.jobId);
-    const existing = creates ? null : await tx.get(jobRef);
+    const existing = creates ? null : existingRead;
     const old = existing?.data() || {};
     if (!creates && (!existing?.exists || field(old, "companyId", "empresaId") !== companyId)) fail("not-found", "O trabalho não pertence à empresa selecionada.");
     const driverId = automatic ? uid! : action === "assign" ? args.driverId : id(field(old, "driverId", "motoristaId"), "Motorista");
     if (((action === "start" || automatic) && driverId !== uid) || (action !== "start" && !automatic && !isManager)) fail("permission-denied", "Você não pode realizar esta ação nesta empresa.");
     const stateRef = db.collection("operationalDriverStates").doc(operationalDriverStateId(companyId, driverId));
-    const stateDoc = await tx.get(stateRef), state = stateDoc.data() || {};
+    // Cancel needs the driver state plus, per linked asset, the asset and its
+    // other live jobs: one wave instead of state followed by the assets.
+    const cancelResources = action === "cancel" && [...running, "pending", "cancelled"].includes(text(old.status)) ? [
+      { collection: "veiculos", id: field(old, "vehicleId", "veiculoId"), key: "vehicleId" },
+      { collection: "reboques", id: field(old, "trailerId", "reboqueId"), key: "trailerId" },
+    ].filter(r => r.id) : [];
+    // Starting also needs the contract and the driver's live jobs: read them in the same wave.
+    const contractIdEarly = action === "assign" || action === "start" || automatic ? text(creates ? args.contractId : field(old, "contractId", "contratoId")) : "";
+    const startsNow = (action === "start" && !running.includes(text(old.status))) || automatic;
+    const [stateDoc, contractRead, liveRead, usage] = await Promise.all([tx.get(stateRef),
+      contractIdEarly && (startsNow || action === "assign") ? tx.get(db.collection("contratos").doc(contractIdEarly)) : Promise.resolve(null),
+      startsNow ? liveJobs(tx, db, companyId, driverId) : Promise.resolve(null), Promise.all(cancelResources.map(async r => {
+      const [asset, others] = await Promise.all([tx.get(db.collection(r.collection).doc(id(r.id, "Recurso"))), tx.get(db.collection("trabalhos").where("companyId", "==", companyId).where(r.key, "==", r.id).where("status", "in", running))]);
+      return { asset, others: others.docs.filter(row => row.id !== jobRef.id && row.get("deleted") !== true) };
+    }))]);
+    const state = stateDoc.data() || {};
     const now = new Date().toISOString();
     let job: Data;
     const automaticSource = automatic ? await resolveAutomaticStart(tx, db, companyId, driverId, company, args) : null;
@@ -102,7 +122,7 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
         if (action === "start" && old.status !== "pending") fail("failed-precondition", "A operação não está aguardando início.");
         await driverEligibility(tx, db, companyId, driverId);
         const contractId = creates ? args.contractId : id(field(old, "contractId", "contratoId"), "Operação");
-        const contractDoc = await tx.get(db.collection("contratos").doc(contractId));
+        const contractDoc = contractRead && contractId === contractIdEarly ? contractRead : await tx.get(db.collection("contratos").doc(contractId));
         const catalog = contractDoc.data() || {};
         if (!contractDoc.exists || catalog.companyId !== companyId || (creates && (catalog.deleted === true || catalog.status === "completed"))) fail("failed-precondition", "A operação não está disponível nesta empresa.");
         const immutable = old.operationalCommandVersion === 1 && old.contractSnapshot?.snapshotVersion === 1 ? old.contractSnapshot as Data : null;
@@ -130,7 +150,7 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
           ...(action === "start" || automatic ? { startedAt: old.startedAt || now } : {}),
           ...(automaticSource ? { queueId: automaticSource.queueId, queueRevision: automaticSource.configRevision, operationSource: "operational-queue-v1" } : {}), updatedAt: now };
         if (action === "start" || automatic) {
-          const current = await liveJobs(tx, db, companyId, driverId);
+          const current = liveRead ?? await liveJobs(tx, db, companyId, driverId);
           if (current.some(row => row.id !== jobRef.id)) fail("failed-precondition", "Você já possui uma operação em andamento. Finalize-a antes de iniciar outra.");
           // Also reject a live guard that cannot be accounted for by the query.
           if (text(state.currentJobId) && state.currentJobId !== jobRef.id) {
@@ -175,14 +195,6 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
     } else {
       if (old.status === "completed") fail("failed-precondition", "Uma operação concluída não pode ser cancelada.");
       if (![...running, "pending", "cancelled"].includes(text(old.status))) fail("failed-precondition", "Estado de trabalho inválido.");
-      const resources = [
-        { collection: "veiculos", id: field(old, "vehicleId", "veiculoId"), key: "vehicleId" },
-        { collection: "reboques", id: field(old, "trailerId", "reboqueId"), key: "trailerId" },
-      ].filter(r => r.id);
-      const usage = await Promise.all(resources.map(async r => {
-        const [asset, others] = await Promise.all([tx.get(db.collection(r.collection).doc(id(r.id, "Recurso"))), tx.get(db.collection("trabalhos").where("companyId", "==", companyId).where(r.key, "==", r.id).where("status", "in", running))]);
-        return { asset, others: others.docs.filter(row => row.id !== jobRef.id && row.get("deleted") !== true) };
-      }));
       job = { ...old, status: "cancelled", cancelledAt: old.cancelledAt || now, cancelledBy: uid, operationalRevision: Number(old.operationalRevision || 0) + 1 };
       tx.update(jobRef, { status: "cancelled", cancelledAt: job.cancelledAt, cancelledBy: uid, operationalRevision: job.operationalRevision });
       if (state.currentJobId === jobRef.id) tx.set(stateRef, { currentJobId: null, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
