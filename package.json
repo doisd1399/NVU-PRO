@@ -213,6 +213,7 @@
     "test:operation-senior-consistency": "node --import tsx scripts/test-operation-senior-consistency.mjs",
     "test:trip-submission-audit": "npm --prefix functions run build && node --import ./scripts/guard-loopback-network.mjs ./node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only firestore,storage --project demo-nvu-v36-4-staging \"node --import ./scripts/guard-loopback-network.mjs --import tsx scripts/test-trip-submission-audit.ts\"",
     "test:trip-queue-recovery": "node --import tsx scripts/test-trip-queue-recovery.ts",
+    "measure:register-roundtrips": "npm --prefix functions run build && node --import ./scripts/guard-loopback-network.mjs ./node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only firestore,storage --project demo-nvu-v36-4-staging \"node --import ./scripts/guard-loopback-network.mjs --import tsx scripts/measure-register-roundtrips.mts\"",
     "test:trip-stability": "npm --prefix functions run build && node --import ./scripts/guard-loopback-network.mjs ./node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only firestore,storage --project demo-nvu-v36-4-staging \"node --import ./scripts/guard-loopback-network.mjs --import tsx scripts/test-trip-stability.ts && node --import ./scripts/guard-loopback-network.mjs --import tsx scripts/test-trip-queue-recovery.ts\"",
     "test:operation-finalization-regression": "node --import tsx scripts/test-operation-finalization-regression.ts",
     "test:gto-operation-finalization-path": "node scripts/test-gto-operation-finalization-path.mjs",

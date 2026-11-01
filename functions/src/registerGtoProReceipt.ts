@@ -1,4 +1,4 @@
-import { requireCompanyDriver } from "./companyAccess";
+import { assertCompanyDriver, readCompanyAccess } from "./companyAccess";
 import { operationContractName, operationTrailerId, managedOperationRevisionPatch } from "./operationSnapshotFields";
 import * as admin from "./firebaseAdmin";
 import { FieldValue } from "firebase-admin/firestore";
@@ -29,18 +29,13 @@ const slotId = (jobId: string, slot: number): string => {
 };
 const activeRow = (row: Data): boolean => active(row);
 
-async function readReplayOperation(tx: FirebaseFirestore.Transaction, db: FirebaseFirestore.Firestore,
-  jobRef: FirebaseFirestore.DocumentReference) {
-  // Replay is part of the LIVE operational path. Only the physical jobId may
-  // define membership here; legacy aliases are audit/migration evidence only.
-  const [jobDoc, byJob] = await Promise.all([
-    tx.get(jobRef),
-    tx.get(db.collection("historico_viagens").where("jobId", "==", jobRef.id)),
-  ]);
+/** The operation as a replay answer, from the job and the confirmed history of that physical job. */
+function replayFromSnapshots(jobId: string, jobDoc: FirebaseFirestore.DocumentSnapshot,
+  byJob: FirebaseFirestore.QuerySnapshot) {
   const job = jobDoc.data() || {};
   const rows = new Map<string, Data>();
   byJob.docs.forEach((doc) => rows.set(doc.id, doc.data()));
-  const projection = buildCanonicalOperationProjection({ physicalJobId: jobRef.id, operation: { ...job, id: jobRef.id },
+  const projection = buildCanonicalOperationProjection({ physicalJobId: jobId, operation: { ...job, id: jobId },
     confirmedHistory: [...rows].map(([id, data]) => ({ id, data })) });
   return { progress: projection.confirmedTripCount, total: projection.totalDeliveries, jobStatus: field(job, "status") };
 }
@@ -155,52 +150,55 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
         (row.currency == null || row.currency === row.simpleReceiptCurrency);
     };
 
-    // Preserve exact replay semantics, but migrate every old operation before a
-    // genuinely new Pro receipt. Users must not hit a manual reconciliation
-    // error merely because their operation was created by a previous release.
-    const [preflightAttempt, preflightEvent, preflightJob] = await Promise.all([
-      attemptRef.get(),
-      eventRef ? eventRef.get() : Promise.resolve(null),
-      jobRef.get(),
-    ]);
-    if (!preflightAttempt.exists && !preflightEvent?.exists && preflightJob.exists) {
-      const preflightData = preflightJob.data() || {};
-      if (Number(preflightData.operationReconciliationVersion || 0) < 4 && Number(preflightData.progress || 0) > 0) {
-        const reconciliation = await reconcileOperationTripsCore(db, uid, jobId);
-        if (reconciliation.status === "conflict") {
-          return fail("failed-precondition", `OPERATION_RECONCILIATION_REQUIRED:${reconciliation.reason}`);
-        }
+    // Old operations are migrated (reconciled) before a genuinely new Pro receipt, so users never hit a manual reconciliation error
+    // just because their operation was created by a previous release. The transaction itself tells when that is needed (after the
+    // exact-replay checks, which never reconcile), so the common path no longer pays an extra database round trip up front.
+    const reconcileFirst = async () => {
+      const reconciliation = await reconcileOperationTripsCore(db, uid, jobId);
+      if (reconciliation.status === "conflict") {
+        return fail("failed-precondition", `OPERATION_RECONCILIATION_REQUIRED:${reconciliation.reason}`);
       }
-    }
-
-    const result = await db.runTransaction(async (tx) => {
-      const attempt = await tx.get(attemptRef);
+    };
+    const registerOnce = () => db.runTransaction(async (tx) => {
+      // One round trip for everything the transaction may need: the three replay lookups and the whole operational context (they are
+      // independent reads; the checks below keep their order). Live authorization is scoped strictly by the physical jobId: legacy
+      // aliases (operationId/trabalhoId) belong to audit/migration paths only, because they let historical rows veto a valid receipt
+      // for a new execution. The company-access checks share the user and company reads.
+      const userRead = tx.get(userRef), companyRead = tx.get(companyRef);
+      const [attempt, event, old, jobDoc, contractDoc, userDoc, companyDoc, sameJob, claimsByJob, access] = await Promise.all([
+        tx.get(attemptRef),
+        eventRef ? tx.get(eventRef) : Promise.resolve(null),
+        oldRef ? tx.get(oldRef) : Promise.resolve(null),
+        tx.get(jobRef), tx.get(contractRef), userRead, companyRead,
+        tx.get(db.collection("historico_viagens").where("jobId", "==", jobRef.id)),
+        tx.get(db.collection("trip_operation_slots").where("jobId", "==", jobId)),
+        readCompanyAccess(db, tx, uid, companyId, companyRead, userRead),
+      ]);
       if (attempt.exists) {
         const saved = attempt.data() || {};
         if (saved.fingerprint !== fingerprint || typeof saved.tripId !== "string")
           return fail("failed-precondition", "A tentativa salva diverge do registro anterior.");
         const acknowledged = await tx.get(db.collection("historico_viagens").doc(saved.tripId));
+        const replay = replayFromSnapshots(jobId, jobDoc, sameJob);
         if (!acknowledged.exists || !matches(acknowledged.data() || {}, saved.tripId, uid, jobId,
           companyId, contractId, saved.originalAttemptId || attemptId, amountCents) ||
           !storedCurrencyMatches(acknowledged.data() || {}))
           return fail("failed-precondition", "Viagem anterior alterada ou excluída; revisão necessária.");
-        const replay = await readReplayOperation(tx, db, jobRef);
         return { registered: true, duplicate: true, tripId: saved.tripId,
           ...replay };
       }
 
-      const event = eventRef ? await tx.get(eventRef) : null;
       if (event?.exists) {
         const saved = event.data() || {};
         if (!eventFingerprints.includes(saved.fingerprint) || typeof saved.tripId !== "string")
           return fail("failed-precondition", "A captura salva diverge da viagem registrada.");
         const acknowledged = await tx.get(db.collection("historico_viagens").doc(saved.tripId));
+        const replay = replayFromSnapshots(jobId, jobDoc, sameJob);
         const originalAttemptId = saved.attemptId || acknowledged.get("simpleReceiptCaptureAttemptId");
         if (!acknowledged.exists || !matches(acknowledged.data() || {}, saved.tripId, uid, jobId,
           companyId, contractId, originalAttemptId, amountCents) ||
           !storedCurrencyMatches(acknowledged.data() || {}))
           return fail("failed-precondition", "Viagem anterior alterada ou excluída; revisão necessária.");
-        const replay = await readReplayOperation(tx, db, jobRef);
         tx.create(attemptRef, { fingerprint, tripId: saved.tripId, jobId, driverId: uid,
           originalAttemptId, createdAt: time });
         return { registered: true, duplicate: true, receiptEventDuplicate: true, tripId: saved.tripId, ...replay };
@@ -208,8 +206,7 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
 
       // Old Android builds may have committed the same receipt at another slot
       // and lost their ACK. Adopt only the exact same immutable attempt.
-      if (oldRef) {
-        const old = await tx.get(oldRef);
+      if (oldRef && old) {
         if (old.exists) {
           const oldData = old.data() || {};
           if (!matches(oldData, oldRef.id, uid, jobId, companyId, contractId, attemptId, amountCents) ||
@@ -218,7 +215,7 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
           if (oldData.origem !== origin.trim() || oldData.destino !== destination.trim() ||
               oldData.simpleReceiptCaptureContextEpoch !== epoch || oldData.simpleReceiptHash !== hash(text))
             return fail("failed-precondition", "Comprovante anterior não corresponde à tentativa salva.");
-          const replay = await readReplayOperation(tx, db, jobRef);
+          const replay = replayFromSnapshots(jobId, jobDoc, sameJob);
           tx.create(attemptRef, { fingerprint, tripId: oldRef.id, jobId, driverId: uid,
             progress: replay.progress, createdAt: time });
           return { registered: true, duplicate: true, tripId: oldRef.id,
@@ -226,15 +223,7 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
         }
       }
 
-      // Live operational authorization is scoped strictly by the physical jobId.
-      // Legacy aliases (operationId/trabalhoId) belong to audit/migration paths only:
-      // allowing them here lets historical rows veto a valid receipt for a new execution.
-      const [jobDoc, contractDoc, userDoc, companyDoc, sameJob, claimsByJob] = await Promise.all([
-        tx.get(jobRef), tx.get(contractRef), tx.get(userRef), tx.get(companyRef),
-        tx.get(db.collection("historico_viagens").where("jobId", "==", jobId)),
-        tx.get(db.collection("trip_operation_slots").where("jobId", "==", jobId)),
-      ]);
-      await requireCompanyDriver(db, tx, uid, companyId);
+      assertCompanyDriver(access);
       if (!jobDoc.exists || !contractDoc.exists || !companyDoc.exists)
         return fail("failed-precondition", "Operação, contrato ou empresa não disponíveis.");
       const job = jobDoc.data() || {}, contract = contractDoc.data() || {}, company = companyDoc.data() || {};
@@ -246,12 +235,16 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
       const simulatorAlias = [company.simulatorId, company.simuladorId, company.simulatorName,
         company.simuladorNome, company.simulator].filter((v) => typeof v === "string")
         .map((v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+      const isGto = (v: string) => ["gto", "global-truck", "global-truck-online"].includes(v);
       const catalogId = field(company, "simulatorId", "simuladorId");
-      const catalog = catalogId ? await tx.get(db.collection("simulators").doc(catalogId)) : null;
-      simulatorAlias.push(...[catalog?.get("name"), catalog?.get("simulatorName"), catalog?.get("nome")]
-        .filter((v) => typeof v === "string")
-        .map((v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, "-")));
-      if (!simulatorAlias.some((v: string) => ["gto", "global-truck", "global-truck-online"].includes(v)))
+      // The catalog only ever ADDS aliases, so when the company already identifies GTO the extra read cannot change the answer.
+      if (!simulatorAlias.some(isGto) && catalogId) {
+        const catalog = await tx.get(db.collection("simulators").doc(catalogId));
+        simulatorAlias.push(...[catalog.get("name"), catalog.get("simulatorName"), catalog.get("nome")]
+          .filter((v) => typeof v === "string")
+          .map((v) => String(v).toLowerCase().replace(/[^a-z0-9]+/g, "-")));
+      }
+      if (!simulatorAlias.some(isGto))
         return fail("failed-precondition", "Empresa não vinculada ao GTO.");
       if (isOperationallySuspended(userDoc.data() || {}))
         return fail("permission-denied", "Atividades operacionais suspensas.");
@@ -299,8 +292,7 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
       const tripId = `${slotId(jobId, operationSlot)}_${hash(attemptId).slice(0, 12)}`;
       const tripRef = db.collection("historico_viagens").doc(tripId);
       const slotRef = db.collection("trip_operation_slots").doc(tripId);
-      const claimDoc = await tx.get(slotRef);
-      const tripDoc = await tx.get(tripRef);
+      const [claimDoc, tripDoc] = await Promise.all([tx.get(slotRef), tx.get(tripRef)]);
       if (tripDoc.exists) {
         if (!matches(tripDoc.data() || {}, tripId, uid, jobId, companyId, contractId, attemptId, amountCents) ||
             !storedCurrencyMatches(tripDoc.data() || {}))
@@ -386,6 +378,14 @@ export const registerGtoProReceipt = functions.region("us-central1").https.onCal
       return { registered: true, duplicate: false, tripId, progress: confirmedProgress,
         total, jobStatus: confirmedProgress >= total ? "awaiting_completion" : field(job, "status"), reconciledLegacyPrint: false };
     });
+    let result;
+    try { result = await registerOnce(); }
+    catch (error: any) {
+      // Only the bare marker asks for a migration; the transaction has already ruled out every replay at that point.
+      if (!(error instanceof functions.https.HttpsError) || error.message !== "OPERATION_RECONCILIATION_REQUIRED") throw error;
+      await reconcileFirst();
+      result = await registerOnce();
+    }
     functions.logger.info("gto_pro_registration", { decision: result.duplicate ? "REPLAY" : "CREATED",
       reconciledLegacyPrint: Boolean(result.reconciledLegacyPrint) });
     return result;

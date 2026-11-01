@@ -36,6 +36,9 @@ export const completeCanonicalOperation = functions
     const db = admin.firestore();
     return db.runTransaction(async (tx) => {
       const jobRef = db.collection("trabalhos").doc(jobId);
+      // The confirmed history of this physical job only depends on its id, so it is read together with the job (one round trip).
+      const historyRead = tx.get(db.collection("historico_viagens").where("jobId", "==", jobId));
+      historyRead.catch(() => undefined); // surfaced where it is awaited, never as an unhandled rejection
       const jobSnapshot = await tx.get(jobRef);
       if (!jobSnapshot.exists) {
         throw new functions.https.HttpsError(
@@ -90,6 +93,9 @@ export const completeCanonicalOperation = functions
       }
 
       const contractRef = db.collection("contratos").doc(contractId);
+      // The driver's completion records come from the job alone; they are read while the contract is, and checked where they used to be.
+      const coordinationRead = readOperationalCompletion(tx, db, job);
+      coordinationRead.catch(() => undefined);
       const contractSnapshot = await tx.get(contractRef);
       if (!contractSnapshot.exists) {
         throw new functions.https.HttpsError(
@@ -113,9 +119,7 @@ export const completeCanonicalOperation = functions
         );
       }
 
-      const historySnapshot = await tx.get(
-        db.collection("historico_viagens").where("jobId", "==", jobId),
-      );
+      const historySnapshot = await historyRead;
       const projection = buildCanonicalOperationProjection({
         physicalJobId: jobId,
         operation: { ...job, id: jobId, totalDeliveries: total },
@@ -144,7 +148,7 @@ export const completeCanonicalOperation = functions
         projection.confirmedTripCount,
         total,
       );
-      const coordination = await readOperationalCompletion(tx, db, job);
+      const coordination = await coordinationRead;
       const serverNow = admin.firestore.FieldValue.serverTimestamp();
       tx.update(jobRef, {
         ...terminalPatch,
