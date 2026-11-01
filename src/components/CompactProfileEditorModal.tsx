@@ -65,7 +65,9 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
   const [pendingCrop, setPendingCrop] = React.useState<{ kind: ImageKind; file: File } | null>(null);
   const [simulatorValues, setSimulatorValues] = React.useState<string[]>([]);
   const [simulatorNote, setSimulatorNote] = React.useState("");
-  const [capabilities, setCapabilities] = React.useState<string[]>([]);
+  // null while the server's answer is pending; the list is empty when this server does not offer the commands.
+  const [capabilitiesState, setCapabilities] = React.useState<string[] | null>(null);
+  const capabilities = capabilitiesState || [];
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
@@ -78,7 +80,8 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
   const selection = React.useMemo(() => groupSimulatorSelection(activeCompany, companies as any[], simulators as any[]), [activeCompany, companies, simulators]);
   const isOwner = Boolean(activeCompany && viewerId && (activeCompany.ownerId === viewerId || activeCompany.userId === viewerId));
   const canManage = isOwner || Boolean(activeCompany && seniorCompanyId && seniorCompanyId === activeCompany.id);
-  const showSimulators = isCompany && canManage && capabilities.includes("add-simulators");
+  const showSimulators = isCompany && canManage;
+  const simulatorsReady = capabilitiesState !== null && capabilities.includes("add-simulators");
   const canSwitchOff = capabilities.includes("deactivate-simulators");
   const changes = React.useMemo(() => simulatorChanges(selection, simulatorValues), [selection, simulatorValues]);
 
@@ -104,7 +107,8 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
   React.useEffect(() => {
     if (!open || !isCompany) return;
     let current = true;
-    loadCompanyGroupCapabilities().then(list => { if (current) setCapabilities(list); }, () => undefined);
+    setCapabilities(null);
+    loadCompanyGroupCapabilities().then(list => { if (current) setCapabilities(list); }, () => { if (current) setCapabilities([]); });
     return () => { current = false; };
   }, [open, isCompany, viewerId]);
 
@@ -198,7 +202,7 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
         }
         await saveCover(viewerId, activeCompany.id);
         let simulatorMessage = "";
-        if (showSimulators && (changes.add.length || changes.remove.length)) {
+        if (simulatorsReady && (changes.add.length || changes.remove.length)) {
           try {
             const parts: string[] = [];
             if (changes.add.length) parts.push(addSummary(await addCompanySimulators(activeCompany.id, changes.add)));
@@ -271,7 +275,7 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
   };
 
   const AvatarIcon = isCompany ? Building2 : UserRound;
-  const preview = simulatorValues.length === 0 && showSimulators ? "Escolha ao menos um simulador." : "";
+  const preview = simulatorValues.length === 0 && simulatorsReady ? "Escolha ao menos um simulador." : "";
 
   return (
     <ModalPortal label={title} onClose={onClose} busy={busy}>
@@ -374,8 +378,13 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
             {showSimulators && (
               <div data-testid="profile-editor-simulators">
                 <span className={fieldLabel}>Simuladores de atuação</span>
-                <MultiSelectField title="Simuladores de atuação" description="Marque os simuladores em que a empresa atua."
+                <MultiSelectField title="Simuladores de atuação" description="Marque os simuladores em que a empresa atua." disabled={!simulatorsReady || busy}
                   placeholder="Selecione os simuladores" options={selection.options} values={simulatorValues} onChange={changeSimulators} emptyMessage="Nenhum simulador ativo disponível." />
+                {!simulatorsReady && (
+                  <p role="status" className="mt-1.5 text-[11.5px] font-semibold text-slate-500 dark:text-nvu-muted" data-testid="profile-editor-simulators-unavailable">
+                    {capabilitiesState === null ? "Carregando os simuladores da empresa…" : "A troca de simuladores depende da atualização do servidor. Tente novamente mais tarde."}
+                  </p>
+                )}
                 <p className="mt-1 text-[11.5px] leading-snug text-slate-500 dark:text-nvu-muted">
                   Marcar adiciona o simulador à empresa. Desmarcar desativa, sem apagar motoristas nem histórico; marcar de novo reativa.
                 </p>
@@ -403,7 +412,7 @@ export function CompactProfileEditorModal({ open, mode, onClose }: CompactProfil
 
         <footer className="flex shrink-0 justify-end gap-2 border-t border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-white/10 dark:bg-white/[0.03]">
           <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-3.5 py-2 text-[13px] font-bold text-slate-500 transition hover:bg-slate-200/70 disabled:opacity-50 dark:text-nvu-text-soft dark:hover:bg-white/10">Cancelar</button>
-          <button type="button" onClick={() => void handleSave()} disabled={busy || processingImage || Boolean(pendingCrop) || (showSimulators && simulatorValues.length === 0)}
+          <button type="button" onClick={() => void handleSave()} disabled={busy || processingImage || Boolean(pendingCrop) || (simulatorsReady && simulatorValues.length === 0)}
             className={cn("inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-4 py-2 text-[13px] font-extrabold text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50")}>
             {loading ? <LoaderCircle size={15} className="animate-spin" /> : <Check size={15} />}
             {loading ? "Salvando…" : "Salvar"}

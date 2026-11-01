@@ -127,9 +127,13 @@ try {
     await context.close();
   });
 
-  await check("Server without the commands: a one-simulator company is still renamed directly; the simulator field is hidden", async () => {
+  await check("Server without the commands: the simulator field stays visible but disabled, with the reason; a one-simulator company is still renamed directly", async () => {
     const { page, context } = await open("owner", []);
-    assert.equal(await editor(page).getByTestId("profile-editor-simulators").count(), 0);
+    const sims = editor(page).getByTestId("profile-editor-simulators");
+    await sims.waitFor();
+    await editor(page).getByTestId("profile-editor-simulators-unavailable").waitFor();
+    assert.match(await sims.innerText(), /depende da atualização do servidor/);
+    assert.equal(await sims.getByRole("button", { name: /Simuladores de atuação/ }).isDisabled(), true);
     await editor(page).getByLabel("Nome da empresa").fill("DC Direta");
     await save(page).click();
     await page.waitForFunction(() => (window.__updates || []).length === 1);

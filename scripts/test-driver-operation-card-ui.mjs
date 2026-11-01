@@ -66,7 +66,8 @@ try {
       const card = q('[data-testid="driver-operation-card"]'), photo = q(".nvu-driver-op-photo"), line = q(".nvu-central-vehicle-line"), stats = q(".nvu-central-operation-stats");
       const button = q(".nvu-driver-start-work"), time = q('[data-testid="driver-remaining-time"]'), status = q(".nvu-driver-status-row"), icon = button.querySelector("svg");
       const heading = q(".nvu-driver-page-heading"), page = q("main");
-      return { driverRow: card.querySelectorAll(".nvu-central-driver-row,.nvu-central-avatar,.nvu-central-job-status,.nvu-central-operation-toggle").length,
+      const remaining = (() => { const line = time.getBoundingClientRect(), parts = [...time.children].map(n => { const r = n.getBoundingClientRect(); return { cy: r.top + r.height / 2, left: r.left, right: r.right }; }); const cardRect = card.getBoundingClientRect(); return { cys: parts.map(p => p.cy), leftGap: Math.min(...parts.map(p => p.left)) - cardRect.left, rightGap: cardRect.right - Math.max(...parts.map(p => p.right)), lineCenter: line.left + line.width / 2, cardCenter: cardRect.left + cardRect.width / 2 }; })();
+      return { remaining, driverRow: card.querySelectorAll(".nvu-central-driver-row,.nvu-central-avatar,.nvu-central-job-status,.nvu-central-operation-toggle").length,
         boxes: { photo: box(photo), line: box(line), stats: box(stats), button: box(button), time: box(time), status: box(status), card: box(card) },
         ratio: box(photo).width / box(photo).height, panelRatio: (() => { const p = box(q('[data-testid="panel-photo"]')); return p.width / p.height; })(),
         buttonBg: getComputedStyle(button).backgroundColor, statsBg: getComputedStyle(stats).backgroundColor, buttonColor: getComputedStyle(button).color,
@@ -81,6 +82,10 @@ try {
     const b = m.boxes;
     assert(b.photo.top < b.line.top && b.line.top < b.stats.top && b.stats.top < b.button.top && b.button.top < b.time.top && b.time.top < b.status.top, `${tag}: order photo > vehicle > figures > start > time > status`);
     assert(b.time.top >= b.button.bottom - .5 && b.time.top - b.button.bottom <= 16, `${tag}: the remaining time sits below the start button`);
+    // The remaining-time line: icon, label and value on one centre line, and the group centred in the card.
+    assert(Math.max(...m.remaining.cys) - Math.min(...m.remaining.cys) <= 1.2, `${tag}: icon, label and value are vertically aligned ${m.remaining.cys}`);
+    assert(Math.abs(m.remaining.leftGap - m.remaining.rightGap) <= 2, `${tag}: the remaining-time group is centred (${m.remaining.leftGap} / ${m.remaining.rightGap})`);
+    assert(b.time.top - b.button.bottom >= 8, `${tag}: breathing room between the start button and the remaining time (${b.time.top - b.button.bottom}px)`);
     // The lower area is compact: start button, remaining time and the availability row take little height.
     assert(b.status.height <= 38, `${tag}: availability row ${b.status.height}px`);
     assert(b.status.bottom - b.button.top <= 136, `${tag}: start button + remaining time + status take ${b.status.bottom - b.button.top}px`);

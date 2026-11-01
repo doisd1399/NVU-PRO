@@ -80,7 +80,7 @@ import {
   CalendarDays,
   Banknote,
 } from "lucide-react";
-import { ProfileModal } from "../../components/ProfileModal";
+import { CompactProfileEditorModal } from "../../components/CompactProfileEditorModal";
 import { SimulatorSelectionModal } from "../../components/SimulatorSelectionModal";
 import { DriverPerformanceCard } from "../../components/DriverPerformanceCard";
 import { useDriverTrips } from "../../hooks/useDriverTrips";
@@ -1560,8 +1560,9 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
 
 
         </div>
-        <ProfileModal
-          isOpen={isEditProfileOpen}
+        <CompactProfileEditorModal
+          open={isEditProfileOpen}
+          mode="driver"
           onClose={() => setIsEditProfileOpen(false)}
         />
       </div>

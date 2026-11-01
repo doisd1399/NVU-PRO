@@ -42,7 +42,7 @@ window.__systemBars=[];export const SystemBarsStyle={Dark:'DARK',Light:'LIGHT'},
 export function onAuthStateChanged(auth,next){queueMicrotask(()=>next(auth.currentUser));return noop;}
 export const preloadRoute=load,preloadFleetPanel=load,preloadRoleRoutes=load,warmRegisteredRankingPhotos=load,waitForRankingWarmup=load,beginRankingWarmupSession=noop;
 export function usePersistentRankingImage(src){return {src,onLoad:noop,onError:noop};}
-export function CompactProfileEditorModal(){return null;}export function ProfileModal({isOpen,onClose}){return isOpen?<section role='dialog' aria-label='Editar perfil'><button onClick={onClose}>Fechar perfil</button></section>:null;}export function GlobalMenu(){return null;}export function NotificationCenter(){return null;}
+export function CompactProfileEditorModal({open,onClose}){return open?<section role='dialog' aria-label='Editar perfil'><button onClick={onClose}>Fechar perfil</button></section>:null;}export function GlobalMenu(){return null;}export function NotificationCenter(){return null;}
 export function useVehiclePhoto(identity){return {src:${approved500?JSON.stringify(vehicleData):"''"}&&identity?${approved500?JSON.stringify(vehicleData):"''"}:null,pending:false,onImageLoad:noop,onImageError:noop};}
 export function useTripsRealtime(){return {trips:empty,loading:false,serverConfirmed:true,refreshing:false,error:null};}
 export const getCachedSimpleAutomationCities=()=>[],loadSimpleAutomationCities=async()=>[],prefetchWorkModeAvailability=noop,assertWorkModeEntryAllowed=load,assertServerNewOperationAllowed=load,ensureOperationIntegrity=load;

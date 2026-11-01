@@ -46,10 +46,11 @@
 /* Compact lower area (start button, remaining time, availability): less height than the shared card. */
 .nvu-driver-op-card { gap: 7px; padding: 12px; }
 .nvu-driver-op-card .nvu-central-operation-stats { gap: 6px; padding: 8px 14px 9px; }
-.nvu-driver-op-card .nvu-driver-operation-timing { gap: 4px; }
+.nvu-driver-op-card .nvu-driver-operation-timing { gap: 10px; }
 .nvu-driver-op-card .nvu-driver-operation-timing > .nvu-driver-start-work { min-height: 38px; padding-block: 4px; font-size: 12.5px; }
-.nvu-driver-op-card .nvu-driver-remaining-time { font-size: 11px; line-height: 1.2; }
+.nvu-driver-op-card .nvu-driver-remaining-time { align-items: center; justify-content: center; gap: 6px; min-height: 18px; font-size: 11px; line-height: 1; }
+.nvu-driver-op-card .nvu-driver-remaining-time > svg { display: block; width: 14px; height: 14px; margin: 0; }
+.nvu-driver-op-card .nvu-driver-remaining-time > span, .nvu-driver-op-card .nvu-driver-remaining-time > strong { display: inline-flex; align-items: center; height: 18px; line-height: 1; }
 .nvu-driver-op-card .nvu-driver-remaining-time > strong { font-size: 12px; }
-.nvu-driver-op-card .nvu-driver-remaining-time > svg { width: 13px; height: 13px; }
 .nvu-driver-op-card .nvu-driver-status-label { color: var(--central-text); }
 .nvu-driver-op-card .nvu-driver-status-value { color: var(--central-muted); border-left-color: var(--central-line); }

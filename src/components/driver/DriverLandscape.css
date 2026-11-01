@@ -54,7 +54,7 @@ body .nvu-landscape-dashboard .nvu-profile-cover-stack > .nvu-driver-surface { p
 .nvu-landscape-profile .nvu-driver-op-card { --central-photo-ratio: 527 / 200; justify-content: space-between; gap: 8px; padding: 12px 14px; }
 .nvu-landscape-profile .nvu-driver-op-card .nvu-central-vehicle-name strong { font-size: 15px; }
 .nvu-landscape-profile .nvu-driver-op-card .nvu-central-operation-stats { padding-block: 7px 8px; }
-.nvu-landscape-profile .nvu-driver-op-card .nvu-driver-operation-timing { gap: 6px; }
+.nvu-landscape-profile .nvu-driver-op-card .nvu-driver-operation-timing { gap: 8px; }
 .nvu-landscape-profile .nvu-driver-op-card .nvu-driver-operation-timing > .nvu-driver-start-work { min-height: 38px; font-size: 12.5px; }
 .nvu-landscape-profile .nvu-driver-op-card > .nvu-driver-status-row { min-height: 36px; padding-top: 8px; }
 .nvu-landscape-profile .nvu-driver-op-card .nvu-driver-status-label { font-size: 13px; }
