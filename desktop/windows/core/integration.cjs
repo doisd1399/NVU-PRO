@@ -11,7 +11,7 @@ const LOAD_TIMEOUT_MS = 60000;
 class Integration {
   constructor({ file, dll, roots, documents, version, processes = async () => null, now = Date.now }) {
     Object.assign(this, { file, dll, roots, documents, version, processes, now });
-    this.expectedHash = (() => { try { return hash(dll); } catch { return null; } })(); this.selected = {}; this.running = null; this.processInfo = {}; this.firstSeen = {}; this.checkedAt = 0; this.cache = new Map();
+    this.expectedHash = (() => { try { return hash(dll); } catch { return null; } })(); this.selected = {}; this.running = null; this.processInfo = {}; this.firstSeen = {}; this.lastLoaded = {}; this.checkedAt = 0; this.cache = new Map();
     try { this.selected = JSON.parse(fs.readFileSync(file, 'utf8')).games || {}; } catch { /* First setup. */ }
     this.refreshGames();
   }
@@ -39,7 +39,7 @@ class Integration {
       // Older callers return plain keys; the Windows implementation returns { key, startedAt } so a restart can be detected.
       this.running = rows ? rows.map(row => typeof row === 'string' ? row : row.key) : null;
       this.processInfo = Object.fromEntries((rows || []).filter(row => row && typeof row === 'object').map(row => [row.key, row]));
-      for (const key of Object.keys(games)) { if (this.running?.includes(key)) this.firstSeen[key] ??= this.now(); else delete this.firstSeen[key]; }
+      for (const key of Object.keys(games)) { if (this.running?.includes(key)) this.firstSeen[key] ??= this.now(); else { delete this.firstSeen[key]; delete this.lastLoaded[key]; } }
     } catch { this.running = null; }
   }
   /**
@@ -52,6 +52,10 @@ class Integration {
     const running = this.running ? this.running.includes(key) : null;
     const heartbeat = session.heartbeats[key], expected = this.version;
     const loadedVersion = heartbeat?.pluginVersion || null;
+    // What the running game has loaded survives a short silence (Alt+Tab, pause) but not the game closing.
+    if (heartbeat) this.lastLoaded[key] = { version: loadedVersion, bootId: heartbeat.bootId, at: heartbeat.at, gameVersion: heartbeat.gameVersion || null };
+    if (running === false) delete this.lastLoaded[key];
+    const loadedInfo = this.lastLoaded[key] || null;
     const startedAt = this.processInfo[key]?.startedAt ? Date.parse(this.processInfo[key].startedAt) : null;
     const installedAt = plugin?.installedAt ? Date.parse(plugin.installedAt) : null;
     const startedBeforeInstall = running && startedAt && installedAt && startedAt < installedAt - 1000;
@@ -73,7 +77,8 @@ class Integration {
     else if (running && runningFor > LOAD_TIMEOUT_MS) { phase = 'waiting_plugin'; state = 'not_loaded'; code = 'NVU-P090'; message = 'O jogo está aberto, mas não carregou o plugin NVU. Feche e abra o simulador e aceite o aviso de plugin da SCS, se aparecer.'; }
     else { phase = 'waiting_plugin'; state = 'waiting_load'; message = 'Aguardando o jogo carregar o plugin. Se ele foi preparado com o jogo aberto, feche e abra o jogo; confira o aviso de SDK da SCS.'; }
     return { simulatorKey: key, phase, state, code, message, running, plugin, game: game || null,
-      versions: { expected, installed: plugin?.version || (plugin?.installed && plugin.current ? expected : null), loaded: loadedVersion, installedSha256: plugin?.sha256 || null, expectedSha256: this.expectedHash },
+      loaded: loadedInfo ? { version: loadedInfo.version, compatible: loadedInfo.version === expected, bootId: loadedInfo.bootId, at: loadedInfo.at, gameVersion: loadedInfo.gameVersion } : null,
+      versions: { expected, installed: plugin?.version || (plugin?.installed && plugin.current ? expected : null), loaded: loadedInfo?.version || null, installedSha256: plugin?.sha256 || null, expectedSha256: this.expectedHash },
       pluginVersion: loadedVersion, lastHeartbeatAt: heartbeat?.at || null, gameStartedAt: this.processInfo[key]?.startedAt || null };
   }
   assertReady(key, session) {

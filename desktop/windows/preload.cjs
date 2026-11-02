@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('nvuWindows', Object.freeze({
   installPlugin: input => invoke('installPlugin', input), removePlugin: input => invoke('removePlugin', input),
   showOverlay: () => invoke('showOverlay'), setTheme: value => invoke('setTheme', value), chooseGame: game => invoke('chooseGame', game),
   diagnose: key => invoke('diagnose', key), copyDiagnostics: key => invoke('copyDiagnostics', key),
+  prepareSimulator: input => invoke('prepareSimulator', input), removeSimulatorPlugin: input => invoke('removeSimulatorPlugin', input),
+  versions: () => invoke('versions'), copyStartupReport: () => invoke('copyStartupReport'), openLogs: () => invoke('openLogs'),
   onUpdate: callback => { const listener = (_, value) => callback(value); ipcRenderer.on('nvu:windows:update', listener);
     return () => ipcRenderer.removeListener('nvu:windows:update', listener); },
   onNavigate: callback => { const listener = (_, value) => callback(value); ipcRenderer.on('nvu:windows:navigate', listener);

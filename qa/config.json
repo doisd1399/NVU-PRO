@@ -221,16 +221,21 @@
       "timeoutMs": 60000
     },
     "windows-core": {
-      "label": "Windows: fila durável, contexto, telemetria e instalação segura",
+      "label": "Windows: fila durável, instância única, inicialização, plugin, telemetria e instalador",
       "kind": "controlled",
       "args": [
         "--test",
         "desktop/windows/tests/core.test.cjs",
         "desktop/windows/tests/native.test.cjs",
         "desktop/windows/tests/assistant.test.cjs",
-        "desktop/windows/tests/archive.test.cjs"
+        "desktop/windows/tests/archive.test.cjs",
+        "desktop/windows/tests/authenticode.test.cjs",
+        "desktop/windows/tests/main.test.cjs",
+        "desktop/windows/tests/instance.test.cjs",
+        "desktop/windows/tests/startup.test.cjs",
+        "desktop/windows/tests/plugin.test.cjs"
       ],
-      "timeoutMs": 60000
+      "timeoutMs": 120000
     },
     "windows-registry": {
       "label": "Windows: catálogo opaco, nomes e isolamento de plataformas",

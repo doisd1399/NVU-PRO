@@ -261,7 +261,7 @@ export function GtoWorkModeDialog({
                     </div>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-nvu-muted">
                       {isWindowsDesktop()
-                        ? "Ativa o botão flutuante Windows e acompanha as entregas pela telemetria do simulador."
+                        ? "Ativa o assistente de viagem no jogo (Ctrl+N para abrir ou ocultar) e acompanha as entregas pela telemetria do simulador."
                         : isGto
                         ? "Escolha como ativar a bolha NVU e registre a viagem no simulador."
                         : "Escolha como ativar a bolha NVU e registre a viagem no simulador."}

@@ -5,12 +5,28 @@ export type WindowsScope = { driverId: string; companyId: string; jobId: string;
 export type WindowsPending = { id: string; event: ScsDelivery; scope: WindowsScope; state: string; message?: string };
 export type WindowsTripSummary = {id:string;state:string;tripId?:string|null;capturedAt:number;origin:string;destination:string;amountCents:number|null;currency:"USD"|"EUR"|null;distanceKm:number|null};
 export type WindowsAssistant = {context:string;stage:string;title:string;message:string;freightId:string|null;origin:string;destination:string;currentFreightId:string|null;remainingDistanceKm:number|null;plannedDistanceKm:number|null;recent:WindowsTripSummary[];pending:number};
+/** What is on disk. Never evidence that the running game loaded it. */
+export type WindowsPluginDisk = { installed: boolean; current: boolean; owned?: boolean; foreign?: boolean; version?: string | null; problem?: string };
+/** Canonical plugin/connection state of one simulator, produced by the Windows application (see core/integration.cjs). */
+export type WindowsPluginStateCode = "game_missing" | "absent" | "foreign" | "outdated" | "restart_required" | "ready_to_open" | "waiting_load" | "not_loaded"
+  | "connected" | "paused" | "disconnected" | "package_invalid";
+export type WindowsPluginVersions = { expected: string | null; installed: string | null; loaded: string | null };
+export type WindowsGameStatus = { state: WindowsPluginStateCode; code?: string | null; versions: WindowsPluginVersions; gameStartedAt?: string | null; root?: string | null } | null;
+export type WindowsVersions = {
+  app: { version: string; executable: string; packaged: boolean; electron?: string | null; resources?: string | null };
+  web: { version: string | null; buildId: string | null; generatedAt?: string | null; ok: boolean };
+  plugin: { expectedVersion: string | null; expectedSha256: string | null; packaged: { present: boolean; version: string | null; consistent: boolean; problem: string | null; signed: boolean } | null };
+  games: Record<string, WindowsGameStatus>;
+};
+export type WindowsStartupSummary = { ok: boolean; finishedAt?: string; warnings: { step: string; code?: string; message?: string }[]; steps: { id: string; ok: boolean; warning?: boolean; code?: string; ms?: number }[] };
+export type WindowsPrepareResult = { ok: boolean; step?: string; code?: string; title?: string; action?: string; message?: string; needsElevation?: boolean; retry?: boolean;
+  restartRequired?: boolean; elevated?: boolean; key?: string; root?: string; version?: string };
 export type WindowsStatus = { active: boolean; enabled: boolean; connected: boolean; paused: boolean;
   appVersion?: string; theme?: "light"|"dark"; telemetryPluginVersion?:string; assistant?:WindowsAssistant; shortcutIssues?:string[];
-  jobState?: string;
-  integration?: { phase: string; message: string; plugin: { installed: boolean; current: boolean } | null; pluginVersion?: string | null } | null;
+  jobState?: string; versions?: WindowsVersions; startup?: WindowsStartupSummary | null;
+  integration?: { phase: string; state?: WindowsPluginStateCode; code?: string | null; message: string; plugin: WindowsPluginDisk | null; pluginVersion?: string | null; versions?: WindowsPluginVersions } | null;
   scope: WindowsScope | null; pending: WindowsPending[]; diagnostic?: string };
-export type WindowsGame = { key: "ets2" | "ats"; root: string; label: string; plugin?: { installed: boolean; current: boolean } };
+export type WindowsGame = { key: "ets2" | "ats"; root: string; label: string; plugin?: WindowsPluginDisk };
 export type WindowsNavigation = { action: "panel" | "trips" | "setup"; scope: WindowsScope | null };
 export interface WindowsNativeBridge {
   version: number; platform: string;
@@ -23,6 +39,9 @@ export interface WindowsNativeBridge {
   removePlugin(game: WindowsGame): Promise<unknown>; showOverlay(): Promise<void>;
   setTheme(theme:"light"|"dark"):Promise<void>; chooseGame(game:WindowsGame):Promise<WindowsGame[]>;
   diagnose(key: string): Promise<Record<string, unknown>>; copyDiagnostics(key: string): Promise<Record<string, unknown>>;
+  prepareSimulator(input: { key: string; root?: string; elevate?: boolean }): Promise<WindowsPrepareResult>;
+  removeSimulatorPlugin(input: { key: string; elevate?: boolean }): Promise<WindowsPrepareResult>;
+  versions(): Promise<WindowsVersions>; copyStartupReport(): Promise<boolean>; openLogs(): Promise<boolean>;
   onUpdate(callback: (status: WindowsStatus) => void): () => void;
   onNavigate(callback: (where: WindowsNavigation | string) => void): () => void;
 }
