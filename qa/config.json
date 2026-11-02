@@ -233,7 +233,9 @@
         "desktop/windows/tests/main.test.cjs",
         "desktop/windows/tests/instance.test.cjs",
         "desktop/windows/tests/startup.test.cjs",
-        "desktop/windows/tests/plugin.test.cjs"
+        "desktop/windows/tests/plugin.test.cjs",
+        "desktop/windows/tests/auth.test.cjs",
+        "desktop/windows/tests/sdk-contract.test.cjs"
       ],
       "timeoutMs": 120000
     },

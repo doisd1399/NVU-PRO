@@ -1,0 +1,54 @@
+name: NVU Windows release (signed)
+# Manual. Needs signing credentials as repository secrets; WITHOUT them it stops with the exact blocker and publishes nothing.
+#   NVU_SIGN_PFX_BASE64 + NVU_SIGN_PFX_PASSWORD   (OV/EV code-signing certificate)    or    NVU_SIGN_COMMAND_JSON (SignPath / KeyLocker / Azure Trusted Signing CLI)
+#   NVU_GOOGLE_DESKTOP_CLIENT_ID + NVU_GOOGLE_DESKTOP_CLIENT_SECRET   (OAuth Desktop client written into config/google-oauth.json at build time)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: windows-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm }
+      - name: Signing credentials must exist
+        shell: pwsh
+        env:
+          PFX: ${{ secrets.NVU_SIGN_PFX_BASE64 }}
+          CMD: ${{ secrets.NVU_SIGN_COMMAND_JSON }}
+        run: |
+          if (-not $env:PFX -and -not $env:CMD) { Write-Error 'BLOQUEIO: sem certificado de assinatura (NVU_SIGN_PFX_BASE64/NVU_SIGN_PFX_PASSWORD) nem serviço (NVU_SIGN_COMMAND_JSON). Nada foi publicado.'; exit 78 }
+      - name: OAuth Desktop client from secrets (never from the repository)
+        shell: pwsh
+        env:
+          CID: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_ID }}
+          CSEC: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: |
+          if (-not $env:CID) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_ID ausente.'; exit 78 }
+          @{ clientId = $env:CID; clientSecret = $env:CSEC } | ConvertTo-Json | Set-Content -Encoding UTF8 desktop/windows/config/google-oauth.json
+      - run: npm ci
+      - run: npm --prefix desktop/windows ci
+      - run: npm run windows:plugin
+      - run: npm run lint
+      - run: npm run test:windows
+      - name: Build, sign and verify
+        env:
+          NVU_SIGN_PFX_BASE64: ${{ secrets.NVU_SIGN_PFX_BASE64 }}
+          NVU_SIGN_PFX_PASSWORD: ${{ secrets.NVU_SIGN_PFX_PASSWORD }}
+          NVU_SIGN_COMMAND_JSON: ${{ secrets.NVU_SIGN_COMMAND_JSON }}
+        run: |
+          npm run windows:installer
+          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NVU-PRO-signed-release
+          path: |
+            artifacts/windows/NVU-PRO-Setup-*-x64.exe
+            artifacts/windows/release-manifest.json
+            artifacts/windows/SHA256SUMS.txt
+            desktop/windows/installer/Verificar-NVU.ps1
+          if-no-files-found: error

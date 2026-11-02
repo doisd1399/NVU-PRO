@@ -48,3 +48,12 @@ assert.equal(displayTripSimulatorName({ simulatorCode: 'ATS', simulatorKey: 'ats
 assert.equal(displayTripSimulatorName({ simulatorId: firestoreId }), '-', 'an opaque simulatorId is never printed');
 assert.match(displayTripSimulatorName({ simulatorId: firestoreId, simuladorNome: 'Truckers of Europe 3' }), /Truckers/i);
 console.log('PASS trip history simulator label');
+import { classifyWindowsAuthError } from '../src/lib/windowsAuthErrors.ts';
+const wrapped = (code: string) => new Error(`Error invoking remote method 'nvu:windows': AuthError: ${code}: texto`);
+assert.equal(classifyWindowsAuthError(wrapped('GOOGLE_TOKEN_REVOKED')).kind, 'expired');
+assert.equal(classifyWindowsAuthError(wrapped('GOOGLE_NETWORK')).kind, 'network'); assert.equal(classifyWindowsAuthError(wrapped('GOOGLE_NETWORK')).retryable, true);
+assert.equal(classifyWindowsAuthError(wrapped('GOOGLE_CLIENT_INVALID')).kind, 'client');
+assert.equal(classifyWindowsAuthError(wrapped('GOOGLE_UNAVAILABLE')).kind, 'unavailable');
+assert.doesNotMatch(classifyWindowsAuthError(wrapped('GOOGLE_TOKEN_REVOKED')).message, /internet|conexão/i, 'credencial vencida nunca é apresentada como falta de internet');
+assert.equal(classifyWindowsAuthError(new Error('qualquer outra coisa')).kind, 'unknown');
+console.log('PASS Windows auth failures are classified (expired ≠ offline ≠ refused)');

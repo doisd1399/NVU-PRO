@@ -11,7 +11,9 @@ function createInstance({ app, cli = {}, self, find, readPackage, dialogs, kille
     return raw.filter(p => p.pid !== self.pid).map(p => identifyNvu(p, readPackage)).filter(Boolean);
   }
   async function waitUntil(predicate, ms, step = 200) { const end = now() + ms; for (;;) { if (await predicate()) return true; if (now() >= end) return false; await sleep(step); } }
-  const say = async options => cli.noDialogs ? { response: options.defaultId ?? 0, suppressed: true } : dialogs.show(options);
+  // `replace` = the answer given automatically by --nvu-replace-running (explicit, documented automation flag).
+  const say = async (options, replace) => cli.replaceRunning && replace !== undefined ? { response: replace, automatic: true }
+    : cli.noDialogs ? { response: options.defaultId ?? 0, suppressed: true } : dialogs.show(options);
   const failure = async (code, extra = '') => { const d = describe(code); await say({ type: 'warning', title: 'NVU PRO', message: d.title, detail: `${extra ? extra + '\n\n' : ''}${d.action}\n\nCódigo: ${d.code}`, buttons: ['OK'], defaultId: 0 }); };
 
   /** Called in the process that HOLDS the lock when someone else tries to start. */
@@ -40,7 +42,7 @@ function createInstance({ app, cli = {}, self, find, readPackage, dialogs, kille
         if (!owner.verified) return { ok: false, reason: 'owner-not-verified' };
         const answer = await say({ type: 'warning', title: 'NVU PRO', message: 'A versão anterior da NVU não respondeu',
           detail: `O processo ${owner.pid} (versão ${owner.version || 'desconhecida'}) em\n${owner.exe}\nnão fechou sozinho. Encerrar somente esse processo da NVU agora?\n\nAs viagens pendentes continuam salvas em %APPDATA%\\NVU PRO\\pro-journal.json.`,
-          buttons: ['Encerrar a NVU anterior', 'Cancelar'], defaultId: 1, cancelId: 1 });
+          buttons: ['Encerrar a NVU anterior', 'Cancelar'], defaultId: 1, cancelId: 1 }, 0);
         if (answer.response !== 0) return { ok: false, reason: 'force-declined' };
         logger.warn('instance.force_close', { pid: owner.pid });
         try { await killer.force(owner.pid); } catch (error) { logger.error('instance.force_close_failed', { message: String(error.message || error) }); return { ok: false, reason: 'force-failed' }; }
@@ -67,7 +69,7 @@ function createInstance({ app, cli = {}, self, find, readPackage, dialogs, kille
     const newer = order > 0, d = describe('NVU-I020');
     const answer = await say({ type: 'question', title: 'NVU PRO', message: newer ? 'Uma versão anterior da NVU ainda está aberta' : 'Uma versão mais nova da NVU já está aberta',
       detail: `Já aberta: versão ${owner.version || 'desconhecida'}\n${owner.exe}\n\nEsta: versão ${self.version}\n${self.exe}\n\n${newer ? 'Enquanto a anterior estiver aberta, você continua vendo a tela e o plugin esperado dela. ' : ''}Suas viagens pendentes ficam salvas e passam para a versão que ficar aberta.\n\n${d.action}`,
-      buttons: newer ? ['Fechar a anterior e abrir esta versão', 'Voltar à versão que já está aberta'] : ['Voltar à versão que já está aberta', 'Fechar a mais nova e abrir esta versão'], defaultId: newer ? 0 : 0, cancelId: newer ? 1 : 0 });
+      buttons: newer ? ['Fechar a anterior e abrir esta versão', 'Voltar à versão que já está aberta'] : ['Voltar à versão que já está aberta', 'Fechar a mais nova e abrir esta versão'], defaultId: newer ? 0 : 0, cancelId: newer ? 1 : 0 }, newer ? 0 : 1);
     const wantsSwitch = newer ? answer.response === 0 : answer.response === 1;
     if (!wantsSwitch || answer.suppressed) { logger.info('instance.kept_running', { owner: owner.version, switch: false, suppressed: !!answer.suppressed }); return { primary: false, exitCode: answer.suppressed ? 4 : 0, kind: 'other-version-kept', owner }; }
     const result = await takeover(owner);

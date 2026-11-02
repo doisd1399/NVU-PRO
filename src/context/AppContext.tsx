@@ -35,6 +35,8 @@ import { driverDisplayIdentity } from "../lib/driverDisplayIdentity";
 import { useDriverDisplayProfiles } from "../hooks/useDriverDisplayProfiles";
 import { auth, authPersistenceReady, db } from "../lib/firebase";
 import { restoreNativeGoogleSession } from "../services/googleAuthService";
+import { isWindowsDesktop } from "../lib/windowsAutomation";
+import { classifyWindowsAuthError } from "../lib/windowsAuthErrors";
 import { NotificationsProvider } from "./NotificationsContext";
 import {
   CompanyProvider,
@@ -2176,6 +2178,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       })
       .catch((error) => {
         console.warn("[NVU Auth] native session restore unavailable", error);
+        if (isWindowsDesktop()) {
+          // Windows: say WHY the session was not restored (expired vs. offline vs. refused), and retry once when the network returns.
+          const failure = classifyWindowsAuthError(error);
+          toast.error(failure.message, { id: "nvu-windows-auth", duration: 12000 });
+          if (failure.retryable && typeof window !== "undefined") {
+            window.addEventListener("online", () => { void restoreNativeGoogleSession().catch(() => undefined); }, { once: true });
+          }
+        }
       })
       .finally(() => {
         nativeSessionRestoreSettled = true;

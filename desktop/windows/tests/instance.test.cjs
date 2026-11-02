@@ -129,3 +129,10 @@ test('tasklist: confirma PID + nome da imagem sem PowerShell e recusa entradas i
   assert.equal(await pidRunsImage(77, 'NVU PRO.exe & calc', run), false); assert.equal(await pidRunsImage(-1, 'NVU PRO.exe', run), false);
   assert.equal(await pidRunsImage(77, 'NVU PRO.exe', async () => { throw Error('missing'); }), false);
 });
+test('--nvu-replace-running (automação documentada): assume o lugar da versão anterior sem perguntar, mas só de uma NVU verificada', async () => {
+  const ok = world({ packages: OLD_PACKAGES, cli: { replaceRunning: true, noDialogs: true }, releaseOnTakeover: false });
+  const result = await ok.instance.handleLostLock();
+  assert.equal(result.kind, 'took-over'); assert.deepEqual(ok.calls.dialogs, []); assert.deepEqual(ok.calls.force, [200]);
+  const other = world({ owners: [{ pid: 300, exe: 'C:\\Other\\NVU PRO.exe', version: null }], packages: { 'C:\\Other': { name: 'another-electron-app', version: '1' } }, cli: { replaceRunning: true, noDialogs: true } });
+  const refused = await other.instance.handleLostLock(); assert.equal(refused.kind, 'unknown-owner'); assert.deepEqual(other.calls.force, []);
+});
