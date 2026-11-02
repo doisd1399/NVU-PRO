@@ -14,6 +14,9 @@
 #include <thread>
 #include <vector>
 #include <cstring>
+#ifndef NVU_PLUGIN_VERSION
+#error "NVU_PLUGIN_VERSION must be defined by the build (build-plugin.cjs stamps it from package.json nvu.pluginVersion)"
+#endif
 #include "scssdk_telemetry.h"
 #include "common/scssdk_telemetry_common_configs.h"
 #include "common/scssdk_telemetry_truck_common_channels.h"
@@ -28,7 +31,7 @@ scs_log_t gameLog = nullptr;
 std::atomic<int> bridgeState{2};
 int reportedBridgeState = -1;
 fs::path directory;
-std::string game, boot, job, origin, destination, fingerprint, jobState = "idle";
+std::string game, gameVersion, boot, job, origin, destination, fingerprint, jobState = "idle";
 bool paused = true, completed = false, jobAvailable = false;
 unsigned long long sequence = 0;
 double remainingKm = -1, plannedKm = -1;
@@ -88,7 +91,7 @@ void pulse() {
       + ",\"bootId\":" + quote(boot) + ",\"sequence\":" + std::to_string(++sequence) + ",\"at\":" + std::to_string(millis())
       + ",\"online\":" + (stopping ? "false" : "true") + ",\"paused\":" + (paused ? "true" : "false")
       + ",\"jobId\":" + quote(active ? job : "") + ",\"jobState\":" + quote(jobState)
-      + ",\"pluginVersion\":\"0.1.4\",\"origin\":" + quote(active ? origin : "") + ",\"destination\":" + quote(active ? destination : "")
+      + ",\"pluginVersion\":" + quote(NVU_PLUGIN_VERSION) + ",\"gameVersion\":" + quote(gameVersion) + ",\"origin\":" + quote(active ? origin : "") + ",\"destination\":" + quote(active ? destination : "")
       + ",\"remainingDistanceKm\":" + (active ? distanceJson(remainingKm) : "null") + ",\"plannedDistanceKm\":" + (active ? distanceJson(plannedKm) : "null") + "}";
     }
     // Flush the snapshot outside the callback mutex: slow storage must not
@@ -103,9 +106,9 @@ SCSAPI_VOID callback(const scs_event_t event, const void* const info, const scs_
     const int bridge = bridgeState.load();
     if (gameLog && bridge != reportedBridgeState) {
       gameLog(bridge == 1 ? SCS_LOG_TYPE_warning : SCS_LOG_TYPE_message,
-        bridge == 1 ? "[NVU PRO 0.1.4] Local bridge write failed; check user permissions."
-        : bridge == 2 ? "[NVU PRO 0.1.4] Waiting for the NVU application."
-        : "[NVU PRO 0.1.4] Local telemetry bridge active.");
+        bridge == 1 ? "[NVU PRO " NVU_PLUGIN_VERSION "] Local bridge write failed; check user permissions."
+        : bridge == 2 ? "[NVU PRO " NVU_PLUGIN_VERSION "] Waiting for the NVU application."
+        : "[NVU PRO " NVU_PLUGIN_VERSION "] Local telemetry bridge active.");
       reportedBridgeState = bridge;
     }
     if (event == SCS_TELEMETRY_EVENT_frame_end) return;
@@ -169,6 +172,7 @@ extern "C" __declspec(dllexport) SCSAPI_RESULT scs_telemetry_init(const scs_u32_
   try {
     if (!p->common.game_id) return SCS_RESULT_unsupported;
     gameLog = p->common.log;
+    gameVersion = std::to_string(SCS_GET_MAJOR_VERSION(p->common.game_version)) + "." + std::to_string(SCS_GET_MINOR_VERSION(p->common.game_version));
     if (std::strcmp(p->common.game_id, "eut2") == 0) game = "ets2";
     else if (std::strcmp(p->common.game_id, "ats") == 0) game = "ats";
     else return SCS_RESULT_unsupported;
@@ -178,19 +182,19 @@ extern "C" __declspec(dllexport) SCSAPI_RESULT scs_telemetry_init(const scs_u32_
     for (auto event : { SCS_TELEMETRY_EVENT_started, SCS_TELEMETRY_EVENT_paused, SCS_TELEMETRY_EVENT_configuration, SCS_TELEMETRY_EVENT_gameplay, SCS_TELEMETRY_EVENT_frame_end }) {
       if (p->register_for_event(event, callback, nullptr) != SCS_RESULT_ok) {
         for (auto old : registered) p->unregister_from_event(old);
-        if (gameLog) gameLog(SCS_LOG_TYPE_error, "[NVU PRO 0.1.4] Required SDK event registration failed.");
+        if (gameLog) gameLog(SCS_LOG_TYPE_error, "[NVU PRO " NVU_PLUGIN_VERSION "] Required SDK event registration failed.");
         return SCS_RESULT_unsupported;
       }
       registered.push_back(event);
     }
     if (p->register_for_channel(SCS_TELEMETRY_TRUCK_CHANNEL_navigation_distance, SCS_U32_NIL, SCS_VALUE_TYPE_float,
       SCS_TELEMETRY_CHANNEL_FLAG_no_value, navigation, nullptr) != SCS_RESULT_ok && gameLog)
-      gameLog(SCS_LOG_TYPE_warning, "[NVU PRO 0.1.4] Navigation distance unavailable; planned job distance remains optional.");
+      gameLog(SCS_LOG_TYPE_warning, "[NVU PRO " NVU_PLUGIN_VERSION "] Navigation distance unavailable; planned job distance remains optional.");
     stopping = false;
     worker = std::thread([] { while (!stopping) { pulse(); std::this_thread::sleep_for(std::chrono::milliseconds(1000)); } });
-    if (gameLog) gameLog(SCS_LOG_TYPE_message, game == "ats" ? "[NVU PRO 0.1.4] ATS telemetry initialized." : "[NVU PRO 0.1.4] ETS2 telemetry initialized.");
+    if (gameLog) gameLog(SCS_LOG_TYPE_message, game == "ats" ? "[NVU PRO " NVU_PLUGIN_VERSION "] ATS telemetry initialized." : "[NVU PRO " NVU_PLUGIN_VERSION "] ETS2 telemetry initialized.");
     return SCS_RESULT_ok;
-  } catch (...) { stopping = true; for (auto old : registered) p->unregister_from_event(old); if (gameLog) gameLog(SCS_LOG_TYPE_error, "[NVU PRO 0.1.4] Plugin initialization failed."); return SCS_RESULT_generic_error; }
+  } catch (...) { stopping = true; for (auto old : registered) p->unregister_from_event(old); if (gameLog) gameLog(SCS_LOG_TYPE_error, "[NVU PRO " NVU_PLUGIN_VERSION "] Plugin initialization failed."); return SCS_RESULT_generic_error; }
 }
 extern "C" __declspec(dllexport) SCSAPI_VOID scs_telemetry_shutdown() {
   stopping = true; if (worker.joinable()) worker.join(); pulse();

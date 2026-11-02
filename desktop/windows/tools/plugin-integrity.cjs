@@ -1,6 +1,8 @@
 const fs = require('node:fs');
 const { createHash } = require('node:crypto');
-function verifyPlugin(file) {
+const { readAuthenticode } = require('./authenticode.cjs');
+/** Structural checks of the x64 plugin DLL. With `version`, the binary must also carry the matching "[NVU PRO x.y.z]" log marker. */
+function verifyPlugin(file, { version } = {}) {
   const bytes = fs.readFileSync(file);
   if (bytes.length < 512 || bytes.toString('ascii', 0, 2) !== 'MZ') throw Error('PLUGIN_BINARY_INVALID');
   const pe = bytes.readUInt32LE(0x3c);
@@ -12,6 +14,8 @@ function verifyPlugin(file) {
     if (length && (!offset || offset + length > bytes.length)) throw Error('PLUGIN_BINARY_INCOMPLETE');
   }
   if (!['scs_telemetry_init', 'scs_telemetry_shutdown'].every(name => bytes.includes(Buffer.from(name + '\0')))) throw Error('PLUGIN_EXPORTS_REQUIRED');
-  return { bytes: bytes.length, machine: 'x64', sha256: createHash('sha256').update(bytes).digest('hex') };
+  if (version && !bytes.includes(Buffer.from(`[NVU PRO ${version}]`))) throw Error('PLUGIN_VERSION_MARKER_MISSING');
+  const authenticode = readAuthenticode(bytes);
+  return { bytes: bytes.length, machine: 'x64', signed: authenticode.present, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
 module.exports = { verifyPlugin };

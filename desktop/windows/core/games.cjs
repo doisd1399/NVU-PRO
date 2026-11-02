@@ -1,14 +1,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { atomic } = require('./session.cjs');
+const { gameRoot, installPlugin, removePlugin } = require('./plugin-install.cjs');
 const games = { ets2: { folder: 'Euro Truck Simulator 2', exe: 'eurotrucks2.exe', steamId: '227300' },
   ats: { folder: 'American Truck Simulator', exe: 'amtrucks.exe', steamId: '270880' } };
 function realGame(root, key) {
-  if (!games[key] || typeof root !== 'string' || root.includes('\0')) throw Error('GAME_PATH_INVALID');
-  const real = fs.realpathSync(root);
-  if (!fs.existsSync(path.join(real, 'bin', 'win_x64', games[key].exe))) throw Error('Selecione a pasta raiz do simulador Windows x64.');
-  return real;
+  if (!games[key]) throw Error('GAME_PATH_INVALID');
+  return gameRoot(root, key);
 }
 function discover(roots) {
   const libraries = new Set(roots.filter(Boolean));
@@ -23,30 +21,10 @@ function discover(roots) {
   }
   return found;
 }
-const hash = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-function pluginAction(root, key, dll, remove = false) {
-  const real = realGame(root, key), dir = path.join(real, 'bin', 'win_x64', 'plugins');
-  // A junction/symlink at the plugin destination must not escape the selected game.
-  fs.mkdirSync(dir, { recursive: true });
-  const normalizePath = p => process.platform === 'win32' ? p.toLowerCase() : p;
-  if (normalizePath(fs.realpathSync(dir)) !== normalizePath(path.resolve(dir))) throw Error('PLUGIN_DESTINATION_REDIRECTED');
-  const target = path.join(dir, 'nvu_scs_telemetry.dll'), receipt = `${target}.nvu.json`;
-  if (remove) {
-    if (!fs.existsSync(target)) return { restartRequired: true };
-    const owned = JSON.parse(fs.readFileSync(receipt, 'utf8'));
-    if (owned.sha256 !== hash(target)) throw Error('O plugin instalado foi alterado. Remoção automática bloqueada.');
-    fs.unlinkSync(target); fs.unlinkSync(receipt);
-  } else {
-    if (fs.existsSync(target)) {
-      if (!fs.existsSync(receipt) || JSON.parse(fs.readFileSync(receipt, 'utf8')).sha256 !== hash(target))
-        throw Error('Já existe um plugin com este nome sem identificação NVU válida.');
-    }
-    const bytes = fs.readFileSync(dll);
-    if (bytes.subarray(0, 2).toString() !== 'MZ') throw Error('PLUGIN_BINARY_INVALID');
-    fs.copyFileSync(dll, `${target}.tmp`); fs.renameSync(`${target}.tmp`, target);
-    atomic(receipt, { product: 'NVU', sha256: hash(target), installedAt: new Date().toISOString() });
-  }
-  return { restartRequired: true, root: real };
+// Kept as the stable entry point used by the rest of the application and the tests.
+function pluginAction(root, key, dll, remove = false, options = {}) {
+  if (!games[key]) throw Error('GAME_INVALID');
+  return remove ? removePlugin({ root, key }) : installPlugin({ root, key, dll, expectedSha256: options.expectedSha256, version: options.version });
 }
 function clampBounds(bounds, displays) {
   const d = displays.find(d => bounds && bounds.x < d.x + d.width && bounds.x + bounds.width > d.x

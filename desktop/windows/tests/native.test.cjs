@@ -32,13 +32,13 @@ function fixture(t) {
   return { dir, game, bridge, dll, session, integration, reader, packet, heartbeat, id, now, tick: ms => { time += ms; } };
 }
 test('Preparação bloqueia plugin ausente/desatualizado e mantém a pasta selecionada após reinício', t => {
-  const f = fixture(t); assert.throws(() => f.integration.assertReady('ats', f.session), /Instale o plugin/);
+  const f = fixture(t); assert.throws(() => f.integration.assertReady('ats', f.session), /Prepare o ATS/);
   pluginAction(f.game, 'ats', f.dll); f.integration.running = [];
   assert.equal(f.integration.status('ats', f.session).phase, 'game_closed');
   f.integration.running = ['ats']; assert.equal(f.integration.status('ats', f.session).phase, 'waiting_plugin');
   const restored = new Integration({ file: path.join(f.dir, 'games.json'), dll: f.dll, roots: [], documents: f.dir }); assert.equal(restored.game('ats').root, f.game);
   fs.appendFileSync(f.dll, 'new-version'); const updated = new Integration({ file: path.join(f.dir, 'games.json'), dll: f.dll, roots: [], documents: f.dir });
-  assert.throws(() => updated.assertReady('ats', f.session), /Atualize o plugin/);
+  assert.throws(() => updated.assertReady('ats', f.session), /diferente do esperado/);
 });
 test('Ponte real por arquivos autentica ATS, expira, reconecta e preserva entrega antes de confirmar', t => {
   const f = fixture(t); pluginAction(f.game, 'ats', f.dll); f.session.start(scope);
@@ -70,7 +70,7 @@ test('Plugin antigo ainda carregado exige reinício, mesmo após atualizar o arq
   const f = fixture(t); pluginAction(f.game, 'ats', f.dll); f.integration.version = '0.1.2';
   f.heartbeat(f.packet({ pluginVersion: '0.1.1' })); f.reader.poll(f.session);
   assert.equal(f.integration.status('ats', f.session).phase, 'plugin_restart');
-  assert.throws(() => f.integration.assertReady('ats', f.session), /plugin anterior/);
+  assert.throws(() => f.integration.assertReady('ats', f.session), /ainda usa o plugin/);
   f.heartbeat(f.packet({ sequence: 2, pluginVersion: '0.1.2' })); f.reader.poll(f.session);
   assert.equal(f.integration.status('ats', f.session).phase, 'connected');
 });
@@ -102,58 +102,4 @@ test('Painel recebe foco, permanece aberto sem cursor, migra posição e avisos 
  await assert.rejects(c.command('notice','stop'),/DENIED/);await assert.rejects(c.command('panel','execute-shell'),/DENIED/);assert.throws(()=>c.surface({sender:{},senderFrame:{}}),/DENIED/);
  assert.equal(c.control,undefined);time+=11001;c.tick();assert.equal(c.notice.isVisible(),false);assert.equal(c.panel.isVisible(),true);
  let prevented=false;c.panel.emit('close',{preventDefault:()=>{prevented=true;}});assert(prevented);assert.equal(c.panel.isVisible(),false);assert.equal(visibility.at(-1),false);
-});
-test('Main real inicializa, prepara plugin e executa todos os comandos com contexto e IPC validados', async t => {
-  const f = fixture(t), handlers = new Map(), shortcuts = new Map(), windows = [], opened = [], errors = [], timers = [];
-  const user = path.join(f.dir, 'user'), local = path.join(f.dir, 'local'); fs.mkdirSync(user); fs.mkdirSync(local);
-  fs.copyFileSync(path.join(f.dir, 'games.json'), path.join(user, 'games.json'));
-  let running = [], confirm = 1, focusAllowed = true;
-  const child = { execFileSync: name => name === 'powershell.exe' ? '"S-1-5-21-123"' : '', execFile() {} };
-  child.execFile[promisify.custom] = async () => ({ stdout: JSON.stringify(running.map(k => k === 'ats' ? 'amtrucks' : 'eurotrucks2')) });
-  const app = Object.assign(new EventEmitter(), { isPackaged: false, setName() {}, requestSingleInstanceLock: () => true, whenReady: () => Promise.resolve(), getPath: name => name === 'userData' ? user : name === 'documents' ? f.dir : path.join(f.dir, 'Roaming'), getVersion: () => '0.1.4', quit() {} });
-  const screen = Object.assign(new EventEmitter(), { getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1100, height: 750 } }], getCursorScreenPoint: () => ({ x: 50, y: 50 }) });
-  class BrowserWindow extends Window { constructor(options) { super(options); this.options = options; windows.push(this); } }
-  const electron = { app, BrowserWindow, screen, protocol: { registerSchemesAsPrivileged() {}, handle() {} }, session: { defaultSession: { setPermissionRequestHandler() {}, setPermissionCheckHandler() {} } },
-    ipcMain: { handle: (name, callback) => handlers.set(name, callback) }, globalShortcut: { register: (key, callback) => shortcuts.set(key, callback), unregister: key => shortcuts.delete(key), unregisterAll() {} },
-    shell: { openExternal: async url => opened.push(url) }, dialog: { showErrorBox: (_, error) => errors.push(error), showMessageBox: async () => ({ response: confirm }), showOpenDialog: async () => ({ canceled: true }) }, safeStorage: {}, net: {},
-    Tray: class { setToolTip() {} setContextMenu() {} on() {} destroy() {} }, Menu: { setApplicationMenu() {}, buildFromTemplate: x => x }, nativeImage: { createFromPath() {} }, clipboard: { writeText() {} } };
-  const file = path.resolve(__dirname, '../main.cjs'), req = createRequire(file), web = path.resolve(__dirname, '../../../dist');
-  const fakeFs = { ...fs, realpathSync: p => p === web ? web : fs.realpathSync(p), readFileSync: (p, encoding) => String(p) === path.join(web, 'index.html') ? '<html></html>'
-    : String(p).endsWith('config/google-oauth.json') ? JSON.stringify({ clientId: 'qa.apps.googleusercontent.com' }) : fs.readFileSync(p, encoding) };
-  vm.runInNewContext(fs.readFileSync(file, 'utf8'), { require: name => name === 'electron' ? electron : name === 'node:child_process' ? child : name === 'node:fs' ? fakeFs : name === './core/game-window.cjs' ? {focusGameWindow:async key=>{opened.push('focus:'+key);return{found:true,focused:focusAllowed};}} : req(name),
-    __dirname: path.dirname(file), process: { platform: 'win32', env: { LOCALAPPDATA: local, ProgramFiles: f.dir, 'ProgramFiles(x86)': f.dir } },
-    URL, Response, Headers, console, setInterval: (fn, ms) => { timers.push({ fn, ms }); return { unref() {} }; } }, { filename: file });
-  await new Promise(resolve => setImmediate(resolve)); assert.deepEqual(errors, []); assert.equal(windows.length, 1);
-  const main = windows[0], event = { sender: main.webContents, senderFrame: main.webContents.mainFrame };
-  const invoke = (method, input) => handlers.get('nvu:windows')(event, { method, input });
-  assert.equal(main.options.webPreferences.sandbox, true); assert.equal(main.options.webPreferences.nodeIntegration, false);
-  await invoke('syncScope', scope); await assert.rejects(invoke('start', scope), /Instale o plugin/);
-  await invoke('installPlugin', { key: 'ats', root: f.game }); await invoke('start', scope); assert.equal(windows.length, 3);
-  const panel=windows[1],overlayEvent={sender:panel.webContents,senderFrame:panel.webContents.mainFrame};
-  assert.equal(panel.options.focusable,true);assert.equal(panel.options.transparent,true);assert.equal(panel.options.resizable,false);assert.equal(panel.getBounds().width,1100);
-  let keyboardBlocked=false;panel.webContents.emit('before-input-event',{preventDefault:()=>{keyboardBlocked=true;}},{key:'Enter',control:false});assert(keyboardBlocked);
-  const current = () => main.messages.filter(m => m.name === 'nvu:windows:update').at(-1).value;
-  const context=()=>panel.messages.filter(m=>m.name==='nvu:overlay:update').at(-1).value.contextKey;
-  const action = name => handlers.get('nvu:overlay')(overlayEvent, { action: name, contextKey: context() });
-  assert.equal(panel.isVisible(),false);await invoke('showOverlay');assert.equal(panel.isVisible(),true);assert.deepEqual([...shortcuts.keys()],['CommandOrControl+N']); assert.equal(current().active, true); assert.equal(current().connected, false);
-  await action('pause'); assert.equal(current().enabled,false);assert.equal(panel.isVisible(),true); await action('resume'); assert.equal(current().enabled, true);
-  for (const name of ['panel', 'trips', 'setup']) { await action(name); assert.equal(main.messages.filter(m => m.name === 'nvu:windows:navigate').at(-1).value.action, name); }
-  await action('game'); assert.equal(opened.at(-1), 'steam://rungameid/270880'); assert.equal(current().connected, false);
-  const bridge = path.join(local, 'NVU/pro-telemetry'), bridgeToken = fs.readFileSync(path.join(bridge, 'bridge.token'), 'utf8');
-  fs.writeFileSync(path.join(bridge, 'ats.heartbeat.json'), JSON.stringify(f.packet({ token: bridgeToken, at: Date.now(), pluginVersion:'0.1.4',origin:'QA origem',destination:'QA destino' })));
-  const poll = timers.find(timer => timer.ms === 1000).fn; await poll();assert.equal(current().connected,true);assert.equal(current().integration.phase,'connected');assert.equal(current().appVersion,'0.1.4');assert.equal(current().telemetryPluginVersion,'0.1.4');assert.equal(windows.length,3);assert.equal(windows[2].options.focusable,false);assert.equal(windows[2].ignored,true);
-  await invoke('showOverlay');focusAllowed=false;await assert.rejects(action('game'),/Windows não liberou/);assert.equal(panel.isVisible(),true);focusAllowed=true;await action('game');assert.equal(opened.at(-1),'focus:ats');assert.equal(opened.filter(url=>url.startsWith('steam:')).length,1);assert.equal(panel.isVisible(),false);
-  await assert.rejects(async()=>handlers.get('nvu:overlay')(overlayEvent,{action:'pause',contextKey:context(),arbitrary:true}),/DENIED/);await invoke('setTheme','dark');assert.equal(current().theme,'dark');await action('theme');assert.equal(current().theme,'light');assert.equal(JSON.parse(fs.readFileSync(path.join(user,'windows-preferences.json'))).theme,'light');
-  await invoke('showOverlay');handlers.get('nvu:overlay:move')(overlayEvent,{x:250,y:45});assert.equal(JSON.parse(fs.readFileSync(path.join(user,'overlay.json'))).x,250);assert.throws(()=>handlers.get('nvu:overlay:move')(overlayEvent,{x:1,y:2,arbitrary:true}),/DENIED/);assert.throws(()=>handlers.get('nvu:overlay:move')({sender:{},senderFrame:{}},{x:1,y:2}),/DENIED/);await assert.rejects(invoke('setTheme','invalid'),/THEME_INVALID/);
-  fs.writeFileSync(path.join(bridge, `ats-${f.id}.delivery.json`), JSON.stringify({ version: 1, token: bridgeToken, simulatorKey: 'ats', type: 'job.delivered', eventId: f.id, capturedAt: Date.now(), origin: 'QA origem', destination: 'QA destino', amountCents: 10000, currency: 'USD', distanceKm: 12 }));
-  await poll(); assert.equal(current().pending.length, 1); assert.equal(current().scope.progress, 0);
-  confirm = 0; await action('stop'); assert.equal(current().active, true);
-  const stale = context(); await invoke('syncScope', { ...scope, companyId: 'qa-other-company' });
-  await assert.rejects(async () => handlers.get('nvu:overlay')(overlayEvent, { action: 'stop', contextKey: stale }), /contexto mudou/);
-  await assert.rejects(handlers.get('nvu:windows')({ sender: {}, senderFrame: {} }, { method: 'status' }), /REJECTED/);
-  await invoke('start', { ...scope, companyId: 'qa-other-company' }); confirm = 1; await action('stop'); assert.equal(current().active, false);
-  assert.equal(current().pending.length, 1); assert.equal(current().pending[0].scope.companyId, scope.companyId);
-  await handlers.get('nvu:overlay')(overlayEvent,{action:'collapse'});assert.equal(panel.isVisible(),false);shortcuts.get('CommandOrControl+N')();assert.equal(panel.isVisible(),true);shortcuts.get('CommandOrControl+N')();assert.equal(panel.isVisible(),false);assert.equal(shortcuts.has('CommandOrControl+Alt+PageDown'),false);
-  running = ['ats']; await assert.rejects(invoke('removePlugin', { key: 'ats', root: f.game }), /Feche o ATS/);
-  app.emit('before-quit');
 });

@@ -1,6 +1,6 @@
 {
   "name": "nvu-windows",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "private": true,
   "description": "NVU PRO Windows — ETS2/ATS (candidata a validação)",
   "author": "NVU",
@@ -60,5 +60,8 @@
       "deleteAppDataOnUninstall": false
     },
     "artifactName": "NVU-PRO-Windows-${version}-x64-Setup.${ext}"
+  },
+  "nvu": {
+    "pluginVersion": "0.2.0"
   }
 }
