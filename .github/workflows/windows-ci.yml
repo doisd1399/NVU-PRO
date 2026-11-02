@@ -108,6 +108,10 @@ jobs:
         run: |
           $new = Get-ChildItem ci-new -Recurse -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
           node desktop/windows/tests/e2e/smoke.cjs --installer $new.FullName --label new --out artifacts/e2e
+      - name: "Verificar-NVU.ps1 the way a person runs it (Windows PowerShell 5.1 and PowerShell 7), including altered downloads"
+        if: always()
+        shell: pwsh
+        run: node desktop/windows/tests/e2e/verificar.cjs --dir ci-new --out artifacts/e2e --expect unsigned
       - name: Plugin preparation (elevation wrapper, tampered request, process list)
         if: always()
         shell: pwsh
@@ -171,9 +175,14 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "signed installer exit code $($p.ExitCode)" }
           node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" "$env:RUNNER_TEMP\signed-versions.json"
           Get-Content "$env:RUNNER_TEMP\signed-versions.json" -Raw
+      - name: "Verificar-NVU.ps1 on the SIGNED installer: signature Valid, signer shown, exit code 0"
+        shell: pwsh
+        run: node desktop/windows/tests/e2e/verificar.cjs --dir artifacts/windows --out artifacts/e2e-signed --expect signed
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: signing-dry-run-report
           path: |
             artifacts/windows/release-manifest.json
             artifacts/windows/SHA256SUMS.txt
+            artifacts/e2e-signed/verificar-signed.json

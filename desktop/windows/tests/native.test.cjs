@@ -14,10 +14,26 @@ const { Integration, BridgeReader } = require('../core/integration.cjs');
 const { pluginAction } = require('../core/games.cjs');
 const { OverlayController } = require('../core/overlay-controller.cjs');
 const { verifyPlugin } = require('../tools/plugin-integrity.cjs');
-test('DLL compilada é PE x64 completo e contém os exports oficiais do SDK', () => {
-  const result = verifyPlugin(path.resolve(__dirname, '../plugin/bin/nvu_scs_telemetry.dll'));
+test('DLL compilada é PE x64 completo, exporta exatamente as funções oficiais do SDK (tabela de exportação real), só importa DLLs do sistema e a verificação recusa as que não cumprem isso', () => {
+  const dllFile = path.resolve(__dirname, '../plugin/bin/nvu_scs_telemetry.dll');
+  const result = verifyPlugin(dllFile);
   assert.equal(result.machine, 'x64'); assert(result.bytes > 512);
+  assert.deepEqual([...result.exports].sort(), ['scs_telemetry_init', 'scs_telemetry_shutdown']);
+  for (const name of result.imports) assert(['kernel32.dll', 'shell32.dll', 'ole32.dll', 'msvcrt.dll'].includes(name), `importação inesperada (o plugin precisa ser autossuficiente): ${name}`);
+  const real = fs.readFileSync(dllFile), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nvu-pe-'));
+    const replaceAll = (bytes, from, to) => { assert.equal(from.length, to.length); let count = 0; for (let at; (at = bytes.toString('latin1').toLowerCase().indexOf(from + '\0')) >= 0 && count < 100; count++) bytes.write(to, at, 'latin1'); return count; };   // case-insensitive: MSVC writes KERNEL32.dll, MinGW writes msvcrt.dll
+  try {
+    // Export names renamed in place AND the plain strings appended at the end: a text search would still find them, the real export table does not offer them.
+    const renamed = Buffer.from(real); for (const name of REQUIRED) assert(replaceAll(renamed, name, 'x' + name.slice(1)) > 0);
+    fs.writeFileSync(path.join(dir, 'renamed.dll'), Buffer.concat([renamed, Buffer.from(REQUIRED.join('\0') + '\0')]));
+    assert.throws(() => verifyPlugin(path.join(dir, 'renamed.dll')), /PLUGIN_EXPORTS_REQUIRED/);
+    // One imported DLL name replaced (same length) by the Visual C++ runtime: refused, because the player's PC may not have it.
+    const dependent = Buffer.from(real), [from, to] = result.imports.includes('msvcrt.dll') ? ['msvcrt.dll', 'msvcp1.dll'] : ['kernel32.dll', 'msvcp140.dll'];
+    assert(replaceAll(dependent, from, to) > 0); fs.writeFileSync(path.join(dir, 'dependent.dll'), dependent);
+    assert.throws(() => verifyPlugin(path.join(dir, 'dependent.dll')), /PLUGIN_RUNTIME_DEPENDENCY/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+const REQUIRED = ['scs_telemetry_init', 'scs_telemetry_shutdown'];
 const token = 'a'.repeat(64), scope = { driverId: 'qa-driver', companyId: 'qa-company', jobId: 'qa-job', contractId: 'qa-contract', simulatorKey: 'ats', total: 6, progress: 0 };
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nvu-native-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
