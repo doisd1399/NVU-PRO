@@ -1,13 +1,13 @@
 # Guia curto — atualizar a NVU e preparar o ETS2/ATS (versão 0.2.0)
 
-> Esta é a edição **candidata 0.2.0**. Ainda não foi assinada digitalmente nem testada em Windows real/jogos reais (veja o relatório). O Windows pode mostrar "editor desconhecido" — **não desative o SmartScreen nem o antivírus**; confira o arquivo (passo 1).
+> Esta é a edição **candidata 0.2.0**. Foi testada no Windows real (instalação, atualização, instância única, desinstalação), mas **ainda não foi assinada digitalmente nem testada com o ETS2/ATS reais** (veja o relatório). O Windows vai mostrar "editor desconhecido" — **não desative o SmartScreen nem o antivírus**; confira o arquivo (passo 1) e siga o passo 2.
 
 ## 1. Conferir o arquivo (30 segundos)
 Deixe `NVU-PRO-Setup-0.2.0-x64.exe`, `release-manifest.json` e `Verificar-NVU.ps1` na mesma pasta. Clique com o botão direito em `Verificar-NVU.ps1` → **Executar com o PowerShell**. A janela mostra tamanho, SHA-256 e a situação da assinatura e espera Enter para fechar. Deve aparecer **OK: tamanho e SHA-256 conferem**. Se aparecer FALHA, o download está incompleto ou foi alterado: baixe de novo (e me envie o tamanho e o SHA-256 mostrados).
 
 ## 2. Instalar ou atualizar
 1. Feche os jogos. Se a NVU antiga estiver aberta, o instalador avisa e oferece fechá-la (suas viagens pendentes ficam salvas).
-2. Execute `NVU-PRO-Setup-0.2.0-x64.exe` e siga o assistente. Não precisa ser administrador. A atualização mantém configurações, fotos locais e viagens pendentes.
+2. Execute `NVU-PRO-Setup-0.2.0-x64.exe` e siga o assistente. Não precisa ser administrador. A atualização mantém configurações, fotos locais e viagens pendentes. Se aparecer a tela azul **"O Windows protegeu o computador"** (esperado enquanto o instalador não é assinado), clique em **Mais informações → Executar assim mesmo**, só depois de o passo 1 mostrar OK. Computador de empresa pode bloquear de vez: fale com o TI; não desative a proteção.
 3. Abra pelo atalho **NVU PRO** (Menu Iniciar ou Área de Trabalho). **Não abra a NVU de uma pasta de downloads antiga.**
 
 ## 3. Entrar
