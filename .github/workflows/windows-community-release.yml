@@ -4,7 +4,12 @@ name: NVU Windows - versão da comunidade (SEM assinatura)
 # Não declara "assinado" nem "pronto para produção": o Windows mostrará "Editor desconhecido" (SmartScreen). Quem publica o
 # rascunho decide depois de conferir e de rodar o roteiro nos jogos (desktop/windows/ROTEIRO-TESTE-ETS2-ATS.md).
 # Pré-requisito (uma vez): Settings > Environments > windows-release > Secrets NVU_GOOGLE_DESKTOP_CLIENT_ID e NVU_GOOGLE_DESKTOP_CLIENT_SECRET.
+# Registro do fluxo: o botão "Run workflow" da aba Actions só aparece depois que este arquivo estiver na branch principal.
+# Antes disso (e para verificar o fluxo sem segredos), um push em claude/** cujo ÚLTIMO commit traga [win-community-ensaio]
+# roda o ENSAIO: constrói, testa e confere, mas nunca cria release nem prova de origem.
 on:
+  push:
+    branches: ['claude/**']
   workflow_dispatch:
     inputs:
       ensaio:
@@ -17,15 +22,18 @@ permissions:
   attestations: write
 jobs:
   community:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-community-ensaio]')
     runs-on: windows-latest
     timeout-minutes: 60
     environment: windows-release
+    env:
+      ENSAIO: ${{ github.event_name == 'push' || inputs.ensaio }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: npm }
       - name: "Cliente OAuth Desktop a partir dos Secrets (o instalador leva o segredo, por isso vai em RASCUNHO e nunca como artefato público)"
-        if: ${{ !inputs.ensaio }}
+        if: env.ENSAIO != 'true'
         shell: pwsh
         env:
           CID: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_ID }}
@@ -56,7 +64,7 @@ jobs:
           node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" $versions
           Get-Content $versions -Raw
       - name: Prova de origem do instalador (attestation do GitHub)
-        if: ${{ !inputs.ensaio }}
+        if: env.ENSAIO != 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: artifacts/windows/NVU-PRO-Setup-*-x64.exe
@@ -64,7 +72,6 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          ENSAIO: ${{ inputs.ensaio }}
         run: |
           $v = (Get-Content desktop/windows/package.json -Raw | ConvertFrom-Json).version
           $file = "artifacts/windows/NVU-PRO-Setup-$v-x64.exe"
