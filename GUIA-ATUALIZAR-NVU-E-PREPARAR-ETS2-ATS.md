@@ -3,7 +3,7 @@
 > Esta é a edição **candidata 0.2.0**. Ainda não foi assinada digitalmente nem testada em Windows real/jogos reais (veja o relatório). O Windows pode mostrar "editor desconhecido" — **não desative o SmartScreen nem o antivírus**; confira o arquivo (passo 1).
 
 ## 1. Conferir o arquivo (30 segundos)
-Deixe `NVU-PRO-Setup-0.2.0-x64.exe`, `release-manifest.json` e `Verificar-NVU.ps1` na mesma pasta. Clique com o botão direito em `Verificar-NVU.ps1` → **Executar com o PowerShell**. Deve aparecer **OK: tamanho e SHA-256 conferem**. Se aparecer FALHA, o download está incompleto ou foi alterado: baixe de novo (e me envie o tamanho e o SHA-256 mostrados).
+Deixe `NVU-PRO-Setup-0.2.0-x64.exe`, `release-manifest.json` e `Verificar-NVU.ps1` na mesma pasta. Clique com o botão direito em `Verificar-NVU.ps1` → **Executar com o PowerShell**. A janela mostra tamanho, SHA-256 e a situação da assinatura e espera Enter para fechar. Deve aparecer **OK: tamanho e SHA-256 conferem**. Se aparecer FALHA, o download está incompleto ou foi alterado: baixe de novo (e me envie o tamanho e o SHA-256 mostrados).
 
 ## 2. Instalar ou atualizar
 1. Feche os jogos. Se a NVU antiga estiver aberta, o instalador avisa e oferece fechá-la (suas viagens pendentes ficam salvas).
