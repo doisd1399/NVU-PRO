@@ -1,0 +1,28 @@
+# Guia curto — atualizar a NVU e preparar o ETS2/ATS (versão 0.2.0)
+
+> Esta é a edição **candidata 0.2.0**. Ainda não foi assinada digitalmente nem testada em Windows real/jogos reais (veja o relatório). O Windows pode mostrar "editor desconhecido" — **não desative o SmartScreen nem o antivírus**; confira o arquivo (passo 1).
+
+## 1. Conferir o arquivo (30 segundos)
+Deixe `NVU-PRO-Setup-0.2.0-x64.exe`, `release-manifest.json` e `Verificar-NVU.ps1` na mesma pasta. Clique com o botão direito em `Verificar-NVU.ps1` → **Executar com o PowerShell**. Deve aparecer **OK: tamanho e SHA-256 conferem**. Se aparecer FALHA, o download está incompleto ou foi alterado: baixe de novo (e me envie o tamanho e o SHA-256 mostrados).
+
+## 2. Instalar ou atualizar
+1. Feche os jogos. Se a NVU antiga estiver aberta, o instalador avisa e oferece fechá-la (suas viagens pendentes ficam salvas).
+2. Execute `NVU-PRO-Setup-0.2.0-x64.exe` e siga o assistente. Não precisa ser administrador. A atualização mantém configurações, fotos locais e viagens pendentes.
+3. Abra pelo atalho **NVU PRO** (Menu Iniciar ou Área de Trabalho). **Não abra a NVU de uma pasta de downloads antiga.**
+
+## 3. Entrar
+Entre com a mesma conta Google da NVU. Se aparecer "sessão expirada", entre de novo; se aparecer "sem conexão com o Google", a sessão salva continua e a NVU tenta de novo sozinha.
+
+## 4. Preparar o simulador (uma vez por jogo)
+1. Feche o ETS2/ATS.
+2. Na NVU: **PRO → Simuladores → Preparar simulador**. Se o jogo não aparecer, use **Localizar jogo** e escolha a pasta que contém `bin\win_x64`.
+3. Se o Windows pedir permissão de administrador, é só para copiar o arquivo do plugin para a pasta do jogo; aceite. A NVU e o jogo continuam normais.
+4. Abra o jogo e aceite o aviso de plugin da SCS, se aparecer. Na NVU as etapas ficam verdes: *Jogo localizado → Plugin instalado → Carregado pelo jogo → Conectado*.
+
+Cada simulador mostra três versões: **Esperada** (a desta NVU), **Instalada** (arquivo na pasta do jogo) e **Carregada pelo jogo**. Arquivo instalado não é plugin carregado: se a carregada for diferente da esperada, feche e abra o jogo.
+
+## 5. Usar
+Selecione a operação, **Ativar PRO** e jogue. **Ctrl+N** abre/oculta o assistente; todas as ações são pelo mouse. O progresso só muda quando o servidor confirma a viagem.
+
+## 6. Se algo falhar
+A tela mostra um **código** (por exemplo `NVU-S041`) e o que fazer. Em **PRO → Simuladores → Ajuda com a conexão e diagnóstico** use **Diagnóstico de inicialização** (copia um texto sem dados pessoais) ou **Abrir registros**. Não apague `%APPDATA%\NVU PRO`: nela ficam as viagens pendentes.

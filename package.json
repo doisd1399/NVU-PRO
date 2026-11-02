@@ -390,7 +390,8 @@
     "windows:installer": "npm run build && npm --prefix desktop/windows run package",
     "windows:portable": "npm run build && npm --prefix desktop/windows run portable",
     "test:windows": "npm --prefix desktop/windows test",
-    "test:role-matrix": "npm --prefix functions run build && node --import ./scripts/guard-loopback-network.mjs ./node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only firestore,storage --project demo-nvu-v36-4-staging \"node --import ./scripts/guard-loopback-network.mjs scripts/test-role-matrix-emulator.mjs\""
+    "test:role-matrix": "npm --prefix functions run build && node --import ./scripts/guard-loopback-network.mjs ./node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only firestore,storage --project demo-nvu-v36-4-staging \"node --import ./scripts/guard-loopback-network.mjs scripts/test-role-matrix-emulator.mjs\"",
+    "windows:verify": "node desktop/windows/tools/verify-release.cjs artifacts/windows"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.5.1",
