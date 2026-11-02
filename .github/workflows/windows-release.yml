@@ -1,5 +1,6 @@
 name: NVU Windows release (signed)
-# Manual. Needs signing credentials as repository secrets; WITHOUT them it stops with the exact blocker and publishes nothing.
+# Manual. Needs signing credentials as repository secrets (put them in the Environment "windows-release"); WITHOUT them it stops with the exact blocker and publishes nothing.
+# Passo a passo para o operador: desktop/windows/ASSINATURA-E-LIBERACAO.md
 #   NVU_SIGN_PFX_BASE64 + NVU_SIGN_PFX_PASSWORD   (OV/EV code-signing certificate)    or    NVU_SIGN_COMMAND_JSON (SignPath / KeyLocker / Azure Trusted Signing CLI)
 #   NVU_GOOGLE_DESKTOP_CLIENT_ID + NVU_GOOGLE_DESKTOP_CLIENT_SECRET   (OAuth Desktop client written into config/google-oauth.json at build time)
 on:
@@ -29,6 +30,7 @@ jobs:
           CSEC: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_SECRET }}
         run: |
           if (-not $env:CID) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_ID ausente.'; exit 78 }
+          if (-not $env:CSEC) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_SECRET ausente (o repositorio guarda o segredo vazio; sem ele o login Google nao funciona no instalador).'; exit 78 }
           @{ clientId = $env:CID; clientSecret = $env:CSEC } | ConvertTo-Json | Set-Content -Encoding UTF8 desktop/windows/config/google-oauth.json
       - run: npm ci
       - run: npm --prefix desktop/windows ci
