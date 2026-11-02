@@ -13,7 +13,7 @@ const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { getMakeNsisPath } = require('app-builder-lib/out/toolsets/windows');
-const { getPath7za } = require('app-builder-lib/out/toolsets/7zip');
+const { nsisCapable7z } = require('./tools/sevenzip.cjs');
 const asar = require('@electron/asar');
 const pkg = require('./package.json');
 const { verifyNsisInstaller } = require('./tools/nsis-integrity.cjs');
@@ -60,9 +60,12 @@ function checkPlugin(dir) {
   return { ...info, manifest };
 }
 async function extractAndCompare(installer, files) {
-  const seven = await getPath7za(), target = fs.mkdtempSync(path.join(out, 'extract-'));
+  const tool = await nsisCapable7z();
+  // Unavailable is reported, never silently treated as verified (Windows needs the full 7-Zip; see tools/sevenzip.cjs).
+  if (!tool) { console.log('[installer] payload NOT compared: no 7-Zip able to open NSIS installers was found (install 7-Zip or set NVU_7Z)'); return { filesCompared: 0, skipped: 'NSIS_CAPABLE_7ZIP_NOT_FOUND' }; }
+  const target = fs.mkdtempSync(path.join(out, 'extract-'));
   try {
-    const r = spawnSync(seven, ['x', '-y', `-o${target}`, installer], { encoding: 'utf8', maxBuffer: 64 << 20 });
+    const r = spawnSync(tool.path, ['x', '-y', `-o${target}`, installer], { encoding: 'utf8', maxBuffer: 64 << 20 });
     if (r.status !== 0) throw Error(`INSTALLER_EXTRACTION_FAILED: ${(r.stderr || r.stdout || '').slice(0, 300)}`);
     // 7-Zip lists NSIS payloads either at the root or under $INSTDIR depending on the version.
     const base = fs.existsSync(path.join(target, 'NVU PRO.exe')) ? target : fs.existsSync(path.join(target, '$INSTDIR', 'NVU PRO.exe')) ? path.join(target, '$INSTDIR') : null;
@@ -127,7 +130,7 @@ async function build() {
   // ---- verification of the FINAL file ----
   const integrity = verifyNsisInstaller(fs.readFileSync(output));
   const payload = await extractAndCompare(output, files);
-  log(`final installer verified: NSIS CRC ${integrity.crc32}, signed=${integrity.signed}, payload compared ${payload.filesCompared} files`);
+  log(`final installer verified: NSIS CRC ${integrity.crc32}, signed=${integrity.signed}, payload ${payload.skipped ? 'NOT compared (' + payload.skipped + ')' : 'compared ' + payload.filesCompared + ' files'}`);
   const final = { ...describeArtifact(output, 'installer'), payload, os: signing.configured && integrity.signed ? verifySignature(output) : null };
   const pluginFinal = checkPlugin(path.join(unpacked, 'resources/plugin'));
   const manifest = {

@@ -6,7 +6,7 @@ name: NVU Windows release (signed)
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write   # só para criar o RASCUNHO de release (visível apenas a quem tem acesso de escrita)
 jobs:
   release:
     runs-on: windows-latest
@@ -44,13 +44,33 @@ jobs:
           NVU_SIGN_COMMAND_JSON: ${{ secrets.NVU_SIGN_COMMAND_JSON }}
         run: |
           npm run windows:installer
-          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NVU-PRO-signed-release
-          path: |
-            artifacts/windows/NVU-PRO-Setup-*-x64.exe
-            artifacts/windows/release-manifest.json
-            artifacts/windows/SHA256SUMS.txt
-            desktop/windows/installer/Verificar-NVU.ps1
-          if-no-files-found: error
+          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed --require-7zip
+      - name: O instalador assinado instala, abre e todas as assinaturas são válidas (veredito do Windows)
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem artifacts/windows -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'nvu-signed'
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S',"/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "instalador assinado saiu com codigo $($p.ExitCode)" }
+          $versions = Join-Path $env:RUNNER_TEMP 'signed-versions.json'
+          node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" $versions
+          Get-Content $versions -Raw
+          '### Assinaturas (veredito do Windows)' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          foreach ($f in @($installer.FullName, "$dir\NVU PRO.exe", "$dir\resources\plugin\nvu_scs_telemetry.dll")) {
+            $s = Get-AuthenticodeSignature -LiteralPath $f
+            $line = "$([IO.Path]::GetFileName($f)): $($s.Status) | $($s.SignerCertificate.Subject) | carimbo de tempo: $($null -ne $s.TimeStamperCertificate)"
+            $line; "- $line" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            if ($s.Status -ne 'Valid') { throw "assinatura invalida em $f ($($s.Status))" }
+            if ($null -eq $s.TimeStamperCertificate) { throw "sem carimbo de tempo em $f" }
+          }
+      - name: "Rascunho de release (o instalador leva o segredo OAuth, por isso NÃO vai como artefato público)"
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content desktop/windows/package.json -Raw | ConvertFrom-Json).version
+          $tag = "windows-v$v-run$($env:GITHUB_RUN_NUMBER)"
+          $notes = "Rascunho gerado pelo fluxo de release (assinado). Antes de publicar: rode Verificar-NVU.ps1 (OK + assinatura Valid) e o roteiro ROTEIRO-TESTE-ETS2-ATS.md nos dois jogos."
+          gh release create $tag --draft --target $env:GITHUB_SHA --title "NVU PRO Windows $v (assinado)" --notes $notes `
+            "artifacts/windows/NVU-PRO-Setup-$v-x64.exe" artifacts/windows/release-manifest.json artifacts/windows/SHA256SUMS.txt desktop/windows/installer/Verificar-NVU.ps1
+          "- Rascunho de release criado: $tag" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append

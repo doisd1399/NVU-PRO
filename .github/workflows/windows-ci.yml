@@ -32,18 +32,10 @@ jobs:
       - run: npm run lint
       - name: Desktop unit/controlled tests on Windows
         run: npm run test:windows
-      - name: Cliente OAuth Desktop a partir dos Secrets (se existirem)
-        shell: pwsh
-        env:
-          CID: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_ID }}
-          CSEC: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_SECRET }}
-        run: |
-          if ($env:CID -and $env:CSEC) { @{ clientId = $env:CID; clientSecret = $env:CSEC } | ConvertTo-Json | Set-Content -Encoding UTF8 desktop/windows/config/google-oauth.json; 'Cliente OAuth injetado dos Secrets.' }
-          else { 'Sem os Secrets do OAuth: o instalador deste CI serve para teste e o login Google nao funciona nele.' }
-      - name: Installer (unsigned)
+      - name: "Installer (unsigned, WITHOUT the OAuth secret - artifacts of a public repository are public)"
         run: npm run windows:installer
       - name: Re-verify the final artifacts (size, SHA-256, NSIS CRC, 7-Zip test)
-        run: node desktop/windows/tools/verify-release.cjs artifacts/windows
+        run: node desktop/windows/tools/verify-release.cjs artifacts/windows --require-7zip
       - uses: actions/upload-artifact@v4
         with:
           name: installer-windows
@@ -165,7 +157,7 @@ jobs:
       - name: Verify (container layout, NSIS CRC, 7-Zip payload, operating-system verdict)
         shell: pwsh
         run: |
-          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed
+          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed --require-7zip
           $installer = Get-ChildItem artifacts/windows -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
           Get-AuthenticodeSignature $installer.FullName | Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
           Get-AuthenticodeSignature artifacts/windows/win-unpacked/'NVU PRO.exe' | Format-List Status, SignerCertificate

@@ -9,8 +9,9 @@ const { spawnSync } = require('node:child_process');
 const { fingerprint } = require('./release-manifest.cjs');
 const { verifyNsisInstaller } = require('./nsis-integrity.cjs');
 const { verifySignature } = require('./sign.cjs');
+const { nsisCapable7z } = require('./sevenzip.cjs');
 
-async function verifyRelease(dir, { requireSigned = false, log = () => {}, sevenZip } = {}) {
+async function verifyRelease(dir, { requireSigned = false, requireSevenZip = false, log = () => {}, sevenZip } = {}) {
   const manifestFile = path.join(dir, 'release-manifest.json');
   if (!fs.existsSync(manifestFile)) throw Error('RELEASE_MANIFEST_MISSING');
   const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8')), checks = [];
@@ -24,6 +25,8 @@ async function verifyRelease(dir, { requireSigned = false, log = () => {}, seven
     let nsis = null; try { nsis = verifyNsisInstaller(fs.readFileSync(file)); check(`${artifact.name}: NSIS CRC and certificate container`, true); } catch (error) { check(`${artifact.name}: NSIS CRC and certificate container`, false, error.message); }
     if (nsis) check(`${artifact.name}: signed state matches the manifest`, nsis.signed === (manifest.signing.status === 'signed'), `file signed=${nsis.signed}, manifest=${manifest.signing.status}`);
     if (sevenZip) { const r = spawnSync(sevenZip, ['t', file], { encoding: 'utf8', maxBuffer: 64 << 20 }); check(`${artifact.name}: 7-Zip archive test`, r.status === 0, (r.stdout || '').split('\n').slice(-4).join(' ')); }
+    else if (requireSevenZip) check(`${artifact.name}: 7-Zip archive test`, false, 'no 7-Zip able to open NSIS installers (install 7-Zip or set NVU_7Z)');
+    else { checks.push({ name: `${artifact.name}: 7-Zip archive test`, ok: true, skipped: true, detail: 'no NSIS-capable 7-Zip on this host: NOT verified' }); log(`SKIP ${artifact.name}: 7-Zip archive test (no NSIS-capable 7-Zip on this host: NOT verified)`); }
     if (nsis?.signed) {
       const verdict = verifySignature(file); check(`${artifact.name}: Authenticode (${verdict.checked})`, verdict.valid === true || verdict.trustEvaluated === false, `${verdict.status}`);
       manifest.verdict = verdict;
@@ -42,8 +45,8 @@ module.exports = { verifyRelease };
 if (require.main === module) {
   (async () => {
     const dir = path.resolve(process.argv.find((a, i) => i > 1 && !a.startsWith('--')) || 'artifacts/windows'), requireSigned = process.argv.includes('--require-signed');
-    let sevenZip; try { sevenZip = await require('app-builder-lib/out/toolsets/7zip').getPath7za(); } catch { /* optional */ }
-    const result = await verifyRelease(dir, { requireSigned, log: console.log, sevenZip });
+    let sevenZip = null; try { sevenZip = (await nsisCapable7z())?.path || null; } catch { /* reported as skipped (or failed with --require-7zip) */ }
+    const result = await verifyRelease(dir, { requireSigned, requireSevenZip: process.argv.includes('--require-7zip'), log: console.log, sevenZip });
     console.log(JSON.stringify({ ok: result.ok, version: result.version, signing: result.signing.status, productionReady: result.signing.productionReady === true }));
     process.exitCode = result.ok ? 0 : (requireSigned && result.checks.at(-1)?.name.startsWith('required') ? 78 : 1);
   })().catch(error => { console.error(error.message); process.exitCode = 1; });

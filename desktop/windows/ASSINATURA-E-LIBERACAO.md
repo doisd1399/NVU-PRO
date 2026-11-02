@@ -17,7 +17,7 @@ Desde 1º/06/2023 as autoridades certificadoras exigem que a chave privada de ce
 | Caminho | Serve? | Observação |
 |---|---|---|
 | **SSL.com eSigner** (OV ou EV na nuvem; CLI `CodeSignTool`) | Sim, é o mais direto para CI | O fornecedor anuncia assinatura a partir de pipelines sem token físico. Preços de tabela: OV ≈ US$ 129/ano; EV pessoa física ("sole proprietor") ≈ US$ 359/ano. [página do serviço](https://ssl.com/products/software-integrity/signing-service/) · [guia do CodeSignTool](https://www.ssl.com/guide/esigner-codesigntool-command-guide/) |
-| **DigiCert KeyLocker** (nuvem; CLI `smctl`) | Sim | Assina no lugar, sem arquivo de saída. Mais caro. |
+| **DigiCert KeyLocker** (nuvem; CLI `smctl`) | Sim | Assina no lugar, sem arquivo de saída. Costuma ser mais caro (confirme). |
 | **Azure Artifact Signing** (antigo Trusted Signing) | Provavelmente **não** no Brasil | Segundo a Microsoft, pessoa física só nos EUA e Canadá; organizações nos EUA, Canadá, UE e Reino Unido. [opções de assinatura](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options) · [quickstart](https://learn.microsoft.com/azure/artifact-signing/quickstart) |
 | **SignPath Foundation** (gratuito) | **Não** | Só para projetos de código aberto com licença OSI e sem componentes proprietários. [termos](https://signpath.org/terms) |
 
@@ -35,10 +35,10 @@ Validação de identidade (documentos da pessoa ou da empresa) é feita pelo for
 
 ## 5. Conferir antes de distribuir
 
-1. Baixe o artefato `NVU-PRO-signed-release` da execução.
+1. Abra **Releases** no repositório: o fluxo cria um **rascunho** (visível só para quem tem acesso de escrita; o instalador carrega o segredo OAuth, por isso não vai como artefato público). Baixe os arquivos dele.
 2. No Windows: `Verificar-NVU.ps1` deve mostrar `OK: tamanho e SHA-256 conferem` e `Assinatura digital: Valid` com o seu nome de editor.
 3. Instale por cima de uma versão antiga e rode o roteiro `ROTEIRO-TESTE-ETS2-ATS.md` nos dois jogos.
-4. Só então divulgue o arquivo. Guarde `release-manifest.json` e `SHA256SUMS.txt` junto.
+4. Só então clique em **Publish release** (ou distribua o arquivo). Guarde `release-manifest.json` e `SHA256SUMS.txt` junto.
 
 ## 6. Critério de liberação para produção
 
