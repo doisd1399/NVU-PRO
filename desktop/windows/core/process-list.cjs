@@ -36,4 +36,28 @@ function compareVersions(a, b) {
   return 0;
 }
 const sameFile = (a, b) => path.win32.normalize(String(a)).toLowerCase() === path.win32.normalize(String(b)).toLowerCase();
-module.exports = { PACKAGE_NAME, listProcessesByImage, isMainProcess, readPackageFromInstall, identifyNvu, compareVersions, sameFile };
+/** `tasklist` ships with every Windows edition and needs no PowerShell/WMI: it confirms that a PID currently runs the expected image name. */
+async function pidRunsImage(pid, imageName, run = exec) {
+  if (!Number.isSafeInteger(pid) || pid <= 0 || !/^[\w .-]+\.exe$/i.test(imageName)) return false;
+  try {
+    const { stdout } = await run('tasklist.exe', ['/FI', `PID eq ${pid}`, '/FI', `IMAGENAME eq ${imageName}`, '/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 8000, encoding: 'utf8' });
+    return stdout.split(/\r?\n/).some(line => line.toLowerCase().startsWith(`"${imageName.toLowerCase()}","${pid}"`));
+  } catch { return false; }
+}
+/**
+ * Where is the running NVU? 1) the instance file the running copy wrote (versions >= 0.2.0), confirmed by tasklist;
+ * 2) the process list (older versions, which wrote nothing). Either source alone can fail; the result is the union.
+ */
+async function findRunningNvu({ imageName, registry, list = listProcessesByImage, confirm = pidRunsImage }) {
+  const found = new Map();
+  try { for (const p of await list(imageName)) found.set(p.pid, p); } catch { /* PowerShell/WMI unavailable: the instance file may still answer */ }
+  const recorded = registry?.read?.();
+  if (recorded && Number.isSafeInteger(recorded.pid) && !found.has(recorded.pid) && recorded.exe && await confirm(recorded.pid, imageName)) found.set(recorded.pid, { pid: recorded.pid, parent: 0, exe: recorded.exe, commandLine: '' });
+  return [...found.values()];
+}
+const instanceRegistry = (file, fsImpl = fs) => ({
+  write: self => { try { fsImpl.mkdirSync(path.dirname(file), { recursive: true }); const tmp = `${file}.${process.pid}.tmp`; fsImpl.writeFileSync(tmp, JSON.stringify({ pid: self.pid, exe: self.exe, version: self.version, startedAt: new Date().toISOString() })); fsImpl.renameSync(tmp, file); } catch { /* the process list still works */ } },
+  read: () => { try { const data = JSON.parse(fsImpl.readFileSync(file, 'utf8')); return data && typeof data === 'object' ? data : null; } catch { return null; } },
+  remove: self => { try { const data = JSON.parse(fsImpl.readFileSync(file, 'utf8')); if (data.pid === self.pid) fsImpl.unlinkSync(file); } catch { /* nothing to remove */ } },
+});
+module.exports = { PACKAGE_NAME, pidRunsImage, findRunningNvu, instanceRegistry, listProcessesByImage, isMainProcess, readPackageFromInstall, identifyNvu, compareVersions, sameFile };

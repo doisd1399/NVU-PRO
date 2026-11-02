@@ -111,18 +111,8 @@ import {
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
 import { resolveTripTrailerName } from "../../lib/tripTrailer";
 import { resolveProSimulatorCode } from "../../services/pro-universal/proUniversalContracts";
+import { displayTripSimulatorName } from "../../lib/tripSimulatorLabel";
 import { emitHistoryScopeDiagnostic } from "../../lib/historyScopeDiagnostic";
-function displayTripSimulatorName(trip: Record<string, any>): string {
-  const canonicalCode = resolveProSimulatorCode(
-    trip.simulatorCode
-      || trip.simuladorCodigo
-      || trip.simulatorKey
-      || trip.simulatorId
-      || trip.simuladorNome
-      || trip.simulatorName,
-  );
-  return canonicalCode || String(trip.simuladorNome || trip.simulatorName || "-");
-}
 
 
 import {

@@ -104,3 +104,28 @@ test('Instância principal: sempre traz a janela para frente e só aceita troca 
   await handler({}, [], '', { product: 'nvu-pro', takeover: true, pid: 200, version: '0.1.3' }); assert.equal(quit, 1, 'NVU verificada pediu a troca');
   assert.equal(shown, 5);
 });
+
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { findRunningNvu, instanceRegistry, pidRunsImage } = require('../core/process-list.cjs');
+test('Arquivo de instância (>= 0.2.0) identifica a NVU aberta mesmo sem PowerShell/WMI, confirmado por tasklist; PID reaproveitado é ignorado', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nvu-instance-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const registry = instanceRegistry(path.join(dir, 'user', 'instance.json'));
+  registry.write({ pid: 321, exe: 'C:\\Apps\\NVU PRO\\NVU PRO.exe', version: '0.2.0' });
+  assert.equal(registry.read().pid, 321);
+  const noPowerShell = async () => { throw Error('powershell.exe bloqueado'); };
+  const alive = await findRunningNvu({ imageName: 'NVU PRO.exe', registry, list: noPowerShell, confirm: async (pid, image) => pid === 321 && image === 'NVU PRO.exe' });
+  assert.deepEqual(alive.map(p => [p.pid, p.exe]), [[321, 'C:\\Apps\\NVU PRO\\NVU PRO.exe']]);
+  const stale = await findRunningNvu({ imageName: 'NVU PRO.exe', registry, list: noPowerShell, confirm: async () => false });
+  assert.deepEqual(stale, [], 'o processo gravado já não é uma NVU em execução (PID reaproveitado)');
+  const merged = await findRunningNvu({ imageName: 'NVU PRO.exe', registry, list: async () => [{ pid: 321, parent: 1, exe: 'C:\\Apps\\NVU PRO\\NVU PRO.exe', commandLine: '' }, { pid: 400, parent: 321, exe: 'C:\\Old\\NVU PRO.exe', commandLine: '' }], confirm: async () => true });
+  assert.deepEqual(merged.map(p => p.pid).sort(), [321, 400], 'união das duas fontes, sem duplicar');
+  registry.remove({ pid: 999 }); assert.equal(registry.read().pid, 321, 'só o dono apaga o próprio registro'); registry.remove({ pid: 321 }); assert.equal(registry.read(), null);
+});
+test('tasklist: confirma PID + nome da imagem sem PowerShell e recusa entradas inválidas', async () => {
+  const run = async (_c, args) => ({ stdout: args.includes('PID eq 77') ? '"NVU PRO.exe","77","Console","1","120,000 K"\r\n' : 'INFO: No tasks are running which match the specified criteria.\r\n' });
+  assert.equal(await pidRunsImage(77, 'NVU PRO.exe', run), true); assert.equal(await pidRunsImage(78, 'NVU PRO.exe', run), false);
+  assert.equal(await pidRunsImage(77, 'NVU PRO.exe & calc', run), false); assert.equal(await pidRunsImage(-1, 'NVU PRO.exe', run), false);
+  assert.equal(await pidRunsImage(77, 'NVU PRO.exe', async () => { throw Error('missing'); }), false);
+});

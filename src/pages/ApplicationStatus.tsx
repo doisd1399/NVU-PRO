@@ -1,4 +1,5 @@
 import React from "react";
+import { formatSimulatorLabel } from "../lib/simulatorOptions";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useSessionStore } from "../context/AppContext";
 import type { RecruitmentApplication } from "../context/AppContext";
@@ -454,9 +455,9 @@ export default function ApplicationStatus() {
                         <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                           {companyRegistration.companyName || "Empresa em análise"}
                         </p>
-                        {(companyRegistration.simulatorName || companyRegistration.simulatorId) && (
+                        {(companyRegistration.simulatorName || formatSimulatorLabel(companyRegistration.simulatorId)) && (
                           <p className="text-[11px] text-slate-500 dark:text-nvu-muted truncate mt-0.5">
-                            {companyRegistration.simulatorName || companyRegistration.simulatorId}
+                            {companyRegistration.simulatorName || formatSimulatorLabel(companyRegistration.simulatorId)}
                           </p>
                         )}
                       </div>

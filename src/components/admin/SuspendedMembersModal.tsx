@@ -1,4 +1,5 @@
 import { CachedImage } from "../common/CachedImage";
+import { formatSimulatorLabel } from "../../lib/simulatorOptions";
 import { driverDisplayIdentity } from "../../lib/driverDisplayIdentity";
 import React, { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Mail, RefreshCw, User, X } from "lucide-react";
@@ -209,7 +210,7 @@ export function SuspendedMembersModal({
                       </div>
                       <div>
                         <dt className="text-slate-500">Simulador</dt>
-                        <dd className="font-semibold text-slate-800 dark:text-nvu-text">{user?.simulatorName || user?.simulator || user?.simulatorId || "Não informado"}</dd>
+                        <dd className="font-semibold text-slate-800 dark:text-nvu-text">{user?.simulatorName || user?.simulator || formatSimulatorLabel(user?.simulatorId) || "Não informado"}</dd>
                       </div>
                       <div>
                         <dt className="text-slate-500">Responsável</dt>

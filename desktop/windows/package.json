@@ -10,7 +10,8 @@
     "test": "node --test tests/*.test.cjs",
     "package": "node build-installer.cjs",
     "portable": "electron-builder --win --x64 --dir --publish never && node build-portable.cjs",
-    "plugin:build": "node build-plugin.cjs"
+    "plugin:build": "node build-plugin.cjs",
+    "verify:release": "node tools/verify-release.cjs"
   },
   "dependencies": {
     "jose": "6.2.15"
@@ -43,15 +44,20 @@
         "to": "plugin/nvu_scs_telemetry.dll"
       },
       {
+        "from": "plugin/bin/nvu_scs_telemetry.manifest.json",
+        "to": "plugin/nvu_scs_telemetry.manifest.json"
+      },
+      {
         "from": "plugin/vendor/LICENSE-SCS.txt",
         "to": "plugin/LICENSE-SCS.txt"
       }
     ],
     "win": {
       "target": "nsis",
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "requestedExecutionLevel": "asInvoker",
-      "icon": "ui/icon.png"
+      "icon": "ui/icon.ico",
+      "legalTrademarks": "NVU PRO"
     },
     "nsis": {
       "oneClick": false,
@@ -59,7 +65,13 @@
       "allowToChangeInstallationDirectory": true,
       "deleteAppDataOnUninstall": false
     },
-    "artifactName": "NVU-PRO-Windows-${version}-x64-Setup.${ext}"
+    "artifactName": "NVU-PRO-Setup-${version}-x64.${ext}",
+    "copyright": "Copyright © NVU",
+    "electronLanguages": [
+      "pt-BR",
+      "en-US"
+    ],
+    "executableName": "NVU PRO"
   },
   "nvu": {
     "pluginVersion": "0.2.0"

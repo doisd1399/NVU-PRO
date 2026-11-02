@@ -50,9 +50,10 @@ function createWorld(dir, overrides = {}) {
     clipboard: { writeText: text => clipboardWrites.push(text) } };
   const file = path.resolve(__dirname, '../../main.cjs'), req = createRequire(file);
   const files = { 'index.html': '<html></html>', ...overrides.files };
-  const fakeFs = { ...fs, realpathSync: Object.assign(p => p === web && !state.noWeb ? web : fs.realpathSync(p), fs.realpathSync),
+  const missing = p => Object.assign(Error(`ENOENT: no such file or directory, '${p}'`), { code: 'ENOENT' });
+  const fakeFs = { ...fs, realpathSync: Object.assign(p => { if (p === web) { if (state.noWeb) throw missing(p); return web; } return fs.realpathSync(p); }, fs.realpathSync),
     readFileSync: (p, encoding) => { const s = String(p);
-      if (s === path.join(web, 'index.html') && !state.noWeb) return files['index.html'];
+      if (s === path.join(web, 'index.html')) { if (state.noWeb) throw missing(s); return files['index.html']; }
       if (s.endsWith('config/google-oauth.json')) { if (state.badOauth) return '{ not json'; return JSON.stringify({ clientId: 'qa.apps.googleusercontent.com' }); }
       return fs.readFileSync(p, encoding); } };
   const context = {

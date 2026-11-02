@@ -24,7 +24,7 @@ const { redactDeep } = require('./core/redact.cjs');
 const { pluginPackage, collectVersions } = require('./core/versions.cjs');
 const { runStartup, presentStartupFailure, diagnosticBundle } = require('./core/startup.cjs');
 const { createInstance } = require('./core/instance.cjs');
-const { listProcessesByImage, readPackageFromInstall } = require('./core/process-list.cjs');
+const { findRunningNvu, instanceRegistry, readPackageFromInstall } = require('./core/process-list.cjs');
 const { runElevatedPlugin, requestElevation, encodeRequest, messageFor, EXIT } = require('./core/elevated-plugin.cjs');
 const { prepareSimulator, removeSimulatorPlugin } = require('./core/prepare.cjs');
 
@@ -37,7 +37,7 @@ const cli = parseCli(process.argv);
 // ---- runtime state (assigned by the start-up steps) ----
 let main, floater, commands, integration, reader, store, google, bridgeDir, bridgeToken, currentUid = '', scope = null, quitting = false, busy = false;
 let diagnostic = '', savedBounds = null, tray, notices, theme = 'light', preferencesFile, logger, startupReport = null, versionInfo = null, packagedPlugin = null;
-let dataDir, webDir, csp = '';
+let dataDir, webDir, csp = '', registry = null, selfIdentity = null;
 const shortcutIssues = new Set();
 const packaged = relative => app.isPackaged ? path.join(process.resourcesPath, relative) : path.join(__dirname, relative === 'web' ? '../../dist' : relative);
 const pluginDirectory = () => app.isPackaged ? path.join(process.resourcesPath, 'plugin') : path.join(__dirname, 'plugin/bin');
@@ -98,7 +98,7 @@ function secureBridgeDirectory() {
   bridgeDir = dir;
   // Per-user filesystem IPC: remove inherited access and grant the current Windows SID + SYSTEM only (no PowerShell needed).
   let sid = '';
-  try { sid = String(execFileSync('whoami.exe', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8', windowsHide: true, timeout: 10000 })).match(/"(S-1-5-\d+(?:-\d+)+)"/)?.[1] || ''; }
+  try { sid = String(execFileSync('whoami.exe', ['/user', '/fo', 'csv', '/nh'], { encoding: 'utf8', windowsHide: true, timeout: 10000 })).match(/S-1-5-\d+(?:-\d+)+/)?.[0] || ''; }
   catch (error) { throw new NvuError('NVU-S041', `whoami.exe falhou: ${String(error.message).slice(0, 160)}`, { cause: error }); }
   if (!sid) throw new NvuError('NVU-S041', 'Não foi possível identificar o usuário do Windows (SID).');
   try { execFileSync('icacls.exe', [dir, '/inheritance:r', '/grant:r', `*${sid}:(OI)(CI)F`, '*S-1-5-18:(OI)(CI)F'], { windowsHide: true, stdio: 'pipe', timeout: 15000 }); }
@@ -355,12 +355,14 @@ async function bootstrapApp() {
 function startPrimary() {
   logger = createLogger({ dir: path.join(app.getPath('userData'), 'logs'), name: 'nvu' });
   const self = { pid: process.pid, exe: process.execPath, version: app.getVersion() };
+  selfIdentity = self;
+  registry = instanceRegistry(path.join(app.getPath('userData'), 'instance.json'));
   const instance = createInstance({ app, cli, self, logger,
-    find: () => listProcessesByImage(path.basename(process.execPath)), readPackage: dir => readPackageFromInstall(dir),
+    find: () => findRunningNvu({ imageName: path.basename(process.execPath), registry }), readPackage: dir => readPackageFromInstall(dir),
     dialogs: { show: options => dialog.showMessageBox(options) },
     killer: { close: pid => execAsync('taskkill.exe', ['/PID', String(Number(pid)), '/T'], { windowsHide: true }), force: pid => execAsync('taskkill.exe', ['/PID', String(Number(pid)), '/T', '/F'], { windowsHide: true }) },
     alive: pid => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } } });
-  const becomePrimary = () => app.on('second-instance', instance.primaryHandler({ show: showMainWindow, quit: () => gracefulQuit('takeover') }));
+  const becomePrimary = () => { registry.write(self); app.on('second-instance', instance.primaryHandler({ show: showMainWindow, quit: () => gracefulQuit('takeover') })); };
   if (instance.requestLock()) { becomePrimary(); void app.whenReady().then(bootstrapApp).catch(fatalStartup); return; }
   // Lost the lock: decide and leave. Nothing below this line runs in this process unless it takes over.
   void app.whenReady().then(() => instance.handleLostLock()).then(result => {
@@ -375,7 +377,7 @@ function fatalStartup(error) {
   app.exit(1);
 }
 
-app.on('before-quit', () => { quitting = true; store?.stop(); globalShortcut.unregisterAll(); floater?.destroy(); tray?.destroy(); });
+app.on('before-quit', () => { quitting = true; try { if (selfIdentity) registry?.remove(selfIdentity); } catch { /* best effort */ } store?.stop(); globalShortcut.unregisterAll(); floater?.destroy(); tray?.destroy(); });
 app.on('window-all-closed', () => app.quit());
 
 if (cli.elevatedPlugin) {
