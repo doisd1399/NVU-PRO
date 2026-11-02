@@ -1,0 +1,84 @@
+name: NVU Windows - versão da comunidade (SEM assinatura)
+# Gratuito. Constrói no runner Windows (plugin MSVC), injeta o cliente OAuth dos Secrets, instala e confere o resultado e cria um
+# RASCUNHO de release com o instalador NÃO assinado, SHA-256, Verificar-NVU.ps1 e a prova de origem (attestation) do GitHub.
+# Não declara "assinado" nem "pronto para produção": o Windows mostrará "Editor desconhecido" (SmartScreen). Quem publica o
+# rascunho decide depois de conferir e de rodar o roteiro nos jogos (desktop/windows/ROTEIRO-TESTE-ETS2-ATS.md).
+# Pré-requisito (uma vez): Settings > Environments > windows-release > Secrets NVU_GOOGLE_DESKTOP_CLIENT_ID e NVU_GOOGLE_DESKTOP_CLIENT_SECRET.
+on:
+  workflow_dispatch:
+permissions:
+  contents: write        # só para criar o RASCUNHO de release (visível apenas a quem tem acesso de escrita)
+  id-token: write        # prova de origem (attestation) do GitHub, gratuita em repositório público
+  attestations: write
+jobs:
+  community:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: windows-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm }
+      - name: "Cliente OAuth Desktop a partir dos Secrets (o instalador leva o segredo, por isso vai em RASCUNHO e nunca como artefato público)"
+        shell: pwsh
+        env:
+          CID: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_ID }}
+          CSEC: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: |
+          if (-not $env:CID) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_ID ausente no ambiente windows-release.'; exit 78 }
+          if (-not $env:CSEC) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_SECRET ausente no ambiente windows-release (sem ele o login Google nao funciona).'; exit 78 }
+          @{ clientId = $env:CID; clientSecret = $env:CSEC } | ConvertTo-Json | Set-Content -Encoding UTF8 desktop/windows/config/google-oauth.json
+      - run: npm ci
+      - run: npm --prefix desktop/windows ci
+      - name: Plugin (MSVC, CRT estático)
+        run: npm run windows:plugin
+      - run: npm run lint
+      - name: Testes do desktop no Windows
+        run: npm run test:windows
+      - name: Instalador (sem assinatura)
+        run: npm run windows:installer
+      - name: Conferência dos arquivos finais (tamanho, SHA-256, CRC do NSIS, teste do 7-Zip)
+        run: node desktop/windows/tools/verify-release.cjs artifacts/windows --require-7zip
+      - name: O instalador instala, abre e informa as versões reais
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem artifacts/windows -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'nvu-community'
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S',"/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "instalador saiu com codigo $($p.ExitCode)" }
+          $versions = Join-Path $env:RUNNER_TEMP 'community-versions.json'
+          node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" $versions
+          Get-Content $versions -Raw
+      - name: Prova de origem do instalador (attestation do GitHub)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/windows/NVU-PRO-Setup-*-x64.exe
+      - name: "Rascunho de release (instalador SEM assinatura)"
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content desktop/windows/package.json -Raw | ConvertFrom-Json).version
+          $file = "artifacts/windows/NVU-PRO-Setup-$v-x64.exe"
+          $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+          $tag = "windows-comunidade-v$v-run$($env:GITHUB_RUN_NUMBER)"
+          $notes = @"
+          ## NVU PRO para Windows $v - versão da comunidade (SEM assinatura digital)
+
+          **Importante:** este instalador **não é assinado digitalmente**. O Windows mostra "Windows protegeu o computador" / "Editor desconhecido". Isso é esperado. **Não desative o SmartScreen nem o antivírus.**
+
+          ### Como abrir
+          1. Baixe ``NVU-PRO-Setup-$v-x64.exe`` e ``Verificar-NVU.ps1`` na mesma pasta (não abra de dentro de um ZIP).
+          2. Confira o arquivo: botão direito em ``Verificar-NVU.ps1`` > Executar com o PowerShell. Deve mostrar ``OK: tamanho e SHA-256 conferem``.
+          3. Abra o instalador. Na tela azul do SmartScreen: **Mais informações > Executar assim mesmo**. (PCs de empresa podem bloquear de vez: nesse caso fale com o TI.)
+
+          ### Conferência
+          - SHA-256: ``$hash``
+          - Prova de origem (feita pelo GitHub neste fluxo): ``gh attestation verify NVU-PRO-Setup-$v-x64.exe -R $($env:GITHUB_REPOSITORY)``
+          - Guia: GUIA-ATUALIZAR-NVU-E-PREPARAR-ETS2-ATS.md
+
+          Versão candidata: testada em Windows real (instalação, atualização, instância única, desinstalação), mas **ainda não validada com ETS2/ATS reais**. Use o roteiro desktop/windows/ROTEIRO-TESTE-ETS2-ATS.md e relate o resultado.
+          "@
+          gh release create $tag --draft --target $env:GITHUB_SHA --title "NVU PRO Windows $v (comunidade, sem assinatura)" --notes $notes `
+            $file artifacts/windows/release-manifest.json artifacts/windows/SHA256SUMS.txt desktop/windows/installer/Verificar-NVU.ps1 GUIA-ATUALIZAR-NVU-E-PREPARAR-ETS2-ATS.md
+          "- Rascunho criado: $tag (SHA-256 $hash)" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
