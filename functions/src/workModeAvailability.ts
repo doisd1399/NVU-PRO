@@ -1,17 +1,12 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import { HttpsError, onCall } from "firebase-functions/v1/https";
+import { WORK_MODE_SIMULATORS, type WorkMode } from "./operationalWorkModePolicy";
 
 if (getApps().length === 0) initializeApp();
 const db = getFirestore();
 
-type SimulatorKey = "gto" | "wtds" | "wbds" | "toe3";
-type WorkMode = "print" | "pro" | "max";
-const supported: Record<WorkMode, SimulatorKey[]> = {
-  print: ["gto", "wtds", "wbds", "toe3"],
-  pro: ["gto", "wtds", "wbds", "toe3"],
-  max: ["gto"],
-};
+const supported = WORK_MODE_SIMULATORS;
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -25,30 +20,33 @@ const getPayload = (data: unknown): { expectedVersion: number; availability: Rec
   return { expectedVersion: payload.expectedVersion, availability };
 };
 
-const sanitizeMode = (mode: WorkMode, value: unknown): Record<string, unknown> => {
+const sanitizeMode = (mode: WorkMode, value: unknown, previousValue?: unknown): Record<string, unknown> => {
   const source = asRecord(value);
+  const previous = asRecord(previousValue);
   if (source.enabled !== undefined && !isBoolean(source.enabled)) throw new HttpsError("invalid-argument", `${mode}.enabled inválido.`);
   const sourceSimulators = asRecord(source.simulators);
+  const previousSimulators = asRecord(previous.simulators);
   const simulators: Record<string, boolean> = {};
   for (const key of supported[mode]) {
     const simulatorValue = sourceSimulators[key];
     if (simulatorValue !== undefined && !isBoolean(simulatorValue)) {
       throw new HttpsError("invalid-argument", `${mode}.simulators.${key} inválido.`);
     }
-    // Missing fields stay active for backwards-compatible documents.
-    simulators[key] = simulatorValue !== false;
+    // Older clients do not know ETS2/ATS. Omission must preserve an existing
+    // maintenance block instead of silently re-enabling Windows automation.
+    simulators[key] = (simulatorValue === undefined ? previousSimulators[key] : simulatorValue) !== false;
   }
   return {
-    enabled: source.enabled !== false,
+    enabled: (source.enabled === undefined ? previous.enabled : source.enabled) !== false,
     simulators,
   };
 };
 
-const sanitizeAvailability = (value: Record<string, unknown>, version: number) => ({
+const sanitizeAvailability = (value: Record<string, unknown>, version: number, previous: Record<string, unknown> = {}) => ({
   version,
-  print: sanitizeMode("print", value.print),
-  pro: sanitizeMode("pro", value.pro),
-  max: sanitizeMode("max", value.max),
+  print: sanitizeMode("print", value.print, previous.print),
+  pro: sanitizeMode("pro", value.pro, previous.pro),
+  max: sanitizeMode("max", value.max, previous.max),
 });
 
 const changedKeys = (previous: Record<string, unknown>, next: Record<string, unknown>) => {
@@ -87,7 +85,7 @@ export const updateWorkModeAvailability = onCall(async (data, context) => {
       throw new HttpsError("failed-precondition", "A configuração foi alterada por outro Sênior. Recarregue antes de salvar novamente.");
     }
     responseVersion = currentVersion + 1;
-    const next = sanitizeAvailability(payload.availability, responseVersion);
+    const next = sanitizeAvailability(payload.availability, responseVersion, current);
     const changes = changedKeys(current, next);
     const actorEmail = typeof auth.token.email === "string" ? auth.token.email : null;
     transaction.set(systemRef, {

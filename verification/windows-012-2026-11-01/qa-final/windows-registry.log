@@ -1,0 +1,4 @@
+PASS Windows simulator identity and opaque catalog: ets2
+PASS Windows simulator identity and opaque catalog: ats
+PASS Web/Android and Windows platform isolation
+PASS Windows navigation: correct operation and rejection after context/account switch

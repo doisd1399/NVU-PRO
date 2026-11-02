@@ -65,7 +65,7 @@ export function normalizeWorkModeAvailability(value: any, simulatorKeys: string[
 
 export const WORK_MODE_SIMULATORS: Record<WorkMode, string[]> = {
   print: ["gto", "wtds", "wbds", "toe3", "ets2", "ats", "pbs"],
-  pro: ["gto", "wtds", "wbds", "toe3"],
+  pro: ["gto", "wtds", "wbds", "toe3", "ets2", "ats"],
   max: ["gto"],
 };
 export function isWorkModeAllowed(value: WorkModeAvailability, mode: WorkMode, simulator: unknown): boolean {

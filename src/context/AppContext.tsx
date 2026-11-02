@@ -5220,6 +5220,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     await pushLogoutCleanup;
+    if (typeof window !== "undefined" && window.nvuWindows?.platform === "windows") {
+      try { await window.nvuWindows.signOut(); } catch { console.warn("[NVU] Não foi possível limpar a credencial Windows."); }
+    }
     try {
       await signOut(auth);
     } catch (error) {

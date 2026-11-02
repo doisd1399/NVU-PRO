@@ -1,0 +1,49 @@
+PASS single durable write contains both registration and outbox
+PASS failed atomic commit exposes neither record nor send command
+[NVU] Observador de viagens indisponível Error: render-crash
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:43:46)
+    at CanonicalTripRepository.subscribe (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/repositories/CanonicalTripRepository.ts:451:11)
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:43:25)
+    at test (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:31:69)
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:42:7)
+[NVU] Projeção da viagem será atualizada Error: render-crash
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:43:46)
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/repositories/CanonicalTripRepository.ts:85:13)
+    at Set.forEach (<anonymous>)
+    at CanonicalTripRepository.publish (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/repositories/CanonicalTripRepository.ts:84:20)
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/repositories/CanonicalTripRepository.ts:168:56)
+    at localCommitStep (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/lib/localCommitDiagnostic.ts:13:16)
+    at CanonicalTripRepository.saveLocal (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/repositories/CanonicalTripRepository.ts:168:5)
+    at async <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:44:2)
+    at async test (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:31:63)
+    at async <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/test-trip-recovery-520.mts:42:1)
+PASS observer exception cannot prevent queue persistence or send
+PASS 504 orphan is reconstructed and sent automatically after restart
+PASS other owner's orphan remains preserved and unsent
+PASS old temporary FAILED entries recover with the original identifier
+PASS permanent authorization rejection is retained without automatic retry
+PASS explicit server non-retryable overrides a transport-looking code
+PASS lost server response retries the same attempt and creates one ledger row
+PASS restart resumes abandoned in-flight lease
+PASS a nonexpired in-flight lease schedules eventual recovery
+PASS offline registration remains durable then sends when connectivity returns
+PASS two concurrent taps preserve a single immutable attempt
+PASS reusing an attempt with altered evidence is rejected
+PASS a malformed old trip does not block a later valid trip
+PASS supported schema 1 upgrades without erasing receipt or command
+PASS corrupt local bytes are preserved for recovery
+PASS confirmed history is compacted while every pending record survives
+PASS late server ACK cannot be lost after a local acknowledgement write failure
+PASS deduplicated server alias does not recreate an orphan on the next synchronization
+PASS account switch during a batch never sends the next owner's pending trip
+PASS read-only diagnostics use the migrated durable outbox
+PASS transient failure retries automatically without a tap or reload
+PASS transport deadline releases a stuck attempt and automatic retry completes it
+PASS quota recovery compacts only acknowledged data and saves the pending receipt
+PASS two supervisors share one live claim across browser tabs
+PASS concurrent changed payload cannot split the record from its send command
+PASS new acknowledgement of an old pending trip survives confirmed-queue compaction
+PASS unknown authorization pause resumes only after an affirmative server access check
+PASS selecting a replacement receipt cannot delete pending or orphaned evidence
+PASS a slow old authorization repair does not block a freshly saved receipt
+TRIP_RECOVERY_520_PASS 31

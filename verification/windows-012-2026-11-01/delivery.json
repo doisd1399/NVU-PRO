@@ -1,0 +1,69 @@
+{
+  "version": "0.1.2",
+  "webVersion": "2.3.198",
+  "qaStatus": "PASS",
+  "qaSteps": 19,
+  "nativeCoreControlledTests": 27,
+  "browserUIChecks": 6,
+  "qaRunId": "2026-11-02T02-37-04-315Z",
+  "sourceFingerprint": "244fcf5e2636eb160dfca4740cb7ee4d78b681cb93650d29619c8c35dcab63b7",
+  "sourceMatchesFinalQA": true,
+  "installer": {
+    "bytes": 125735121,
+    "firstHeaderOffset": 51712,
+    "dataLength": 125683409,
+    "crcEnabled": true,
+    "crc32": "0b7f22a6",
+    "sha256": "0af3ba87b50f22a41db62c031d49a9f99f9004135b1e794a239c44b541507275"
+  },
+  "plugin": {
+    "bytes": 3156310,
+    "machine": "x64",
+    "sha256": "564f871d0da471b5a349bb11488881b55975468fade68a23e954cd6e49a493ee"
+  },
+  "zipValidation": {
+    "version": "0.1.2",
+    "portableRuntimeFilesCompared": 222,
+    "portableAllRuntimeFilesMatchUnpacked": true,
+    "portableArchiveCrcPassed": true,
+    "installerZipExeMatchesBuild": true,
+    "installerZipArchiveCrcPassed": true,
+    "files": [
+      {
+        "name": "NVU-PRO-Windows-0.1.2-x64-Setup.exe",
+        "bytes": 125735121,
+        "sha256": "0af3ba87b50f22a41db62c031d49a9f99f9004135b1e794a239c44b541507275"
+      },
+      {
+        "name": "NVU-PRO-Windows-0.1.2-x64-Portable.zip",
+        "bytes": 171425300,
+        "sha256": "1317ef210cada8eebc6f9d4fbf3c40e52f1a29132f7f5963e625aa6bc3575e0e"
+      },
+      {
+        "name": "NVU-PRO-Windows-0.1.2-Instalador.zip",
+        "bytes": 125736475,
+        "sha256": "27a6665b4bf50f7987e0a79e67b41b36dc7c56c0966b078b3f7ae2c3ba4ad907"
+      }
+    ]
+  },
+  "androidNativeFilesUnchanged": 187,
+  "authenticodeSigned": false,
+  "productionReady": false,
+  "observedByUserOnPriorVersion": [
+    "Windows application opened; user profile and operation displayed",
+    "ATS opened and native overlay was visible",
+    "Telemetry remained disconnected"
+  ],
+  "gameConnectionCauseOnUserDeviceConfirmed": false,
+  "realWindowsNativeInputTestedByBuildHost": false,
+  "realETS2OrATSTripTestedByBuildHost": false,
+  "backendChangesOrDeploymentIn012": false,
+  "productionTestTripsCreated": false,
+  "pending": [
+    "Update plugin explicitly with games closed and restart game",
+    "Real ETS2/ATS delivery and cancellation matrix",
+    "Native Windows focus/click-through, Alt+Tab, DPI, monitors and performance",
+    "Real Google login, same Firebase UID, refresh and logout",
+    "Authenticode signing for public distribution"
+  ]
+}

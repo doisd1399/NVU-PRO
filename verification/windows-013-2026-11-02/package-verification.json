@@ -1,0 +1,42 @@
+{
+  "version": "0.1.3",
+  "telemetryPluginVersion": "0.1.2",
+  "qaRunId": "2026-11-02T12-15-20-756Z",
+  "sourceFingerprint": "23696d3232ce27b6c9d5f1d3f8115f533f4cccd823d500e85d6a5d7aac028b57",
+  "sourceMatchesFinalQA": true,
+  "runtimeFilesMatchSource": 18,
+  "webFilesMatchBuild": 148,
+  "installerFilesMatchUnpacked": 222,
+  "desktopGoogleConfigurationPreserved": true,
+  "pluginUnchangedFrom012": true,
+  "plugin": {
+    "bytes": 3156310,
+    "machine": "x64",
+    "sha256": "564f871d0da471b5a349bb11488881b55975468fade68a23e954cd6e49a493ee"
+  },
+  "installer": {
+    "bytes": 131791562,
+    "firstHeaderOffset": 51712,
+    "dataLength": 131739850,
+    "crcEnabled": true,
+    "crc32": "244e1758",
+    "sha256": "a6f00ca3ec37cc643f6e6136206966ade15d442a7296b856d515109258cfe613"
+  },
+  "pe": {
+    "installer": {
+      "machine": "14c",
+      "certificateTableSize": 0
+    },
+    "application": {
+      "machine": "8664",
+      "certificateTableSize": 0
+    },
+    "plugin": {
+      "machine": "8664",
+      "certificateTableSize": 0
+    }
+  },
+  "authenticodeSigned": false,
+  "nativeWindowsInputTested": false,
+  "realETS2OrATSTripTestedByBuildHost": false
+}

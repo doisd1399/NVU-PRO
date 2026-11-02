@@ -1,0 +1,2 @@
+9add27c74c5c4b2a4a47dc80076bcacd1c168dc2e4a25a3ef8af7d296b199561  NVU-PRO-Windows-0.1.4-x64-Portable.zip
+dbe7ff3ebe114a29c7a39339c6065a9cbf2a286cf28607f48e5fd2f997bdda6d  NVU-PRO-Windows-0.1.4-x64-Setup.exe

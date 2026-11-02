@@ -1,0 +1,13 @@
+{
+  "windowsVersion": "0.1.1",
+  "dependencyVersionsUnchanged": true,
+  "production": {
+    "jose": "6.2.15"
+  },
+  "build": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "auditEvidence": "../windows-pro-2026-11-01/dependencies-production.json and dependencies-build.json",
+  "scope": "Same dependency lock resolution; only package own version changed."
+}

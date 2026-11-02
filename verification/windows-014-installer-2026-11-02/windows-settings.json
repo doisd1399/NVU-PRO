@@ -1,0 +1,13 @@
+{
+  "checks": [
+    "Entrada discreta, painel centralizado e ausência de log no fluxo principal",
+    "Abrir assistente, ativar, voltar, pausar, encerrar e histórico executam callbacks corretos",
+    "Um card por jogo e seleção funcional de biblioteca Steam adicional",
+    "Cancelamento de instalação/remoção respeitado; diagnóstico recolhido e cópia explícita",
+    "Tema nativo aplica o store real NVU e persiste a preferência, recusando valor inválido",
+    "Tokens de tema compartilhados, viewport estreito, ajuda e fechamento funcionais"
+  ],
+  "errors": [],
+  "method": "Componente React/CSS reais; callbacks/IPC e dados fictícios; tokens obtidos do CSS compartilhado.",
+  "realWindowsOrGamesTested": false
+}

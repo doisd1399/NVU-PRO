@@ -1,0 +1,1 @@
+Fonte reconstruída após perda do ambiente, novamente validada. QA PASS 20/20: 2026-11-02T12-15-20-756Z. Núcleo 35/35; interface 10+5. Pacotes verificados contra o build. Entrada nativa e entregas reais no Windows/ETS2/ATS não homologadas. Sem assinatura digital.

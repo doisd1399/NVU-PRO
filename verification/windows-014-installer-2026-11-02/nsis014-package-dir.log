@@ -1,0 +1,11 @@
+  • electron-builder  version=26.18.0 os=6.18.57
+  • loaded configuration  file=package.json ("build" field)
+  • executing @electron/rebuild  electronVersion=45.2.1 arch=x64 buildFromSource=false workspaceRoot=/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/desktop/windows projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=45.2.1 appOutDir=/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked
+  • searching for node modules  pm=npm searchDir=/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/desktop/windows
+  • updating asar integrity executable resource  executablePath=/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked/NVU PRO.exe
+  • executable resource editing and code signing skipped — signAndEditExecutable is false. To skip only code signing while keeping icon and metadata applied, use signExecutable: false instead.  exe=/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked/NVU PRO.exe

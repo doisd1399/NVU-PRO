@@ -1,0 +1,106 @@
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+12 folders, 223 files, 418751075 bytes (400 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip.new.zip
+
+Add new data to archive: 12 folders, 223 files, 418751075 bytes (400 MiB)
+
+
+Files read from disk: 223
+Archive size: 171449808 bytes (164 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 171449808 bytes (164 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip.new.zip
+Type = zip
+Physical Size = 171449808
+
+Everything is Ok
+
+Folders: 12
+Files: 223
+Size:       418751075
+Compressed: 171449808
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 171449808 bytes (164 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip
+Type = zip
+Physical Size = 171449808
+
+Everything is Ok
+
+Folders: 12
+Files: 223
+Size:       418751075
+Compressed: 171449808
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+1 folder, 3 files, 129508233 bytes (124 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-Instalador.zip.new.zip
+
+Add new data to archive: 1 folder, 3 files, 129508233 bytes (124 MiB)
+
+
+Files read from disk: 3
+Archive size: 129508939 bytes (124 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 129508939 bytes (124 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-Instalador.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-Instalador.zip.new.zip
+Type = zip
+Physical Size = 129508939
+
+Everything is Ok
+
+Folders: 1
+Files: 3
+Size:       129508233
+Compressed: 129508939
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 129508939 bytes (124 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-Instalador.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-Instalador.zip
+Type = zip
+Physical Size = 129508939
+
+Everything is Ok
+
+Folders: 1
+Files: 3
+Size:       129508233
+Compressed: 129508939

@@ -1,0 +1,53 @@
+{
+  "version": "0.1.4",
+  "qaRunId": "2026-11-02T15-57-11-500Z",
+  "sourceFingerprint": "5d8c2c78594e9559f39a4c667b82e1b1ba7c9b7b3fcd04d97f3c77787cdfe7b4",
+  "sourceMatchesQA": true,
+  "runtimeFilesMatchSource": 18,
+  "webFilesMatchCurrentBuild": 148,
+  "unpackedFileCount": 222,
+  "plugin": {
+    "bytes": 3256077,
+    "machine": "x64",
+    "sha256": "6d81dcf2baaa95ec3b489ef152ec18759400995f6efc6771442b8352219606e9"
+  },
+  "installerRetrievedMatchesOriginal": true,
+  "installerRetrieved": {
+    "bytes": 129507585,
+    "firstHeaderOffset": 51712,
+    "dataLength": 129455873,
+    "crcEnabled": true,
+    "crc32": "302ac727",
+    "sha256": "dbe7ff3ebe114a29c7a39339c6065a9cbf2a286cf28607f48e5fd2f997bdda6d"
+  },
+  "customerExeExamined": false,
+  "rootCauseOnCustomerPC": "undetermined",
+  "nativeWindowsTested": false,
+  "realGamesTested": false,
+  "portable": {
+    "name": "NVU-PRO-Windows-0.1.4-x64-Portable.zip",
+    "bytes": 171449808,
+    "sha256": "9add27c74c5c4b2a4a47dc80076bcacd1c168dc2e4a25a3ef8af7d296b199561",
+    "crcValid": true,
+    "runtimeFilesCompared": 222
+  },
+  "androidFilesUnchanged": 187,
+  "backendFilesUnchanged": 246,
+  "modifiedOriginalFiles": [
+    "desktop/windows/README.md",
+    "desktop/windows/build-portable.cjs",
+    "qa/config.json",
+    "reports/audit-general.json",
+    "reports/release-519/teams-ui.json",
+    "reports/release-520/performance-tests.json"
+  ],
+  "newSourceFiles": [
+    "desktop/windows/tools/verified-copy.cjs",
+    "desktop/windows/tests/archive.test.cjs"
+  ],
+  "coreTests": 40,
+  "assistantUIChecks": 16,
+  "settingsUIChecks": 6,
+  "qaSteps": 20,
+  "authenticodeSigned": false
+}

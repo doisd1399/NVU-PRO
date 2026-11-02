@@ -117,7 +117,7 @@ interface SimpleAutomationPlugin {
   stop(): Promise<SimpleAutomationNativeStatus>;
   setContext(input: {
     simulatorKey: SimpleAutomationSimulatorKey;
-    simulatorCode: "GTO" | "TOE3" | "WTDS" | "WBDS";
+    simulatorCode: "GTO" | "TOE3" | "WTDS" | "WBDS" | "ETS2" | "ATS";
     simulatorLabel: string;
     contextEpoch: string;
     companyName: string;

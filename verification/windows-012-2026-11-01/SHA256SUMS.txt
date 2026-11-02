@@ -1,0 +1,4 @@
+0af3ba87b50f22a41db62c031d49a9f99f9004135b1e794a239c44b541507275  NVU-PRO-Windows-0.1.2-x64-Setup.exe
+1317ef210cada8eebc6f9d4fbf3c40e52f1a29132f7f5963e625aa6bc3575e0e  NVU-PRO-Windows-0.1.2-x64-Portable.zip
+27a6665b4bf50f7987e0a79e67b41b36dc7c56c0966b078b3f7ae2c3ba4ad907  NVU-PRO-Windows-0.1.2-Instalador.zip
+564f871d0da471b5a349bb11488881b55975468fade68a23e954cd6e49a493ee  nvu_scs_telemetry.dll

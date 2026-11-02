@@ -1,0 +1,10 @@
+NVU SCS plugin 0.1.2
+Host: Linux; MinGW-w64 x64, static C++/GCC runtime.
+Command from source root (output copied atomically after successful compiler exit in this build):
+x86_64-w64-mingw32-g++ -std=c++17 -O2 -Wall -Wextra -shared -static -static-libgcc -static-libstdc++ -Idesktop/windows/plugin/vendor/include desktop/windows/plugin/nvu_scs_telemetry.cpp -o desktop/windows/plugin/bin/nvu_scs_telemetry.dll -lole32 -lshell32 -luuid
+
+Source SHA256: 870ae468515a49af324e0eb94863a989549fc0f50cdcf0d0e6e5194e1998ce35
+DLL SHA256: 564f871d0da471b5a349bb11488881b55975468fade68a23e954cd6e49a493ee
+Imports: KERNEL32.dll, msvcrt.dll, ole32.dll, SHELL32.dll
+Exports: scs_telemetry_init, scs_telemetry_shutdown
+No native Windows/game execution on the build host.

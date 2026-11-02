@@ -1,5 +1,6 @@
+import { isWindowsDesktop } from "./windowsAutomation";
 import { initializeApp } from "firebase/app";
-import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
+import { browserLocalPersistence, inMemoryPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
@@ -71,7 +72,7 @@ if (useFirebaseEmulators) {
 // explicit logOutApp() remains the only path that clears the Auth session.
 export const authPersistenceReady: Promise<boolean> = setPersistence(
   auth,
-  browserLocalPersistence,
+  isWindowsDesktop() ? inMemoryPersistence : browserLocalPersistence,
 )
   .then(() => true)
   .catch((error) => {

@@ -1,0 +1,25 @@
+PASS Vínculo inactive nunca é convertido em active
+PASS Troca de empresa oculta vínculos antigos antes de chegar nova resposta
+PASS Resposta antiga depois da troca não ressuscita equipe anterior
+PASS Foto legítima do cadastro legado sobrevive a approvedIdentityVersion=2
+PASS Remoção explícita e foto Google permanecem excluídas
+PASS Histórico antigo completo e já fechado não aciona nova consolidação
+PASS Histórico além da janela de 240 dias ausente se distingue de falha de rede
+PASS Mês fechado dentro da janela é consolidado pelo servidor; servidor antigo que recusa vira não consolidado, não falha
+PASS Falha de rede ao consolidar mês antigo continua sendo falha
+PASS Resumo do ranking mantém referência e não dispara ciclo de persistência React
+PASS Motorista multiempresa usa cada vínculo sem mudar companyId primário
+PASS Proprietário canônico também dirige sem depender do perfil primário
+PASS Admin inclui motorista e vínculo desligado nunca libera listagem
+PASS Vínculos duplicados não duplicam pessoa nem escondem vínculo ativo
+PASS Cache vazio não prova empresa vazia; snapshot servidor confirma vazio
+Error fetching all company members Error: permission-denied
+    at file:///workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/audit/profile-team-regressions.mjs:74:233
+    at process.env.NODE_ENV.exports.act (/workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/node_modules/react/cjs/react.development.js:814:22)
+    at file:///workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/audit/profile-team-regressions.mjs:74:197
+    at async check (file:///workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/audit/profile-team-regressions.mjs:48:51)
+    at async file:///workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/scripts/audit/profile-team-regressions.mjs:74:1
+PASS Falha de leitura permanece distinta de equipe vazia
+PASS Imagem que falhou reaparece para nova tentativa após reconectar
+PASS Falha no bitmap antigo não esconde o fallback com marcador decoded desatualizado
+PASS IndexedDB recusado preserva URL válida e não produz promise rejeitada sem tratamento

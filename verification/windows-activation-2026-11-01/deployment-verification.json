@@ -1,0 +1,76 @@
+{
+  "status": "VERIFIED_ACTIVE",
+  "projectId": "vtc-frota-log",
+  "checkedAt": "2026-11-02T00:48:35.816076+00:00",
+  "firebaseCliVersion": "15.34.2",
+  "before": [
+    {
+      "id": "registerCanonicalSimpleTrip",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "28c6d321abd5506d08b4849e56656518815d5a2f"
+    },
+    {
+      "id": "updateWorkModeAvailability",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "2e289c755bf27b27bb12b2468966d22786602da6"
+    },
+    {
+      "id": "operationalCommand",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "85e3cf4942d38b24a4e4c9c743f246dd1b2b2aeb"
+    }
+  ],
+  "after": [
+    {
+      "id": "registerCanonicalSimpleTrip",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "cf527b483270b793519b51fa54289cd94aacd647"
+    },
+    {
+      "id": "updateWorkModeAvailability",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "cf527b483270b793519b51fa54289cd94aacd647"
+    },
+    {
+      "id": "operationalCommand",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "cf527b483270b793519b51fa54289cd94aacd647"
+    }
+  ],
+  "changedFunctions": [
+    "operationalCommand",
+    "registerCanonicalSimpleTrip",
+    "updateWorkModeAvailability"
+  ],
+  "unrelatedFunctionHashesUnchanged": true,
+  "addedFunctions": [],
+  "removedFunctions": [],
+  "finalQaRunId": "2026-11-02T00-46-03-058Z",
+  "finalQaSourceFingerprint": "7351050cd16f8b7481957bdff0353253d1362702c0b29a44550981afa68df911",
+  "functionsSourceSha256": "24d096d99c327a0cdf71766f7ed20727ca0c833d807502ac6cf0fb052b09b67e",
+  "unauthenticatedSmokePassed": true,
+  "productionTripFunctionalTested": false,
+  "productionTestTripsCreated": false,
+  "googleDesktopOAuthConfigured": false,
+  "googleProductionLoginTested": false,
+  "realWindowsGamesTested": false,
+  "googleCloudConsoleBrowserStatus": "Site Unavailable / Unable to access this site. No OAuth client was created."
+}

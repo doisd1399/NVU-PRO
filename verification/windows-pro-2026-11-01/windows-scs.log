@@ -1,0 +1,11 @@
+{"elapsedMs":2240,"preflightMs":37,"evidenceMs":0,"transactionMs":2203,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":3735,"preflightMs":36,"evidenceMs":0,"transactionMs":3699,"transactionAttempts":2,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":47,"preflightMs":5,"evidenceMs":0,"transactionMs":42,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":33,"preflightMs":6,"evidenceMs":0,"transactionMs":27,"transactionAttempts":1,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+PASS ets2 concorrência, replay, moeda, identidade, capacidade e awaiting_completion
+{"elapsedMs":2848,"preflightMs":8,"evidenceMs":0,"transactionMs":2840,"transactionAttempts":2,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":3026,"preflightMs":9,"evidenceMs":0,"transactionMs":3017,"transactionAttempts":2,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":38,"preflightMs":6,"evidenceMs":0,"transactionMs":32,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":32,"preflightMs":5,"evidenceMs":0,"transactionMs":27,"transactionAttempts":1,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+PASS ats concorrência, replay, moeda, identidade, capacidade e awaiting_completion
+SCS_WINDOWS_EMULATOR_PASS

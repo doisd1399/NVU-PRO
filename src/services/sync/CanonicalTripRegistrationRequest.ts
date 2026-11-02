@@ -2,6 +2,7 @@ import { resolveTripCurrency } from "../../lib/tripNormalizer";
 
 /** Only client-owned registration fields cross the callable boundary. */
 const registrationFields = new Set([
+  "scsTelemetry",
   "tripId", "canonicalTripId", "deterministicTripId", "clientRequestId", "idempotencyKey",
   "source", "driverId", "motoristaId", "companyId", "empresaId", "contractId", "contratoId", "currency", "moeda", "moneyCurrency", "receiptCurrency",
   "jobId", "operationId", "trabalhoId", "origem", "origin", "destino", "destination",

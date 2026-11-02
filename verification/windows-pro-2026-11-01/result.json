@@ -1,0 +1,47 @@
+{
+  "projectId": "demo-nvu-v36-4-staging",
+  "steps": [
+    {
+      "id": "windows-scs",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "security",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "lifecycle",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "push-backend",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "goals-ranking",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "print-ui",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "app-shell",
+      "code": 0,
+      "signal": null,
+      "timedOut": false
+    }
+  ]
+}

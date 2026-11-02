@@ -1,0 +1,1 @@
+Windows 0.1.4 candidata. QA PASS 20/20: 2026-11-02T15-10-28-414Z. Núcleo 38/38; interfaces 16+6. DLL 0.1.4 recompilada; instalador extraído/CRC/SHA-256 verificados. Cursor/foco e jogos reais ainda não validados no Windows. Sem assinatura Authenticode.

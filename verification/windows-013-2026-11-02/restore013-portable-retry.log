@@ -1,0 +1,68 @@
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+12 folders, 223 files, 418645378 bytes (400 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-x64-Portable.zip.new.zip
+
+Add new data to archive: 12 folders, 223 files, 418645378 bytes (400 MiB)
+
+
+Files read from disk: 223
+Archive size: 171436305 bytes (164 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 171436305 bytes (164 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-x64-Portable.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-x64-Portable.zip.new.zip
+Type = zip
+Physical Size = 171436305
+
+Everything is Ok
+
+Folders: 12
+Files: 223
+Size:       418645378
+Compressed: 171436305
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+1 folder, 3 files, 131792210 bytes (126 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-Instalador.zip.new.zip
+
+Add new data to archive: 1 folder, 3 files, 131792210 bytes (126 MiB)
+
+
+Files read from disk: 3
+Archive size: 131792916 bytes (126 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 131792916 bytes (126 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-Instalador.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-Instalador.zip.new.zip
+Type = zip
+Physical Size = 131792916
+
+Everything is Ok
+
+Folders: 1
+Files: 3
+Size:       131792210
+Compressed: 131792916

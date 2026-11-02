@@ -1,0 +1,18 @@
+✔ gate accepts a fresh complete release report (1.601195ms)
+✔ a failure, missing Android, timeout, skipped test or duplicate cannot approve a release (0.231798ms)
+✔ partial profile and forged top-level approval are rejected (0.101463ms)
+✔ a changed source, old or future report is rejected (0.191357ms)
+✔ process failures and timeouts propagate (113.689705ms)
+✔ test children receive no production credential or release signing variables (0.506937ms)
+✔ a known P1 blocks even an otherwise complete release report (0.198508ms)
+✔ moderate issues do not block, while resolved issues require evidence (2.891297ms)
+✔ a missing, malformed or invalid configured audit policy fails closed (2.154722ms)
+✔ fingerprint covers root build inputs, backend configuration and migrations without touching live source (7.500051ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 199.474682

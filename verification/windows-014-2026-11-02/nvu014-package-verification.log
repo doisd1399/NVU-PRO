@@ -1,0 +1,43 @@
+  • downloaded      label=7zip-linux-x64.tar.gz progress=100%
+{
+  "version": "0.1.4",
+  "telemetryPluginVersion": "0.1.4",
+  "qaRunId": "2026-11-02T15-10-28-414Z",
+  "sourceFingerprint": "f4d08dd1648a9ddf8f5ac3065f139694b5824809a574af485613efa60a1dbc08",
+  "sourceMatchesFinalQA": true,
+  "runtimeFilesMatchSource": 18,
+  "webFilesMatchBuild": 148,
+  "installerFilesMatchUnpacked": 223,
+  "desktopGoogleConfigurationPreserved": true,
+  "plugin": {
+    "bytes": 3256077,
+    "machine": "x64",
+    "sha256": "6d81dcf2baaa95ec3b489ef152ec18759400995f6efc6771442b8352219606e9"
+  },
+  "pluginSourceSha256": "83614f727e9dab594e7bf29f20d973d8e799ad4fb9893a3bc78b3b3a775149aa",
+  "installer": {
+    "bytes": 129507585,
+    "firstHeaderOffset": 51712,
+    "dataLength": 129455873,
+    "crcEnabled": true,
+    "crc32": "302ac727",
+    "sha256": "dbe7ff3ebe114a29c7a39339c6065a9cbf2a286cf28607f48e5fd2f997bdda6d"
+  },
+  "pe": {
+    "installer": {
+      "machine": "14c",
+      "certificateTableSize": 0
+    },
+    "application": {
+      "machine": "8664",
+      "certificateTableSize": 0
+    },
+    "plugin": {
+      "machine": "8664",
+      "certificateTableSize": 0
+    }
+  },
+  "authenticodeSigned": false,
+  "nativeWindowsCursorTested": false,
+  "realETS2OrATSTripTestedByBuildHost": false
+}

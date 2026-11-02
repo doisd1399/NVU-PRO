@@ -15,7 +15,9 @@
       "diagnostics",
       "notifications",
       "push-client",
-      "legacy-regressions"
+      "legacy-regressions",
+      "windows-core",
+      "windows-registry"
     ],
     "web": [
       "harness",
@@ -33,7 +35,11 @@
       "push-client",
       "legacy-regressions",
       "native-policies",
-      "emulators"
+      "emulators",
+      "windows-core",
+      "windows-registry",
+      "windows-overlay",
+      "windows-settings"
     ],
     "release": [
       "harness",
@@ -52,7 +58,11 @@
       "legacy-regressions",
       "native-policies",
       "emulators",
-      "android-device"
+      "android-device",
+      "windows-core",
+      "windows-registry",
+      "windows-overlay",
+      "windows-settings"
     ]
   },
   "steps": {
@@ -207,6 +217,48 @@
       "kind": "react-controlled",
       "args": [
         "scripts/audit/profile-team-regressions.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "windows-core": {
+      "label": "Windows: fila durável, contexto, telemetria e instalação segura",
+      "kind": "controlled",
+      "args": [
+        "--test",
+        "desktop/windows/tests/core.test.cjs",
+        "desktop/windows/tests/native.test.cjs",
+        "desktop/windows/tests/assistant.test.cjs",
+        "desktop/windows/tests/archive.test.cjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "windows-registry": {
+      "label": "Windows: catálogo opaco, nomes e isolamento de plataformas",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-windows-registry.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "windows-overlay": {
+      "label": "Windows: mouse, viagem fixa, encerramento e avisos de viagem",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "qa/tests/windows-overlay.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "windows-settings": {
+      "label": "Windows: ajustes profissionais, temas e ações do aplicativo",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "qa/tests/windows-settings.mts"
       ],
       "timeoutMs": 60000
     }

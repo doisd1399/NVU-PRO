@@ -1,0 +1,64 @@
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+12 folders, 224 files, 428712547 bytes (409 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip.new.zip
+
+Add new data to archive: 12 folders, 224 files, 428712547 bytes (409 MiB)
+
+
+Files read from disk: 224
+Archive size: 176443241 bytes (169 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 176443241 bytes (169 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip.new.zip
+Type = zip
+Physical Size = 176443241
+
+Everything is Ok
+
+Folders: 12
+Files: 224
+Size:       428712547
+Compressed: 176443241
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 106954752 bytes (102 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip
+
+ERRORS:
+Unexpected end of archive
+
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.4-x64-Portable.zip
+Type = zip
+ERRORS:
+Unexpected end of archive
+Physical Size = 106954752
+Characteristics = Local
+
+ERROR: Data Error : NVU-PRO-Windows-0.1.4/NVU PRO.exe
+
+Sub items Errors: 1
+
+Archives with Errors: 1
+
+Open Errors: 1
+
+Sub items Errors: 1
+WINDOWS_ZIP_BUILD_FAILED

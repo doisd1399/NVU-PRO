@@ -1,0 +1,17 @@
+{
+  "installer": {
+    "machine": "0x14c",
+    "certificateTableAddress": 0,
+    "certificateTableSize": 0
+  },
+  "dll": {
+    "machine": "0x8664",
+    "certificateTableAddress": 0,
+    "certificateTableSize": 0
+  },
+  "application": {
+    "machine": "0x8664",
+    "certificateTableAddress": 0,
+    "certificateTableSize": 0
+  }
+}

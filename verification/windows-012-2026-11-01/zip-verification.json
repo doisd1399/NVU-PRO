@@ -1,0 +1,25 @@
+{
+  "version": "0.1.2",
+  "portableRuntimeFilesCompared": 222,
+  "portableAllRuntimeFilesMatchUnpacked": true,
+  "portableArchiveCrcPassed": true,
+  "installerZipExeMatchesBuild": true,
+  "installerZipArchiveCrcPassed": true,
+  "files": [
+    {
+      "name": "NVU-PRO-Windows-0.1.2-x64-Setup.exe",
+      "bytes": 125735121,
+      "sha256": "0af3ba87b50f22a41db62c031d49a9f99f9004135b1e794a239c44b541507275"
+    },
+    {
+      "name": "NVU-PRO-Windows-0.1.2-x64-Portable.zip",
+      "bytes": 171425300,
+      "sha256": "1317ef210cada8eebc6f9d4fbf3c40e52f1a29132f7f5963e625aa6bc3575e0e"
+    },
+    {
+      "name": "NVU-PRO-Windows-0.1.2-Instalador.zip",
+      "bytes": 125736475,
+      "sha256": "27a6665b4bf50f7987e0a79e67b41b36dc7c56c0966b078b3f7ae2c3ba4ad907"
+    }
+  ]
+}

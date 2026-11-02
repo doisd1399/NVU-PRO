@@ -1,0 +1,23 @@
+{
+  "version": "0.1.1",
+  "installer": {
+    "bytes": 125712878,
+    "firstHeaderOffset": 51712,
+    "dataLength": 125661166,
+    "crcEnabled": true,
+    "crc32": "8717188d",
+    "sha256": "2e1b315677f726222ec8a8d2fdd4b5b40deb92b52b62081a038951b3458994a3"
+  },
+  "files": [
+    {
+      "name": "NVU-PRO-Windows-0.1.1-x64-Portable.zip",
+      "bytes": 171417465,
+      "sha256": "048248b4c6496f87c0ebdf394c14e4c1bc4b91a6192b85ec683d67adc0bcb086"
+    },
+    {
+      "name": "NVU-PRO-Windows-0.1.1-Instalador.zip",
+      "bytes": 125714232,
+      "sha256": "220d32e30abfa621e55db7033b5aa3e0b4e0161a4140721e766adfa874bc1230"
+    }
+  ]
+}

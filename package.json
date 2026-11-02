@@ -383,7 +383,13 @@
     "qa:self-test": "node --test scripts/qa/self-test.mjs",
     "qa:gate": "node scripts/qa/gate.mjs",
     "release:checked": "npm run qa:release && bash scripts/android-release-520.sh",
-    "test:audit-general": "node scripts/audit/profile-team-regressions.mjs"
+    "test:audit-general": "node scripts/audit/profile-team-regressions.mjs",
+    "windows:setup": "npm --prefix desktop/windows ci",
+    "windows:dev": "npm run build && npm --prefix desktop/windows start",
+    "windows:plugin": "npm --prefix desktop/windows run plugin:build",
+    "windows:installer": "npm run build && npm --prefix desktop/windows run package",
+    "windows:portable": "npm run build && npm --prefix desktop/windows run portable",
+    "test:windows": "npm --prefix desktop/windows test"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.5.1",
