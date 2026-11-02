@@ -49,15 +49,19 @@ function createWorld(dir, overrides = {}) {
     safeStorage: {}, net: {}, Tray: class { setToolTip() {} setContextMenu() {} on() {} destroy() {} }, Menu: { setApplicationMenu() {}, buildFromTemplate: x => x }, nativeImage: { createFromPath() {} },
     clipboard: { writeText: text => clipboardWrites.push(text) } };
   const file = path.resolve(__dirname, '../../main.cjs'), req = createRequire(file);
+  // The process list must not depend on the machine running the tests: on a real Windows host powershell.exe/tasklist exist and
+  // would really run (slowly) instead of failing at once as on Linux. `state.processes` is what "is running" in this world.
+  const realProcessList = req('./core/process-list.cjs');
+  const processList = { ...realProcessList, findRunningNvu: options => realProcessList.findRunningNvu({ ...options, list: async () => state.processes || [], confirm: async () => false }) };
   const files = { 'index.html': '<html></html>', ...overrides.files };
   const missing = p => Object.assign(Error(`ENOENT: no such file or directory, '${p}'`), { code: 'ENOENT' });
   const fakeFs = { ...fs, realpathSync: Object.assign(p => { if (p === web) { if (state.noWeb) throw missing(p); return web; } return fs.realpathSync(p); }, fs.realpathSync),
     readFileSync: (p, encoding) => { const s = String(p);
       if (s === path.join(web, 'index.html')) { if (state.noWeb) throw missing(s); return files['index.html']; }
-      if (s.endsWith('config/google-oauth.json')) { if (state.badOauth) return '{ not json'; return JSON.stringify({ clientId: 'qa.apps.googleusercontent.com' }); }
+      if (s.replace(/\\/g, '/').endsWith('config/google-oauth.json')) { if (state.badOauth) return '{ not json'; return JSON.stringify({ clientId: 'qa.apps.googleusercontent.com' }); }
       return fs.readFileSync(p, encoding); } };
   const context = {
-    require: name => name === 'electron' ? electron : name === 'node:child_process' ? child : name === 'node:fs' ? fakeFs
+    require: name => name === 'electron' ? electron : name === 'node:child_process' ? child : name === 'node:fs' ? fakeFs : name === './core/process-list.cjs' ? processList
       : name === './core/game-window.cjs' ? { focusGameWindow: async key => { opened.push('focus:' + key); return { found: true, focused: state.focusAllowed }; } } : req(name),
     __dirname: path.dirname(file), URL, Response, Headers, console, Promise,
     process: { platform: 'win32', arch: 'x64', pid: 4242, argv: ['NVU PRO.exe', ...(overrides.argv || [])], execPath: 'C:\\Apps\\NVU PRO\\NVU PRO.exe', versions: { electron: '45.2.1', chrome: '140', node: '24' },
