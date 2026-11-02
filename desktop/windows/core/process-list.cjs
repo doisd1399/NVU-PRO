@@ -5,13 +5,14 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { windowsPowerShellEnv } = require('./powershell-env.cjs');
 const exec = promisify(execFile);
 const PACKAGE_NAME = 'nvu-windows';
 
 async function listProcessesByImage(imageName, run = exec) {
   if (!/^[\w .-]+\.exe$/i.test(imageName)) throw Error('PROCESS_IMAGE_INVALID');
   const script = `$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process -Filter "Name='${imageName}'" | Select-Object ProcessId,ParentProcessId,ExecutablePath,CommandLine) | ConvertTo-Json -Compress`;
-  const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 8000, encoding: 'utf8', maxBuffer: 1 << 20 });
+  const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 8000, encoding: 'utf8', maxBuffer: 1 << 20, env: windowsPowerShellEnv() });
   const parsed = stdout.trim() ? JSON.parse(stdout) : [];
   return [parsed].flat().filter(Boolean).map(p => ({ pid: Number(p.ProcessId), parent: Number(p.ParentProcessId), exe: p.ExecutablePath || '', commandLine: p.CommandLine || '' }))
     .filter(p => Number.isSafeInteger(p.pid) && p.pid > 0);

@@ -1,6 +1,7 @@
 
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
+const { windowsPowerShellEnv } = require('./powershell-env.cjs');
 const execute = promisify(execFile);
 const processes = Object.freeze({ ats: 'amtrucks', ets2: 'eurotrucks2' });
 function focusScript(key) {
@@ -19,7 +20,7 @@ $h=$p.MainWindowHandle; if ([NvuGameWindow]::IsIconic($h)) { $null=[NvuGameWindo
 }
 async function focusGameWindow(key, run = execute) {
   const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(focusScript(key), 'utf16le').toString('base64')],
-    { windowsHide: true, timeout: 5000, maxBuffer: 16384, encoding: 'utf8' });
+    { windowsHide: true, timeout: 5000, maxBuffer: 16384, encoding: 'utf8', env: windowsPowerShellEnv() });
   const result = JSON.parse(stdout.trim());
   if (!result || typeof result.found !== 'boolean' || typeof result.focused !== 'boolean') throw Error('GAME_WINDOW_RESPONSE_INVALID');
   return result;

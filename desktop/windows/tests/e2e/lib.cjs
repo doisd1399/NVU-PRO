@@ -4,6 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawn, spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
+const { windowsPowerShellEnv } = require('../../core/powershell-env.cjs');
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 function sha256(file) {
@@ -13,7 +14,7 @@ function sha256(file) {
 }
 function powershell(script, timeout = 60000) {
   const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
-    { encoding: 'utf8', timeout, windowsHide: true, maxBuffer: 16 << 20 });
+    { encoding: 'utf8', timeout, windowsHide: true, maxBuffer: 16 << 20, env: windowsPowerShellEnv() });
   return { status: result.status, stdout: (result.stdout || '').trim(), stderr: (result.stderr || '').trim() };
 }
 function powershellJson(script, timeout) {

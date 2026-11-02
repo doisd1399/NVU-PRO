@@ -13,6 +13,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
+const { windowsPowerShellEnv } = require('../core/powershell-env.cjs');
 
 const DEFAULT_TIMESTAMP = 'http://timestamp.digicert.com';
 function signingConfig(env = process.env) {
@@ -51,10 +52,10 @@ function signFiles(files, { env = process.env, platform = process.platform, run 
     if (config.mode === 'pfx' && platform === 'win32') {
       // Import into the user's store and sign by thumbprint: the password never appears on a command line.
       const r = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "$p=ConvertTo-SecureString $env:NVU_SIGN_PFX_PASSWORD -AsPlainText -Force; (Import-PfxCertificate -FilePath $env:NVU_SIGN_PFX_PATH -CertStoreLocation Cert:\\CurrentUser\\My -Password $p).Thumbprint"],
-        { encoding: 'utf8', env: { ...env, NVU_SIGN_PFX_PASSWORD: password, NVU_SIGN_PFX_PATH: pfx }, windowsHide: true });
+        { encoding: 'utf8', env: windowsPowerShellEnv(env, { NVU_SIGN_PFX_PASSWORD: password, NVU_SIGN_PFX_PATH: pfx }), windowsHide: true });
       thumbprint = String(r.stdout || '').trim().split(/\s+/).pop();
       if (r.status !== 0 || !/^[0-9A-F]{40}$/i.test(thumbprint)) return files.map(file => ({ file, signed: false, reason: 'SIGNING_CERTIFICATE_IMPORT_FAILED' }));
-      cleanup.push(() => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Remove-Item Cert:\\CurrentUser\\My\\${thumbprint} -ErrorAction SilentlyContinue`], { windowsHide: true }));
+      cleanup.push(() => run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `Remove-Item Cert:\\CurrentUser\\My\\${thumbprint} -ErrorAction SilentlyContinue`], { windowsHide: true, env: windowsPowerShellEnv() }));
     }
     let passFile = null;
     if (config.mode === 'pfx' && platform !== 'win32') { passFile = tmpFile('.pass'); fsImpl.writeFileSync(passFile, password, { mode: 0o600 }); cleanup.push(passFile); }
@@ -91,7 +92,7 @@ function signFiles(files, { env = process.env, platform = process.platform, run 
 function verifySignature(file, { platform = process.platform, run = spawnSync } = {}) {
   if (platform === 'win32') {
     const script = `$s = Get-AuthenticodeSignature -LiteralPath $env:NVU_VERIFY_FILE; [pscustomobject]@{ status=[string]$s.Status; statusMessage=$s.StatusMessage; signer=$s.SignerCertificate.Subject; thumbprint=$s.SignerCertificate.Thumbprint; notAfter=$s.SignerCertificate.NotAfter; timestamped=($null -ne $s.TimeStamperCertificate); timestamper=$s.TimeStamperCertificate.Subject } | ConvertTo-Json -Compress`;
-    const r = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', env: { ...process.env, NVU_VERIFY_FILE: file }, windowsHide: true });
+    const r = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', env: windowsPowerShellEnv(process.env, { NVU_VERIFY_FILE: file }), windowsHide: true });
     if (r.status !== 0) return { checked: 'windows', valid: false, status: 'CheckFailed', detail: String(r.stderr || '').slice(0, 300) };
     const data = JSON.parse(r.stdout);
     return { checked: 'windows', valid: data.status === 'Valid', ...data };

@@ -11,6 +11,7 @@ const { promisify } = require('node:util');
 const exec = promisify(execFile);
 const { sha, installPlugin, removePlugin, DLL } = require('./plugin-install.cjs');
 const { NvuError } = require('./errors.cjs');
+const { windowsPowerShellEnv } = require('./powershell-env.cjs');
 
 const EXIT = Object.freeze({ OK: 0, BAD_REQUEST: 20, NOT_GAME: 21, SOURCE: 22, FOREIGN: 23, REDIRECTED: 24, WRITE: 25, VERIFY: 26, RESOURCES: 27, HASH: 28, UNEXPECTED: 29, DECLINED: 1223 });
 const MAX_REQUEST = 4096;
@@ -56,7 +57,7 @@ async function requestElevation({ exe, args, run = exec, platform = process.plat
   const [first, second = ''] = args;
   try {
     await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 120000, encoding: 'utf8',
-      env: { ...process.env, NVU_ELEVATE_EXE: exe, NVU_ELEVATE_ARG1: first, NVU_ELEVATE_ARG2: second } });
+      env: windowsPowerShellEnv(process.env, { NVU_ELEVATE_EXE: exe, NVU_ELEVATE_ARG1: first, NVU_ELEVATE_ARG2: second }) });
     return { ok: true, exitCode: 0, declined: false };
   } catch (error) {
     const code = typeof error.code === 'number' ? error.code : EXIT.UNEXPECTED;

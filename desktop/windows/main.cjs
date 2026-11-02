@@ -27,6 +27,7 @@ const { createInstance } = require('./core/instance.cjs');
 const { findRunningNvu, instanceRegistry, readPackageFromInstall } = require('./core/process-list.cjs');
 const { runElevatedPlugin, requestElevation, encodeRequest, messageFor, EXIT } = require('./core/elevated-plugin.cjs');
 const { prepareSimulator, removeSimulatorPlugin } = require('./core/prepare.cjs');
+const { windowsPowerShellEnv } = require('./core/powershell-env.cjs');
 
 const appURL = 'nvu://app';
 // Must be declared before the app is ready, also in the process that will immediately leave.
@@ -123,7 +124,7 @@ async function poll() {
 }
 async function listGameProcesses() {
   const script = "@(Get-Process -Name amtrucks,eurotrucks2 -ErrorAction SilentlyContinue | ForEach-Object { $s=$null; try { $s=$_.StartTime.ToUniversalTime().ToString('o') } catch {}; [pscustomobject]@{ name=$_.ProcessName; start=$s } }) | ConvertTo-Json -Compress";
-  const { stdout } = await execAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 4000, encoding: 'utf8' });
+  const { stdout } = await execAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 4000, encoding: 'utf8', env: windowsPowerShellEnv() });
   const rows = stdout.trim() ? JSON.parse(stdout) : [];
   return [rows].flat().flatMap(row => {
     const name = String(typeof row === 'string' ? row : row?.name || '').toLowerCase(), key = name === 'amtrucks' ? 'ats' : name === 'eurotrucks2' ? 'ets2' : null;

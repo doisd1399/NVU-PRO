@@ -6,9 +6,11 @@ const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { newReport, arg, processes, killTree, launch, sleep } = require('./lib.cjs');
+const { windowsPowerShellEnv } = require('../../core/powershell-env.cjs');
 const appDir = path.resolve(arg('app', '')), out = path.resolve(arg('out', 'artifacts/e2e'));
 const { encodeRequest, requestElevation, EXIT } = require('../../core/elevated-plugin.cjs');
 const { installPlugin, inspectPlugin } = require('../../core/plugin-install.cjs');
+const cleanupDirs = [];
 const report = newReport('plugin-e2e'), pluginDir = path.join(appDir, 'resources', 'plugin');
 const dll = path.join(pluginDir, 'nvu_scs_telemetry.dll'), manifest = JSON.parse(fs.readFileSync(path.join(pluginDir, 'nvu_scs_telemetry.manifest.json'), 'utf8'));
 const sha = file => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -24,7 +26,7 @@ const fakeGame = (root, exe) => { fs.mkdirSync(path.join(root, 'bin', 'win_x64')
     return { changed: r.changed, sha256: info.sha256 };
   });
   await report.step('Elevated mode through the real PowerShell wrapper (Start-Process -Verb RunAs) writes and verifies the plugin', async () => {
-    const root = process.env.ProgramData || 'C:\\ProgramData', game = fakeGame(path.join(fs.mkdtempSync(path.join(root, 'NVU-QA-')), 'ETS2'), 'eurotrucks2.exe');
+    const root = process.env.ProgramData || 'C:\\ProgramData', qaRoot = fs.mkdtempSync(path.join(root, 'NVU-QA-')); cleanupDirs.push(qaRoot); const game = fakeGame(path.join(qaRoot, 'ETS2'), 'eurotrucks2.exe');
     const request = encodeRequest({ key: 'ets2', root: game }, { expectedSha256: manifest.sha256, version: manifest.version });
     const result = await requestElevation({ exe: path.join(appDir, 'NVU PRO.exe'), args: [`--nvu-elevated-plugin=${request}`] });
     const info = inspectPlugin(game, 'ets2', { expectedSha256: manifest.sha256 });
@@ -42,11 +44,13 @@ const fakeGame = (root, exe) => { fs.mkdirSync(path.join(root, 'bin', 'win_x64')
     const game = fakeGame(path.join(base, 'ATSrun'), 'amtrucks.exe'); fs.copyFileSync(process.execPath, path.join(game, 'bin/win_x64/amtrucks.exe'));
     launch(path.join(game, 'bin/win_x64/amtrucks.exe'), ['-e', 'setInterval(() => {}, 1000)']); await sleep(2000);
     const script = "@(Get-Process -Name amtrucks,eurotrucks2 -ErrorAction SilentlyContinue | ForEach-Object { $s=$null; try { $s=$_.StartTime.ToUniversalTime().ToString('o') } catch {}; [pscustomobject]@{ name=$_.ProcessName; start=$s } }) | ConvertTo-Json -Compress";
-    const r = require('node:child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true });
+    const r = require('node:child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, env: windowsPowerShellEnv() });
     const rows = [JSON.parse(r.stdout || '[]')].flat(); killTree(processes('amtrucks.exe').map(p => p.pid));
     if (!rows.some(x => x.name === 'amtrucks' && x.start)) throw Error('process with start time not reported: ' + r.stdout + r.stderr);
     return { rows };
   });
-  fs.rmSync(base, { recursive: true, force: true });
+  // A process that was just stopped can keep its executable locked for a moment: wait and retry instead of failing the whole run.
+  await sleep(1500);
+  for (const dir of [base, ...cleanupDirs]) { try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }); } catch (error) { console.log('cleanup skipped for ' + dir + ': ' + error.code); } }
   report.save(path.join(out, 'plugin-e2e.json')); process.exitCode = report.ok ? 0 : 1;
 })().catch(error => { console.error(error); report.ok = false; report.save(path.join(out, 'plugin-e2e.json')); process.exitCode = 1; });
