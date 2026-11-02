@@ -17,6 +17,14 @@
 #ifndef NVU_PLUGIN_VERSION
 #error "NVU_PLUGIN_VERSION must be defined by the build (build-plugin.cjs stamps it from package.json nvu.pluginVersion)"
 #endif
+// How the two SDK entry points are exported. The SDK header already declares them with C linkage and the SDK calling
+// convention; current MSVC rejects a second declaration that adds dllexport (error C2375, "different linkage"), so on MSVC
+// the definitions carry no attributes and nvu_scs_telemetry.def exports them. MinGW keeps the attribute.
+#if defined(_MSC_VER)
+#define NVU_SDK_ENTRY
+#else
+#define NVU_SDK_ENTRY extern "C" __declspec(dllexport)
+#endif
 #include "scssdk_telemetry.h"
 #include "common/scssdk_telemetry_common_configs.h"
 #include "common/scssdk_telemetry_truck_common_channels.h"
@@ -165,7 +173,7 @@ SCSAPI_VOID callback(const scs_event_t event, const void* const info, const scs_
   } catch (...) { /* A telemetry failure must never crash the game. */ }
 }
 }
-extern "C" __declspec(dllexport) SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_init_params_t* const params) {
+NVU_SDK_ENTRY SCSAPI_RESULT scs_telemetry_init(const scs_u32_t version, const scs_telemetry_init_params_t* const params) {
   if (version != SCS_TELEMETRY_VERSION_1_01 || !params || !stopping) return SCS_RESULT_unsupported;
   const auto p = static_cast<const scs_telemetry_init_params_v101_t*>(params);
   std::vector<scs_event_t> registered;
@@ -196,6 +204,6 @@ extern "C" __declspec(dllexport) SCSAPI_RESULT scs_telemetry_init(const scs_u32_
     return SCS_RESULT_ok;
   } catch (...) { stopping = true; for (auto old : registered) p->unregister_from_event(old); if (gameLog) gameLog(SCS_LOG_TYPE_error, "[NVU PRO " NVU_PLUGIN_VERSION "] Plugin initialization failed."); return SCS_RESULT_generic_error; }
 }
-extern "C" __declspec(dllexport) SCSAPI_VOID scs_telemetry_shutdown() {
+NVU_SDK_ENTRY SCSAPI_VOID scs_telemetry_shutdown() {
   stopping = true; if (worker.joinable()) worker.join(); pulse();
 }

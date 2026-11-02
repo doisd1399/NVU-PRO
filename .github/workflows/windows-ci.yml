@@ -80,6 +80,17 @@ jobs:
         working-directory: _baseline
       - run: npm run build
         working-directory: _baseline
+      - name: Baseline build script on a Windows host (path separator only)
+        # The shipped 0.1.4 build script appends "/*" to a Windows path and makensis then finds no files ("no files found").
+        # It was only ever run on Linux. This changes ONLY the separator so the same app can be packaged here; nothing else.
+        shell: pwsh
+        run: |
+          $f = '_baseline/desktop/windows/build-installer.cjs'
+          $t = Get-Content -Raw -LiteralPath $f
+          $t2 = $t.Replace('File /r "${escape(unpacked)}/*"', 'File /r "${escape(unpacked)}\\*"')
+          if ($t2 -eq $t) { throw 'padrao do caminho nao encontrado no script da linha de base' }
+          Set-Content -NoNewline -Encoding UTF8 -LiteralPath $f -Value $t2
+          Select-String -LiteralPath $f -Pattern 'File /r' | ForEach-Object { $_.Line.Trim() }
       - name: Build the baseline installer (checked-in plugin binary)
         run: npm --prefix desktop/windows run package
         working-directory: _baseline

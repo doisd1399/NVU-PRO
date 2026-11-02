@@ -11,6 +11,8 @@ target_include_directories(nvu_scs_telemetry PRIVATE vendor/include)
 target_link_libraries(nvu_scs_telemetry PRIVATE shell32 ole32 uuid)
 set_target_properties(nvu_scs_telemetry PROPERTIES PREFIX "" RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
 if(MSVC)
+  # Exports come from the .def file (see the note above NVU_SDK_ENTRY in nvu_scs_telemetry.cpp).
+  target_sources(nvu_scs_telemetry PRIVATE nvu_scs_telemetry.def)
   set_property(TARGET nvu_scs_telemetry PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
   target_link_options(nvu_scs_telemetry PRIVATE -static -static-libgcc -static-libstdc++)
