@@ -29,6 +29,7 @@ npm run windows:verify                # reverifica artifacts/windows (tamanho, S
 npm run windows:portable              # secundário: ZIP sem instalação
 npm run windows:dev                   # abre o aplicativo a partir do código
 npm run test:role-matrix              # matriz por papel (emulador, dados fictícios)
+bash desktop/windows/tests/e2e/wine-installer-check.sh artifacts/windows/NVU-PRO-Setup-0.2.0-x64.exe ~/wine-nvu   # emulado (Wine), prefixo descartável
 ```
 
 A versão do aplicativo e do plugin vem de **uma única fonte**: `desktop/windows/package.json` (`version` e `nvu.pluginVersion`). O build do plugin grava a versão na DLL e gera `nvu_scs_telemetry.manifest.json` (SHA-256/tamanho); o aplicativo confere a DLL empacotada com esse manifesto ao iniciar.
@@ -67,8 +68,8 @@ Aplicativo e jogos rodam com permissões normais. Só quando o Windows nega a gr
 | Nível | O que foi executado | O que comprova |
 |---|---|---|
 | Automatizado/controlado (Linux) | `npm run test:windows` (83 testes), `npm run qa`, matriz por papel (40 cenários, emulador), UI em Chromium | Lógica, contratos, mensagens, políticas. **Não** comprova Windows nativo. |
-| Emulado (Wine 9 sobre Linux) | Instalador final instalado, atualizado, desinstalado; recusa com app aberto; `/FORCECLOSE`; programa homônimo em outra pasta preservado; aplicativo empacotado imprimindo versões reais e registrando bloqueio perdido | O código do NSIS e do aplicativo executam; **não** é Windows. |
-| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` | Instalar/atualizar/desinstalar, instância única, troca sobre a 0.1.x real, wrapper de elevação, assinatura de teste. **Ainda não executado nesta entrega.** |
+| Emulado (Wine 9 sobre Linux) | `bash desktop/windows/tests/e2e/wine-installer-check.sh <instalador.exe> <prefixo-wine>`: instalação, atualização, desinstalação (dados preservados); recusa com a NVU aberta; `/FORCECLOSE`; programa homônimo em outra pasta preservado; aplicativo empacotado informando versões reais; 2ª execução perde o bloqueio, não roda etapas e sai | O código do NSIS e a decisão de instância única do aplicativo empacotado executam. **Não é Windows**: o Electron não chega a criar a janela sob este Wine (um aplicativo Electron mínimo trava no mesmo ponto), então nada de interface é comprovado aqui. |
+| Windows real (GitHub Actions, disparo manual) | `.github/workflows/windows-ci.yml` | Instalar/atualizar/desinstalar, instância única, troca sobre a 0.1.x real, wrapper de elevação, assinatura de teste. **Ainda não executado nesta entrega.** |
 | Jogos reais | — | **Não executado.** |
 
 ## Assinatura

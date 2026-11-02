@@ -1,9 +1,9 @@
 name: NVU Windows CI
 # Real Windows runners: build (MSVC plugin + installer), install/upgrade/uninstall, single instance, takeover of the shipped 0.1.x,
 # plugin preparation (including the elevation wrapper) and a signing dry run with a THROWAWAY certificate.
+# Manual de propósito (workflow_dispatch): runners Windows consomem minutos de Actions (2x em repositório privado) e
+# não devem rodar a cada push. Dispare em Actions > "NVU Windows CI" > Run workflow, ou peça para o assistente disparar.
 on:
-  push:
-    branches: ['claude/**']
   workflow_dispatch:
 permissions:
   contents: read
