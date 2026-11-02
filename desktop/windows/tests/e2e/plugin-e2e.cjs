@@ -39,7 +39,8 @@ const fakeGame = (root, exe) => { fs.mkdirSync(path.join(root, 'bin', 'win_x64')
     return { exitCode: result.exitCode };
   });
   await report.step('A running game process is visible to the application process list (amtrucks.exe stand-in)', async () => {
-    const game = fakeGame(path.join(base, 'ATSrun'), 'amtrucks.exe'); launch(path.join(game, 'bin/win_x64/amtrucks.exe'), ['/t', '120', '/nobreak']); await sleep(2000);
+    const game = fakeGame(path.join(base, 'ATSrun'), 'amtrucks.exe'); fs.copyFileSync(process.execPath, path.join(game, 'bin/win_x64/amtrucks.exe'));
+    launch(path.join(game, 'bin/win_x64/amtrucks.exe'), ['-e', 'setInterval(() => {}, 1000)']); await sleep(2000);
     const script = "@(Get-Process -Name amtrucks,eurotrucks2 -ErrorAction SilentlyContinue | ForEach-Object { $s=$null; try { $s=$_.StartTime.ToUniversalTime().ToString('o') } catch {}; [pscustomobject]@{ name=$_.ProcessName; start=$s } }) | ConvertTo-Json -Compress";
     const r = require('node:child_process').spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true });
     const rows = [JSON.parse(r.stdout || '[]')].flat(); killTree(processes('amtrucks.exe').map(p => p.pid));

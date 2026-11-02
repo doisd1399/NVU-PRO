@@ -44,8 +44,9 @@ const uninstallerOf = () => path.join(installDir, 'Uninstall NVU.exe');
     return data;
   });
   await report.step('Decoy: another program named "NVU PRO.exe" in a different folder must survive the upgrade', async () => {
-    fs.mkdirSync(decoyDir, { recursive: true }); fs.copyFileSync(path.join(process.env.SystemRoot, 'System32', 'timeout.exe'), path.join(decoyDir, 'NVU PRO.exe'));
-    launch(path.join(decoyDir, 'NVU PRO.exe'), ['/t', '600', '/nobreak']); await sleep(1500);
+    // A real long-running Windows program that is NOT the NVU but has its file name (timeout.exe refuses to run without a console).
+    fs.mkdirSync(decoyDir, { recursive: true }); fs.copyFileSync(process.execPath, path.join(decoyDir, 'NVU PRO.exe'));
+    launch(path.join(decoyDir, 'NVU PRO.exe'), ['-e', 'setInterval(() => {}, 1000)']); await sleep(1500);
     return { decoyPids: processes().filter(p => p.exe && p.exe.toLowerCase().startsWith(decoyDir.toLowerCase())).map(p => p.pid) };
   });
   await report.step('Upgrade with /FORCECLOSE: only the NVU of this folder is closed; the decoy lives; files replaced', async () => {

@@ -1,19 +1,24 @@
 name: NVU Windows CI
-# Real Windows runners: build (MSVC plugin + installer), install/upgrade/uninstall, single instance, takeover of the shipped 0.1.x,
-# plugin preparation (including the elevation wrapper) and a signing dry run with a THROWAWAY certificate.
-# Manual de propósito (workflow_dispatch): runners Windows consomem minutos de Actions (2x em repositório privado) e
-# não devem rodar a cada push. Dispare em Actions > "NVU Windows CI" > Run workflow, ou peça para o assistente disparar.
+# Runners Windows reais: build (plugin MSVC + instalador), instalar/atualizar/desinstalar, instância única, troca sobre a 0.1.x
+# real, preparo do plugin (inclui o wrapper de elevação) e ensaio de assinatura com certificado DESCARTÁVEL.
+# Como disparar:
+#   - Actions > "NVU Windows CI" > Run workflow (workflow_dispatch); ou
+#   - push em claude/** com a marca [win-ci] na mensagem do ÚLTIMO commit.
+# Pushes sem a marca criam uma execução com todos os jobs ignorados: não usam runner e não cancelam uma execução em andamento.
 on:
+  push:
+    branches: ['claude/**']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: windows-ci-${{ github.ref }}
+  group: windows-ci-${{ github.ref }}-${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')) && 'run' || github.run_id }}
   cancel-in-progress: true
 env:
   FORCE_COLOR: '0'
 jobs:
   windows-build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -27,6 +32,14 @@ jobs:
       - run: npm run lint
       - name: Desktop unit/controlled tests on Windows
         run: npm run test:windows
+      - name: Cliente OAuth Desktop a partir dos Secrets (se existirem)
+        shell: pwsh
+        env:
+          CID: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_ID }}
+          CSEC: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: |
+          if ($env:CID -and $env:CSEC) { @{ clientId = $env:CID; clientSecret = $env:CSEC } | ConvertTo-Json | Set-Content -Encoding UTF8 desktop/windows/config/google-oauth.json; 'Cliente OAuth injetado dos Secrets.' }
+          else { 'Sem os Secrets do OAuth: o instalador deste CI serve para teste e o login Google nao funciona nele.' }
       - name: Installer (unsigned)
         run: npm run windows:installer
       - name: Re-verify the final artifacts (size, SHA-256, NSIS CRC, 7-Zip test)
@@ -45,7 +58,8 @@ jobs:
             desktop/windows/installer/Verificar-NVU.ps1
           if-no-files-found: error
   baseline-installer:
-    # The installer exactly as shipped before this work (first commit of the branch), built the way it was built.
+    # The installer exactly as shipped before this work (the import commit "Linha de base: projeto NVU Windows recebido"), built the way it was built.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -53,25 +67,26 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: '24', cache: npm }
-      - name: Check out the baseline tree
+      - name: Check out the baseline tree (inside the workspace)
         shell: pwsh
         run: |
-          $root = (git rev-list --max-parents=0 HEAD | Select-Object -First 1)
-          git worktree add ../baseline $root
+          $root = (git log --format=%H --grep='^Linha de base: projeto NVU Windows recebido' -n 1)
+          if (-not $root) { throw 'commit de linha de base nao encontrado' }
+          git worktree add _baseline $root
           "BASELINE_SHA=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
       - run: npm ci
-        working-directory: ../baseline
+        working-directory: _baseline
       - run: npm --prefix desktop/windows ci
-        working-directory: ../baseline
+        working-directory: _baseline
       - run: npm run build
-        working-directory: ../baseline
+        working-directory: _baseline
       - name: Build the baseline installer (checked-in plugin binary)
         run: npm --prefix desktop/windows run package
-        working-directory: ../baseline
+        working-directory: _baseline
       - uses: actions/upload-artifact@v4
         with:
           name: installer-baseline
-          path: ../baseline/artifacts/windows/NVU-PRO-Windows-*-x64-Setup.exe
+          path: _baseline/artifacts/windows/NVU-PRO-Windows-*-x64-Setup.exe
           if-no-files-found: error
   windows-e2e:
     needs: [windows-build, baseline-installer]
