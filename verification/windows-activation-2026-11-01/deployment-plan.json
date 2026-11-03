@@ -1,0 +1,43 @@
+{
+  "projectId": "vtc-frota-log",
+  "targets": [
+    "registerCanonicalSimpleTrip",
+    "updateWorkModeAvailability",
+    "operationalCommand"
+  ],
+  "qaRunId": "2026-11-02T00-38-04-212Z",
+  "qaStatus": "PASS",
+  "sourceFingerprint": "333af617eb3aa9076fa06211a320815ac998f2546102fbfd028ed84d1cafeec9",
+  "sourceUnchanged": true,
+  "before": [
+    {
+      "id": "operationalCommand",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "85e3cf4942d38b24a4e4c9c743f246dd1b2b2aeb"
+    },
+    {
+      "id": "registerCanonicalSimpleTrip",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "28c6d321abd5506d08b4849e56656518815d5a2f"
+    },
+    {
+      "id": "updateWorkModeAvailability",
+      "platform": "gcfv1",
+      "region": "us-central1",
+      "runtime": "nodejs22",
+      "state": "ACTIVE",
+      "hash": "2e289c755bf27b27bb12b2468966d22786602da6"
+    }
+  ],
+  "reason": "Publish Windows PRO SCS trip validation, work mode policy and maintenance control. No production test trips, rules, hosting or unrelated functions.",
+  "functionsSourceSha256": "24d096d99c327a0cdf71766f7ed20727ca0c833d807502ac6cf0fb052b09b67e",
+  "functionsSourceFileCount": 76,
+  "firebaseCliVersion": "15.34.2",
+  "documentationChangedAfterUpload": "desktop/windows/README.md updated with deployment and OAuth instructions; functions source unchanged; final QA repeated."
+}

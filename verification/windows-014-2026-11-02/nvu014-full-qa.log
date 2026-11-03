@@ -1,0 +1,46 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 qa
+> node scripts/qa/run.mjs web
+
+[QA] Bloqueio de liberação e execução dos testes
+[PASS] harness
+[QA] Tipos e compilação do aplicativo
+[PASS] types
+[QA] Compilação do servidor
+[PASS] functions
+[QA] Build Web atual
+[PASS] web-build
+[QA] Upload, confirmação, identidade e autorização
+[PASS] contracts
+[QA] Fila, falhas, reconexão e preservação das viagens
+[PASS] queue
+[QA] Envio sem bloqueio por operações antigas
+[PASS] supervisor
+[QA] Imagens persistentes, reabertura e isolamento
+[PASS] images
+[QA] Telas de aprovação e remoção
+[PASS] teams
+[QA] Regressões de equipe, histórico, identidade e reconexão de imagens
+[PASS] profile-team-audit
+[QA] Diagnóstico somente após falha
+[PASS] diagnostics
+[QA] Notificações reais: hidratação, popup e isolamento de sessão
+[PASS] notifications
+[QA] Registro push: falhas, permissões, concorrência e recuperação
+[PASS] push-client
+[QA] Regressões de armazenamento e concorrência entre operações
+[PASS] legacy-regressions
+[QA] Políticas reais de OCR e valores do Android/JVM
+[PASS] native-policies
+[QA] Firebase local: ciclo operacional, regras, telas e upload
+[FAIL] emulators
+[QA] Windows: fila durável, contexto, telemetria e instalação segura
+[PASS] windows-core
+[QA] Windows: catálogo opaco, nomes e isolamento de plataformas
+[PASS] windows-registry
+[QA] Windows: mouse, viagem fixa, encerramento e avisos de viagem
+[PASS] windows-overlay
+[QA] Windows: ajustes profissionais, temas e ações do aplicativo
+[PASS] windows-settings
+QA_BLOCKED: qa/results/2026-11-02T15-08-20-462Z/report.html

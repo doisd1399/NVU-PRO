@@ -1,0 +1,15 @@
+{
+  "projectId": "vtc-frota-log",
+  "provider": "google.com",
+  "httpStatus": 200,
+  "enabled": true,
+  "primaryClientSameProject": true,
+  "responseFields": [
+    "name",
+    "enabled",
+    "clientId"
+  ],
+  "configurationChanged": false,
+  "desktopIdentityExchangeTested": false,
+  "checkedAt": "2026-11-02T00:59:47.620Z"
+}

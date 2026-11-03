@@ -1,3 +1,4 @@
+import { isWindowsDesktop } from "../lib/windowsAutomation";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import {
@@ -495,6 +496,10 @@ export async function restoreNativeGoogleSession(): Promise<User | null> {
   await auth.authStateReady();
   if (auth.currentUser) return auth.currentUser;
 
+  if (isWindowsDesktop()) {
+    const stored = await window.nvuWindows!.restoreAuth();
+    return stored ? (await signInWithCredential(auth, GoogleAuthProvider.credential(stored.idToken))).user : null;
+  }
   if (!isNativeAndroidRuntime() || !Capacitor.isPluginAvailable(nativePluginName)) {
     return null;
   }
@@ -535,6 +540,17 @@ export async function signInWithGoogleAccount(): Promise<User> {
   let attempt = beginAttempt(environment);
 
   try {
+    if (isWindowsDesktop()) {
+      await authPersistenceReady;
+      attempt.transition("awaiting-provider");
+      const credential = await window.nvuWindows!.signIn();
+      attempt.transition("credential-received");
+      attempt.transition("firebase-authenticating");
+      const result = await signInWithCredential(auth, GoogleAuthProvider.credential(credential.idToken));
+      attempt.transition("auth-confirmed");
+      attempt.transition("ready-for-profile-selector");
+      finishAttempt(attempt); return result.user;
+    }
     if (environment === "android") {
       return await signInWithNative(attempt);
     }
@@ -618,6 +634,7 @@ export async function authenticateNativeForPendingProTrip(
  * redirect or a second browser tab.
  */
 export function preloadGoogleIdentityServices(): void {
+  if (isWindowsDesktop()) return;
   if (!isNativeAppRuntime()) {
     void ensureGoogleIdentityServices().catch((error) => {
       console.warn("[NVU Google Auth] GIS preload failed", error);
@@ -626,6 +643,7 @@ export function preloadGoogleIdentityServices(): void {
 }
 
 export function signOutNativeGoogleIfAvailable(): Promise<void> {
+  if (isWindowsDesktop()) return window.nvuWindows!.signOut();
   if (!isNativeGoogleAuthenticationAvailable()) return Promise.resolve();
   return FirebaseAuthentication.signOut();
 }

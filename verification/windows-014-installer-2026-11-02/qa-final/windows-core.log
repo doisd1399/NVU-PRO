@@ -1,0 +1,48 @@
+✔ Publicação do ZIP copia os bytes completos e recusa destinos que não sejam arquivos (15.362077ms)
+✔ Conferência final rejeita ZIP truncado e corrupção de mesmo tamanho (6.040865ms)
+✔ Tudo preparado exige frete conectado com rota e vínculo correto, sem bloqueio antigo após novo frete (13.017759ms)
+✔ Captura/envio não anunciam registro; sucesso exige ACK e preserva progresso autoritativo (16.696663ms)
+✔ Reinício com ACK perdido conserva a viagem e só anuncia sucesso após confirmação (6.132182ms)
+✔ Troca de contexto remove recibos e ACK antigo não aparece em outra operação (5.740863ms)
+✔ Entregas consecutivas iguais mantêm cards distintos e removem avisos antigos do mesmo frete (12.572372ms)
+✔ Cancelamento, pausa e desconexão não são confundidos com entrega (5.215653ms)
+✔ Foco usa Win32 só para processos permitidos sem teclas ou comandos arbitrários (1.022549ms)
+✔ Retomada e recuperação substituem avisos transitórios, sem mensagens antigas após o ACK (13.019582ms)
+✔ Rota atual desaparece no evento local antes do próximo heartbeat e não volta após ACK/reinício (5.002692ms)
+✔ Heartbeat terminal ou vazio com textos residuais nunca expõe rota ativa (2.387885ms)
+✔ Distâncias do SDK são opcionais, limitadas, e desaparecem com a entrega ou outro contexto (3.045465ms)
+✔ Scripts de empacotamento passam pela análise sintática do Node (2.644402ms)
+✔ NSIS real compilado passa na verificação nativa de CRC (1.281319ms)
+✔ Alterar stub, conteúdo ou CRC do instalador bloqueia a entrega (1.172124ms)
+✔ Instalador truncado, com bytes extras ou CRC desligado é rejeitado (1.018413ms)
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (10.882419ms)
+✔ Entrega atrasada após reinício continua na operação original (2.701157ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.442967ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (1.965379ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (3.278611ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (2.376327ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.133817ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (3.299238ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (2.866516ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (2.290309ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (8.703793ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.368925ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (123.505397ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (16.3894ms)
+✔ DLL compilada é PE x64 completo e contém os exports oficiais do SDK (6.853708ms)
+✔ Preparação bloqueia plugin ausente/desatualizado e mantém a pasta selecionada após reinício (13.90527ms)
+✔ Ponte real por arquivos autentica ATS, expira, reconecta e preserva entrega antes de confirmar (9.134517ms)
+✔ Token incorreto, pacote inválido e nome de simulador divergente não criam conexão (3.281691ms)
+✔ Frete já em andamento pode ser vinculado com o jogo pausado; pausa explícita do PRO continua protegida (4.648498ms)
+✔ Plugin antigo ainda carregado exige reinício, mesmo após atualizar o arquivo no disco (8.433616ms)
+✔ Diagnóstico inclui apenas linhas SDK relevantes e remove identificação pessoal e tokens (4.531663ms)
+✔ Painel recebe foco, permanece aberto sem cursor, migra posição e avisos não tomam foco (3.005105ms)
+✔ Main real inicializa, prepara plugin e executa todos os comandos com contexto e IPC validados (78.11846ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 269.361118

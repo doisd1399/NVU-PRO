@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "Sem botão flutuante; painel focável e aviso de frete vinculado",
+    "Dois minutos sem cursor/blur não fecham o painel",
+    "Setas/Enter e comandos globais funcionam com e sem foco DOM",
+    "Pausar/retomar executam Session sem fechar painel",
+    "Captura, fila e ACK têm mensagens distintas, dados reais e progresso não antecipado",
+    "Histórico, painel e ajustes executam callbacks reais",
+    "Painel e aviso acompanham os temas claro e escuro",
+    "Expirar aviso não fecha painel; ACK repetido não duplica card",
+    "Confirmação de encerramento preserva sessão ao cancelar e conserva pendências ao confirmar",
+    "Erros visíveis e ocultação explícita por Esc/fechar"
+  ],
+  "errors": [],
+  "nativeWindowsInputTested": false,
+  "realGamesTested": false,
+  "method": "HTML/CSS/JS, Session, AssistantNotices, AutomationCommands e OverlayController reais; janelas/Steam/diálogo/ACK controlados."
+}

@@ -1,0 +1,177 @@
+{
+  "edition": "NVU PRO Windows 0.1.1 candidate",
+  "webVersion": "2.3.198",
+  "qaStatus": "PASS",
+  "qaStepCount": 18,
+  "sourceFingerprint": "b4efdaa3cd99fb736dd592b5f171f0ae06cac974a56a2e2ef6b3310a25329013",
+  "windowsCoreTests": 18,
+  "windowsRealGamesTested": false,
+  "googleProductionLoginTested": false,
+  "productionBackendDeployed": true,
+  "productionBackendFunctionalTripTested": false,
+  "authenticodeSigned": false,
+  "backendActivation": {
+    "status": "VERIFIED_ACTIVE",
+    "projectId": "vtc-frota-log",
+    "checkedAt": "2026-11-02T00:48:35.816076+00:00",
+    "firebaseCliVersion": "15.34.2",
+    "before": [
+      {
+        "id": "registerCanonicalSimpleTrip",
+        "platform": "gcfv1",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "state": "ACTIVE",
+        "hash": "28c6d321abd5506d08b4849e56656518815d5a2f"
+      },
+      {
+        "id": "updateWorkModeAvailability",
+        "platform": "gcfv1",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "state": "ACTIVE",
+        "hash": "2e289c755bf27b27bb12b2468966d22786602da6"
+      },
+      {
+        "id": "operationalCommand",
+        "platform": "gcfv1",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "state": "ACTIVE",
+        "hash": "85e3cf4942d38b24a4e4c9c743f246dd1b2b2aeb"
+      }
+    ],
+    "after": [
+      {
+        "id": "registerCanonicalSimpleTrip",
+        "platform": "gcfv1",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "state": "ACTIVE",
+        "hash": "cf527b483270b793519b51fa54289cd94aacd647"
+      },
+      {
+        "id": "updateWorkModeAvailability",
+        "platform": "gcfv1",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "state": "ACTIVE",
+        "hash": "cf527b483270b793519b51fa54289cd94aacd647"
+      },
+      {
+        "id": "operationalCommand",
+        "platform": "gcfv1",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "state": "ACTIVE",
+        "hash": "cf527b483270b793519b51fa54289cd94aacd647"
+      }
+    ],
+    "changedFunctions": [
+      "operationalCommand",
+      "registerCanonicalSimpleTrip",
+      "updateWorkModeAvailability"
+    ],
+    "unrelatedFunctionHashesUnchanged": true,
+    "addedFunctions": [],
+    "removedFunctions": [],
+    "finalQaRunId": "2026-11-02T00-46-03-058Z",
+    "finalQaSourceFingerprint": "7351050cd16f8b7481957bdff0353253d1362702c0b29a44550981afa68df911",
+    "functionsSourceSha256": "24d096d99c327a0cdf71766f7ed20727ca0c833d807502ac6cf0fb052b09b67e",
+    "unauthenticatedSmokePassed": true,
+    "productionTripFunctionalTested": false,
+    "productionTestTripsCreated": false,
+    "googleDesktopOAuthConfigured": false,
+    "googleProductionLoginTested": false,
+    "realWindowsGamesTested": false,
+    "googleCloudConsoleBrowserStatus": "Site Unavailable / Unable to access this site. No OAuth client was created."
+  },
+  "googleDesktopOAuthConfigured": true,
+  "googleOAuthConfiguration": {
+    "status": "PASS",
+    "windowsVersion": "0.1.1",
+    "projectId": "vtc-frota-log",
+    "uploadedClientType": "installed",
+    "clientProjectNumberMatches": true,
+    "officialEndpointsVerified": true,
+    "packagedConfigurationMatchesUploadedDesktopClient": true,
+    "packagedApplicationVersionVerified": true,
+    "runtimeFilesCompared": 12,
+    "webFilesMatched": 150,
+    "pluginMatches": true,
+    "firebaseProviderEnabled": true,
+    "firebasePrimaryClientSameProject": true,
+    "firebaseProviderConfigurationChanged": false,
+    "configSha256": "4e029b5b9d7a36ac11b30bdd3a802fb60c2651f08cd515324d39237142adf410",
+    "desktopGoogleLoginTested": false,
+    "firebaseUidPreservationTested": false,
+    "windowsRefreshVaultTested": false,
+    "realGamesTested": false,
+    "checkedAt": "2026-11-02T01:03:21.476Z",
+    "desktopClientSecretAbsentFromWebBuild": true,
+    "webFilesCheckedForDesktopSecret": 150,
+    "installerContentsMatchPackagedApp": true,
+    "installerArchiveIntegrityPassed": true,
+    "installerArchiveToolOutput": "NSIS-3 Unicode BadCmd=13; Everything is Ok; 227 files",
+    "installerContentVerificationMethod": "7zz x -so; exact bytes compared to packaged directory",
+    "installerExtractedContentChecks": [
+      {
+        "path": "resources/app.asar",
+        "bytes": 206077,
+        "sha256": "17a57883ef59232bde902436b2ae3aa2c7dc7eabf2cfd72f7e03b2b6c615d814",
+        "matches": true
+      },
+      {
+        "path": "resources/plugin/nvu_scs_telemetry.dll",
+        "bytes": 3153085,
+        "sha256": "0622894c9346d2128a1cf2932d9d7c0df7a5d122af66cfded5cfc98ff6bc2b50",
+        "matches": true
+      }
+    ],
+    "directoryExtractionObservation": "The initial directory extraction produced a zero-byte app.asar. It was not accepted as verification. Streaming extraction returned all 206077 expected bytes and matched the packaged archive exactly; plugin streaming extraction also matched. Initial extraction log retained.",
+    "installerSha256": "2e1b315677f726222ec8a8d2fdd4b5b40deb92b52b62081a038951b3458994a3",
+    "installerBytes": 125712878,
+    "installerExecutionOnWindowsTested": false
+  },
+  "installerSha256": "2e1b315677f726222ec8a8d2fdd4b5b40deb92b52b62081a038951b3458994a3",
+  "pluginSha256": "0622894c9346d2128a1cf2932d9d7c0df7a5d122af66cfded5cfc98ff6bc2b50",
+  "productionDependencyAdvisories": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "buildDependencyAdvisories": {
+    "info": 0,
+    "low": 0,
+    "moderate": 15,
+    "high": 0,
+    "critical": 0,
+    "total": 15
+  },
+  "androidNativeFilesUnchanged": 187,
+  "productionReady": false,
+  "installerNativeCrcVerified": true,
+  "installerReadbackMatchesBuild": true,
+  "userDownloadedInstallerCompared": false,
+  "windowsInstallIncidentResolvedOnUserDevice": false,
+  "alternativeArchives": [
+    {
+      "name": "NVU-PRO-Windows-0.1.1-x64-Portable.zip",
+      "bytes": 171417465,
+      "sha256": "048248b4c6496f87c0ebdf394c14e4c1bc4b91a6192b85ec683d67adc0bcb086"
+    },
+    {
+      "name": "NVU-PRO-Windows-0.1.1-Instalador.zip",
+      "bytes": 125714232,
+      "sha256": "220d32e30abfa621e55db7033b5aa3e0b4e0161a4140721e766adfa874bc1230"
+    }
+  ],
+  "externalRequirements": [
+    "Real desktop Google login, Firebase identity preservation, refresh and logout",
+    "Real Windows x64 + ETS2/ATS acceptance matrix",
+    "Authenticode signature for public distribution"
+  ]
+}

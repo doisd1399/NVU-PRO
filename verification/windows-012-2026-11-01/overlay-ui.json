@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Botão compacto inicia recolhido e o clique abre o menu",
+    "Pausar/retomar executam Session real e captura pendente não aumenta progresso confirmado",
+    "Controles de jogo, painel, viagens e conexão executam o despachante usado pelo main",
+    "Cancelar encerramento preserva sessão; confirmar encerra preservando a entrega pendente",
+    "Falha de preparação é exibida e não ativa nem indica conexão falsa",
+    "Abrir/recolher repetidamente mantém controles utilizáveis"
+  ],
+  "errors": [],
+  "nativeWindowsInputTested": false,
+  "realGamesTested": false,
+  "method": "HTML/CSS/JS reais em Chromium; Session, AutomationCommands e OverlayController reais; APIs de janela/Steam/confirmação controladas."
+}

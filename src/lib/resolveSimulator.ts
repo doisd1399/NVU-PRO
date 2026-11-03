@@ -14,6 +14,21 @@ const readText = (...values: unknown[]): string => {
   return "";
 };
 
+/**
+ * Firestore auto IDs and other document identifiers are internal values. They may be kept as keys but must never be shown
+ * to a person as a simulator name.
+ */
+export const isOpaqueSimulatorCode = (value: unknown): boolean => {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  return (
+    /^[A-Za-z0-9_-]{18,}$/.test(text) &&
+    /[A-Z]/.test(text) &&
+    /[a-z]/.test(text) &&
+    /\d/.test(text)
+  );
+};
+
 export function normalizeSimulatorId(value: unknown = ""): string {
   return String(value || "")
     .trim()
@@ -385,8 +400,9 @@ export function resolveSimulatorName(
   );
   if (displayName) return displayName;
 
+  // Last resort: the identifier itself is a usable name only when it is a human code ("ets2", "gto"), never a document ID.
   const simulatorId = readText(record.simulatorId, record.simuladorId, record.id);
-  return simulatorId;
+  return isOpaqueSimulatorCode(simulatorId) ? "" : simulatorId;
 }
 
 export function resolveSimulator(

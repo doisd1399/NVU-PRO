@@ -32,7 +32,7 @@ import {
   type ProfileRankingScope,
 } from "../lib/profileRanking";
 import { RANKING_TIME_ZONE } from "../lib/rankingPeriods";
-import { resolveSimulatorName } from "../lib/resolveSimulator";
+import { resolveSimulatorDisplayLabel } from "../lib/simulatorOptions";
 import type { NormalizedTrip } from "../lib/tripNormalizer";
 import type { RankingAggregatePeriodType } from "../lib/rankingAggregates";
 
@@ -476,7 +476,7 @@ export const ProfileRankingPerformanceCard = React.memo(
     };
     const result = useProfileRanking(query);
     const simulatorName =
-      resolveSimulatorName(
+      resolveSimulatorDisplayLabel(
         { simulatorId: result.simulatorId },
         props.simulators,
         props.companies,

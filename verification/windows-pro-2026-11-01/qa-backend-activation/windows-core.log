@@ -1,0 +1,22 @@
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (11.907757ms)
+✔ Entrega atrasada após reinício continua na operação original (2.433071ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.945812ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (2.386433ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (2.436647ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (2.798319ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.133378ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (4.47701ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (3.868254ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (2.615309ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (8.944711ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.177992ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (76.967553ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (16.900587ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 383.88461

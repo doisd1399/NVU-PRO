@@ -1,3 +1,4 @@
+import { isWindowsDesktop, windowsAutomationAdapter } from "../lib/windowsAutomation";
 import { ProOverlayProbe } from "../lib/proOverlayProbe";
 import { assertWorkModeEntryAllowed } from "./workModeAvailabilityService";
 import { explainOverlayPermissionBeforeSettings } from "./overlayPermissionGuide";
@@ -67,6 +68,18 @@ export async function launchSimpleAutomation(
     return { status: "failed", message: availability.message };
   }
 
+  if (isWindowsDesktop()) {
+    try {
+      await (entryCheck ?? assertWorkModeEntryAllowed("pro", simulatorKey));
+      await windowsAutomationAdapter.start({
+        driverId: operationContext.driverId || "", companyId: operationContext.companyId || "",
+        jobId: operationContext.jobId || "", contractId: operationContext.contractId || "", simulatorKey,
+        operationName: operationContext.operationName || "Operação atual", progress: operationContext.confirmedTripCount || 0,
+        total: operationContext.jobTotalDeliveries || 0, closed: Boolean(operationContext.operationClosed),
+      });
+      return { status: "opened" };
+    } catch (error) { return { status: "failed", message: error instanceof Error ? error.message : "Falha no Modo PRO Windows." }; }
+  }
   if (!isSimpleAutomationNativeAvailable()) return { status: "not-native" };
 
   try {

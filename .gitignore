@@ -58,3 +58,8 @@ SOURCE-QA-SHA256.json
 *-debug.log
 firebase-debug.*.log
 verification/operation-info/
+
+# Windows build outputs
+artifacts/
+desktop/windows/plugin/build/
+desktop/windows/plugin/bin/Release/

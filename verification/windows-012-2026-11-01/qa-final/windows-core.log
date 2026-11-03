@@ -1,0 +1,35 @@
+✔ Scripts de empacotamento passam pela análise sintática do Node (1.791778ms)
+✔ NSIS real compilado passa na verificação nativa de CRC (1.092068ms)
+✔ Alterar stub, conteúdo ou CRC do instalador bloqueia a entrega (0.860837ms)
+✔ Instalador truncado, com bytes extras ou CRC desligado é rejeitado (1.050216ms)
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (3.333047ms)
+✔ Entrega atrasada após reinício continua na operação original (1.880799ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.290668ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (2.338443ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (2.807123ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (2.930765ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.297951ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (3.536638ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (4.035061ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (1.918495ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (5.831567ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.276737ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (135.543443ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (17.771838ms)
+✔ DLL compilada é PE x64 completo e contém os exports oficiais do SDK (5.683689ms)
+✔ Preparação bloqueia plugin ausente/desatualizado e mantém a pasta selecionada após reinício (9.550252ms)
+✔ Ponte real por arquivos autentica ATS, expira, reconecta e preserva entrega antes de confirmar (7.739505ms)
+✔ Token incorreto, pacote inválido e nome de simulador divergente não criam conexão (2.812191ms)
+✔ Frete já em andamento pode ser vinculado com o jogo pausado; pausa explícita do PRO continua protegida (4.483852ms)
+✔ Plugin antigo ainda carregado exige reinício, mesmo após atualizar o arquivo no disco (4.309956ms)
+✔ Diagnóstico inclui apenas linhas SDK relevantes e remove identificação pessoal e tokens (3.073065ms)
+✔ Botão inicia recolhido, abre ações, arrasta, libera transparência e recupera monitor removido (2.490196ms)
+✔ Main real inicializa, prepara plugin e executa todos os comandos com contexto e IPC validados (66.970577ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 266.350122

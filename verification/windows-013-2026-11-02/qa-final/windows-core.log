@@ -1,0 +1,43 @@
+✔ Tudo preparado exige frete conectado com rota e vínculo correto, sem bloqueio antigo após novo frete (12.925742ms)
+✔ Captura/envio não anunciam registro; sucesso exige ACK e preserva progresso autoritativo (10.941152ms)
+✔ Reinício com ACK perdido conserva a viagem e só anuncia sucesso após confirmação (6.640636ms)
+✔ Troca de contexto remove recibos e ACK antigo não aparece em outra operação (7.232949ms)
+✔ Entregas consecutivas iguais mantêm cards distintos e removem avisos antigos do mesmo frete (11.286924ms)
+✔ Cancelamento, pausa e desconexão não são confundidos com entrega (5.904792ms)
+✔ Foco usa Win32 só para processos permitidos sem teclas ou comandos arbitrários (1.050414ms)
+✔ Retomada e recuperação substituem avisos transitórios, sem mensagens antigas após o ACK (7.77041ms)
+✔ Scripts de empacotamento passam pela análise sintática do Node (1.636688ms)
+✔ NSIS real compilado passa na verificação nativa de CRC (0.991816ms)
+✔ Alterar stub, conteúdo ou CRC do instalador bloqueia a entrega (0.830332ms)
+✔ Instalador truncado, com bytes extras ou CRC desligado é rejeitado (0.728539ms)
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (3.743026ms)
+✔ Entrega atrasada após reinício continua na operação original (2.33998ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.282336ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (2.145566ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (3.911981ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (3.793662ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.323276ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (4.096989ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (4.451921ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (1.877662ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (5.667999ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.215215ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (70.429696ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (16.814632ms)
+✔ DLL compilada é PE x64 completo e contém os exports oficiais do SDK (7.326471ms)
+✔ Preparação bloqueia plugin ausente/desatualizado e mantém a pasta selecionada após reinício (11.102396ms)
+✔ Ponte real por arquivos autentica ATS, expira, reconecta e preserva entrega antes de confirmar (9.789346ms)
+✔ Token incorreto, pacote inválido e nome de simulador divergente não criam conexão (3.161648ms)
+✔ Frete já em andamento pode ser vinculado com o jogo pausado; pausa explícita do PRO continua protegida (6.314474ms)
+✔ Plugin antigo ainda carregado exige reinício, mesmo após atualizar o arquivo no disco (4.834101ms)
+✔ Diagnóstico inclui apenas linhas SDK relevantes e remove identificação pessoal e tokens (3.060917ms)
+✔ Painel recebe foco, permanece aberto sem cursor, migra posição e avisos não tomam foco (2.388683ms)
+✔ Main real inicializa, prepara plugin e executa todos os comandos com contexto e IPC validados (61.327213ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 197.209974

@@ -1,0 +1,15 @@
+{
+  "name": "nvu_scs_telemetry.dll",
+  "product": "NVU PRO",
+  "version": "0.2.0",
+  "sha256": "9c3cb500bbe79c563523ac85ba4957e9af00f295ceeae574ccf8aa270d4099e9",
+  "bytes": 3256657,
+  "machine": "x64",
+  "signed": false,
+  "sdk": {
+    "package": "SCS Software Telemetry SDK 1.16",
+    "telemetryApi": "1.01"
+  },
+  "toolchain": "MinGW-w64 posix (cross build, static libgcc/libstdc++)",
+  "builtAt": "2026-11-02T18:04:46.441Z"
+}

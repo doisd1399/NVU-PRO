@@ -1,3 +1,4 @@
+import { isWindowsDesktop } from "../lib/windowsAutomation";
 import { CachedImage } from "./common/CachedImage";
 import { Camera, CircleDot, Sparkles, X, Settings2, MonitorPlay } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -246,7 +247,7 @@ export function GtoWorkModeDialog({
 
               <button
                 type="button"
-                onClick={() => { setProStep(true); setProError(""); }}
+                onClick={() => { if (isWindowsDesktop()) void onSelect("simple"); else { setProStep(true); setProError(""); } }}
                 disabled={busy}
                 className="w-full rounded-xl border border-cyan-200/80 dark:border-cyan-400/20 bg-cyan-50/70 dark:bg-cyan-400/5 hover:bg-cyan-50 dark:hover:bg-cyan-400/10 disabled:opacity-60 active:scale-[0.995] transition-all p-3.5 text-left"
               >
@@ -259,7 +260,9 @@ export function GtoWorkModeDialog({
                       Modo pro
                     </div>
                     <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500 dark:text-nvu-muted">
-                      {isGto
+                      {isWindowsDesktop()
+                        ? "Ativa o assistente de viagem no jogo (Ctrl+N para abrir ou ocultar) e acompanha as entregas pela telemetria do simulador."
+                        : isGto
                         ? "Escolha como ativar a bolha NVU e registre a viagem no simulador."
                         : "Escolha como ativar a bolha NVU e registre a viagem no simulador."}
                     </p>

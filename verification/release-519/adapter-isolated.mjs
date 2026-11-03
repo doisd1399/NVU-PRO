@@ -215,6 +215,7 @@ function resolveTripCurrency(trip) {
 
 // src/services/sync/CanonicalTripRegistrationRequest.ts
 var registrationFields = /* @__PURE__ */ new Set([
+  "scsTelemetry",
   "tripId",
   "canonicalTripId",
   "deterministicTripId",

@@ -1,0 +1,1 @@
+Portable 0.1.4 verificado. QA atual PASS 20/20, núcleo 40, interfaces 16+6. Aplicação sem alterações funcionais; produtor de ZIP corrigido após truncamento observado no rename. EXE recuperado igual ao original e com CRC correto. Causa NSIS no PC do usuário indeterminada: faltam os bytes ou tamanho/hash do arquivo executado. Windows/jogos reais indisponíveis.

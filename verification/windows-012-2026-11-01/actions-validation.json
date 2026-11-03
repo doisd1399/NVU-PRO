@@ -1,0 +1,70 @@
+{
+  "actions": [
+    {
+      "action": "Botão NVU",
+      "behavior": "Inicia recolhido; clique abre/recolhe; arraste reposiciona",
+      "evidence": "Controlador real + HTML/CSS/JS reais em Chromium",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Ativar PRO",
+      "behavior": "Recusa pasta/plugin ausente ou desatualizado; exige contexto atual",
+      "evidence": "Main real com APIs Electron/Windows controladas",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Pausar e retomar",
+      "behavior": "Fecha/reabre intervalo autorizado; pausa do jogo é distinta da pausa do PRO",
+      "evidence": "Session real + comandos reais + interface",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Abrir ATS/ETS2",
+      "behavior": "Abre URI Steam apenas do simulador selecionado; abrir não confirma conexão",
+      "evidence": "Despachante real; Steam controlado",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Painel NVU",
+      "behavior": "Abre painel com janela principal",
+      "evidence": "Main real + resolvedor de navegação",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Viagens da operação",
+      "behavior": "Abre histórico existente filtrado; recusa contexto antigo",
+      "evidence": "Resolvedor e IPC reais; render do TripHistory coberto pela bateria geral",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Conexão e plugin",
+      "behavior": "Localiza, valida, instala/atualiza e remove apenas plugin próprio",
+      "evidence": "Filesystem real com jogos fictícios; diálogos/processos controlados",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Diagnóstico",
+      "behavior": "Distingue falhas e copia resumo sanitizado, sem envio automático",
+      "evidence": "Log fictício + filesystem real; clipboard Windows controlado",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Encerrar PRO",
+      "behavior": "Exige confirmação; cancelar mantém sessão; confirmar preserva pendências",
+      "evidence": "Main/Session reais + diálogo controlado",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Atalhos",
+      "behavior": "Ctrl+Alt+N alterna ações; Ctrl+Alt+P abre painel",
+      "evidence": "Registro e execução dos callbacks no main real com Electron controlado",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    },
+    {
+      "action": "Transparência e monitores",
+      "behavior": "Hit test circular/arredondado; posição recuperada após remoção de monitor",
+      "evidence": "Geometria e controlador reais; APIs de janela/monitor controladas",
+      "nativeWindowsWithGameTestedByBuildHost": false
+    }
+  ]
+}

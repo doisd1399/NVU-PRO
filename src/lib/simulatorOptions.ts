@@ -1,5 +1,6 @@
 import {
   collectSimulatorAliases,
+  isOpaqueSimulatorCode,
   normalizeSimulatorId,
   resolveSimulatorId,
   resolveSimulatorName,
@@ -33,20 +34,7 @@ const readText = (...values: unknown[]): string => {
 export const normalizeSimulatorAlias = (value: unknown): string =>
   normalizeSimulatorId(String(value || ""));
 
-export const isOpaqueSimulatorCode = (value: unknown): boolean => {
-  const text = String(value || "").trim();
-  if (!text) return false;
-
-  // Firestore auto IDs and user/document identifiers are intentionally not
-  // suitable as labels. They can remain internal values, but never appear in
-  // the simulator selector.
-  return (
-    /^[A-Za-z0-9_-]{18,}$/.test(text) &&
-    /[A-Z]/.test(text) &&
-    /[a-z]/.test(text) &&
-    /\d/.test(text)
-  );
-};
+export { isOpaqueSimulatorCode };
 
 const knownSimulatorLabel = (normalized: string): string | null => {
   const compact = normalized.replace(/-/g, "");

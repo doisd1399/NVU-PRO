@@ -67,9 +67,14 @@ Os perfis Web e quick continuam úteis enquanto existem problemas conhecidos. A 
 | Aplicativo completo | App, providers e seletor reais com Auth local, abrindo Gestão da empresa correta; o login da fixture é feito pelo SDK local, não pelo OAuth Google |
 | Imagens | Navegação e reabertura com imagens remotas bloqueadas, bytes em IndexedDB e separação por conta |
 | Java sem Android | 27 testes das seis classes de políticas independentes do framework; não equivale aos 35 testes do app completo |
+| Windows — núcleo | Diário durável, heartbeat autenticado, reconexão, preparação do plugin, contexto, IPC e comandos reais; Electron, processos Windows e Steam controlados |
+| Windows — interface | HTML/CSS/JS reais do assistente e avisos em Chromium, incluindo bloqueio de navegação por teclado, ações pelo mouse, confirmação, distância e ocultação explícita; não comprova entrada nativa ou sobreposição no Windows |
+| Windows — ajustes | Componente React/CSS real, temas compartilhados e callbacks controlados de ações e bibliotecas |
 | Android completo | Perfil release: testes unitários Gradle e instrumentação real no APK QA, com dois processos e armazenamento preservado |
 
 O processo não declara testados login real Google, a integração completa dentro do GTO, permissões específicas da Motorola, bateria ou latência de produção. Esses itens exigem um aparelho/jogo/acesso apropriado e podem ganhar um job dedicado depois. Emuladores locais também não substituem a validação dos índices e do desempenho do banco em produção.
+
+As etapas `windows-core`, `windows-registry`, `windows-overlay` e `windows-settings` integram o perfil Web. A etapa de interface usa o Chromium preparado pelo setup (ou `PLAYWRIGHT_CHROMIUM_EXECUTABLE`) e dados fictícios. A execução do plugin no SDK do jogo, foco/passagem de cliques nativos, DPI, monitores e desempenho precisam de Windows com ETS2/ATS reais. As fotos do usuário mostram ATS conectado na 0.1.2, com falha de interação. A 0.1.4 ainda exige homologação do cursor, foco e entregas nos jogos reais. Os testes de 510 DIP e recuperação de monitor controlam geometria e DOM; não simulam o subsistema de entrada Windows.
 
 ## Execução contínua
 

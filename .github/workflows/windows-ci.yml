@@ -1,0 +1,195 @@
+name: NVU Windows CI
+# Runners Windows reais: build (plugin MSVC + instalador), instalar/atualizar/desinstalar, instância única, troca sobre a 0.1.x
+# real, preparo do plugin (inclui o wrapper de elevação) e ensaio de assinatura com certificado DESCARTÁVEL.
+# Como disparar:
+#   - Actions > "NVU Windows CI" > Run workflow (workflow_dispatch); ou
+#   - push em claude/** com a marca [win-ci] na mensagem do ÚLTIMO commit.
+# Pushes sem a marca criam uma execução com todos os jobs ignorados: não usam runner e não cancelam uma execução em andamento.
+on:
+  push:
+    branches: ['claude/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-ci-${{ github.ref }}-${{ (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')) && 'run' || github.run_id }}
+  cancel-in-progress: true
+env:
+  FORCE_COLOR: '0'
+jobs:
+  windows-build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm }
+      - run: npm ci
+      - run: npm --prefix desktop/windows ci
+      - name: Plugin (MSVC, static CRT)
+        run: npm run windows:plugin
+      - run: npm run lint
+      - name: Desktop unit/controlled tests on Windows
+        run: npm run test:windows
+      - name: "Installer (unsigned, WITHOUT the OAuth secret - artifacts of a public repository are public)"
+        run: npm run windows:installer
+      - name: Re-verify the final artifacts (size, SHA-256, NSIS CRC, 7-Zip test)
+        run: node desktop/windows/tools/verify-release.cjs artifacts/windows --require-7zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-windows
+          path: |
+            artifacts/windows/NVU-PRO-Setup-*-x64.exe
+            artifacts/windows/NVU-PRO-Setup-*-x64.exe.sha256
+            artifacts/windows/NVU-PRO-Setup-*-x64.exe.integrity.json
+            artifacts/windows/release-manifest.json
+            artifacts/windows/SHA256SUMS.txt
+            desktop/windows/plugin/bin/nvu_scs_telemetry.dll
+            desktop/windows/plugin/bin/nvu_scs_telemetry.manifest.json
+            desktop/windows/installer/Verificar-NVU.ps1
+          if-no-files-found: error
+  baseline-installer:
+    # The installer exactly as shipped before this work (the import commit "Linha de base: projeto NVU Windows recebido"), built the way it was built.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm }
+      - name: Check out the baseline tree (inside the workspace)
+        shell: pwsh
+        run: |
+          $root = (git log --format=%H --grep='^Linha de base: projeto NVU Windows recebido' -n 1)
+          if (-not $root) { throw 'commit de linha de base nao encontrado' }
+          git worktree add _baseline $root
+          "BASELINE_SHA=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - run: npm ci
+        working-directory: _baseline
+      - run: npm --prefix desktop/windows ci
+        working-directory: _baseline
+      - run: npm run build
+        working-directory: _baseline
+      - name: Baseline build script on a Windows host (path separator only)
+        # The shipped 0.1.4 build script appends "/*" to a Windows path and makensis then finds no files ("no files found").
+        # It was only ever run on Linux. This changes ONLY the separator so the same app can be packaged here; nothing else.
+        shell: pwsh
+        run: |
+          $f = '_baseline/desktop/windows/build-installer.cjs'
+          $t = Get-Content -Raw -LiteralPath $f
+          $t2 = $t.Replace('File /r "${escape(unpacked)}/*"', 'File /r "${escape(unpacked)}\\*"')
+          if ($t2 -eq $t) { throw 'padrao do caminho nao encontrado no script da linha de base' }
+          Set-Content -NoNewline -Encoding UTF8 -LiteralPath $f -Value $t2
+          Select-String -LiteralPath $f -Pattern 'File /r' | ForEach-Object { $_.Line.Trim() }
+      - name: Build the baseline installer (checked-in plugin binary)
+        run: npm --prefix desktop/windows run package
+        working-directory: _baseline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-baseline
+          path: _baseline/artifacts/windows/NVU-PRO-Windows-*-x64-Setup.exe
+          if-no-files-found: error
+  windows-e2e:
+    needs: [windows-build, baseline-installer]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24' }
+      - uses: actions/download-artifact@v4
+        with: { name: installer-windows, path: ci-new }
+      - uses: actions/download-artifact@v4
+        with: { name: installer-baseline, path: ci-old }
+      - name: Install, upgrade over a running copy, versions, single instance, uninstall
+        shell: pwsh
+        run: |
+          $new = Get-ChildItem ci-new -Recurse -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          node desktop/windows/tests/e2e/smoke.cjs --installer $new.FullName --label new --out artifacts/e2e
+      - name: "Verificar-NVU.ps1 the way a person runs it (Windows PowerShell 5.1 and PowerShell 7), including altered downloads"
+        if: always()
+        shell: pwsh
+        run: node desktop/windows/tests/e2e/verificar.cjs --dir ci-new --out artifacts/e2e --expect unsigned
+      - name: Plugin preparation (elevation wrapper, tampered request, process list)
+        if: always()
+        shell: pwsh
+        run: |
+          $new = Get-ChildItem ci-new -Recurse -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'nvu-plugin-app'
+          Start-Process -FilePath $new.FullName -ArgumentList '/S',"/D=$dir" -Wait
+          node desktop/windows/tests/e2e/plugin-e2e.cjs --app $dir --out artifacts/e2e
+      - name: The shipped 0.1.x is running and the new version is opened from another folder
+        if: always()
+        shell: pwsh
+        run: |
+          $new = Get-ChildItem ci-new -Recurse -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $old = Get-ChildItem ci-old -Recurse -Filter 'NVU-PRO-Windows-*-x64-Setup.exe' | Select-Object -First 1
+          node desktop/windows/tests/e2e/smoke-upgrade.cjs --old-installer $old.FullName --installer $new.FullName --out artifacts/e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-reports
+          path: artifacts/e2e
+  signing-dry-run:
+    # Proves the signing PLUMBING with a throwaway certificate. This is not public trust and the output is never published.
+    needs: windows-build
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm }
+      - run: npm ci
+      - run: npm --prefix desktop/windows ci
+      - run: npm run windows:plugin
+      - name: Create and trust a throwaway code-signing certificate (runner only)
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=NVU PRO TESTE DESCARTAVEL, O=NVU QA' -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(2)
+          $pass = ConvertTo-SecureString -String 'ci-throwaway' -AsPlainText -Force
+          $pfx = Join-Path $env:RUNNER_TEMP 'throwaway.pfx'
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pass | Out-Null
+          Export-Certificate -Cert $cert -FilePath (Join-Path $env:RUNNER_TEMP 'throwaway.cer') | Out-Null
+          Import-Certificate -FilePath (Join-Path $env:RUNNER_TEMP 'throwaway.cer') -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath (Join-Path $env:RUNNER_TEMP 'throwaway.cer') -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+          "NVU_SIGN_PFX_FILE=$pfx" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "NVU_SIGN_PFX_PASSWORD=ci-throwaway" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build with signing (app exe, plugin DLL, installer, uninstaller)
+        run: npm run windows:installer
+      - name: Verify (container layout, NSIS CRC, 7-Zip payload, operating-system verdict)
+        shell: pwsh
+        run: |
+          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed --require-7zip
+          $installer = Get-ChildItem artifacts/windows -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          Get-AuthenticodeSignature $installer.FullName | Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
+          Get-AuthenticodeSignature artifacts/windows/win-unpacked/'NVU PRO.exe' | Format-List Status, SignerCertificate
+          Get-AuthenticodeSignature artifacts/windows/win-unpacked/resources/plugin/nvu_scs_telemetry.dll | Format-List Status, SignerCertificate
+      - name: The signed installer still installs and runs (CRC with the certificate appended)
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem artifacts/windows -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'nvu-signed'
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S',"/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "signed installer exit code $($p.ExitCode)" }
+          node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" "$env:RUNNER_TEMP\signed-versions.json"
+          Get-Content "$env:RUNNER_TEMP\signed-versions.json" -Raw
+      - name: "The throwaway (self-signed) certificate must NEVER be reported as production ready"
+        shell: pwsh
+        run: |
+          $m = Get-Content artifacts/windows/release-manifest.json -Raw | ConvertFrom-Json
+          "status=$($m.signing.status) productionReady=$($m.signing.productionReady) reason=$($m.signing.notProductionReason)"
+          if ($m.signing.status -ne 'signed') { throw 'o ensaio deveria ter assinado todos os arquivos' }
+          if ($m.signing.productionReady -ne $false -or $m.signing.notProductionReason -ne 'SELF_SIGNED_CERTIFICATE') { throw 'certificado autoassinado foi tratado como pronto para producao' }
+      - name: "Verificar-NVU.ps1 on the SIGNED installer: signature Valid, signer shown, exit code 0"
+        shell: pwsh
+        run: node desktop/windows/tests/e2e/verificar.cjs --dir artifacts/windows --out artifacts/e2e-signed --expect signed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: signing-dry-run-report
+          path: |
+            artifacts/windows/release-manifest.json
+            artifacts/windows/SHA256SUMS.txt
+            artifacts/e2e-signed/verificar-signed.json

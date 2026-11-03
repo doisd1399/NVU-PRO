@@ -1,0 +1,84 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-windows@0.1.1 portable
+> electron-builder --win --x64 --dir --publish never && node build-portable.cjs
+
+  • electron-builder  version=26.18.0 os=6.18.57
+  • loaded configuration  file=package.json ("build" field)
+  • executing @electron/rebuild  electronVersion=45.2.1 arch=x64 buildFromSource=false workspaceRoot=/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/desktop/windows projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=45.2.1 appOutDir=/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked
+  • searching for node modules  pm=npm searchDir=/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/desktop/windows
+  • updating asar integrity executable resource  executablePath=/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked/NVU PRO.exe
+  • executable resource editing and code signing skipped — signAndEditExecutable is false. To skip only code signing while keeping icon and metadata applied, use signExecutable: false instead.  exe=/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/win-unpacked/NVU PRO.exe
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+12 folders, 225 files, 418575995 bytes (400 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.1-x64-Portable.zip.new.zip
+
+Add new data to archive: 12 folders, 225 files, 418575995 bytes (400 MiB)
+
+
+Files read from disk: 225
+Archive size: 171417465 bytes (164 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 171417465 bytes (164 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.1-x64-Portable.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.1-x64-Portable.zip.new.zip
+Type = zip
+Physical Size = 171417465
+
+Everything is Ok
+
+Folders: 12
+Files: 225
+Size:       418575995
+Compressed: 171417465
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive:
+1 folder, 3 files, 125713526 bytes (120 MiB)
+
+Creating archive: /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.1-Instalador.zip.new.zip
+
+Add new data to archive: 1 folder, 3 files, 125713526 bytes (120 MiB)
+
+
+Files read from disk: 3
+Archive size: 125714232 bytes (120 MiB)
+Everything is Ok
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 125714232 bytes (120 MiB)
+
+Testing archive: /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.1-Instalador.zip.new.zip
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.1-Instalador.zip.new.zip
+Type = zip
+Physical Size = 125714232
+
+Everything is Ok
+
+Folders: 1
+Files: 3
+Size:       125713526
+Compressed: 125714232

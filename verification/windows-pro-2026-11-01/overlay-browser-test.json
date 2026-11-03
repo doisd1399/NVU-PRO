@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "scope": "HTML/DOM with controlled native bridge; not Windows native",
+  "controls": [
+    "pause",
+    "panel",
+    "trips",
+    "stop",
+    "resume"
+  ],
+  "cancellationState": true,
+  "connectionExpired": true,
+  "transparentAreaPassThrough": true
+}

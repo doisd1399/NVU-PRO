@@ -18,7 +18,8 @@ import {
 } from "./canonicalOperationProjection";
 import { isCanonicalConfirmedTrip } from "./isCanonicalConfirmedTrip";
 import { reconcileOperationTripsCore } from "./reconcileOperationTrips";
-import { normalizeSimulatorKey } from "./operationalWorkModePolicy";
+import { normalizeSimulatorKey, normalizeWorkModeAvailability, isWorkModeAllowed } from "./operationalWorkModePolicy";
+import { assertScsTrip } from "./scsTelemetryEvidence";
 
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown, max = 220): string =>
@@ -65,6 +66,7 @@ const normalizeAmount = (trip: Data): number => {
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const stableFingerprint = (trip: Data, identity: string[]) => hash(JSON.stringify({
   identity,
+  ...(trip.source === "PRO_WINDOWS_SCS" ? { scsTelemetry: trip.scsTelemetry } : {}),
   origin: text(trip.origem || trip.origin, 180),
   destination: text(trip.destino || trip.destination, 180),
   amountCents: Number(trip.valorCents),
@@ -72,6 +74,7 @@ const stableFingerprint = (trip: Data, identity: string[]) => hash(JSON.stringif
   attemptId: text(trip.simpleReceiptCaptureAttemptId || trip.attemptId, 180),
 }));
 const allowedFields = new Set([
+  "scsTelemetry",
   "tripId", "canonicalTripId", "deterministicTripId", "clientRequestId", "idempotencyKey",
   "source", "driverId", "motoristaId", "companyId", "empresaId", "contractId", "contratoId", "currency", "moeda", "moneyCurrency", "receiptCurrency",
   "jobId", "operationId", "trabalhoId", "origem", "origin", "destino", "destination", "valor",
@@ -117,6 +120,12 @@ export const registerCanonicalSimpleTrip = functions.region("us-central1").https
     const rawTrip = rawData?.trip && typeof rawData.trip === "object" ? rawData.trip : rawData as unknown as Record<string, unknown>;
     if (!rawTrip || typeof rawTrip !== "object" || Array.isArray(rawTrip)) fail("invalid-argument", "Viagem inválida.");
     const incoming = rawTrip as Data;
+    const isScs = incoming.source === "PRO_WINDOWS_SCS";
+    let scsEvent: ReturnType<typeof assertScsTrip> | undefined;
+    if (isScs || incoming.scsTelemetry != null) {
+      try { scsEvent = assertScsTrip(incoming, uid); }
+      catch (error) { fail("invalid-argument", (error as Error).message); }
+    }
     const isSimple = incoming.simpleAutomation === true;
     const simulator = canonicalSimulator(incoming);
     const observed = ["currency", "moeda", "simpleReceiptCurrency", "moneyCurrency", "receiptCurrency"]
@@ -220,7 +229,7 @@ export const registerCanonicalSimpleTrip = functions.region("us-central1").https
       migrateOperation(),
     ]);
     const evidenceMs = Date.now() - startedAt - preflightMs;
-    const receiptEventKey = isSimple ? proReceiptEventKey(
+    const receiptEventKey = isScs && scsEvent ? hash(`scs:${uid}:${scsEvent.simulatorKey}:${scsEvent.eventId}`) : isSimple ? proReceiptEventKey(
       [uid, companyId, contractId, jobId, simulator, text(trip.simpleReceiptCaptureContextEpoch, 180)],
       trip.simpleReceiptCapturedAt,
     ) : null;
@@ -234,6 +243,7 @@ export const registerCanonicalSimpleTrip = functions.region("us-central1").https
     let transactionAttempts = 0;
     const result = await db.runTransaction(async (tx) => {
       transactionAttempts++;
+      const scsSettings = isScs ? await tx.get(db.collection("settings").doc("system")) : null;
       const companyRead = tx.get(db.collection("frotas").doc(companyId));
       const userRead = tx.get(db.collection("users").doc(uid));
       const [jobSnapshot, contractSnapshot, companySnapshot, userSnapshot, existingSnapshot, lockSnapshot, attemptSnapshot, eventSnapshot, receiptObjectSnapshot,
@@ -305,15 +315,27 @@ export const registerCanonicalSimpleTrip = functions.region("us-central1").https
         fail("already-exists", "Este comprovante já pertence a outra viagem.");
       }
       assertCompanyDriver(access);
+      if (isScs && !isWorkModeAllowed(normalizeWorkModeAvailability(scsSettings?.data()?.workModeAvailability), "pro", simulator))
+        fail("failed-precondition", "Modo PRO indisponível para este simulador.");
       if (!jobSnapshot.exists || !contractSnapshot.exists || !companySnapshot.exists) fail("failed-precondition", "Operação, contrato ou empresa não disponíveis.");
       if (field(job, "driverId", "motoristaId", "userId") !== uid ||
           field(job, "companyId", "empresaId") !== companyId || field(job, "contractId", "contratoId") !== contractId ||
           field(contract, "companyId", "empresaId") !== companyId) fail("permission-denied", "Vínculo da operação inválido.");
       if (!activeStatus(job.status)) fail("failed-precondition", "Operação não iniciada ou não disponível.");
-      const serverSimulator = [job.contractSnapshot?.simulatorId, job.contractSnapshot?.simulator,
+      const serverAliases = [job.contractSnapshot?.simulatorId, job.contractSnapshot?.simulator,
         job.simulatorId, contract.simulatorId, contract.simulator,
-        companySnapshot.get("simulatorId"), companySnapshot.get("simulatorName")]
-        .map(normalizeSimulatorKey).find(Boolean);
+        companySnapshot.get("simulatorId"), companySnapshot.get("simulatorName")];
+      if (isScs) {
+        const catalogIds = [...new Set([job.simulatorId, contract.simulatorId, companySnapshot.get("simulatorId")]
+          .filter((value): value is string => typeof value === "string" && !!value && value.length <= 180 && !value.includes("/") && !normalizeSimulatorKey(value)))].slice(0, 3);
+        const catalogs = await Promise.all(catalogIds.map(id => tx.get(db.collection("simulators").doc(id))));
+        for (const catalog of catalogs) serverAliases.push(catalog.get("key"), catalog.get("code"), catalog.get("name"), catalog.get("simulatorName"), catalog.get("nome"));
+        const keys = new Set(serverAliases.map(normalizeSimulatorKey).filter(Boolean));
+        if (keys.size !== 1) fail("failed-precondition", "SCS_OPERATION_SIMULATOR_UNCONFIRMED");
+      }
+      const serverSimulator = serverAliases.map(normalizeSimulatorKey).find(Boolean);
+      if (isScs && (!serverSimulator || serverSimulator !== simulator))
+        fail("failed-precondition", "SCS_OPERATION_SIMULATOR_UNCONFIRMED");
       if (serverSimulator && normalizeSimulatorKey(simulator) && normalizeSimulatorKey(simulator) !== serverSimulator)
         fail("invalid-argument", "O simulador do comprovante não corresponde à operação.");
       if (serverSimulator === "gto") {
@@ -397,6 +419,7 @@ export const registerCanonicalSimpleTrip = functions.region("us-central1").https
         ...(receiptEventKey ? { receiptEventKey } : {}),
         ...(canonicalCurrency ? { currency: canonicalCurrency } : {}),
         ...(isSimple && canonicalCurrency ? { simpleReceiptCurrency: canonicalCurrency } : {}),
+        ...(isScs ? { telemetryEvidenceTrust: "client_reported_sdk", telemetryEvidenceVersion: 1 } : {}),
         status: "concluida", recordStatus: "concluida",
         source: isGeneric ? (text(trip.source, 80) || "canonical_app") : "gto_auto",
         syncStatus: "synced", offlineSyncStatus: "synced",

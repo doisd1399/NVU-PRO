@@ -1,0 +1,70 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+npm warn deprecated json-ptr@3.1.1: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
+npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated glob@10.5.0: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
+
+=== Deploying to 'vtc-frota-log'...
+
+i  deploying functions
+i  functions: preparing codebase default for deployment
+i  functions: ensuring required API cloudfunctions.googleapis.com is enabled...
+i  functions: ensuring required API cloudbuild.googleapis.com is enabled...
+i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled...
+✔  artifactregistry: required API artifactregistry.googleapis.com is enabled
+✔  functions: required API cloudbuild.googleapis.com is enabled
+✔  functions: required API cloudfunctions.googleapis.com is enabled
+i  functions: Loading and analyzing source code for codebase default to determine what to deploy
+Serving at port 8397
+
+i  extensions: ensuring required API firebaseextensions.googleapis.com is enabled...
+✔  extensions: required API firebaseextensions.googleapis.com is enabled
+i  functions: preparing functions directory for uploading...
+i  functions: packaged /workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/functions (757.17 KB) for uploading
+⚠  functions: The following functions have triggers in different regions than they are located:
+- syncUserPublicProfile (us-central1, Trigger: southamerica-east1)
+- syncCompanyAccessOnMembershipWrite (us-central1, Trigger: southamerica-east1)
+- syncCompanyPublicProfile (us-central1, Trigger: southamerica-east1)
+- syncCompanyAccessOnUserWrite (us-central1, Trigger: southamerica-east1)
+- pushOnNotificationCreated (us-central1, Trigger: southamerica-east1)
+- pushOnLegacyNotificationCreated (us-central1, Trigger: southamerica-east1)
+- updateNvuNewsClassificationsOnRankingAggregateWrite (us-central1, Trigger: southamerica-east1)
+- updateNvuNewsClassificationsOnClosedTripWrite (us-central1, Trigger: southamerica-east1)
+- updateNvuNewsClassificationsOnCompanyWrite (us-central1, Trigger: southamerica-east1)
+- updateNvuNewsClassificationsOnSimulatorWrite (us-central1, Trigger: southamerica-east1)
+- publishCompanyApprovalNews (us-central1, Trigger: southamerica-east1)
+- publishCompanyApprovalNewsOnCompanyCreate (us-central1, Trigger: southamerica-east1)
+- publishCompanyApprovalNewsOnOwnerProfileWrite (us-central1, Trigger: southamerica-east1)
+- publishCompanyApprovalNewsOnSimulatorWrite (us-central1, Trigger: southamerica-east1)
+- updateRankingAggregatesOnTripWrite (us-central1, Trigger: southamerica-east1)
+- updateRankingAggregatesOnCompanyWrite (us-central1, Trigger: southamerica-east1)
+- updateRankingAggregatesOnSimulatorWrite (us-central1, Trigger: southamerica-east1)
+- auditUserStorageImagesOnUpdate (us-central1, Trigger: southamerica-east1)
+- auditCompanyStorageImagesOnUpdate (us-central1, Trigger: southamerica-east1)
+- auditUserStorageImagesOnDelete (us-central1, Trigger: southamerica-east1)
+- auditCompanyStorageImagesOnDelete (us-central1, Trigger: southamerica-east1)
+- notifyOperationalAssignment (us-central1, Trigger: southamerica-east1)
+- finalizeCanonicalOperation (us-central1, Trigger: southamerica-east1)
+- syncRankingParticipantOperations (us-central1, Trigger: southamerica-east1)
+- syncRankingVehicleChange (us-central1, Trigger: southamerica-east1)
+- reconcileOperationProjectionOnTripWrite (us-central1, Trigger: southamerica-east1)
+- refreshOperationalQueueContract (us-central1, Trigger: southamerica-east1)
+- refreshOperationalQueueFolder (us-central1, Trigger: southamerica-east1)
+- refreshOperationalQueueVehicle (us-central1, Trigger: southamerica-east1)
+- refreshOperationalQueueTrailer (us-central1, Trigger: southamerica-east1)
+- processSeniorAccountCommand (us-central1, Trigger: southamerica-east1)
+- processCompanyDeletion (us-central1, Trigger: southamerica-east1)
+To avoid unnecessary cross-region network hops, consider assigning these functions to their trigger regions or collocating them. To suppress this warning, set FIREBASE_SUPPRESS_REGION_WARNING=true in your environment variables.
+i  functions: ensuring required API cloudscheduler.googleapis.com is enabled...
+✔  functions: required API cloudscheduler.googleapis.com is enabled
+✔  functions: functions source uploaded successfully
+i  functions: updating Node.js 22 (1st Gen) function registerCanonicalSimpleTrip(us-central1)...
+i  functions: updating Node.js 22 (1st Gen) function operationalCommand(us-central1)...
+i  functions: updating Node.js 22 (1st Gen) function updateWorkModeAvailability(us-central1)...
+✔  functions[registerCanonicalSimpleTrip(us-central1)] Successful update operation.
+✔  functions[updateWorkModeAvailability(us-central1)] Successful update operation.
+✔  functions[operationalCommand(us-central1)] Successful update operation.
+
+✔  Deploy complete!
+
+Project Console: https://console.firebase.google.com/project/vtc-frota-log/overview

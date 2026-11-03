@@ -1,0 +1,23 @@
+
+7-Zip (z) 24.09 (x64) : Copyright (c) 1999-2024 Igor Pavlov : 2024-11-28
+ 64-bit locale=C.UTF-8 Threads:9 OPEN_MAX:16384, ASM
+
+Scanning the drive for archives:
+1 file, 131791562 bytes (126 MiB)
+
+Extracting archive: /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-x64-Setup.exe
+--
+Path = /workspace/scratch/4e5e4b265ca9/nvu013/NVU-PRO-2.3.198-SOURCE/artifacts/windows/NVU-PRO-Windows-0.1.3-x64-Setup.exe
+Type = Nsis
+Physical Size = 131791562
+Method = LZMA:23
+Solid = +
+Headers Size = 51596
+Embedded Stub Size = 51712
+SubType = NSIS-3 Unicode BadCmd=13
+
+Everything is Ok
+
+Files: 226
+Size:       434683760
+Compressed: 131791562

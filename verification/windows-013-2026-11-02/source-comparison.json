@@ -1,0 +1,30 @@
+{
+  "baseline": "Windows 0.1.2 / source v36 Library version 5",
+  "baselineSha256": "3692dd610de80a3dced57f07520cf5ec063067aa04b0cc1af7df65dc21283034",
+  "androidFilesUnchanged": 187,
+  "telemetrySourceAndDllUnchanged": true,
+  "modifiedOriginalPaths": [
+    "desktop/windows/README.md",
+    "desktop/windows/build-portable.cjs",
+    "desktop/windows/core/overlay-controller.cjs",
+    "desktop/windows/core/session.cjs",
+    "desktop/windows/main.cjs",
+    "desktop/windows/package-lock.json",
+    "desktop/windows/package.json",
+    "desktop/windows/preload.cjs",
+    "desktop/windows/tests/native.test.cjs",
+    "desktop/windows/ui/overlay-preload.cjs",
+    "desktop/windows/ui/overlay.css",
+    "desktop/windows/ui/overlay.html",
+    "desktop/windows/ui/overlay.js",
+    "qa/README.md",
+    "qa/config.json",
+    "qa/tests/windows-overlay.mts",
+    "reports/audit-general.json",
+    "reports/release-519/teams-ui.json",
+    "reports/release-520/performance-tests.json",
+    "src/components/WindowsAutomationBridge.tsx",
+    "src/lib/windowsAutomation.ts",
+    "verification/release-519/upload-isolated.mjs"
+  ]
+}
