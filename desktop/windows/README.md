@@ -2,7 +2,7 @@
 
 Aplicativo Windows (Electron) e plugin de telemetria SCS (ETS2/ATS) do mesmo projeto Web/Android. Este documento é técnico; o guia para o usuário final é `GUIA-ATUALIZAR-NVU-E-PREPARAR-ETS2-ATS.md`.
 
-> **Estado desta edição:** candidata. Testada de forma automatizada/controlada (Linux), no **Windows real** (GitHub Actions: build com MSVC, 90 testes, instalador, instalação/atualização/desinstalação, instância única, elevação do plugin e troca da 0.1.4 antiga em execução) e, para o instalador, no Wine. **Não foi executada nos jogos** (ETS2/ATS) e **não está assinada digitalmente**. Distribuição sem custo e assinatura: `ASSINATURA-E-LIBERACAO.md`; roteiro nos jogos: `ROTEIRO-TESTE-ETS2-ATS.md`.
+> **Estado desta edição:** candidata. Testada de forma automatizada/controlada (Linux), no **Windows real** (GitHub Actions: build com MSVC, 92 testes, instalador, instalação/atualização/desinstalação, instância única, elevação do plugin e troca da 0.1.4 antiga em execução) e, para o instalador, no Wine. **Não foi executada nos jogos** (ETS2/ATS) e **não está assinada digitalmente**. Distribuição sem custo e assinatura: `ASSINATURA-E-LIBERACAO.md`; roteiro nos jogos: `ROTEIRO-TESTE-ETS2-ATS.md`.
 
 ## Entrega
 
@@ -45,6 +45,7 @@ A versão do aplicativo e do plugin vem de **uma única fonte**: `desktop/window
 | Plugin | `core/plugin-install.cjs`, `core/prepare.cjs`, `core/elevated-plugin.cjs`, `core/integration.cjs` | Preparar simulador, estados do plugin, elevação consentida. |
 | Telemetria | `core/session.cjs`, `core/assistant.cjs`, `plugin/nvu_scs_telemetry.cpp` | Diário durável, vínculo, heartbeat, assistente. |
 | Instalador | `installer/nvu.nsi`, `build-installer.cjs`, `tools/*` | NSIS, assinatura, verificações. |
+| Aviso de versão nova | `core/update-check.cjs` | Lê a lista pública de releases do repositório e **só avisa** (banner na aba Viagem e item na bandeja); nunca baixa nem instala. Detalhes em *Segurança e dados*. |
 
 ### Linha de comando de `NVU PRO.exe`
 
@@ -96,9 +97,9 @@ O SDK reporta a receita efetiva em unidades inteiras da moeda interna do jogo: *
 
 | Nível | O que foi executado | O que comprova |
 |---|---|---|
-| Automatizado/controlado (Linux) | `npm run test:windows` (90 testes), `npm run qa`, matriz por papel (40 cenários, emulador), UI em Chromium | Lógica, contratos, mensagens, políticas. **Não** comprova Windows nativo. |
+| Automatizado/controlado (Linux) | `npm run test:windows` (92 testes), `npm run qa`, matriz por papel (40 cenários, emulador), UI em Chromium | Lógica, contratos, mensagens, políticas. **Não** comprova Windows nativo. |
 | Emulado (Wine 9 sobre Linux) | `bash desktop/windows/tests/e2e/wine-installer-check.sh <instalador.exe> <prefixo-wine>`: instalação, atualização, desinstalação (dados preservados); recusa com a NVU aberta; `/FORCECLOSE`; programa homônimo em outra pasta preservado; aplicativo empacotado informando versões reais; 2ª execução perde o bloqueio, não roda etapas e sai | O código do NSIS e a decisão de instância única do aplicativo empacotado executam. **Não é Windows**: o Electron não chega a criar a janela sob este Wine (um aplicativo Electron mínimo trava no mesmo ponto), então nada de interface é comprovado aqui. |
-| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` (push em `claude/**` com `[win-ci]` no último commit, ou *Run workflow* quando o arquivo estiver na branch padrão do repositório) | Plugin MSVC (tabela de exportação e importações conferidas), 90 testes, instalador e verificação, instalar/atualizar/desinstalar, instância única, janela e inicialização saudável (15 etapas), elevação do plugin, troca sobre a 0.1.4 real, `Verificar-NVU.ps1` no PowerShell 5.1 (como o usuário abre) e no 7, inclusive com arquivo adulterado, e ensaio de assinatura com certificado descartável. **Executado com sucesso** (ver o relatório). Não cobre entrada nativa do assistente, jogos nem o antivírus do PC do usuário. |
+| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` (push em `claude/**` com `[win-ci]` no último commit, ou *Run workflow* quando o arquivo estiver na branch padrão do repositório) | Plugin MSVC (tabela de exportação e importações conferidas), 92 testes, instalador e verificação, instalar/atualizar/desinstalar, instância única, janela e inicialização saudável (15 etapas), elevação do plugin, troca sobre a 0.1.4 real, `Verificar-NVU.ps1` no PowerShell 5.1 (como o usuário abre) e no 7, inclusive com arquivo adulterado, aviso de versão nova no aplicativo instalado (consulta real ao GitHub, desligamento e intervalo gravado) e ensaio de assinatura com certificado descartável. **Executado com sucesso** (ver o relatório). Não cobre entrada nativa do assistente, jogos nem o antivírus do PC do usuário. |
 | Versão da comunidade (sem assinatura) | `.github/workflows/windows-community-release.yml`: push na `dist-build` com `[win-comunidade]` no último commit (release real, ambiente `windows-release`, termina em rascunho) ou `[win-community-ensaio]` em `claude/**` (ensaio sem Secrets, ambiente `windows-ensaio`) | Constrói, testa, instala e confere; o release real ainda **não foi executado** (precisa dos Secrets). Passo a passo em `ASSINATURA-E-LIBERACAO.md`. |
 | Jogos reais | — | **Não executado.** |
 
@@ -111,4 +112,5 @@ O pipeline assina `NVU PRO.exe`, a DLL do plugin, o instalador e (em host Window
 - Ponte local plugin↔aplicativo: arquivos JSON de até 16 KiB em `%LOCALAPPDATA%\NVU\pro-telemetry`, ACL limitada ao SID do usuário e SYSTEM (via `whoami`/`icacls`, sem PowerShell), chave local de 256 bits recriada se ilegível.
 - Diário de viagens: `%APPDATA%\NVU PRO\pro-journal.json` (escrita atômica). Diário ilegível: o arquivo é preservado, uma cópia é feita ao lado e o código `NVU-S050` é mostrado.
 - Token Google: DPAPI via `safeStorage`; credencial revogada é removida, falha de rede **não** apaga a sessão salva.
+- Aviso de versão nova: no aplicativo instalado, no máximo **uma consulta HTTPS anônima a cada 12 h** (30 min depois de uma falha) a `api.github.com/repos/doisd1399/NVU-PRO/releases` — endereço fixo, sem redirecionamento, 8 s de limite, resposta de até 512 KiB, sem cookies nem dados da conta (o GitHub enxerga o IP, como em qualquer download). Só vale release **publicado** (nunca rascunho) com tag `windows-comunidade-vX.Y.Z[-runN]`; o link mostrado nasce da tag validada, nunca da resposta, e abrir a página exige o mesmo endereço. Nada é baixado nem instalado: o botão **Ver novidades** só abre a página oficial. Estado em `%APPDATA%\NVU PRO\update-check.json`. Não roda em desenvolvimento (aplicativo não empacotado) nem com `NVU_NO_UPDATE_CHECK=1` (variável de ambiente do usuário ou da empresa); o CI a define para os testes não usarem a internet.
 - Telemetria é `client_reported_sdk`: não é prova inviolável contra fraude.

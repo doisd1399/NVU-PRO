@@ -21,9 +21,12 @@ export type WindowsVersions = {
 export type WindowsStartupSummary = { ok: boolean; finishedAt?: string; warnings: { step: string; code?: string; message?: string }[]; steps: { id: string; ok: boolean; warning?: boolean; code?: string; ms?: number }[] };
 export type WindowsPrepareResult = { ok: boolean; step?: string; code?: string; title?: string; action?: string; message?: string; needsElevation?: boolean; retry?: boolean;
   restartRequired?: boolean; elevated?: boolean; key?: string; root?: string; version?: string };
+/** "Nova versão disponível": the main process only reports it and opens the official release page on request; nothing is downloaded or installed. */
+export type WindowsUpdateInfo = { status: "available" | "current" | "none" | "error"; available: boolean; current?: string; reason?: string; lastError?: string; checkedAt?: number;
+  latest?: { version: string; tag: string; url: string; name?: string; prerelease?: boolean; publishedAt?: string | null } | null };
 export type WindowsStatus = { active: boolean; enabled: boolean; connected: boolean; paused: boolean;
   appVersion?: string; theme?: "light"|"dark"; telemetryPluginVersion?:string; assistant?:WindowsAssistant; shortcutIssues?:string[];
-  jobState?: string; versions?: WindowsVersions; startup?: WindowsStartupSummary | null;
+  jobState?: string; versions?: WindowsVersions; startup?: WindowsStartupSummary | null; update?: WindowsUpdateInfo | null;
   integration?: { phase: string; state?: WindowsPluginStateCode; code?: string | null; message: string; plugin: WindowsPluginDisk | null; pluginVersion?: string | null; versions?: WindowsPluginVersions } | null;
   scope: WindowsScope | null; pending: WindowsPending[]; diagnostic?: string };
 export type WindowsGame = { key: "ets2" | "ats"; root: string; label: string; plugin?: WindowsPluginDisk };
@@ -42,6 +45,8 @@ export interface WindowsNativeBridge {
   prepareSimulator(input: { key: string; root?: string; elevate?: boolean }): Promise<WindowsPrepareResult>;
   removeSimulatorPlugin(input: { key: string; elevate?: boolean }): Promise<WindowsPrepareResult>;
   versions(): Promise<WindowsVersions>; copyStartupReport(): Promise<boolean>; openLogs(): Promise<boolean>;
+  /** Optional: absent in older application builds. */
+  openUpdatePage?(): Promise<boolean>;
   onUpdate(callback: (status: WindowsStatus) => void): () => void;
   onNavigate(callback: (where: WindowsNavigation | string) => void): () => void;
 }

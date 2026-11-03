@@ -25,6 +25,7 @@ export function WindowsAutomationPanel(p:Props){
  <nav className="settings-tabs" aria-label="Ajustes do assistente">{([["journey","Viagem"],["games","Simuladores"],["help","Como usar"]]as const).map(([tab,label])=><button key={tab} aria-pressed={p.tab===tab} onClick={()=>p.onTab(tab)}>{label}</button>)}</nav>
  <div className="settings-body">
  {p.tab==="journey"&&<>
+ {s?.update?.available&&s.update.latest&&<div className="update-banner" role="status" data-testid="windows-update"><ArrowUpRight size={14}/><div><strong>Nova versão {s.update.latest.version} disponível</strong><span>Você usa a {s.update.current||s.versions?.app.version||s.appVersion||"atual"}. A NVU só avisa: baixe e instale pela página oficial de downloads.</span></div><button disabled={busy||!native.openUpdatePage} onClick={()=>run(async()=>{await native.openUpdatePage?.();})}>Ver novidades</button></div>}
  <div className="operation-summary"><div><span className="eyebrow">OPERAÇÃO ATUAL</span><h3>{scope?.operationName||"Selecione uma operação"}</h3></div><span>{Number(scope?.progress||0)}/{Number(scope?.total||0)}<small>confirmadas</small></span><progress max={Math.max(1,Number(scope?.total||0))} value={Number(scope?.progress||0)} aria-label="Progresso confirmado"/></div>
  <div className="assistant-summary"><h3>{s?.assistant?.title||"Vamos preparar sua viagem"}</h3><p>{s?.assistant?.message||"Selecione uma operação para iniciar o acompanhamento."}</p></div>
  {!p.canLaunch&&<p className="helper">{p.launchMessage}</p>}

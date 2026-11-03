@@ -9,6 +9,7 @@ Deixe `NVU-PRO-Setup-0.2.0-x64.exe`, `release-manifest.json` e `Verificar-NVU.ps
 1. Feche os jogos. Se a NVU antiga estiver aberta, o instalador avisa e oferece fechá-la (suas viagens pendentes ficam salvas).
 2. Execute `NVU-PRO-Setup-0.2.0-x64.exe` e siga o assistente. Não precisa ser administrador. A atualização mantém configurações, fotos locais e viagens pendentes. Se aparecer a tela azul **"O Windows protegeu o computador"** (esperado enquanto o instalador não é assinado), clique em **Mais informações → Executar assim mesmo**, só depois de o passo 1 mostrar OK. Computador de empresa pode bloquear de vez: fale com o TI; não desative a proteção.
 3. Abra pelo atalho **NVU PRO** (Menu Iniciar ou Área de Trabalho). **Não abra a NVU de uma pasta de downloads antiga.**
+4. Versões futuras: a NVU instalada confere sozinha (no máximo a cada 12 horas) se há versão nova publicada e, se houver, mostra **"Nova versão … disponível"** no topo da aba Viagem e no ícone da bandeja. Ela **só avisa** — não baixa nem instala nada; **Ver novidades** abre a página oficial, de onde você baixa e repete os passos 1 e 2. É uma consulta anônima ao GitHub (ele vê o seu IP, como em qualquer download). Para desligar, defina a variável de ambiente `NVU_NO_UPDATE_CHECK=1`.
 
 ## 3. Entrar
 Entre com a mesma conta Google da NVU. Se aparecer "sessão expirada", entre de novo; se aparecer "sem conexão com o Google", a sessão salva continua e a NVU tenta de novo sozinha.

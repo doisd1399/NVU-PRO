@@ -28,6 +28,7 @@ const { findRunningNvu, instanceRegistry, readPackageFromInstall } = require('./
 const { runElevatedPlugin, requestElevation, encodeRequest, messageFor, EXIT } = require('./core/elevated-plugin.cjs');
 const { prepareSimulator, removeSimulatorPlugin } = require('./core/prepare.cjs');
 const { windowsPowerShellEnv } = require('./core/powershell-env.cjs');
+const { checkForUpdate, createFetchJson, isTrustedReleaseUrl, validState } = require('./core/update-check.cjs');
 
 const appURL = 'nvu://app';
 // Must be declared before the app is ready, also in the process that will immediately leave.
@@ -38,7 +39,7 @@ const cli = parseCli(process.argv);
 // ---- runtime state (assigned by the start-up steps) ----
 let main, floater, commands, integration, reader, store, google, bridgeDir, bridgeToken, currentUid = '', scope = null, quitting = false, busy = false;
 let diagnostic = '', savedBounds = null, tray, notices, theme = 'light', preferencesFile, logger, startupReport = null, versionInfo = null, packagedPlugin = null;
-let dataDir, webDir, csp = '', registry = null, selfIdentity = null;
+let dataDir, webDir, csp = '', registry = null, selfIdentity = null, updateInfo = null, updateState = null;
 const shortcutIssues = new Set();
 const packaged = relative => app.isPackaged ? path.join(process.resourcesPath, relative) : path.join(__dirname, relative === 'web' ? '../../dist' : relative);
 const pluginDirectory = () => app.isPackaged ? path.join(process.resourcesPath, 'plugin') : path.join(__dirname, 'plugin/bin');
@@ -56,9 +57,47 @@ function startupSummary() {
   if (!startupReport) return null;
   return { ok: startupReport.ok, finishedAt: startupReport.finishedAt, warnings: startupReport.warnings, steps: startupReport.steps.map(s => ({ id: s.id, ok: s.ok, warning: s.warning, code: s.code, ms: s.ms })) };
 }
+// ---- aviso de nova versão: só AVISA (nunca baixa nem instala); consulta a lista pública de releases, no máximo a cada 12 h ----
+const updateDisabled = () => process.env.NVU_NO_UPDATE_CHECK === '1' || !app.isPackaged;
+function readUpdateState() {
+  try { return validState(JSON.parse(fs.readFileSync(path.join(dataDir, 'update-check.json'), 'utf8'))); } catch { return null; }
+}
+async function runUpdateCheck() {
+  if (updateDisabled() || !dataDir) return updateInfo;
+  try {
+    updateState = updateState || readUpdateState();
+    const result = await checkForUpdate({ currentVersion: app.getVersion(), state: updateState,
+      fetchJson: createFetchJson({ fetchImpl: (url, options) => net.fetch(url, options), userAgent: `NVU-PRO-Windows/${app.getVersion()}` }) });
+    updateState = result.state; updateInfo = result.info;
+    if (!result.cached) {
+      try { atomic(path.join(dataDir, 'update-check.json'), updateState); } catch { /* best effort */ }
+      logger?.info('update.check', { status: updateInfo.status, available: updateInfo.available === true, latest: updateInfo.latest?.version || null, reason: updateInfo.reason || updateInfo.lastError || null });
+    }
+    refreshTray(); emit();
+  } catch (error) { logger?.warn('update.check_failed', { message: String(error?.message || error).slice(0, 200) }); }
+  return updateInfo;
+}
+function scheduleUpdateChecks() {
+  if (updateDisabled()) { logger?.info('update.disabled', { reason: process.env.NVU_NO_UPDATE_CHECK === '1' ? 'env' : 'not_packaged' }); return; }
+  setTimeout(() => void runUpdateCheck(), 30000).unref();
+  setInterval(() => void runUpdateCheck(), 6 * 3600e3).unref();   // the 12 h throttle decides whether it really asks
+}
+async function openUpdatePage() {
+  const url = updateInfo?.available ? updateInfo.latest?.url : null;
+  if (!isTrustedReleaseUrl(url)) throw Error('UPDATE_PAGE_UNAVAILABLE');
+  await shell.openExternal(url); logger?.info('update.page_opened', { version: updateInfo.latest.version }); return true;
+}
+function trayMenuTemplate() {
+  const items = [{ label: `NVU PRO ${app.getVersion()}`, enabled: false }];
+  if (updateInfo?.available && updateInfo.latest) items.push({ label: `Nova versão ${updateInfo.latest.version} disponível — abrir página`, click: () => { void openUpdatePage().catch(() => {}); } });
+  items.push({ label: 'Abrir NVU', click: showMainWindow }, { label: 'Abrir assistente de viagem', click: showOverlay },
+    { label: 'Pausar automação', click: () => { store.pause(); emit(); } }, { label: 'Sair da NVU', click: () => gracefulQuit('tray') });
+  return items;
+}
+function refreshTray() { try { tray?.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate())); } catch { /* the tray is optional */ } }
 function status() {
   const key = currentGame(), connected = store.connected(key), connection = games[key] ? integration?.status(key, store, reader?.rejections[key]) : null;
-  return { ...store.status(currentUid), appVersion: app.getVersion(), telemetryPluginVersion: TELEMETRY_PLUGIN_VERSION, versions: versionsView(), startup: startupSummary(), theme, connected,
+  return { ...store.status(currentUid), appVersion: app.getVersion(), telemetryPluginVersion: TELEMETRY_PLUGIN_VERSION, versions: versionsView(), startup: startupSummary(), update: updateInfo, theme, connected,
     paused: store.heartbeats[key]?.paused === true, diagnostic, integration: connection, shortcutIssues: [...shortcutIssues], assistant: assistantView({ store, scope, connected, connection, theme }) };
 }
 function emit() {
@@ -248,13 +287,7 @@ function startupSteps() {
     { id: 'tray', title: 'Ícone da bandeja', fatal: false, code: 'NVU-S100', run: async () => {
       tray = new Tray(nativeImage.createFromPath(path.join(__dirname, 'ui/tray.png')));
       tray.setToolTip(`NVU PRO Windows ${app.getVersion()}`);
-      tray.setContextMenu(Menu.buildFromTemplate([
-        { label: `NVU PRO ${app.getVersion()}`, enabled: false },
-        { label: 'Abrir NVU', click: showMainWindow },
-        { label: 'Abrir assistente de viagem', click: showOverlay },
-        { label: 'Pausar automação', click: () => { store.pause(); emit(); } },
-        { label: 'Sair da NVU', click: () => gracefulQuit('tray') },
-      ]));
+      tray.setContextMenu(Menu.buildFromTemplate(trayMenuTemplate()));
       tray.on('double-click', showMainWindow); } },
     { id: 'ipc', title: 'Comandos da interface', run: async () => { registerIpc(); } },
     { id: 'shortcut', title: 'Atalho Ctrl+N', fatal: false, code: 'NVU-S101', run: async () => {
@@ -263,7 +296,8 @@ function startupSteps() {
       if (shortcutIssues.has('CommandOrControl+N')) throw new NvuError('NVU-S101', 'CommandOrControl+N já está em uso por outro programa.', { fatal: false }); } },
     { id: 'load', title: 'Abrir a interface da NVU', run: async () => {
       try { await main.loadURL(`${appURL}/`); } catch (error) { throw new NvuError('NVU-S090', String(error.message || error).slice(0, 200), { cause: error }); }
-      setInterval(poll, 1000).unref(); setInterval(() => floater.tick(), 1000).unref(); } },
+      setInterval(poll, 1000).unref(); setInterval(() => floater.tick(), 1000).unref();
+      try { scheduleUpdateChecks(); } catch { /* optional */ } } },
   ];
 }
 
@@ -282,6 +316,7 @@ function registerIpc() {
       case 'startupReport': return redactDeep(startupReport);
       case 'copyStartupReport': clipboard.writeText(JSON.stringify(diagnosticBundle({ report: startupReport, versions: versionsView(), logger }), null, 2)); return true;
       case 'openLogs': await shell.openPath(logger.dir); return true;
+      case 'openUpdatePage': return openUpdatePage();
       case 'start': return commands.start(input);
       case 'pause': return commands.execute('pause');
       case 'stop': return commands.execute('stop');

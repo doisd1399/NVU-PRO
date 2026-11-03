@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('nvuWindows', Object.freeze({
   diagnose: key => invoke('diagnose', key), copyDiagnostics: key => invoke('copyDiagnostics', key),
   prepareSimulator: input => invoke('prepareSimulator', input), removeSimulatorPlugin: input => invoke('removeSimulatorPlugin', input),
   versions: () => invoke('versions'), copyStartupReport: () => invoke('copyStartupReport'), openLogs: () => invoke('openLogs'),
+  openUpdatePage: () => invoke('openUpdatePage'),
   onUpdate: callback => { const listener = (_, value) => callback(value); ipcRenderer.on('nvu:windows:update', listener);
     return () => ipcRenderer.removeListener('nvu:windows:update', listener); },
   onNavigate: callback => { const listener = (_, value) => callback(value); ipcRenderer.on('nvu:windows:navigate', listener);
