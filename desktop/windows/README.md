@@ -63,13 +63,42 @@ A versão do aplicativo e do plugin vem de **uma única fonte**: `desktop/window
 
 Aplicativo e jogos rodam com permissões normais. Só quando o Windows nega a gravação na pasta do jogo a interface pede consentimento e a NVU reabre a si mesma com `Start-Process -Verb RunAs` para **copiar um único arquivo**: a DLL do próprio pacote, conferida contra o manifesto e o hash pedido, para `<jogo>\bin\win_x64\plugins\nvu_scs_telemetry.dll`, recusando links/junções, arquivos de terceiros e qualquer outro caminho. O resultado volta só pelo código de saída; o aplicativo relê o disco sem privilégios antes de dizer "preparado".
 
+## Configurações externas (login Google e servidor)
+
+### Login Google
+- O cliente OAuth é do tipo **Desktop** (público, com PKCE), do projeto Firebase `vtc-frota-log`. Para qualquer pessoa entrar, a tela de consentimento OAuth precisa estar **«Em produção»** (em «Teste» só entram os e-mails cadastrados).
+- Ordem de leitura da configuração: variáveis de ambiente `NVU_GOOGLE_DESKTOP_CLIENT_ID` / `NVU_GOOGLE_DESKTOP_CLIENT_SECRET` → `%APPDATA%\NVU PRO\google-oauth.json` (se existir) → `config/google-oauth.json` empacotado. Confira configurações locais antigas ao atualizar.
+- No Git, `config/google-oauth.json` tem o `clientSecret` **vazio de propósito** (o repositório é público). O instalador com login só sai do fluxo da comunidade, que grava o arquivo a partir dos Secrets do ambiente `windows-release`. Para compilar localmente, preencha `clientId` e `clientSecret` (iguais a `installed.client_id` e `installed.client_secret` do JSON baixado do Google) **sem commitar**.
+
+### Servidor (Firebase `vtc-frota-log`)
+O app Windows depende de três funções, cujo código está em `functions/src`:
+
+| Função | Papel |
+|---|---|
+| `registerCanonicalSimpleTrip` | aceita e valida a evidência SCS (`source: PRO_WINDOWS_SCS`, `scsTelemetry`; módulo `scsTelemetryEvidence.ts`) e registra a viagem de forma transacional |
+| `updateWorkModeAvailability` | controle Senior de manutenção por modo e simulador, incluindo ETS2/ATS (campos omitidos por clientes antigos preservam o estado anterior) |
+| `operationalCommand` | comandos operacionais (iniciar, cancelar…); a política de modos inclui ETS2/ATS no modo PRO |
+
+`operationalWorkModePolicy` é um módulo incorporado a essas funções, não uma função publicável separada. A publicação das três em 2026-11-01 está documentada em `verification/windows-activation-2026-11-01`; função publicada e ativa não equivale a uma entrega autenticada com o jogo real.
+
+**Publicar só com autorização explícita do dono do projeto.** Procedimento: `npm run qa` aprovado na fonte atual; guardar a lista de funções (nome, estado e hash) antes; publicar apenas as funções necessárias; conferir depois que a quantidade de funções é a mesma, que só as indicadas mudaram, que estão ACTIVE e que uma chamada sem login é recusada pela própria função.
+
+```powershell
+npx -y firebase-tools@15.34.2 deploy --only functions:registerCanonicalSimpleTrip,functions:updateWorkModeAvailability,functions:operationalCommand --project vtc-frota-log --non-interactive
+```
+
+Esse comando publica somente as funções indicadas, não cria viagens de teste em produção e não altera os controles de manutenção por si só. Confira também a disponibilidade de PRO para `ets2`/`ats` em `settings/system.workModeAvailability`.
+
+### Moeda e distância
+O SDK reporta a receita efetiva em unidades inteiras da moeda interna do jogo: **EUR no ETS2** e **USD no ATS**, independentemente da moeda escolhida para exibição. `distance.km` já chega em quilômetros. Não há conversão automática para reais.
+
 ## Validação (o que cada nível comprova)
 
 | Nível | O que foi executado | O que comprova |
 |---|---|---|
 | Automatizado/controlado (Linux) | `npm run test:windows` (90 testes), `npm run qa`, matriz por papel (40 cenários, emulador), UI em Chromium | Lógica, contratos, mensagens, políticas. **Não** comprova Windows nativo. |
 | Emulado (Wine 9 sobre Linux) | `bash desktop/windows/tests/e2e/wine-installer-check.sh <instalador.exe> <prefixo-wine>`: instalação, atualização, desinstalação (dados preservados); recusa com a NVU aberta; `/FORCECLOSE`; programa homônimo em outra pasta preservado; aplicativo empacotado informando versões reais; 2ª execução perde o bloqueio, não roda etapas e sai | O código do NSIS e a decisão de instância única do aplicativo empacotado executam. **Não é Windows**: o Electron não chega a criar a janela sob este Wine (um aplicativo Electron mínimo trava no mesmo ponto), então nada de interface é comprovado aqui. |
-| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` (push em `claude/**` com `[win-ci]` no último commit, ou *Run workflow* quando o arquivo estiver na `main`) | Plugin MSVC (tabela de exportação e importações conferidas), 90 testes, instalador e verificação, instalar/atualizar/desinstalar, instância única, janela e inicialização saudável (15 etapas), elevação do plugin, troca sobre a 0.1.4 real, `Verificar-NVU.ps1` no PowerShell 5.1 (como o usuário abre) e no 7, inclusive com arquivo adulterado, e ensaio de assinatura com certificado descartável. **Executado com sucesso** (ver o relatório). Não cobre entrada nativa do assistente, jogos nem o antivírus do PC do usuário. |
+| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` (push em `claude/**` com `[win-ci]` no último commit, ou *Run workflow* quando o arquivo estiver na branch padrão do repositório) | Plugin MSVC (tabela de exportação e importações conferidas), 90 testes, instalador e verificação, instalar/atualizar/desinstalar, instância única, janela e inicialização saudável (15 etapas), elevação do plugin, troca sobre a 0.1.4 real, `Verificar-NVU.ps1` no PowerShell 5.1 (como o usuário abre) e no 7, inclusive com arquivo adulterado, e ensaio de assinatura com certificado descartável. **Executado com sucesso** (ver o relatório). Não cobre entrada nativa do assistente, jogos nem o antivírus do PC do usuário. |
 | Jogos reais | — | **Não executado.** |
 
 ## Assinatura
