@@ -237,7 +237,8 @@
         "desktop/windows/tests/auth.test.cjs",
         "desktop/windows/tests/sdk-contract.test.cjs",
         "desktop/windows/tests/sevenzip.test.cjs",
-        "desktop/windows/tests/powershell-env.test.cjs"
+        "desktop/windows/tests/powershell-env.test.cjs",
+        "desktop/windows/tests/update-check.test.cjs"
       ],
       "timeoutMs": 120000
     },

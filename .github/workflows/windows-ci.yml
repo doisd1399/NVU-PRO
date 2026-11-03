@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: true
 env:
   FORCE_COLOR: '0'
+  NVU_NO_UPDATE_CHECK: '1'   # os testes não consultam a internet em busca de versão nova
 jobs:
   windows-build:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[win-ci]')
@@ -120,6 +121,14 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'nvu-plugin-app'
           Start-Process -FilePath $new.FullName -ArgumentList '/S',"/D=$dir" -Wait
           node desktop/windows/tests/e2e/plugin-e2e.cjs --app $dir --out artifacts/e2e
+      - name: "Update notice in the installed app (real call to api.github.com: opt-out, check, saved interval)"
+        if: always()
+        shell: pwsh
+        run: |
+          $new = Get-ChildItem ci-new -Recurse -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'nvu-update-app'
+          Start-Process -FilePath $new.FullName -ArgumentList '/S',"/D=$dir" -Wait
+          node desktop/windows/tests/e2e/update-e2e.cjs --app $dir --out artifacts/e2e
       - name: The shipped 0.1.x is running and the new version is opened from another folder
         if: always()
         shell: pwsh

@@ -15,3 +15,6 @@
 .nvu-windows-settings .prepare-error strong,.nvu-windows-settings .prepare-elevation strong{font-size:10px}.nvu-windows-settings .prepare-error span,.nvu-windows-settings .prepare-elevation span{font-size:9px;line-height:1.5;color:var(--nvu-muted)}
 .nvu-windows-settings .prepare-error small{font-size:8px;color:var(--nvu-muted)}
 .nvu-windows-settings .state-message:empty{display:none}
+.nvu-windows-settings .update-banner{display:grid;grid-template-columns:16px 1fr auto;align-items:center;gap:8px;margin-bottom:8px;padding:9px;border-radius:8px;border:1px solid var(--nvu-accent);background:var(--nvu-accent-soft)}
+.nvu-windows-settings .update-banner strong{display:block;font-size:10px}.nvu-windows-settings .update-banner span{font-size:9px;line-height:1.5;color:var(--nvu-muted)}
+.nvu-windows-settings .update-banner button{font-size:9px;padding:5px 8px;border-radius:6px;border:1px solid var(--nvu-line);background:var(--nvu-surface);color:inherit;cursor:pointer}
