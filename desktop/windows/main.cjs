@@ -243,7 +243,7 @@ function startupSteps() {
       const hashes = [...index.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => `'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`);
       try {
         csp = `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; worker-src 'self' blob:; `
-          + `connect-src 'self' https://*.googleapis.com https://*.googleusercontent.com https://res.cloudinary.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com; `
+          + `connect-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://res.cloudinary.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com; `
           + `frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'self'`;
       } catch (error) { throw new NvuError('NVU-S081', String(error.message), { cause: error }); }
       if (!versionInfo?.web?.ok) logger.warn('web.build_info_missing', versionInfo?.web || {});
@@ -320,7 +320,11 @@ function registerIpc() {
       case 'start': return commands.start(input);
       case 'pause': return commands.execute('pause');
       case 'stop': return commands.execute('stop');
-      case 'acknowledge': store.acknowledge(currentUid, input.id, input); emit(); return;
+      case 'acknowledge': {
+        const captured = store.data?.events?.[input?.id]?.event?.capturedAt;
+        store.acknowledge(currentUid, input.id, input);
+        logger?.info('delivery.ack', { state: input.state, serverValidated: input.serverValidated === true, ageMs: Number.isFinite(captured) ? Math.max(0, Date.now() - captured) : null });
+        emit(); return; }
       case 'showOverlay': showOverlay(); return;
       case 'openGame': return openSimulator(input);
       case 'setTheme': return setTheme(input);

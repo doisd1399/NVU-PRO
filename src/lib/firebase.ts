@@ -1,6 +1,5 @@
-import { isWindowsDesktop } from "./windowsAutomation";
 import { initializeApp } from "firebase/app";
-import { browserLocalPersistence, inMemoryPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
+import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
@@ -70,9 +69,13 @@ if (useFirebaseEmulators) {
 }
 // Explicitly preserve Firebase Auth across WebView/browser restarts. An
 // explicit logOutApp() remains the only path that clears the Auth session.
+// Windows uses the same local persistence as Android: restoring the session
+// from the Google token vault needs the network, so with memory-only Auth the
+// desktop app could not even open offline. The Firebase session now lives in the
+// per-user app data folder; signing out clears it.
 export const authPersistenceReady: Promise<boolean> = setPersistence(
   auth,
-  isWindowsDesktop() ? inMemoryPersistence : browserLocalPersistence,
+  browserLocalPersistence,
 )
   .then(() => true)
   .catch((error) => {
