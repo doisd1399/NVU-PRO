@@ -29,6 +29,7 @@ import { rankingPickerDateFromKey, type RankingPeriodSelection } from "../../../
 import { getRankingUtcCustomRange } from "../../../lib/rankingPeriods";
 import { preloadImages } from "../../../lib/imageCache";
 import { formatGoalAmount, formatGoalDraft, parseGoalAmount } from "../../../lib/goalMoneyInput";
+import { goalCurrencySymbol, goalRevenueIn, resolveGoalCurrency } from "../../../lib/goalCurrency";
 import { commitNavigation } from "../../../lib/navigationTransition";
 
 type SummaryPeriod = "semana" | "mensal" | "personalizado";
@@ -109,8 +110,9 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const unresolvedTrips = metrics.moneyGroups.filter(group => group.currencyStatus !== "known").reduce((count, group) => count + group.tripCount, 0);
   if (unresolvedTrips) earnings.push(`${unresolvedTrips} ${unresolvedTrips === 1 ? "viagem" : "viagens"} sem moeda`);
   if (!earnings.length) earnings.push(formatHistoryMoney(0, "BRL", "known"));
-  // The goal is in BRL. Other currencies must never inflate its progress.
-  const goalRevenue = metrics.moneyGroups.find(group => group.currency === "BRL" && group.currencyStatus === "known")?.value || 0;
+  // The goal is in the currency the company really earns in this period (US$ for ATS, € for ETS2, R$ for receipts); other currencies never inflate its progress.
+  const goalCurrency = resolveGoalCurrency(selectedSimulatorId, metrics.moneyGroups);
+  const goalRevenue = goalRevenueIn(metrics.moneyGroups, goalCurrency);
   const goalDocumentId = `${activeCompanyId}__${selectedSimulatorId || "unknown"}__${dateKey(range.start).replaceAll("-", "")}_${dateKey(range.end).replaceAll("-", "")}`;
   const identities = [viewerId, currentUser?.id].filter(Boolean);
   const canManageGoal = Boolean(viewerId && activeCompanyId && (identities.includes(activeCompany?.ownerId) || identities.includes(activeCompany?.userId) || allCompanyMembers.some(member => member.companyId === activeCompanyId && identities.includes(member.userId) && member.status === "active" && (member.roles?.includes("admin") || member.roles?.includes("owner" as any)))));
@@ -263,7 +265,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   return <>
     {(!online || useSaved) && <p className="nvu-central-cache-status" role="status">{validCached ? `${online ? "Dados salvos" : "Offline · dados salvos"} · ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(validCached.savedAt)}` : "Offline · conecte-se para carregar os dados pela primeira vez."}</p>}
     <ManagementDashboard active={active} periodLabel={periodLabel} periodDescription={`${dateFormat.format(range.start)} – ${dateFormat.format(range.end)}`} onPeriod={() => setPeriodOpen(true)} earnings={visibleEarnings} tripCount={visibleTripCount}
-      goal={{ amount: goalTarget ? formatHistoryMoney(goalTarget, "BRL", "known") : goalError ? "Consulta pendente" : "Não configurada", progress: goalTarget ? visibleGoalRevenue / goalTarget * 100 : null, error: goalError || (goal.pending ? "Salva neste aparelho · aguardando sincronização" : !online && goal.cached ? "Offline · última meta salva" : ""), loading: goalLoading, canEdit: canManageGoal, onRetry: canManageGoal ? () => void goal.retry() : undefined }}
+      goal={{ amount: goalTarget ? formatHistoryMoney(goalTarget, goalCurrency, "known") : goalError ? "Consulta pendente" : "Não configurada", progress: goalTarget ? visibleGoalRevenue / goalTarget * 100 : null, error: goalError || (goal.pending ? "Salva neste aparelho · aguardando sincronização" : !online && goal.cached ? "Offline · última meta salva" : ""), loading: goalLoading, canEdit: canManageGoal, onRetry: canManageGoal ? () => void goal.retry() : undefined }}
       onGoal={() => { setGoalDraft(goalTarget ? formatGoalAmount(goalTarget) : ""); setGoalSaveError(""); setGoalOpen(true); }}
       operations={visibleOperations} totalOperations={visibleOperations.length} onAction={onAction} onInfo={operation => setInfoId(operation.id)} onDriver={onDriver} loading={!operationalDataReady && !validCached} refreshing={online && operationalDataRefreshing} />
     {pendingDemands.length > 0 && <section className="nvu-central-section" style={{ marginTop: 10 }}><button type="button" className="nvu-central-section-toggle" onClick={() => setRequestsOpen(true)}>Solicitações de trabalho <span className="nvu-central-count">{pendingDemands.length}</span></button></section>}
@@ -271,7 +273,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     {goalOpen && <ManagementDialog title="Ajustar meta financeira" onClose={() => { if (!goalSaving) setGoalOpen(false); }}>
       <form className="nvu-central-dialog-body" onSubmit={event => { event.preventDefault(); void saveOperationalGoal(); }}>
         <p>{activeCompany?.companyName} · {dateFormat.format(range.start)} – {dateFormat.format(range.end)}</p>
-        <label>Meta em R$<input inputMode="decimal" value={goalDraft} onChange={event => {
+        <label>Meta em {goalCurrencySymbol(goalCurrency)}<input inputMode="decimal" value={goalDraft} onChange={event => {
           const input = event.currentTarget, raw = input.value, caret = input.selectionStart;
           const edit = event.nativeEvent as InputEvent;
           const formatted = formatGoalDraft(raw, edit.inputType?.startsWith("delete") || edit.inputType === "insertText" && /^\d$/.test(edit.data || "")); setGoalDraft(formatted);

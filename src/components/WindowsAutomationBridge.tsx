@@ -8,6 +8,7 @@ import { getSimpleAutomationSimulator } from "../lib/simpleAutomation";
 import { getProLaunchAvailability } from "../lib/proLaunchAvailability";
 import { isWindowsDesktop, type WindowsGame, type WindowsStatus } from "../lib/windowsAutomation";
 import { synchronizeWindowsDeliveries } from "../services/windowsAutomationService";
+import { operationVehicleOf } from "../lib/operationVehicle";
 import { resolveWindowsNavigation } from "../lib/windowsNavigation";
 import { ModalPortal } from "./ui/ModalPortal";
 import { WindowsAutomationPanel } from "./WindowsAutomationPanel";
@@ -20,7 +21,7 @@ function WindowsAutomationRuntime() {
   const navigate = useNavigate();
   const { theme } = useTheme();
   const { currentUser } = useSessionStore();
-  const { jobs, contracts, simulators } = useOperationalStore();
+  const { jobs, contracts, simulators, vehicles } = useOperationalStore();
   const { activeCompanyId, companies } = useCompanyStore();
   const [status, setStatus] = useState<WindowsStatus | null>(null);
   const [open, setOpen] = useState(false), [games, setGames] = useState<WindowsGame[]>([]);
@@ -40,10 +41,11 @@ function WindowsAutomationRuntime() {
   } : null, [currentUser?.id, activeCompanyId, job?.id, job?.progress, job?.totalDeliveries, contract?.id, contract?.name, contract?.totalDeliveries, simulator?.key, ready.canLaunch]);
   useEffect(()=>{void window.nvuWindows!.setTheme?.(theme).catch(()=>toast.error("Não foi possível sincronizar o tema do assistente."));},[theme]);
   const scopeRef = useRef(scope); scopeRef.current = scope;
+  const operationDataRef = useRef({ jobs, vehicles }); operationDataRef.current = { jobs, vehicles };
   useEffect(() => { setTripsOpen(false); setDiagnostics(null); }, [scope?.driverId, scope?.companyId, scope?.jobId]);
   useEffect(() => { void window.nvuWindows!.syncScope(scope).catch(() => toast.error("Não foi possível atualizar a sessão Windows.")); }, [scope]);
   useEffect(() => {
-    const off = window.nvuWindows!.onUpdate(s => { setStatus(s); applyWindowsTheme(s.theme); void synchronizeWindowsDeliveries(s).catch(() => {
+    const off = window.nvuWindows!.onUpdate(s => { setStatus(s); applyWindowsTheme(s.theme); void synchronizeWindowsDeliveries(s, jobId => operationVehicleOf(jobId, operationDataRef.current.jobs, operationDataRef.current.vehicles)).catch(() => {
       // The native journal still owns the delivery. Retry on the next update.
     }); });
     const offNavigation = window.nvuWindows!.onNavigate(where => {

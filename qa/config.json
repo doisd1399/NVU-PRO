@@ -17,7 +17,9 @@
       "push-client",
       "legacy-regressions",
       "windows-core",
-      "windows-registry"
+      "windows-registry",
+      "goal-currency",
+      "operation-vehicle"
     ],
     "web": [
       "harness",
@@ -38,6 +40,8 @@
       "emulators",
       "windows-core",
       "windows-registry",
+      "goal-currency",
+      "operation-vehicle",
       "windows-overlay",
       "windows-settings"
     ],
@@ -61,6 +65,8 @@
       "android-device",
       "windows-core",
       "windows-registry",
+      "goal-currency",
+      "operation-vehicle",
       "windows-overlay",
       "windows-settings"
     ]
@@ -242,6 +248,26 @@
         "desktop/windows/tests/renderer-runtime.test.cjs"
       ],
       "timeoutMs": 120000
+    },
+    "operation-vehicle": {
+      "label": "Veículo da viagem é o determinado pela operação, não o do jogo",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-operation-vehicle.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "goal-currency": {
+      "label": "Meta financeira na moeda em que a empresa recebe (US$ ATS, € ETS2, R$ comprovantes)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-goal-currency.mts"
+      ],
+      "timeoutMs": 30000
     },
     "windows-registry": {
       "label": "Windows: catálogo opaco, nomes e isolamento de plataformas",
