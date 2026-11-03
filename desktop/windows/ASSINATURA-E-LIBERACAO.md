@@ -23,13 +23,20 @@ Não servem: Azure Artifact Signing (pessoa física só nos EUA/Canadá; empresa
 ## 3. Publicar a versão da comunidade (caminho A) — passo a passo
 
 Uma vez só:
-1. **Google Cloud** (projeto `vtc-frota-log`) → APIs e serviços → **Tela de consentimento OAuth**: confira o status de publicação. Para qualquer pessoa da comunidade entrar, ele precisa estar **Em produção** (em *Teste* só entram os até 100 e-mails cadastrados). O login do Windows pede só `openid email profile`; segundo a Google, apps de teste com só esses escopos nem expiram o token em 7 dias, e em produção com escopos básicos não exigem a tela de app não verificado. Confirme no console.
-2. **GitHub** → Settings → Environments → **New environment** `windows-release` (pode marcar *Required reviewers* para pedir sua aprovação a cada execução) → **Add secret**: `NVU_GOOGLE_DESKTOP_CLIENT_ID` e `NVU_GOOGLE_DESKTOP_CLIENT_SECRET` (os valores do seu `desktop/windows/config/google-oauth.json` local; o repositório público guarda o segredo vazio de propósito).
+1. **Google Cloud** (projeto `vtc-frota-log`) → Google Auth Platform → **Público** (ou APIs e serviços → Tela de consentimento OAuth): clique em **Publicar aplicativo** para o status ficar **Em produção**. Para qualquer pessoa da comunidade entrar, é preciso estar em produção (em *Teste* só entram os até 100 e-mails cadastrados). O login do Windows pede só `openid email profile`; segundo a Google, apps de teste com só esses escopos nem expiram o token em 7 dias, e em produção com escopos básicos não exigem a tela de app não verificado. Confirme no console.
+2. **GitHub** → Settings → Environments → **`windows-release`** (o GitHub cria sozinho na primeira execução que o cita):
+   - **Required reviewers:** você mesmo, para aprovar cada release;
+   - **Deployment branches:** apenas `dist-build`;
+   - **Environment secrets:** `NVU_GOOGLE_DESKTOP_CLIENT_ID` e `NVU_GOOGLE_DESKTOP_CLIENT_SECRET` (os valores do cliente OAuth «NVU PRO Windows» no Google Cloud, ou do seu `desktop/windows/config/google-oauth.json` local; o repositório público guarda o segredo vazio de propósito).
+   O ensaio roda num ambiente à parte (`windows-ensaio`), sem Secrets, então nunca enxerga o cliente OAuth.
 
 A cada versão:
-3. **Actions → "NVU Windows - versão da comunidade (SEM assinatura)" → Run workflow.** Ele constrói no Windows, roda os testes, instala e confere o resultado, gera a prova de origem (attestation) do GitHub e cria um **rascunho** de release (o instalador carrega o segredo OAuth, por isso não vai como artefato público).
-4. Em **Releases**, abra o rascunho, baixe os arquivos, rode `Verificar-NVU.ps1` (deve dar `OK`) e o roteiro `ROTEIRO-TESTE-ETS2-ATS.md` nos dois jogos.
-5. Só então **Publish release**. O texto do rascunho já explica o aviso do SmartScreen e como conferir o arquivo (SHA-256 e `gh attestation verify`).
+3. **Dispare** com um commit (ou o merge de um PR) na `dist-build` cuja mensagem traga **`[win-comunidade]`**, como os outros fluxos do projeto, que rodam por push na `dist-build`. Sem a marca nada roda; a marca fora da `dist-build` é ignorada. Alternativa: **Actions → "NVU Windows - versão da comunidade (SEM assinatura)" → Run workflow** (o botão só aparece com o arquivo na branch padrão).
+4. O fluxo espera a **sua aprovação** (se você marcou *Required reviewers*), constrói no Windows, roda os testes, instala e confere o resultado, gera a prova de origem (attestation) do GitHub e cria um **rascunho** de release (o instalador carrega o segredo OAuth, por isso não vai como artefato público). Se faltar um Secret, ele para com `BLOQUEIO` e não cria nada.
+5. Em **Releases**, abra o rascunho, baixe os arquivos, rode `Verificar-NVU.ps1` (deve dar `OK`) e o roteiro `ROTEIRO-TESTE-ETS2-ATS.md` nos dois jogos.
+6. Só então **Publish release**. O texto do rascunho já explica o aviso do SmartScreen e como conferir o arquivo (SHA-256 e `gh attestation verify`).
+
+Para testar mudanças no próprio fluxo sem Secrets e sem criar release: push em `claude/**` cujo último commit traga **`[win-community-ensaio]`**.
 
 Limites honestos: o aviso do SmartScreen aparece a cada versão nova (a reputação é por arquivo enquanto não houver assinatura), e computadores gerenciados por empresa podem bloquear. Isso é uma versão **da comunidade**, não "pronta para produção".
 
