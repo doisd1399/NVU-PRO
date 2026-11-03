@@ -25,5 +25,8 @@ Cada simulador mostra três versões: **Esperada** (a desta NVU), **Instalada** 
 ## 5. Usar
 Selecione a operação, **Ativar PRO** e jogue. **Ctrl+N** abre/oculta o assistente; todas as ações são pelo mouse. O progresso só muda quando o servidor confirma a viagem.
 
+## Sem internet
+A NVU **abre sem internet** e mantém você entrado. Aparecem o perfil, as fotos que você já viu com internet (veículo, capa, ranking) e os dados que a tela já tinha guardado. **Listas e dados novos precisam de internet** (ranking atualizado, histórico completo, aprovações, trocar de empresa). As entregas do jogo continuam sendo salvas no computador e são enviadas sozinhas quando a internet volta; a finalização da operação só se confirma depois disso. Na primeira vez após instalar, abra com internet para a NVU guardar o que precisa.
+
 ## 6. Se algo falhar
 A tela mostra um **código** (por exemplo `NVU-S041`) e o que fazer. Em **PRO → Simuladores → Ajuda com a conexão e diagnóstico** use **Diagnóstico de inicialização** (copia um texto sem dados pessoais) ou **Abrir registros**. Não apague `%APPDATA%\NVU PRO`: nela ficam as viagens pendentes.

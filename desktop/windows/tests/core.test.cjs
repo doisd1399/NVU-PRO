@@ -108,6 +108,13 @@ test('Steam adicional e instalação/remoção preservam DLL de terceiros', () =
   fs.mkdirSync(path.join(root, 'bin/win_x64/plugins'), { recursive: true }); fs.writeFileSync(path.join(root, 'bin/win_x64/eurotrucks2.exe'), 'MZ');
   const other = path.join(root, 'bin/win_x64/plugins/other.dll'); fs.writeFileSync(other, 'third-party');
   assert.equal(discover([dir])[0].root, root);
+  // A mesma pasta com outra grafia (registro do Steam x caminho padrão) é um jogo só no Windows; onde maiúsculas importam continua sendo outra pasta.
+  const spelling = fs.mkdtempSync(path.join(os.tmpdir(), 'nvu-steam-case-')), lowerLib = path.join(spelling, 'steam'), upperLib = path.join(spelling, 'STEAM');
+  for (const lib of [lowerLib, upperLib]) { const ats = path.join(lib, 'steamapps/common/American Truck Simulator'); fs.mkdirSync(path.join(ats, 'bin/win_x64'), { recursive: true }); fs.writeFileSync(path.join(ats, 'bin/win_x64/amtrucks.exe'), 'MZ'); }
+  assert.equal(discover([lowerLib, upperLib], { caseInsensitive: false }).filter(g => g.key === 'ats').length, 2);
+  assert.equal(discover([lowerLib, upperLib], { caseInsensitive: true }).filter(g => g.key === 'ats').length, 1);
+  assert.equal(discover([upperLib, lowerLib, lowerLib], { caseInsensitive: true }).filter(g => g.key === 'ats').length, 1);
+  fs.rmSync(spelling, { recursive: true, force: true });
   const dll = path.join(dir, 'test.dll'); fs.writeFileSync(dll, 'MZ synthetic DLL fixture');
   pluginAction(root, 'ets2', dll); assert.equal(fs.readFileSync(other, 'utf8'), 'third-party');
   pluginAction(root, 'ets2', dll, true); assert(fs.existsSync(other));

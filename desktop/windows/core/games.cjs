@@ -8,16 +8,20 @@ function realGame(root, key) {
   if (!games[key]) throw Error('GAME_PATH_INVALID');
   return gameRoot(root, key);
 }
-function discover(roots) {
-  const libraries = new Set(roots.filter(Boolean));
+// No Windows "C:\\Steam" e "c:\\steam" são a mesma pasta: o registro do Steam traz uma grafia e o caminho padrão outra, e a lista de jogos mostrava o mesmo jogo duas vezes.
+function discover(roots, { caseInsensitive = process.platform === 'win32' } = {}) {
+  const same = (a, b) => caseInsensitive ? a.toLowerCase() === b.toLowerCase() : a === b;
+  const libraries = [];
+  const addLibrary = lib => { if (lib && !libraries.some(known => same(known, lib))) libraries.push(lib); };
+  roots.forEach(addLibrary);
   for (const root of [...libraries]) {
     const vdf = path.join(root, 'steamapps', 'libraryfolders.vdf');
-    if (fs.existsSync(vdf)) for (const m of fs.readFileSync(vdf, 'utf8').matchAll(/"path"\s+"([^"]+)"/g)) libraries.add(m[1].replace(/\\\\/g, '\\'));
+    if (fs.existsSync(vdf)) for (const m of fs.readFileSync(vdf, 'utf8').matchAll(/"path"\s+"([^"]+)"/g)) addLibrary(m[1].replace(/\\\\/g, '\\'));
   }
   const found = [];
   for (const lib of libraries) for (const key of Object.keys(games)) {
     try { const root = realGame(path.join(lib, 'steamapps', 'common', games[key].folder), key);
-      if (!found.some(g => g.root === root)) found.push({ key, root, label: games[key].folder }); } catch { /* absent game */ }
+      if (!found.some(g => g.key === key && same(g.root, root))) found.push({ key, root, label: games[key].folder }); } catch { /* absent game */ }
   }
   return found;
 }
