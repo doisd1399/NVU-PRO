@@ -7,6 +7,7 @@ Documento de quem publica a versão. Quem só instala usa o instalador e o `GUIA
 - O instalador sai **sem assinatura**: `release-manifest.json` → `signing.status = unsigned`, `productionReady = false`. Sem certificado nem serviço de assinatura, nada é assinado e o fluxo de release assinado **para** com o bloqueio exato.
 - Assinar troca "Editor desconhecido" pelo nome verificado do editor e deixa a origem comprovável. Mesmo assinado, o SmartScreen pode avisar no começo: a reputação se constrói com o tempo (a Microsoft informa que, desde 2024, nem o certificado EV pula essa etapa).
 - Certificado autoassinado não vale confiança pública. O CI usa um descartável só para provar o encanamento.
+- Configuração externa feita pelo dono do projeto em 03/11/2026: tela de consentimento do Google **Em produção** (tipo Externo, sem escopos sensíveis ou restritos) e ambiente `windows-release` no GitHub com revisor obrigatório, branch `dist-build` e os dois Secrets do cliente OAuth. O que ainda não foi provado até o primeiro release: gravar o segredo no instalador, a prova de origem (attestation) e a criação do rascunho.
 
 ## 2. Caminhos SEM custo (pesquisados em 02/11/2026; confira na Microsoft/SignPath antes de decidir)
 
