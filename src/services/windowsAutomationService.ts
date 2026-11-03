@@ -4,9 +4,11 @@ import { canonicalTripRepository } from "../repositories/CanonicalTripRepository
 import { isCanonicalConfirmedTrip } from "../../functions/src/isCanonicalConfirmedTrip";
 import { validateScsDelivery } from "../../functions/src/scsTelemetryEvidence";
 import { isWindowsDesktop, type WindowsStatus } from "../lib/windowsAutomation";
+import type { OperationVehicle } from "../lib/operationVehicle";
 
 let running = false;
-export async function synchronizeWindowsDeliveries(status: WindowsStatus): Promise<void> {
+/** `vehicleOf(jobId)`: o veículo que a empresa determinou para a operação (a telemetria do jogo não diz qual caminhão é). */
+export async function synchronizeWindowsDeliveries(status: WindowsStatus, vehicleOf: (jobId: string) => OperationVehicle | null = () => null): Promise<void> {
   if (!isWindowsDesktop() || running || !auth.currentUser) return;
   running = true;
   try {
@@ -27,6 +29,7 @@ export async function synchronizeWindowsDeliveries(status: WindowsStatus): Promi
         canonicalTripId: tripId, tripId, deterministicTripId: tripId, idempotencyKey: tripId,
         driverId: uid, motoristaId: uid, companyId: s.companyId, empresaId: s.companyId,
         jobId: s.jobId, contractId: s.contractId, contratoId: s.contractId,
+        ...(() => { const v = vehicleOf(s.jobId); return v ? { veiculoId: v.id, veiculoNome: v.name, veiculoPlaca: v.plate } : {}; })(),
         simulatorId: e.simulatorKey, simulatorKey: e.simulatorKey,
         simulatorCode: e.simulatorKey.toUpperCase(), simuladorCodigo: e.simulatorKey.toUpperCase(),
         origem: e.origin, destino: e.destination, valor: e.amountCents / 100, valorCents: e.amountCents,

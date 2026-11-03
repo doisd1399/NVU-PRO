@@ -80,6 +80,7 @@ import {
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { onAuthTeardown } from "../../lib/authLifecycle";
+import { withOperationVehicle } from "../../lib/operationVehicle";
 import { normalizeTrip, parseTripValue, type NormalizedTrip, type TripCurrencyStatus } from "../../lib/tripNormalizer";
 import { applySimulatorCurrencyContext } from "../../lib/metricsEngine";
 import { formatHistoryMoney, formatTripHistoryMoney } from "../../lib/tripMoneyPresentation";
@@ -1364,13 +1365,15 @@ export default function TripHistory({
         const canonicalName = driverId
           ? canonicalDriverNames.get(driverId)
           : undefined;
-        return canonicalName
+        const named = canonicalName
           ? { ...trip, motoristaNome: canonicalName, driverName: canonicalName }
           : trip;
+        // O veículo é o determinado pela operação (a telemetria do jogo não informa qual caminhão é).
+        return withOperationVehicle(named, jobs, vehicles);
         });
     },
     [activeCompanyId, canonicalDriverNames, companyHistoryTrips, currentUser?.id, diagnosticOwnerDriverIds,
-      deletedTripIds, embeddedJob?.id, nativePendingRows, pendingHistoryTrips],
+      deletedTripIds, embeddedJob?.id, jobs, nativePendingRows, pendingHistoryTrips, vehicles],
   );
 
   const toggleExpand = React.useCallback((tripId: string) => {
