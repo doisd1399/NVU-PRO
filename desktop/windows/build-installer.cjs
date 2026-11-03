@@ -19,7 +19,7 @@ const pkg = require('./package.json');
 const { verifyNsisInstaller } = require('./tools/nsis-integrity.cjs');
 const { verifyPlugin } = require('./tools/plugin-integrity.cjs');
 const { writePluginManifest } = require('./tools/plugin-manifest.cjs');
-const { signFiles, signingConfig, verifySignature } = require('./tools/sign.cjs');
+const { signFiles, signingConfig, verifySignature, productionVerdict } = require('./tools/sign.cjs');
 const { describeArtifact, fingerprint } = require('./tools/release-manifest.cjs');
 
 const version = pkg.version, pluginVersion = pkg.nvu.pluginVersion;
@@ -142,8 +142,10 @@ async function build() {
       files: signing.files.map(({ file, signed, reason, tool }) => ({ file, signed, reason: reason || null, tool: tool || null })) },
     artifacts: [final, { name: 'nvu_scs_telemetry.dll', role: 'plugin', bytes: pluginFinal.bytes, sha256: pluginFinal.sha256, signed: pluginFinal.signed, version: pluginFinal.manifest.version }],
   };
-  // "productionReady" is true only with an OS-verified, timestamped signature on every signable file.
-  manifest.signing.productionReady = manifest.signing.status === 'signed' && final.os?.valid === true && final.os?.timestamped === true;
+  // "productionReady" is true only with an OS-verified, timestamped signature by a certificate that is not self-signed, on every signable file.
+  const verdict = productionVerdict({ status: manifest.signing.status, os: final.os });
+  manifest.signing.productionReady = verdict.ready;
+  manifest.signing.notProductionReason = verdict.ready ? null : verdict.reason;
   fs.writeFileSync(path.join(out, 'release-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
   fs.writeFileSync(`${output}.sha256`, `${final.sha256}  ${filename}\n`);
   fs.writeFileSync(path.join(out, 'SHA256SUMS.txt'), `${final.sha256}  ${filename}\n${pluginFinal.sha256}  resources/plugin/nvu_scs_telemetry.dll\n`);

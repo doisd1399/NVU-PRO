@@ -91,7 +91,7 @@ function signFiles(files, { env = process.env, platform = process.platform, run 
  */
 function verifySignature(file, { platform = process.platform, run = spawnSync } = {}) {
   if (platform === 'win32') {
-    const script = `$s = Get-AuthenticodeSignature -LiteralPath $env:NVU_VERIFY_FILE; [pscustomobject]@{ status=[string]$s.Status; statusMessage=$s.StatusMessage; signer=$s.SignerCertificate.Subject; thumbprint=$s.SignerCertificate.Thumbprint; notAfter=$s.SignerCertificate.NotAfter; timestamped=($null -ne $s.TimeStamperCertificate); timestamper=$s.TimeStamperCertificate.Subject } | ConvertTo-Json -Compress`;
+    const script = `$s = Get-AuthenticodeSignature -LiteralPath $env:NVU_VERIFY_FILE; [pscustomobject]@{ status=[string]$s.Status; statusMessage=$s.StatusMessage; signer=$s.SignerCertificate.Subject; issuer=$s.SignerCertificate.Issuer; selfSigned=($null -ne $s.SignerCertificate -and $s.SignerCertificate.Subject -eq $s.SignerCertificate.Issuer); thumbprint=$s.SignerCertificate.Thumbprint; notAfter=$s.SignerCertificate.NotAfter; timestamped=($null -ne $s.TimeStamperCertificate); timestamper=$s.TimeStamperCertificate.Subject } | ConvertTo-Json -Compress`;
     const r = run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', env: windowsPowerShellEnv(process.env, { NVU_VERIFY_FILE: file }), windowsHide: true });
     if (r.status !== 0) return { checked: 'windows', valid: false, status: 'CheckFailed', detail: String(r.stderr || '').slice(0, 300) };
     const data = JSON.parse(r.stdout);
@@ -101,7 +101,19 @@ function verifySignature(file, { platform = process.platform, run = spawnSync } 
   const text = `${r.stdout || ''}${r.stderr || ''}`;
   return { checked: 'osslsigncode-signature-bytes-only', valid: false, status: /Signature verification: ok/i.test(text) ? 'SignatureBytesOk_TrustNotEvaluated' : 'NotSignedOrInvalid', trustEvaluated: false };
 }
-module.exports = { signingConfig, signFiles, verifySignature, findSigntool, DEFAULT_TIMESTAMP };
+/**
+ * "Production ready" needs ALL of: every signable file signed, the operating system accepts the chain, a timestamp, and a signer that is
+ * NOT a self-signed certificate. A self-signed certificate trusted only on the machine that built the file proves the signing plumbing,
+ * never public trust (this is what the CI dry-run does with a throwaway certificate).
+ */
+function productionVerdict({ status, os } = {}) {
+  if (status !== 'signed') return { ready: false, reason: 'NOT_SIGNED' };
+  if (!os || os.valid !== true) return { ready: false, reason: 'OPERATING_SYSTEM_DID_NOT_ACCEPT_THE_SIGNATURE' };
+  if (os.timestamped !== true) return { ready: false, reason: 'NO_TIMESTAMP' };
+  if (os.selfSigned === true) return { ready: false, reason: 'SELF_SIGNED_CERTIFICATE' };
+  return { ready: true, reason: null };
+}
+module.exports = { signingConfig, signFiles, verifySignature, productionVerdict, findSigntool, DEFAULT_TIMESTAMP };
 if (require.main === module) {
   const files = process.argv.slice(2);
   const results = signFiles(files, { log: console.log });

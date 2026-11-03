@@ -50,4 +50,4 @@ Depois: **Actions → "NVU Windows release (signed)" → Run workflow.** Sem as 
 
 ## 6. Critério de liberação como "produção"
 
-Todos verdadeiros: assinatura válida com carimbo de tempo (`Valid`), CI "NVU Windows CI" verde na mesma versão, roteiro nos jogos aprovado (ETS2 e ATS), `npm run qa` aprovado na fonte final e nenhum bloqueador P0/P1 aberto em `qa/audit-blockers.json`. Sem assinatura o resultado é, no máximo, **versão da comunidade (candidata)**.
+Todos verdadeiros: assinatura válida com carimbo de tempo (`Valid`) **de um certificado que não seja autoassinado** (o campo `productionReady` do `release-manifest.json` só fica `true` nesse caso; o ensaio do CI, com certificado descartável, termina propositalmente com `productionReady: false` e motivo `SELF_SIGNED_CERTIFICATE`), CI "NVU Windows CI" verde na mesma versão, roteiro nos jogos aprovado (ETS2 e ATS), `npm run qa` aprovado na fonte final e nenhum bloqueador P0/P1 aberto em `qa/audit-blockers.json`. Sem assinatura o resultado é, no máximo, **versão da comunidade (candidata)**.

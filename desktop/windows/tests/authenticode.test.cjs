@@ -57,3 +57,21 @@ test('Contêiner Authenticode de executáveis comuns: ausente é explícito; pre
   const { bytes } = signedFixture(t), info = readAuthenticode(bytes);
   assert.equal(info.present, true); assert.equal(info.offset % 8, 0);
 });
+test('Pronto para produção exige assinatura aceita pelo sistema, carimbo de tempo e certificado que NÃO seja autoassinado', () => {
+  const { productionVerdict, verifySignature } = require('../tools/sign.cjs');
+  const good = { valid: true, timestamped: true, selfSigned: false };
+  assert.deepEqual(productionVerdict({ status: 'signed', os: good }), { ready: true, reason: null });
+  assert.equal(productionVerdict({ status: 'unsigned', os: good }).reason, 'NOT_SIGNED');
+  assert.equal(productionVerdict({ status: 'signed', os: null }).reason, 'OPERATING_SYSTEM_DID_NOT_ACCEPT_THE_SIGNATURE');
+  assert.equal(productionVerdict({ status: 'signed', os: { ...good, valid: false } }).reason, 'OPERATING_SYSTEM_DID_NOT_ACCEPT_THE_SIGNATURE');
+  assert.equal(productionVerdict({ status: 'signed', os: { ...good, timestamped: false } }).reason, 'NO_TIMESTAMP');
+  // The throwaway certificate of the CI dry-run is trusted on that runner (the OS says Valid), but it is self-signed: plumbing only.
+  const selfSigned = productionVerdict({ status: 'signed', os: { ...good, selfSigned: true } });
+  assert.equal(selfSigned.ready, false); assert.equal(selfSigned.reason, 'SELF_SIGNED_CERTIFICATE');
+  // The Windows verdict carries the new fields through, and a failing check is never "valid".
+  const fake = stdout => () => ({ status: 0, stdout, stderr: '' });
+  const json = JSON.stringify({ status: 'Valid', signer: 'CN=NVU PRO TESTE', issuer: 'CN=NVU PRO TESTE', selfSigned: true, timestamped: true });
+  const parsed = verifySignature('x.exe', { platform: 'win32', run: fake(json) });
+  assert.equal(parsed.valid, true); assert.equal(parsed.selfSigned, true); assert.equal(parsed.checked, 'windows');
+  assert.equal(verifySignature('x.exe', { platform: 'win32', run: () => ({ status: 1, stdout: '', stderr: 'erro' }) }).valid, false);
+});

@@ -63,6 +63,8 @@ jobs:
             if ($s.Status -ne 'Valid') { throw "assinatura invalida em $f ($($s.Status))" }
             if ($null -eq $s.TimeStamperCertificate) { throw "sem carimbo de tempo em $f" }
           }
+          $manifest = Get-Content artifacts/windows/release-manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.signing.productionReady -ne $true) { throw "o manifesto nao esta pronto para producao: $($manifest.signing.notProductionReason)" }
       - name: "Rascunho de release (o instalador leva o segredo OAuth, por isso NÃO vai como artefato público)"
         shell: pwsh
         env:

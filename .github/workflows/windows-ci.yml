@@ -175,6 +175,13 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "signed installer exit code $($p.ExitCode)" }
           node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" "$env:RUNNER_TEMP\signed-versions.json"
           Get-Content "$env:RUNNER_TEMP\signed-versions.json" -Raw
+      - name: "The throwaway (self-signed) certificate must NEVER be reported as production ready"
+        shell: pwsh
+        run: |
+          $m = Get-Content artifacts/windows/release-manifest.json -Raw | ConvertFrom-Json
+          "status=$($m.signing.status) productionReady=$($m.signing.productionReady) reason=$($m.signing.notProductionReason)"
+          if ($m.signing.status -ne 'signed') { throw 'o ensaio deveria ter assinado todos os arquivos' }
+          if ($m.signing.productionReady -ne $false -or $m.signing.notProductionReason -ne 'SELF_SIGNED_CERTIFICATE') { throw 'certificado autoassinado foi tratado como pronto para producao' }
       - name: "Verificar-NVU.ps1 on the SIGNED installer: signature Valid, signer shown, exit code 0"
         shell: pwsh
         run: node desktop/windows/tests/e2e/verificar.cjs --dir artifacts/windows --out artifacts/e2e-signed --expect signed

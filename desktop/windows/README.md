@@ -2,7 +2,7 @@
 
 Aplicativo Windows (Electron) e plugin de telemetria SCS (ETS2/ATS) do mesmo projeto Web/Android. Este documento é técnico; o guia para o usuário final é `GUIA-ATUALIZAR-NVU-E-PREPARAR-ETS2-ATS.md`.
 
-> **Estado desta edição:** candidata. Testada de forma automatizada/controlada (Linux), no **Windows real** (GitHub Actions: build com MSVC, 89 testes, instalador, instalação/atualização/desinstalação, instância única, elevação do plugin e troca da 0.1.4 antiga em execução) e, para o instalador, no Wine. **Não foi executada nos jogos** (ETS2/ATS) e **não está assinada digitalmente**. Distribuição sem custo e assinatura: `ASSINATURA-E-LIBERACAO.md`; roteiro nos jogos: `ROTEIRO-TESTE-ETS2-ATS.md`.
+> **Estado desta edição:** candidata. Testada de forma automatizada/controlada (Linux), no **Windows real** (GitHub Actions: build com MSVC, 90 testes, instalador, instalação/atualização/desinstalação, instância única, elevação do plugin e troca da 0.1.4 antiga em execução) e, para o instalador, no Wine. **Não foi executada nos jogos** (ETS2/ATS) e **não está assinada digitalmente**. Distribuição sem custo e assinatura: `ASSINATURA-E-LIBERACAO.md`; roteiro nos jogos: `ROTEIRO-TESTE-ETS2-ATS.md`.
 
 ## Entrega
 
@@ -67,9 +67,9 @@ Aplicativo e jogos rodam com permissões normais. Só quando o Windows nega a gr
 
 | Nível | O que foi executado | O que comprova |
 |---|---|---|
-| Automatizado/controlado (Linux) | `npm run test:windows` (89 testes), `npm run qa`, matriz por papel (40 cenários, emulador), UI em Chromium | Lógica, contratos, mensagens, políticas. **Não** comprova Windows nativo. |
+| Automatizado/controlado (Linux) | `npm run test:windows` (90 testes), `npm run qa`, matriz por papel (40 cenários, emulador), UI em Chromium | Lógica, contratos, mensagens, políticas. **Não** comprova Windows nativo. |
 | Emulado (Wine 9 sobre Linux) | `bash desktop/windows/tests/e2e/wine-installer-check.sh <instalador.exe> <prefixo-wine>`: instalação, atualização, desinstalação (dados preservados); recusa com a NVU aberta; `/FORCECLOSE`; programa homônimo em outra pasta preservado; aplicativo empacotado informando versões reais; 2ª execução perde o bloqueio, não roda etapas e sai | O código do NSIS e a decisão de instância única do aplicativo empacotado executam. **Não é Windows**: o Electron não chega a criar a janela sob este Wine (um aplicativo Electron mínimo trava no mesmo ponto), então nada de interface é comprovado aqui. |
-| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` (push em `claude/**` com `[win-ci]` no último commit, ou *Run workflow* quando o arquivo estiver na `main`) | Plugin MSVC (tabela de exportação e importações conferidas), 89 testes, instalador e verificação, instalar/atualizar/desinstalar, instância única, janela e inicialização saudável (15 etapas), elevação do plugin, troca sobre a 0.1.4 real, `Verificar-NVU.ps1` no PowerShell 5.1 (como o usuário abre) e no 7, inclusive com arquivo adulterado, e ensaio de assinatura com certificado descartável. **Executado com sucesso** (ver o relatório). Não cobre entrada nativa do assistente, jogos nem o antivírus do PC do usuário. |
+| Windows real (GitHub Actions) | `.github/workflows/windows-ci.yml` (push em `claude/**` com `[win-ci]` no último commit, ou *Run workflow* quando o arquivo estiver na `main`) | Plugin MSVC (tabela de exportação e importações conferidas), 90 testes, instalador e verificação, instalar/atualizar/desinstalar, instância única, janela e inicialização saudável (15 etapas), elevação do plugin, troca sobre a 0.1.4 real, `Verificar-NVU.ps1` no PowerShell 5.1 (como o usuário abre) e no 7, inclusive com arquivo adulterado, e ensaio de assinatura com certificado descartável. **Executado com sucesso** (ver o relatório). Não cobre entrada nativa do assistente, jogos nem o antivírus do PC do usuário. |
 | Jogos reais | — | **Não executado.** |
 
 ## Assinatura
