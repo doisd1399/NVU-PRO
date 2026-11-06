@@ -1,0 +1,32 @@
+/* Página Guias (Manual): visual simples no padrão dos painéis do app. Cores vêm de --central-* (ManagementDashboard.css). */
+.nvu-guides { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 640px; margin-inline: auto; padding: 8px 2px 32px; color: var(--central-text); }
+.nvu-guides-head { display: flex; flex-direction: column; gap: 10px; }
+.nvu-guides-title { display: flex; align-items: center; gap: 10px; }
+.nvu-guides-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--central-soft); color: var(--central-accent); }
+.nvu-guides-title h1 { margin: 0; font-size: 19px; font-weight: 600; letter-spacing: -.015em; line-height: 1.2; }
+.nvu-guides-lead { margin: 0; max-width: 34ch; color: var(--central-muted); font-size: 12.5px; line-height: 1.55; text-wrap: balance; }
+.nvu-guides-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--central-soft); }
+.nvu-guides-tabs button { min-height: 40px; padding: 8px 10px; border-radius: 10px; color: var(--central-muted); font-size: 14px; font-weight: 500; }
+.nvu-guides-tabs button[aria-selected="true"] { background: var(--central-paper); color: var(--central-text); box-shadow: inset 0 0 0 1px var(--central-line); }
+.nvu-guides-tabs button:focus-visible, .nvu-guides-pdf:focus-visible, .nvu-guides-stage > summary:focus-visible { outline: 2px solid var(--central-accent); outline-offset: 2px; }
+.nvu-guides-pdf { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 14px; border: 1px solid var(--central-line); border-radius: 12px; background: var(--central-paper); text-align: left; }
+.nvu-guides-pdf > svg { flex: none; color: var(--central-accent); }
+.nvu-guides-pdf > span:first-of-type { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
+.nvu-guides-pdf strong { font-size: 13.5px; font-weight: 500; }
+.nvu-guides-pdf small { color: var(--central-muted); font-size: 12px; line-height: 1.35; }
+.nvu-guides-pdf > span:last-child { display: inline-flex; align-items: center; gap: 6px; color: var(--central-accent); font-size: 13px; font-weight: 500; }
+.nvu-guides-pdf:disabled { opacity: .6; }
+.nvu-guides-list { display: flex; flex-direction: column; gap: 12px; }
+.nvu-guides-stage { border: 1px solid var(--central-line); border-radius: 16px; background: var(--central-paper); overflow: hidden; }
+.nvu-guides-stage > summary { display: flex; align-items: center; gap: 12px; padding: 16px; list-style: none; cursor: pointer; }
+.nvu-guides-stage > summary::-webkit-details-marker { display: none; }
+.nvu-guides-num { display: grid; place-items: center; flex: none; width: 24px; height: 24px; border: 1px solid var(--central-line); border-radius: 50%; color: var(--central-muted); font-size: 11.5px; }
+.nvu-guides-stage[open] .nvu-guides-num { border-color: var(--central-accent); color: var(--central-accent); }
+.nvu-guides-stage > summary strong { flex: 1; font-size: 15px; font-weight: 500; }
+.nvu-guides-chev { color: var(--central-muted); transition: transform .15s; }
+.nvu-guides-stage[open] .nvu-guides-chev { transform: rotate(180deg); }
+.nvu-guides-points { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0 16px 18px 52px; list-style: none; }
+.nvu-guides-points b { display: block; font-size: 13.5px; font-weight: 500; }
+.nvu-guides-points span { display: block; margin-top: 3px; color: var(--central-muted); font-size: 13px; line-height: 1.5; text-wrap: pretty; }
+.nvu-guides-tip { padding-top: 12px; border-top: 1px dashed var(--central-line); }
+.nvu-guides-tip b { color: var(--central-accent); }
