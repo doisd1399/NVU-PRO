@@ -71,6 +71,8 @@ import { SimpleCityManagerModal } from "../../components/admin/SimpleCityManager
 import { CreateNewsModal } from "../../components/admin/CreateNewsModal";
 import { SeniorMemberActions } from "../../components/admin/SeniorMemberActions";
 import { SuspendedMembersModal } from "../../components/admin/SuspendedMembersModal";
+import { AppGuidesManagerModal } from "../../components/admin/AppGuidesManagerModal";
+import { SeniorOptionsSheet } from "../../components/admin/SeniorOptionsSheet";
 import { WorkModeAvailabilityModal } from "../../components/admin/WorkModeAvailabilityModal";
 import {
   isCompanyRegistration,
@@ -182,6 +184,7 @@ export default function SeniorPanel() {
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [isCreateNewsModalOpen, setIsCreateNewsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isGuidesManagerOpen, setIsGuidesManagerOpen] = useState(false);
   const [isSimulatorManagerOpen, setIsSimulatorManagerOpen] = useState(false);
   const [isSimpleCityManagerOpen, setIsSimpleCityManagerOpen] = useState(false);
   const [isWorkModeAvailabilityOpen, setIsWorkModeAvailabilityOpen] = useState(false);
@@ -1638,6 +1641,8 @@ export default function SeniorPanel() {
     return matchesSearch && (selectedSimulator === "all" || resolveSimulatorId(reg, simulators as any[], allCompanies) === selectedSimulator);
   }).sort((a, b) => Number(b.status === "pending") - Number(a.status === "pending") || (registrationSubmittedDate(b)?.getTime() || 0) - (registrationSubmittedDate(a)?.getTime() || 0));
 
+
+
   return (
     <div className="nvu-senior-page max-w-[1000px] mx-auto px-3 sm:px-5 lg:px-6 pt-1 sm:pt-2 pb-6 space-y-2.5 sm:space-y-4">
       {/* Corporate Banner Header */}
@@ -2363,90 +2368,26 @@ export default function SeniorPanel() {
         onRefresh={loadSuspendedMembers}
       />
 
+      {isGuidesManagerOpen && <AppGuidesManagerModal onClose={() => setIsGuidesManagerOpen(false)} />}
+
       <WorkModeAvailabilityModal
         isOpen={isWorkModeAvailabilityOpen}
         onClose={() => setIsWorkModeAvailabilityOpen(false)}
         simulators={simulators}
       />
 
-      {isSettingsOpen && createPortal(
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity duration-150 ease-out">
-          <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-2xl w-full max-w-sm shadow-2xl flex flex-col overflow-hidden transition-all duration-150 ease-out">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-nvu-line/60 bg-slate-50/50 dark:bg-nvu-surface/50">
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">Opções</h2>
-              <button
-                onClick={() => setIsSettingsOpen(false)}
-                className="p-2 -mr-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-nvu-surface rounded-full transition-colors"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="flex flex-col p-2">
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(false);
-                  setIsCreateNewsModalOpen(true);
-                }}
-                className="flex items-center gap-3 p-3 text-[14px] font-medium text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-surface rounded-xl transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
-                  <Megaphone size={18} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                Gerenciar comunicados
-              </button>
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(false);
-                  setIsSimulatorManagerOpen(true);
-                }}
-                className="flex items-center gap-3 p-3 text-[14px] font-medium text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-surface rounded-xl transition-colors"
-              >
-                <div className="w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-500/10 flex items-center justify-center shrink-0">
-                  <Gamepad2 size={18} className="text-purple-600 dark:text-purple-400" />
-                </div>
-                Gerenciar simuladores
-              </button>
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(false);
-                  setIsSimpleCityManagerOpen(true);
-                }}
-                className="flex items-center gap-3 p-3 text-[14px] font-medium text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-surface rounded-xl transition-colors"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-50 dark:bg-cyan-500/10">
-                  <Navigation size={18} className="text-cyan-600 dark:text-cyan-400" />
-                </div>
-                Gerenciar cidades
-              </button>
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(false);
-                  setIsWorkModeAvailabilityOpen(true);
-                }}
-                className="flex items-center gap-3 p-3 text-[14px] font-medium text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-surface rounded-xl transition-colors"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-500/10">
-                  <Wrench size={18} className="text-amber-600 dark:text-amber-400" />
-                </div>
-                Controle de envio de viagens
-              </button>
-              <button
-                onClick={() => {
-                  setIsSettingsOpen(false);
-                  setIsSuspendedMembersOpen(true);
-                  void loadSuspendedMembers();
-                }}
-                className="flex items-center gap-3 p-3 text-[14px] font-medium text-slate-700 dark:text-nvu-text-soft hover:bg-slate-50 dark:hover:bg-nvu-surface rounded-xl transition-colors"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10">
-                  <UserX size={18} className="text-red-600 dark:text-red-400" />
-                </div>
-                Membros suspensos
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {isSettingsOpen && (
+        <SeniorOptionsSheet
+          onClose={() => setIsSettingsOpen(false)}
+          onSelect={(id) => {
+            if (id === "news") setIsCreateNewsModalOpen(true);
+            else if (id === "guides") setIsGuidesManagerOpen(true);
+            else if (id === "simulators") setIsSimulatorManagerOpen(true);
+            else if (id === "cities") setIsSimpleCityManagerOpen(true);
+            else if (id === "work-mode") setIsWorkModeAvailabilityOpen(true);
+            else if (id === "suspended") { setIsSuspendedMembersOpen(true); void loadSuspendedMembers(); }
+          }}
+        />
       )}
 
     </div>

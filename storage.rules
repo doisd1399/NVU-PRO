@@ -74,6 +74,19 @@ service firebase.storage {
       allow write: if resource == null && isImageUpload(500000);
     }
 
+    // Guias do app (PDF). Leitura para qualquer usuário autenticado; só o Sênior com conta ativa envia ou apaga.
+    // Cada envio usa um nome novo (create), então nunca há sobrescrita; o limite é de 15 MB.
+    match /app-guides/{guideId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create: if resource == null && isSenior() && accountIsUsable() &&
+        guideId in ['driver', 'company'] &&
+        fileName.matches('.*[.]pdf') &&
+        request.resource != null && request.resource.contentType == 'application/pdf' &&
+        request.resource.size > 0 && request.resource.size <= 15728640;
+      allow delete: if isSenior() && accountIsUsable();
+      allow update: if false;
+    }
+
     // Receipts are readable only by their driver, company owner/manager or a
     // Senior/admin. Paths are trip-receipts/{companyId}/{userId}/{fileName}.
     match /trip-receipts/{companyId}/{userId}/{fileName} {

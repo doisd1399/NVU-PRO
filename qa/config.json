@@ -19,7 +19,9 @@
       "windows-core",
       "windows-registry",
       "goal-currency",
-      "operation-vehicle"
+      "operation-vehicle",
+      "ranking-internal",
+      "app-guides"
     ],
     "web": [
       "harness",
@@ -42,6 +44,9 @@
       "windows-registry",
       "goal-currency",
       "operation-vehicle",
+      "ranking-internal",
+      "app-guides",
+      "senior-sheets-ui",
       "windows-overlay",
       "windows-settings"
     ],
@@ -67,6 +72,9 @@
       "windows-registry",
       "goal-currency",
       "operation-vehicle",
+      "ranking-internal",
+      "app-guides",
+      "senior-sheets-ui",
       "windows-overlay",
       "windows-settings"
     ]
@@ -298,6 +306,34 @@
         "qa/tests/windows-settings.mts"
       ],
       "timeoutMs": 60000
+    },
+    "ranking-internal": {
+      "label": "Ranking interno vem do agregado do servidor, filtrado pela empresa (igual ao Global)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-ranking-internal-aggregate.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "app-guides": {
+      "label": "Guias do app: arquivo que acompanha o APK, troca/exclusão pelo Sênior e validação do PDF",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-app-guides.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "senior-sheets-ui": {
+      "label": "Painel Sênior em painel inferior (Opções, Ações do funcionário, Gerenciar guias) e página Manual",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-senior-sheets-ui.mjs"
+      ],
+      "timeoutMs": 150000
     }
   },
   "auditBlockersFile": "qa/audit-blockers.json"

@@ -1,21 +1,25 @@
 import React from "react";
 import {
-  Activity,
-  Bell,
   BookOpen,
-  BriefcaseBusiness,
   Building2,
   ChevronDown,
   ClipboardCheck,
   Download,
-  FileImage,
+  FileText,
+  Gauge,
   History,
+  Loader2,
+  Route,
   ShieldCheck,
   Truck,
-  UserCheck,
+  Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useSessionStore } from "../context/AppContext";
 import { cn } from "../lib/utils";
+import { APP_GUIDES, formatGuideSize, resolveAppGuide, type AppGuideId, type ResolvedAppGuide } from "../lib/appGuides";
+import { downloadAppGuide } from "../lib/appGuidesDownload";
+import { watchAppGuides, type AppGuideRecords } from "../services/appGuidesService";
 
 type ManualItem = {
   title: string;
@@ -202,17 +206,6 @@ const TripReceiptRules = () => (
   </div>
 );
 
-const PaintDownloadNotice = () => (
-  <div className="flex items-start gap-2.5 rounded-xl border border-teal-200 bg-teal-50/70 px-3 py-2.5 text-sm leading-relaxed text-teal-900 dark:border-teal-500/20 dark:bg-teal-500/10 dark:text-teal-200">
-    <Download size={16} className="mt-0.5 shrink-0" />
-    <p>
-      <strong>Baixar pintura:</strong> na página de operação ativa, clique no
-      nome do veículo ou do reboque para baixar a pintura cadastrada pela
-      empresa.
-    </p>
-  </div>
-);
-
 const PlatformRules = () => (
   <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4 dark:border-amber-500/20 dark:bg-amber-500/10">
     <div className="flex items-start gap-3">
@@ -237,128 +230,123 @@ const PlatformRules = () => (
   </section>
 );
 
+
+type GuidePoint = { title: string; text: string };
+type GuideStage = { title: string; description: string; icon: React.ElementType; points: GuidePoint[]; note?: { title: string; text: string } };
+type GuideSummary = { id: AppGuideId; eyebrow: string; title: string; description: string; icon: React.ElementType; accent: "teal" | "blue"; stages: GuideStage[]; howTo: string[] };
+
+// Resumo dos guias oficiais (PDF). O texto abaixo acompanha o app; o PDF pode ser trocado pelo Painel Sênior sem nova versão do APK.
+const GUIDE_SUMMARIES: Record<AppGuideId, GuideSummary> = {
+  driver: {
+    id: "driver", eyebrow: "Para motoristas", title: "Guia do Motorista", icon: Truck, accent: "teal",
+    description: "Da missão ao encerramento: a NVU organiza seu trabalho para você se concentrar na viagem.",
+    stages: [
+      { title: "Etapa 1 · Antes de começar", description: "Receba a missão da empresa e confira como os trabalhos estão organizados.", icon: ClipboardCheck, points: [
+        { title: "Entre na empresa certa", text: "Inscreva-se em uma empresa virtual. Após a aprovação, selecione a empresa e o simulador da operação." },
+        { title: "Identifique o tipo de trabalho", text: "Em Trabalhos designados, a empresa envia cada operação manualmente. Na Fila automática, várias operações chegam juntas, na ordem planejada." },
+        { title: "Entenda a missão", text: "Cada operação reúne viagens, especificações de transporte e prazo. Confira a meta, o veículo e o reboque, quando necessário." },
+      ], note: { title: "Não encontrou a operação?", text: "Confira a empresa e o simulador selecionados. Se necessário, confirme a designação do trabalho com o gestor." } },
+      { title: "Etapa 2 · Viaje com o Modo Pro", description: "Registre viagens sem sair do simulador, com o trabalho organizado pela NVU.", icon: Route, points: [
+        { title: "Siga sua missão", text: "Mantenha a execução alinhada às especificações do trabalho recebido e respeite a meta e o prazo definidos pela empresa." },
+        { title: "Registre cada viagem", text: "Use o Modo Pro durante a operação para registrar suas viagens e dar continuidade ao trabalho." },
+        { title: "Mantenha o foco no que importa", text: "A NVU organiza seu trabalho para apoiar a eficiência e a produtividade. Concentre-se na execução das viagens." },
+      ], note: { title: "Modo Pro compatível com", text: "ATS, ETS 2, GTO, TOE 3, WBDS e WTDS." } },
+      { title: "Etapa 3 · Conclua no prazo", description: "Conclua a missão no prazo e mantenha a sequência dos trabalhos em andamento.", icon: Gauge, points: [
+        { title: "Confira o que falta", text: "Compare as viagens registradas com a meta da operação e acompanhe o tempo restante." },
+        { title: "Finalize pelo painel", text: "Quando cumprir a meta de viagens, finalize o trabalho no painel. Respeite o prazo definido pela empresa." },
+        { title: "Continue a fila automática", text: "Se estiver na fila automática, siga os trabalhos na ordem definida. As operações já foram encaminhadas pela empresa." },
+      ], note: { title: "Histórico de viagens", text: "Use os filtros de simulador, empresa e período para localizar e conferir seus registros concluídos." } },
+    ],
+    howTo: ["Toque em Baixar guia para salvar o PDF completo do Guia do Motorista.", "Abra o PDF no aparelho para consultar quando quiser, mesmo sem internet.", "Dúvida sobre uma operação? Confirme a designação com o gestor da empresa."],
+  },
+  company: {
+    id: "company", eyebrow: "Para empresários", title: "Guia do Empresário", icon: Building2, accent: "blue",
+    description: "Frota, equipe e operações organizadas para a sua empresa de transporte virtual.",
+    stages: [
+      { title: "Etapa 1 · Prepare sua empresa", description: "Organize a estrutura antes de colocar a equipe em operação.", icon: Building2, points: [
+        { title: "Escolha empresa e simulador", text: "Confira a empresa virtual e o simulador no painel de gestão antes de cadastrar a frota e organizar os trabalhos." },
+        { title: "Registre os veículos", text: "Cadastre os veículos da frota da empresa. Confira os dados para organizar os recursos usados nas operações." },
+        { title: "Recrute sua equipe", text: "Receba inscrições, avalie os candidatos e aprove os usuários que vão fazer parte da empresa." },
+      ], note: { title: "Base organizada", text: "Frota e equipe cadastradas ajudam a preparar a distribuição dos trabalhos. Mantenha essas informações atualizadas." } },
+      { title: "Etapa 2 · Organize os trabalhos", description: "Cada operação é uma missão com viagens, especificações de transporte e prazo.", icon: Users, points: [
+        { title: "Crie a operação", text: "Defina a meta de viagens, o veículo, o reboque quando necessário e o prazo para o motorista cumprir a missão." },
+        { title: "Trabalhos designados", text: "Encaminhe a operação manualmente ao motorista. Esse fluxo dá à empresa o controle de cada envio." },
+        { title: "Fila automática", text: "Envie várias operações de uma vez, na ordem desejada. O motorista executa a sequência sem esperar um novo envio a cada trabalho." },
+      ], note: { title: "Mais foco com o Modo Pro", text: "O motorista registra viagens sem sair do simulador. A NVU organiza o trabalho para favorecer eficiência e produtividade." } },
+      { title: "Etapa 3 · Acompanhe e decida", description: "Use o andamento e os registros para orientar o futuro da empresa.", icon: Gauge, points: [
+        { title: "Veja o andamento", text: "Confira prazos, viagens registradas e o que falta para cumprir cada operação." },
+        { title: "Consulte as viagens", text: "Abra uma viagem para conferir origem, destino, valor e comprovante." },
+        { title: "Analise os períodos", text: "Compare semanas ou meses nos relatórios. Filtre por empresa, motorista e período." },
+        { title: "Planeje os próximos passos", text: "Use os resultados para ajustar o planejamento, a frota e a distribuição dos trabalhos." },
+      ], note: { title: "Simuladores do Modo Pro", text: "ATS, ETS 2, GTO, TOE 3, WBDS e WTDS." } },
+    ],
+    howTo: ["Toque em Baixar guia para salvar o PDF completo do Guia do Empresário.", "Compartilhe o PDF com os gestores e recrutadores da sua equipe.", "Siga as etapas na ordem: empresa e frota, depois trabalhos, depois acompanhamento."],
+  },
+};
+
+const stageItems = (summary: GuideSummary): ManualItem[] => summary.stages.map(stage => ({
+  title: stage.title,
+  description: stage.description,
+  icon: stage.icon,
+  content: (
+    <div className="space-y-3">
+      <ol className="space-y-2.5 text-sm leading-relaxed text-slate-600 dark:text-nvu-muted">
+        {stage.points.map((point, index) => (
+          <li key={point.title} className="flex items-start gap-3">
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] font-bold text-slate-600 dark:bg-nvu-strip dark:text-nvu-text-soft">{String(index + 1).padStart(2, "0")}</span>
+            <p><strong className="text-slate-900 dark:text-white">{point.title}.</strong> {point.text}</p>
+          </li>
+        ))}
+      </ol>
+      {stage.note && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm leading-relaxed text-slate-600 dark:border-nvu-line dark:bg-nvu-strip dark:text-nvu-text-soft">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-nvu-muted">{stage.note.title}</p>
+          <p className="mt-1">{stage.note.text}</p>
+        </div>
+      )}
+    </div>
+  ),
+}));
+
+const GuideDownloadCard = ({ guide, accent }: { guide: ResolvedAppGuide; accent: "teal" | "blue" }) => {
+  const [busy, setBusy] = React.useState(false);
+  const styles = accentStyles[accent];
+  const updated = guide.updatedAtMs ? new Date(guide.updatedAtMs).toLocaleDateString("pt-BR") : "";
+  const size = formatGuideSize(guide.size);
+  const download = async () => {
+    if (busy) return;
+    setBusy(true);
+    try { await downloadAppGuide(guide); }
+    catch { toast.error("Não foi possível baixar o guia agora. Tente novamente."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 dark:border-nvu-line dark:bg-nvu-page" data-guide-card={guide.definition.id} data-guide-source={guide.source}>
+      <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", styles.icon)}><FileText size={20} /></span>
+      <div className="min-w-0 flex-1 basis-40">
+        <p className="text-sm font-semibold text-slate-900 dark:text-white">{guide.definition.title} (PDF)</p>
+        <p className="mt-0.5 text-xs leading-snug text-slate-500 dark:text-nvu-muted">
+          {guide.source === "uploaded" ? ["Atualizado pela NVU", updated, size].filter(Boolean).join(" · ") : "Guia que acompanha o aplicativo"}
+        </p>
+      </div>
+      <button type="button" onClick={() => void download()} disabled={busy} aria-label={`Baixar ${guide.definition.title}`}
+        className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2.5 text-xs font-semibold sm:w-auto text-white transition-colors hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200">
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}Baixar guia
+      </button>
+    </div>
+  );
+};
+
 export default function Manual() {
   const { activeRole } = useSessionStore();
+  const [records, setRecords] = React.useState<AppGuideRecords>({});
+  // Sem rede ou sem permissão de leitura da ficha: continua valendo o guia que acompanha o app.
+  React.useEffect(() => {
+    try { return watchAppGuides(setRecords, () => undefined); } catch { return undefined; }
+  }, []);
 
-  const driverItems: ManualItem[] = [
-    {
-      title: "Como iniciar um trabalho",
-      description: "Solicite, receba e inicie sua operação.",
-      icon: BriefcaseBusiness,
-      content: (
-        <StepList>
-          <Step>Sem operação ativa, toque em <strong>Solicitar Nova Operação</strong>.</Step>
-          <Step>Quando a empresa enviar o trabalho, confira contrato, veículo, reboque e prazo.</Step>
-          <Step>Toque em <strong>Iniciar Operação</strong> para liberar o acompanhamento e o registro das viagens.</Step>
-        </StepList>
-      ),
-    },
-    {
-      title: "Pinturas dos veículos",
-      description: "Baixe a pintura diretamente na operação ativa.",
-      icon: Download,
-      content: (
-        <div className="space-y-3">
-          <StepList>
-            <Step>Abra a página da operação ativa.</Step>
-            <Step>Clique no nome do veículo ou do reboque para baixar a pintura cadastrada pela empresa.</Step>
-            <Step>Use a pintura correta antes de registrar a viagem.</Step>
-          </StepList>
-          <PaintDownloadNotice />
-        </div>
-      ),
-    },
-    {
-      title: "Como enviar viagens",
-      description: "Registre o comprovante e acompanhe o histórico.",
-      icon: FileImage,
-      content: (
-        <div className="space-y-3">
-          <StepList>
-            <Step>Na operação ativa, toque em <strong>Registrar viagem</strong>.</Step>
-            <Step>Preencha os dados, envie o print e confirme o registro.</Step>
-            <Step>Revise as viagens no histórico e acompanhe o progresso da operação.</Step>
-          </StepList>
-          <TripReceiptRules />
-        </div>
-      ),
-    },
-    {
-      title: "Notificações",
-      description: "Receba avisos para acompanhar suas atividades.",
-      icon: Bell,
-      content: (
-        <StepList>
-          <Step>As notificações informam respostas de solicitações, novos trabalhos e mudanças na operação.</Step>
-          <Step>Também podem avisar sobre viagens, ocorrências, suspensões e comunicados importantes.</Step>
-          <Step>Mantenha as permissões de notificação ativadas no dispositivo.</Step>
-        </StepList>
-      ),
-    },
-  ];
-
-  const adminItems: ManualItem[] = [
-    {
-      title: "Preparar a estrutura da empresa",
-      description: "Cadastre os recursos antes de criar operações.",
-      icon: Truck,
-      content: (
-        <StepList>
-          <Step>Cadastre os veículos e os reboques da frota.</Step>
-          <Step>Mantenha nomes, dados e pinturas atualizados.</Step>
-          <Step>Confira os motoristas ativos antes de distribuir trabalhos.</Step>
-        </StepList>
-      ),
-    },
-    {
-      title: "Criar e enviar uma operação",
-      description: "Defina o trabalho e designe o motorista.",
-      icon: ClipboardCheck,
-      content: (
-        <StepList>
-          <Step>Abra <strong>Nova Operação</strong> e selecione o contrato operacional.</Step>
-          <Step>Escolha o veículo, o reboque quando necessário, o motorista e o prazo.</Step>
-          <Step>Confirme em <strong>Designar</strong> para enviar a operação ao motorista.</Step>
-        </StepList>
-      ),
-    },
-    {
-      title: "Acompanhar ou cancelar trabalhos",
-      description: "Monitore o andamento de cada operação.",
-      icon: Activity,
-      content: (
-        <StepList>
-          <Step>Acompanhe operações não iniciadas, ativas e finalizadas pela área de trabalhos.</Step>
-          <Step>Abra o trabalho para conferir motorista, prazo, viagens e progresso.</Step>
-          <Step>Quando necessário, use <strong>Cancelar</strong> para encerrar uma operação em andamento.</Step>
-        </StepList>
-      ),
-    },
-    {
-      title: "Recursos Humanos e motoristas",
-      description: "Analise inscrições e mantenha a equipe atualizada.",
-      icon: UserCheck,
-      content: (
-        <StepList>
-          <Step>No Recursos Humanos, confira os dados e a foto enviados pelo candidato.</Step>
-          <Step>Aprove ou reprove a inscrição conforme os critérios da empresa.</Step>
-          <Step>Na lista de motoristas, abra o perfil e use <strong>Remover da frota</strong> quando necessário.</Step>
-        </StepList>
-      ),
-    },
-    {
-      title: "Fiscalizar viagens",
-      description: "Confira comprovantes e mantenha o padrão da empresa.",
-      icon: ShieldCheck,
-      content: (
-        <StepList>
-          <Step>Use o histórico de viagens para conferir valores, datas, motorista, veículo e comprovante.</Step>
-          <Step>Verifique se a pintura, iluminação, enquadramento e valor seguem as regras da plataforma.</Step>
-          <Step>Registre as medidas disponíveis quando encontrar viagens fora do padrão.</Step>
-        </StepList>
-      ),
-    },
-  ];
+  const order: AppGuideId[] = activeRole === "driver" ? ["driver", "company"] : activeRole === "admin" ? ["company", "driver"] : ["driver", "company"];
+  const guides = order.map(id => ({ summary: GUIDE_SUMMARIES[id], resolved: resolveAppGuide(APP_GUIDES.find(guide => guide.id === id)!, records[id]) }));
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-8">
@@ -368,65 +356,62 @@ export default function Manual() {
             <BookOpen size={22} />
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-nvu-muted">
-              Central de orientação
-            </p>
-            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-              Manual da Plataforma
-            </h1>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400 dark:text-nvu-muted">Central de orientação</p>
+            <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Manual da Plataforma</h1>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
-              Guia rápido para motoristas e administradores.
+              Guias oficiais da NVU para motoristas e empresários: resumo das etapas e PDF para baixar.
             </p>
           </div>
         </div>
-
         <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:w-fit">
-          <a
-            href="#manual-motorista"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-strip"
-          >
-            <Truck size={14} />
-            Motorista
-          </a>
-          <a
-            href="#manual-administrativo"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-strip"
-          >
-            <Building2 size={14} />
-            Administrativo
-          </a>
+          {guides.map(({ summary }) => (
+            <a key={summary.id} href={`#manual-${summary.id}`}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-strip">
+              <summary.icon size={14} />{summary.title}
+            </a>
+          ))}
         </div>
       </header>
 
-      <PlatformRules />
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-nvu-line dark:bg-nvu-page" aria-label="Como usar os guias">
+        <p className="text-sm font-bold text-slate-900 dark:text-white">Como usar os guias</p>
+        <ol className="mt-2 space-y-1.5 text-sm leading-relaxed text-slate-600 dark:text-nvu-muted">
+          <li>1. Leia o resumo das etapas logo abaixo — cada etapa abre com um toque.</li>
+          <li>2. Toque em <strong>Baixar guia</strong> para salvar o PDF completo no aparelho.</li>
+          <li>3. Quando a NVU publicar uma versão nova do guia, o botão passa a baixar o arquivo atualizado automaticamente.</li>
+        </ol>
+      </section>
 
       <div className="space-y-8">
-        <ManualGroup
-          id="manual-motorista"
-          eyebrow="Perfil do motorista"
-          title="Como usar os trabalhos da plataforma"
-          description="Inicie trabalhos, use as pinturas corretas e registre suas viagens."
-          icon={Truck}
-          accent="teal"
-          items={driverItems}
-          defaultOpenFirst={activeRole === "driver"}
-        />
+        {guides.map(({ summary, resolved }) => (
+          <div key={summary.id}>
+            <GuideDownloadCard guide={resolved} accent={summary.accent} />
+            <ManualGroup
+              id={`manual-${summary.id}`}
+              eyebrow={summary.eyebrow}
+              title={summary.title}
+              description={summary.description}
+              icon={summary.icon}
+              accent={summary.accent}
+              items={stageItems(summary)}
+              defaultOpenFirst={(summary.id === "driver" && activeRole === "driver") || (summary.id === "company" && activeRole === "admin")}
+            />
+            <ul className="mt-3 space-y-1 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500 dark:bg-nvu-strip dark:text-nvu-muted">
+              {summary.howTo.map(line => <li key={line}>• {line}</li>)}
+            </ul>
+          </div>
+        ))}
 
-        <ManualGroup
-          id="manual-administrativo"
-          eyebrow="Empresa e administração"
-          title="Como funciona a gestão da empresa"
-          description="Cadastre recursos, distribua operações e fiscalize os trabalhos."
-          icon={ShieldCheck}
-          accent="blue"
-          items={adminItems}
-          defaultOpenFirst={activeRole === "admin"}
-        />
+        <PlatformRules />
+
+        <section id="manual-comprovante" className="scroll-mt-20">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-nvu-line dark:bg-nvu-page"><TripReceiptRules /></div>
+        </section>
       </div>
 
       <footer className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-nvu-muted">
         <History size={13} />
-        Consulte este manual para revisar os principais fluxos.
+        Consulte os guias sempre que precisar revisar um fluxo.
       </footer>
     </div>
   );

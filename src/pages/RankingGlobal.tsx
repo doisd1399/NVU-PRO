@@ -39,6 +39,7 @@ import {
 import {
   buildCompanyRankingFromAggregate,
   buildDriverRankingFromAggregate,
+  buildInternalDriverRankingFromAggregate,
   buildRankingAggregatePeriodKey,
   isRankingEligibleCompany,
   mergeRankingCompanyCatalogs,
@@ -456,8 +457,7 @@ export default function RankingGlobal() {
     aggregatePeriodType &&
       aggregatePeriodKey &&
       simulator &&
-      simulator !== ALL_SIMULATORS_VALUE &&
-      rankingType !== "interno",
+      simulator !== ALL_SIMULATORS_VALUE,
   );
   const rankingAggregateState = useRankingAggregate({
     simulatorId: simulator,
@@ -498,7 +498,16 @@ export default function RankingGlobal() {
     rankingType !== "interno" &&
       (!aggregatePeriodType || simulator === ALL_SIMULATORS_VALUE),
   );
-  const useTripFallback = rankingType === "interno";
+  // Interno lê primeiro o agregado do servidor (filtrado pela empresa). A
+  // leitura direta das viagens da empresa só entra quando o agregado não existe
+  // para o período/simulador ou o servidor não respondeu.
+  const internalNeedsTripFallback = Boolean(
+    rankingType === "interno" &&
+      (!aggregateEligible ||
+        rankingAggregateState.status === "unavailable" ||
+        rankingAggregateState.status === "missing"),
+  );
+  const useTripFallback = internalNeedsTripFallback;
 
   // Standard weekly/monthly rankings read only companies referenced by the
   // selected aggregate. Bounded fallback reads every eligible company in the
@@ -542,7 +551,9 @@ export default function RankingGlobal() {
 
   const companyCatalogRetryRef = useRef(0);
   useEffect(() => {
-    if (!effectiveTripFallback || companyCatalogLoaded) {
+    // O seletor de empresas do Interno precisa do catálogo mesmo quando o
+    // ranking vem do agregado do servidor.
+    if ((!effectiveTripFallback && rankingType !== "interno") || companyCatalogLoaded) {
       companyCatalogRetryRef.current = 0;
       return;
     }
@@ -569,6 +580,7 @@ export default function RankingGlobal() {
     companyCatalogLoaded,
     effectiveTripFallback,
     loadCompanyCatalog,
+    rankingType,
   ]);
 
   const rankingCacheKey = useMemo(
@@ -775,6 +787,17 @@ export default function RankingGlobal() {
         ? activeInternalDriverIds
         : [],
     );
+    if (
+      deferredRankingInput.rankingType === "interno" &&
+      deferredRankingInput.consolidatedAggregate
+    ) {
+      const wanted = String(deferredRankingInput.selectedCompanyId || "").trim();
+      Object.entries(deferredRankingInput.consolidatedAggregate.drivers).forEach(
+        ([driverId, stats]: [string, { companyId?: string }]) => {
+          if (!wanted || String(stats.companyId || "").trim() === wanted) ids.add(driverId);
+        },
+      );
+    }
     preparedRankingTrips.forEach((trip: any) => {
       if (!trip.isValid) return;
       const tripCompanyId = trip.empresaId || trip.companyId || trip.company_id;
@@ -956,6 +979,16 @@ export default function RankingGlobal() {
           deferredRankingInput.companies,
           deferredRankingInput.simulators,
           (allCompanyMembers as unknown) as Record<string, unknown>[],
+        );
+      }
+      if (deferredRankingInput.rankingType === "interno") {
+        return buildInternalDriverRankingFromAggregate(
+          deferredRankingInput.consolidatedAggregate,
+          users,
+          deferredRankingInput.companies,
+          deferredRankingInput.simulators,
+          (allCompanyMembers as unknown) as Record<string, unknown>[],
+          deferredRankingInput.selectedCompanyId,
         );
       }
     }

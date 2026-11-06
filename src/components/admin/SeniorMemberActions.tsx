@@ -2,10 +2,15 @@ import { watchPrivateUser } from "../../services/privateUserProfiles";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { ModalSelect } from "../ui/ModalSelect";
-import { createPortal } from "react-dom";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "../ui/Button";
+import { ArrowRight, ChevronLeft, Loader2, Play, RotateCcw, ShieldAlert, Trash2, UserMinus } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ManagementDialog } from "./management/ManagementDialog";
+import "./management/ManagementDashboard.css";
+import "./management/OperationInfoSheet.css";
+import "./management/SeniorSheets.css";
 import {
   deleteSeniorProfile,
   endSeniorOperationalSuspension,
@@ -104,6 +109,25 @@ export function SeniorMemberActions({
     } finally { setBusy(false); }
   };
 
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase() || "NV";
+  const needsReason = action === "suspend" || action === "delete";
+  const actionLabel = action === "remove" ? "Remover da frota" : action === "suspend" ? "Suspender conta" : action === "reactivate" ? "Reativar conta"
+    : action === "end-operational" ? "Encerrar suspensão" : action === "reverse" ? "Reverter suspensão" : "Excluir perfil/conta";
+  const actionHint = action === "remove" ? "Remove somente o vínculo desta frota; a conta e o histórico continuam."
+    : action === "suspend" ? "Atualiza Authentication, Firestore e sessões do funcionário."
+    : action === "reactivate" ? "Reativa a conta pelo backend administrativo."
+    : action === "end-operational" ? "Finaliza somente a suspensão operacional ativa."
+    : action === "reverse" ? "Reverte a suspensão administrativa registrada."
+    : "Exclusão recuperável: os dados históricos compartilhados são preservados e o acesso é revogado.";
+  const danger = action === "delete" || action === "remove";
+  const option = (id: string, label: string, hint: string, Icon: LucideIcon, pick: () => void, tone?: "warn" | "danger" | "accent") => (
+    <button type="button" key={id} className="nvu-senior-action" data-action={id} data-tone={tone} onClick={pick}>
+      <Icon aria-hidden="true" strokeWidth={1.7} />
+      <span><strong>{label}</strong><small>{hint}</small></span>
+      <span className="nvu-op-sheet-arrow"><ArrowRight size={22} strokeWidth={1.8} /></span>
+    </button>
+  );
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
@@ -115,31 +139,55 @@ export function SeniorMemberActions({
         {showStatusBadges && operationalSuspended && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">Suspensão operacional</span>}
         <Button type="button" variant="outline" className={triggerClassName} onClick={() => setOpen(true)} disabled={busy || Boolean(pendingActionId)}>{triggerLabel}</Button>
       </div>
-      {open && createPortal(
-        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-nvu-surface p-5 shadow-2xl border border-slate-200 dark:border-nvu-line">
-            <div className="flex items-start justify-between gap-3">
-              <div><h3 className="text-base font-bold text-slate-900 dark:text-white">Ações do funcionário</h3><p className="mt-1 text-xs text-slate-500">{name} · {user?.email || "Sem e-mail"}</p><p className="text-[11px] text-slate-400">Frota: {companyName} · Status: {accountLabel}</p></div>
-              <button type="button" onClick={close} disabled={busy} aria-label="Fechar" className="text-slate-400">×</button>
+      {open && (
+        <ManagementDialog title="Ações do funcionário" variant="sheet" busy={busy} onClose={close}>
+          <div className="nvu-senior-sheet" data-testid="senior-member-actions-sheet">
+            <div className="nvu-senior-head">
+              <span className="nvu-senior-avatar" aria-hidden="true">{initials}</span>
+              <div><strong>{name}</strong><small>{user?.email || "Sem e-mail"}</small><small>Frota: {companyName}</small></div>
+            </div>
+            <div className="nvu-senior-chips">
+              <span className="nvu-senior-chip" data-tone={pendingActionId ? "warn" : accountDeleted ? "danger" : accountSuspended ? "warn" : "ok"}><i />{accountLabel}</span>
+              {operationalSuspended && <span className="nvu-senior-chip" data-tone="warn"><i />Suspensão operacional</span>}
             </div>
             {!action ? (
-              <div className="grid gap-2 pt-4">
-                <button type="button" className="rounded-xl border px-3 py-3 text-left text-sm font-semibold" onClick={() => setAction("remove")}>Remover da frota<span className="block text-[11px] font-normal text-slate-500 mt-1">Remove somente o vínculo desta frota e preserva a conta e o histórico.</span></button>
-                {!operationalSuspended && !accountSuspended && !accountDeleted && <button type="button" className="rounded-xl border border-amber-200 px-3 py-3 text-left text-sm font-semibold text-amber-700" onClick={() => setAction("suspend")}>Suspender conta<span className="block text-[11px] font-normal text-slate-500 mt-1">Atualiza Authentication, Firestore e sessões.</span></button>}
-                {operationalSuspended && <button type="button" className="rounded-xl border border-amber-200 px-3 py-3 text-left text-sm font-semibold text-amber-700" onClick={() => setAction("end-operational")}>Encerrar suspensão operacional<span className="block text-[11px] font-normal text-slate-500 mt-1">Finaliza somente a suspensão operacional ativa.</span></button>}
-                {accountSuspended && <><button type="button" className="rounded-xl border px-3 py-3 text-left text-sm font-semibold" onClick={() => setAction("reactivate")}>Reativar conta<span className="block text-[11px] font-normal text-slate-500 mt-1">Reativa a conta pelo backend administrativo.</span></button><button type="button" className="rounded-xl border border-violet-200 px-3 py-3 text-left text-sm font-semibold text-violet-700" onClick={() => setAction("reverse")}>Reverter suspensão<span className="block text-[11px] font-normal text-slate-500 mt-1">Reverte a suspensão administrativa registrada.</span></button></>}
-                <button type="button" className="rounded-xl border border-red-200 px-3 py-3 text-left text-sm font-semibold text-red-700" onClick={() => setAction("delete")}>Excluir perfil/conta<span className="block text-[11px] font-normal text-slate-500 mt-1">Soft-delete recuperável; dados históricos compartilhados serão preservados.</span></button>
-              </div>
+              <>
+                <section className="nvu-senior-group" aria-label="Frota">
+                  <h3>Frota</h3>
+                  {option("remove", "Remover da frota", "Remove somente o vínculo desta frota e preserva a conta e o histórico.", UserMinus, () => setAction("remove"))}
+                </section>
+                {(!operationalSuspended && !accountSuspended && !accountDeleted || operationalSuspended || accountSuspended) && (
+                  <section className="nvu-senior-group" aria-label="Conta">
+                    <h3>Conta</h3>
+                    {!operationalSuspended && !accountSuspended && !accountDeleted && option("suspend", "Suspender conta", "Atualiza Authentication, Firestore e sessões.", ShieldAlert, () => setAction("suspend"), "warn")}
+                    {operationalSuspended && option("end-operational", "Encerrar suspensão operacional", "Finaliza somente a suspensão operacional ativa.", Play, () => setAction("end-operational"), "warn")}
+                    {accountSuspended && option("reactivate", "Reativar conta", "Reativa a conta pelo backend administrativo.", Play, () => setAction("reactivate"), "accent")}
+                    {accountSuspended && option("reverse", "Reverter suspensão", "Reverte a suspensão administrativa registrada.", RotateCcw, () => setAction("reverse"))}
+                  </section>
+                )}
+                <section className="nvu-senior-group" aria-label="Zona de risco">
+                  <h3>Zona de risco</h3>
+                  {option("delete", "Excluir perfil/conta", "Soft-delete recuperável; dados históricos compartilhados serão preservados.", Trash2, () => setAction("delete"), "danger")}
+                </section>
+              </>
             ) : (
-              <div className="space-y-3 pt-4">
-                {(action === "suspend" || action === "delete") && <label className="block text-xs font-semibold">Motivo<textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="Informe o motivo" /></label>}
-                {action === "suspend" && <label className="block text-xs font-semibold">Prazo<ModalSelect title="Prazo da suspensão" value={duration} onChange={e => setDuration(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"><option value="1">1 hora</option><option value="24">1 dia</option><option value="168">7 dias</option><option value="720">30 dias</option><option value="indefinite">Indeterminado</option></ModalSelect></label>}
-                {action === "delete" && <label className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo a exclusão recuperável do perfil/conta e entendo que o acesso será revogado.</label>}
-                <div className="flex gap-2 justify-end"><Button type="button" variant="outline" onClick={() => reset()} disabled={busy}>Voltar</Button><Button type="button" variant={action === "delete" || action === "remove" ? "danger" : "primary"} onClick={() => void execute()} disabled={busy || (action === "delete" && !confirmed) || ((action === "suspend" || action === "delete") && !reason.trim())}>{busy ? "Processando..." : action === "remove" ? "Remover da frota" : action === "suspend" ? "Suspender conta" : action === "reactivate" ? "Reativar conta" : action === "end-operational" ? "Encerrar suspensão" : action === "reverse" ? "Reverter suspensão" : "Excluir perfil/conta"}</Button></div>
+              <div className="nvu-senior-form">
+                <button type="button" className="nvu-senior-back" onClick={() => reset()} disabled={busy}><ChevronLeft size={18} aria-hidden="true" />Voltar</button>
+                <div><h3>{actionLabel}</h3><p>{actionHint}</p></div>
+                {needsReason && <label className="nvu-senior-field">Motivo<textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Informe o motivo" /></label>}
+                {action === "suspend" && <label className="nvu-senior-field">Prazo<ModalSelect title="Prazo da suspensão" value={duration} onChange={e => setDuration(e.target.value)} className="nvu-senior-input"><option value="1">1 hora</option><option value="24">1 dia</option><option value="168">7 dias</option><option value="720">30 dias</option><option value="indefinite">Indeterminado</option></ModalSelect></label>}
+                {action === "delete" && <label className="nvu-senior-check"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />Confirmo a exclusão recuperável do perfil/conta e entendo que o acesso será revogado.</label>}
+                <div className="nvu-central-dialog-actions">
+                  <button type="button" onClick={() => reset()} disabled={busy}>Cancelar</button>
+                  <button type="button" data-primary={danger ? undefined : "true"} data-orange={danger ? "true" : undefined} onClick={() => void execute()}
+                    disabled={busy || (action === "delete" && !confirmed) || (needsReason && !reason.trim())}>
+                    {busy ? <><Loader2 className="animate-spin" size={16} aria-hidden="true" />Processando...</> : actionLabel}
+                  </button>
+                </div>
               </div>
             )}
           </div>
-        </div>, document.body
+        </ManagementDialog>
       )}
     </>
   );
