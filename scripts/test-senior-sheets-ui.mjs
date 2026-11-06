@@ -200,24 +200,43 @@ try {
     await context.close();
   });
   for (const [theme, viewport, name] of [["dark", { width: 390, height: 844 }, "phone"], ["light", { width: 1100, height: 800 }, "desktop"]]) {
-    await check(`Manual: resumo dos dois guias, botões de download e instruções (${theme}, ${name})`, async () => {
+    await check(`Guias: um guia por vez com seletor, ícone no título, legenda e etapas; sem manual genérico (${theme}, ${name})`, async () => {
       const { context, page } = await open("manual", { theme, viewport, role: "admin" });
-      await page.getByRole("heading", { name: "Guia do Empresário" }).waitFor();
-      for (const heading of ["Guia do Motorista", "Guia do Empresário"]) assert(await page.getByRole("heading", { name: heading }).isVisible(), heading);
-      assert.equal(await page.locator("[data-guide-card]").count(), 2);
-      assert.deepEqual(await page.locator("[data-guide-card]").evaluateAll(cards => cards.map(card => card.getAttribute("data-guide-card"))), ["company", "driver"], "admin sees the company guide first");
-      assert.equal(await page.getByRole("button", { name: /Baixar Guia do Motorista/ }).count(), 1);
-      assert(await page.getByText("Como usar os guias").isVisible());
-      assert(await page.getByText("Etapa 1 · Prepare sua empresa").isVisible());
-      assert(await page.getByText("Etapa 3 · Conclua no prazo").isVisible());
-      assert(await page.getByText("Guia que acompanha o aplicativo").first().isVisible());
-      assert.equal(await page.getByText("Pinturas dos veículos").count(), 0, "generic app manual is gone");
+      await page.getByTestId("guides-page").waitFor();
+      assert.equal(await page.locator("h1").innerText(), "Guia do Empresário", "admin sees the company guide first");
+      assert.deepEqual(await page.locator('[role="tab"]').allInnerTexts(), ["Motorista", "Empresário"]);
+      assert.equal(await page.locator('[role="tab"][aria-selected="true"]').innerText(), "Empresário");
+      // ordem aprovada: ícone ao lado do título, legenda, depois os botões Motorista/Empresário, depois o PDF e as etapas
+      const y = async selector => (await page.locator(selector).first().boundingBox()).y;
+      const iconBox = await page.locator(".nvu-guides-icon").boundingBox(), titleBox = await page.locator("h1").boundingBox();
+      assert(iconBox.x + iconBox.width <= titleBox.x + 1 && Math.abs((iconBox.y + iconBox.height / 2) - (titleBox.y + titleBox.height / 2)) < 8, "icon beside the title");
+      assert(await y(".nvu-guides-lead") < await y(".nvu-guides-tabs"), "tabs below the legend");
+      assert(await y(".nvu-guides-tabs") < await y(".nvu-guides-pdf") && await y(".nvu-guides-pdf") < await y(".nvu-guides-stage"));
+      assert.equal(await page.locator(".nvu-guides-stage").count(), 3);
+      assert.equal(await page.locator(".nvu-guides-stage[open]").count(), 1, "only the first stage starts open");
+      assert(await page.getByText("Escolha a empresa").count() === 0 && await page.getByText("Empresa e simulador").isVisible());
+      for (const gone of ["Como usar os guias", "Regras da plataforma", "Padrão do comprovante", "Central de orientação", "Pinturas dos veículos"]) assert.equal(await page.getByText(gone).count(), 0, gone);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "no horizontal scroll");
-      await page.locator("details").first().evaluate(element => { element.open = true; });
-      await shot(page, `manual-${theme}-${name}`);
+      assert.equal(await page.locator('[data-guide-card="company"][data-guide-source="bundled"]').count(), 1);
+      await shot(page, `guides-company-${theme}-${name}`);
+      await page.locator('[data-guide-tab="driver"]').click();
+      assert.equal(await page.locator("h1").innerText(), "Guia do Motorista");
+      assert.equal(await page.locator('[role="tab"][aria-selected="true"]').innerText(), "Motorista");
+      assert(await page.getByText("Entre na empresa certa").isVisible());
+      assert.equal(await page.getByText("Empresa e simulador").count(), 0, "one guide at a time");
+      assert.equal(await page.locator('[data-guide-card="driver"]').count(), 1);
+      await page.locator(".nvu-guides-stage").nth(1).locator("summary").click();
+      assert(await page.getByText("Registre cada viagem").isVisible(), "stages open and close");
+      await shot(page, `guides-driver-${theme}-${name}`);
       await context.close();
     });
   }
+  await check("Guias: motorista abre no guia do motorista", async () => {
+    const { context, page } = await open("manual", { role: "driver" });
+    await page.getByTestId("guides-page").waitFor();
+    assert.equal(await page.locator("h1").innerText(), "Guia do Motorista");
+    await context.close();
+  });
   await check("Manual: guia enviado pelo Sênior aparece com data e tamanho e o botão baixa o arquivo novo", async () => {
     const { context, page } = await open("manual");
     await page.evaluate(() => window.__seedGuide("driver", { updatedAt: new Date("2026-11-06T15:00:00Z"), size: 800000 }));
@@ -226,7 +245,7 @@ try {
     assert.equal(await card.getAttribute("data-guide-source"), "uploaded");
     const text = await card.innerText();
     assert(text.includes("Atualizado pela NVU") && text.includes("06/11/2026") && /781 KB|0,8 MB/.test(text), text);
-    const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 4000 }).catch(() => null), card.getByRole("button", { name: /Baixar/ }).click()]);
+    const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 4000 }).catch(() => null), card.click()]);
     await context.close();
   });
   assert.deepEqual(errors, [], "page errors: " + errors.join("; "));
