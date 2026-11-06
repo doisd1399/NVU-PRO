@@ -1130,6 +1130,26 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Guias do app (Motorista/Empresário). Qualquer usuário autenticado lê; só o Sênior troca ou exclui.
+    // Sem ficha, o app mostra o guia que acompanha a versão instalada.
+    match /app_guides/{guideId} {
+      function validAppGuide(data) {
+        return guideId in ['driver', 'company'] &&
+          data.keys().hasOnly(['id', 'fileName', 'storagePath', 'downloadUrl', 'size', 'contentType', 'updatedBy', 'updatedAt']) &&
+          data.id == guideId &&
+          data.fileName is string && data.fileName.size() > 0 && data.fileName.size() <= 120 &&
+          data.storagePath is string && data.storagePath.matches('app-guides/' + guideId + '/[^/]+\\.pdf') &&
+          data.downloadUrl is string && data.downloadUrl.matches('https://.*') && data.downloadUrl.size() <= 2048 &&
+          data.size is number && data.size > 0 && data.size <= 15728640 &&
+          data.contentType == 'application/pdf' &&
+          data.updatedBy is string && data.updatedBy.size() <= 128 &&
+          data.updatedAt == request.time;
+      }
+      allow read: if isAuthenticated();
+      allow create, update: if isSenior() && validAppGuide(request.resource.data);
+      allow delete: if isSenior();
+    }
+
     match /simulators/{id} {
       function validSimulator(data) {
         return data.keys().hasOnly(['id', 'name', 'active', 'createdAt', 'updatedAt']) &&

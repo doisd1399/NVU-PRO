@@ -600,3 +600,24 @@ export function buildDriverRankingFromAggregate(
     .sort(stableRankingSort);
   return finalizeCurrencyRanking(rows) as RankingPageDriverItem[];
 }
+
+/**
+ * Ranking interno a partir do agregado do servidor: usa o mesmo universo do
+ * ranking Global e mantém só os motoristas da empresa escolhida. Assim o
+ * Interno e o Global nunca divergem e o Interno não depende de ler as viagens
+ * da empresa no aparelho (leitura que as regras restringem a gestores/membros).
+ */
+export function buildInternalDriverRankingFromAggregate(
+  aggregate: RankingAggregateDocument,
+  users: Record<string, unknown>[],
+  companies: Record<string, unknown>[],
+  simulators: Record<string, unknown>[] = [],
+  companyMembers: Record<string, unknown>[] = [],
+  companyId = "",
+): RankingPageDriverItem[] {
+  const wanted = String(companyId || "").trim();
+  if (!wanted) return [];
+  const rows = buildDriverRankingFromAggregate(aggregate, users, companies, simulators, companyMembers)
+    .filter((row) => String(row.companyId || "").trim() === wanted);
+  return finalizeCurrencyRanking(rows) as RankingPageDriverItem[];
+}
