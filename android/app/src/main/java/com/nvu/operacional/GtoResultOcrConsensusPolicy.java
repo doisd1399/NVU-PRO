@@ -128,15 +128,136 @@ final class GtoResultOcrConsensusPolicy {
     }
 
     /**
+     * TOE 3 lays its result grid out on a 20:9 reference viewport (centered; the UI
+     * scales with the screen height on wider screens and with the width on narrower
+     * ones). Region fractions below are relative to that viewport and calibrated on
+     * real result screens: the "Renda total" row (label + value cell) sits at about
+     * x 0.50-0.70 / y 0.60-0.68, the white value cell at x 0.60-0.68.
+     */
+    private static final float TOE3_REFERENCE_ASPECT = 20f / 9f;
+    private static final float[] TOE3_ROW = {0.50f, 0.598f, 0.20f, 0.084f};
+    private static final float[] TOE3_VALUE_CELL = {0.585f, 0.598f, 0.115f, 0.084f};
+
+    private static float[] toe3ToFrame(float[] region, int width, int height) {
+        float aspect = width / (float) Math.max(1, height);
+        float vx = 0f, vy = 0f, vw = 1f, vh = 1f;
+        if (aspect > TOE3_REFERENCE_ASPECT) {
+            vw = TOE3_REFERENCE_ASPECT / aspect;
+            vx = (1f - vw) / 2f;
+        } else if (aspect < TOE3_REFERENCE_ASPECT) {
+            vh = aspect / TOE3_REFERENCE_ASPECT;
+            vy = (1f - vh) / 2f;
+        }
+        return new float[]{vx + vw * region[0], vy + vh * region[1], vw * region[2], vh * region[3]};
+    }
+
+    /**
      * Normalized {left, top, width, height} of the dedicated monetary crop. The
      * default region (GTO/Global Truck "Valor a receber") ends at 61% of the
-     * height, above the TOE 3 "Renda total" row (about 62-66%), so the two
-     * dedicated TOE 3 reads never saw the payout and only the modal/full-frame
-     * reads could vote. TOE 3 gets a region over its two bottom grid rows.
+     * height, above the TOE 3 "Renda total" row (about 62-66%), so TOE 3 gets the
+     * label + value row of its own grid.
      */
-    static float[] amountRegion(String simulatorKey) {
-        if ("toe-3".equals(simulatorKey)) return new float[]{0.34f, 0.56f, 0.42f, 0.18f};
+    static float[] amountRegion(String simulatorKey, int width, int height) {
+        if ("toe-3".equals(simulatorKey)) return toe3ToFrame(TOE3_ROW, width, height);
         return new float[]{0.28f, 0.27f, 0.44f, 0.34f};
+    }
+
+    /**
+     * Second dedicated crop. For TOE 3 it is only the white value cell (no label, no
+     * neighbouring rows), the cleanest possible input for a single "€ 3.934" read;
+     * the other simulators keep the same region at a different scale.
+     */
+    static float[] amountAltRegion(String simulatorKey, int width, int height) {
+        if ("toe-3".equals(simulatorKey)) return toe3ToFrame(TOE3_VALUE_CELL, width, height);
+        return amountRegion(simulatorKey, width, height);
+    }
+
+    private static final String[] TOE3_SCREEN_WORDS = {
+        "RENDATOTAL", "GANHOS", "DISTANCIAACIONADA", "DISTANCIAALCANCADA", "TEMPOGASTO", "COMBUSTIVEL",
+        "PENADEDANO", "PENALIDADEDETEMPO", "REMOVERPENALIDADES", "CONTINUAR"
+    };
+
+    /**
+     * Result-screen evidence for TOE 3. The "Renda total" label alone used to be
+     * required, but the stylized label can be misread while the rest of the grid and
+     * the buttons are fine: two different grid/button words identify the screen.
+     */
+    static boolean isToe3ResultScreen(String rawText) {
+        String compact = normalize(rawText).replace(" ", "");
+        if (compact.contains("RENDATOTAL") || compact.contains("GANHOS")) return true;
+        int hits = 0;
+        for (String word : TOE3_SCREEN_WORDS) if (compact.contains(word)) hits++;
+        return hits >= 2;
+    }
+
+    /**
+     * Reads the white value cell crop: no label is available there, so the text must
+     * hold exactly one amount ("€ 3.934", "3.934"); anything else is rejected.
+     */
+    static Long extractToe3CellAmountCents(String rawText) {
+        String normalized = normalize(rawText);
+        if (normalized.isEmpty()) return null;
+        java.util.regex.Matcher m = TOE3_AMOUNT.matcher(normalized);
+        Long found = null;
+        int count = 0;
+        while (m.find()) {
+            Long cents = parseAmountCents(m.group(2));
+            if (cents == null || cents <= 0L) continue;
+            found = cents;
+            count++;
+        }
+        return count == 1 ? found : null;
+    }
+
+    /** First available single reading, used to confirm the same value on the next frame. */
+    static Long toe3BestCandidate(String rowText, String cellText, String modalText, String fullText) {
+        Long[] reads = toe3Reads(rowText, cellText, modalText, fullText);
+        for (int index : new int[]{1, 0, 2, 3}) if (reads[index] != null) return reads[index];
+        return null;
+    }
+
+    private static Long[] toe3Reads(String rowText, String cellText, String modalText, String fullText) {
+        return new Long[]{
+            extractAmountCents("toe-3", rowText), extractToe3CellAmountCents(cellText),
+            extractAmountCents("toe-3", modalText), extractAmountCents("toe-3", fullText)
+        };
+    }
+
+    /**
+     * TOE 3 payout: the same value must be confirmed by two INDEPENDENT sources. The
+     * row crop and the value-cell crop share the very same pixels, so together they
+     * count as one source (a glyph misread as 6 -> 8 would repeat in both); the other
+     * sources are the modal crop, the full frame and the previous frame's reading.
+     * Never a single source: a misread glyph must not become the payout.
+     */
+    static Long findToe3Amount(String rowText, String cellText, String modalText, String fullText, Long previousFrameAmount) {
+        Long[] reads = toe3Reads(rowText, cellText, modalText, fullText);
+        int[] groupOf = {0, 0, 1, 2};   // row/cell = 0, modal = 1, full = 2, previous frame = 3
+        java.util.Map<Long, java.util.Set<Integer>> groups = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < reads.length; i++) {
+            if (reads[i] == null) continue;
+            groups.computeIfAbsent(reads[i], key -> new java.util.HashSet<>()).add(groupOf[i]);
+        }
+        if (previousFrameAmount != null && groups.containsKey(previousFrameAmount)) groups.get(previousFrameAmount).add(3);
+        Long winner = null;
+        for (java.util.Map.Entry<Long, java.util.Set<Integer>> entry : groups.entrySet()) {
+            if (entry.getValue().size() < 2) continue;
+            if (winner != null) return null;   // two different values both confirmed: no consensus
+            winner = entry.getKey();
+        }
+        return winner;
+    }
+
+    /** Currency sign read next to the value (cell/row crops carry no label to bind it to). */
+    static String toe3Currency(String... texts) {
+        java.util.Set<String> currencies = new LinkedHashSet<>();
+        if (texts != null) for (String text : texts) {
+            String n = normalize(text);
+            if (n.contains("€") || n.contains("EUR")) currencies.add("EUR");
+            if (n.contains("R$") || n.contains("BRL")) currencies.add("BRL");
+            if (n.contains("US$") || n.contains("USD")) currencies.add("USD");
+        }
+        return currencies.size() == 1 ? currencies.iterator().next() : "";
     }
 
     /**

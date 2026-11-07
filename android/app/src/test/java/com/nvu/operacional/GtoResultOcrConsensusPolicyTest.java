@@ -152,21 +152,94 @@ public class GtoResultOcrConsensusPolicyTest {
     }
 
     @Test
-    public void toe3AmountRegionCoversTheRendaTotalRowOfTheReportedScreen() {
-        // Linha "Renda total" na captura reportada (2000x900): x 0.520-0.680, y 0.618-0.660.
-        float[] toe = GtoResultOcrConsensusPolicy.amountRegion("toe-3");
-        assertTrue(toe[0] <= 0.52f && toe[0] + toe[2] >= 0.68f);
-        assertTrue(toe[1] <= 0.618f && toe[1] + toe[3] >= 0.660f);
-        // Margem para telas com outra proporção (a interface do jogo é centralizada e escalada pela altura).
-        assertTrue(toe[0] <= 0.50f && toe[0] + toe[2] >= 0.73f);
-        // O recorte antigo (usado pelos demais simuladores) termina em 61% da altura e não via a linha.
-        float[] other = GtoResultOcrConsensusPolicy.amountRegion("global-truck");
-        assertTrue(other[1] + other[3] < 0.618f);
-        assertEquals(0.28f, other[0], 0.0001f);
-        assertEquals(0.27f, other[1], 0.0001f);
-        assertEquals(0.44f, other[2], 0.0001f);
-        assertEquals(0.34f, other[3], 0.0001f);
-        float[] gto = GtoResultOcrConsensusPolicy.amountRegion("");
-        assertEquals(0.34f, gto[3], 0.0001f);
+    public void toe3RegionsCoverTheRendaTotalRowAndTheValueCellOfTheReportedScreen() {
+        // Captura reportada: 2712x1220. Linha "Renda total" x 0.520-0.680 / y 0.618-0.660; célula branca x 0.600-0.678.
+        float[] row = GtoResultOcrConsensusPolicy.amountRegion("toe-3", 2712, 1220);
+        float[] cell = GtoResultOcrConsensusPolicy.amountAltRegion("toe-3", 2712, 1220);
+        assertTrue(row[0] <= 0.52f && row[0] + row[2] >= 0.68f);
+        assertTrue(row[1] <= 0.618f && row[1] + row[3] >= 0.660f);
+        assertTrue(cell[0] <= 0.600f && cell[0] + cell[2] >= 0.678f);
+        assertTrue(cell[1] <= 0.618f && cell[1] + cell[3] >= 0.660f);
+        // O recorte da célula não alcança o rótulo (só o valor).
+        assertTrue(cell[0] > 0.56f);
+        // Telas mais estreitas (16:9) e mais largas (21:9) mantêm a célula dentro do recorte.
+        for (int[] size : new int[][]{{1920, 1080}, {2520, 1080}, {2400, 1080}}) {
+            float aspect = size[0] / (float) size[1];
+            float vw = aspect > 20f / 9f ? (20f / 9f) / aspect : 1f, vx = (1f - vw) / 2f;
+            float vh = aspect < 20f / 9f ? aspect / (20f / 9f) : 1f, vy = (1f - vh) / 2f;
+            float[] c = GtoResultOcrConsensusPolicy.amountAltRegion("toe-3", size[0], size[1]);
+            float cellLeft = vx + vw * 0.600f, cellRight = vx + vw * 0.678f, cellTop = vy + vh * 0.618f, cellBottom = vy + vh * 0.660f;
+            assertTrue(size[0] + "x" + size[1], c[0] <= cellLeft && c[0] + c[2] >= cellRight && c[1] <= cellTop && c[1] + c[3] >= cellBottom);
+        }
+        // Os demais simuladores ficam exatamente como estavam (termina em 61% da altura).
+        for (String key : new String[]{"global-truck", "wtds", "wbds", ""}) {
+            float[] other = GtoResultOcrConsensusPolicy.amountRegion(key, 2712, 1220);
+            assertEquals(0.28f, other[0], 0.0001f);
+            assertEquals(0.27f, other[1], 0.0001f);
+            assertEquals(0.44f, other[2], 0.0001f);
+            assertEquals(0.34f, other[3], 0.0001f);
+            float[] alt = GtoResultOcrConsensusPolicy.amountAltRegion(key, 2712, 1220);
+            assertEquals(other[0], alt[0], 0.0001f);
+            assertEquals(other[3], alt[3], 0.0001f);
+        }
+    }
+
+    @Test
+    public void toe3ValueCellReadAcceptsOnlyASingleAmount() {
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("€ 3.934"));
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("€3.934"));
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("3.934"));
+        assertEquals(Long.valueOf(415673), GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("€ 4.156,73"));
+        assertEquals(null, GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("- € 214 € 3.934"));
+        assertEquals(null, GtoResultOcrConsensusPolicy.extractToe3CellAmountCents(""));
+        assertEquals(null, GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("tal"));
+        assertEquals(null, GtoResultOcrConsensusPolicy.extractToe3CellAmountCents("0"));
+    }
+
+    @Test
+    public void toe3ResultScreenIsRecognisedEvenWhenTheRendaTotalLabelIsMisread() {
+        assertTrue(GtoResultOcrConsensusPolicy.isToe3ResultScreen("Renda total € 3.934"));
+        assertTrue(GtoResultOcrConsensusPolicy.isToe3ResultScreen("Rendatotal"));
+        assertTrue(GtoResultOcrConsensusPolicy.isToe3ResultScreen("Distância acionada 224 Km Pena de dano - € 214 Continuar Remover Penalidades"));
+        assertTrue(GtoResultOcrConsensusPolicy.isToe3ResultScreen("Combustível 339 l Continuar"));
+        // Uma palavra solta (ou uma tela qualquer com valor em €) não basta.
+        assertFalse(GtoResultOcrConsensusPolicy.isToe3ResultScreen("Continuar"));
+        assertFalse(GtoResultOcrConsensusPolicy.isToe3ResultScreen("€ 3.934"));
+        assertFalse(GtoResultOcrConsensusPolicy.isToe3ResultScreen(""));
+    }
+
+    @Test
+    public void toe3PayoutNeedsTwoIndependentSources() {
+        // Linha + célula são os mesmos pixels: sozinhas NÃO bastam (um 6 lido como 8 se repetiria nas duas).
+        assertEquals(null, GtoResultOcrConsensusPolicy.findToe3Amount("Renda total € 3.934", "€ 3.934", "", "", null));
+        // Célula + modal (regiões independentes).
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.findToe3Amount("", "€ 3.934", "Renda total € 3.934 Continuar", "", null));
+        // Linha + tela inteira.
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.findToe3Amount("Renda total € 3.934", "", "", "Renda total € 3.934", null));
+        // Modal + tela inteira, sem os recortes dedicados.
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.findToe3Amount("", "", "Renda total € 3.934", "Renda total € 3.934", null));
+        // Mesmo valor lido no quadro anterior (tela estática, nova tentativa): vale.
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.findToe3Amount("", "€ 3.934", "", "", Long.valueOf(393400)));
+        assertEquals(Long.valueOf(393400), GtoResultOcrConsensusPolicy.findToe3Amount("Renda total € 3.934", "€ 3.934", "", "", Long.valueOf(393400)));
+        // Leitura única no primeiro quadro não basta.
+        assertEquals(null, GtoResultOcrConsensusPolicy.findToe3Amount("", "€ 3.934", "", "", null));
+        // Quadro anterior com outro valor (animação de contagem): não confirma.
+        assertEquals(null, GtoResultOcrConsensusPolicy.findToe3Amount("", "€ 3.934", "", "", Long.valueOf(210000)));
+        // Duas fontes independentes discordam (3.934 x 8.934): sem consenso.
+        assertEquals(null, GtoResultOcrConsensusPolicy.findToe3Amount("Renda total € 3.934", "€ 3.934", "Renda total € 8.934", "", null));
+        // 6 -> 8 repetido em linha+célula e lido certo no modal: o modal e o erro empatam em fontes? Não: o erro só tem 1 fonte.
+        assertEquals(null, GtoResultOcrConsensusPolicy.findToe3Amount("Renda total € 3.984", "€ 3.984", "Renda total € 3.934", "", null));
+        // A Pena de dano nunca vira ganho, nem no recorte da célula.
+        assertEquals(null, GtoResultOcrConsensusPolicy.findToe3Amount("", "- € 214", "", "", null));
+        assertEquals(Long.valueOf(21400), GtoResultOcrConsensusPolicy.toe3BestCandidate("", "€ 214", "", ""));
+        assertEquals(null, GtoResultOcrConsensusPolicy.toe3BestCandidate("", "", "", ""));
+    }
+
+    @Test
+    public void toe3CurrencyComesFromTheValueCellWhenThereIsNoLabelToBindTo() {
+        assertEquals("EUR", GtoResultOcrConsensusPolicy.toe3Currency("€ 3.934"));
+        assertEquals("EUR", GtoResultOcrConsensusPolicy.toe3Currency("Renda total", "€ 3.934", "- € 214"));
+        assertEquals("", GtoResultOcrConsensusPolicy.toe3Currency("3.934"));
+        assertEquals("", GtoResultOcrConsensusPolicy.toe3Currency("€ 3.934", "US$ 3.934"));
     }
 }

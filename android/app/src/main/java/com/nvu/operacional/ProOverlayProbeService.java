@@ -47,6 +47,27 @@ public final class ProOverlayProbeService extends Service {
         return session != null && session.ready && session.attachReceiptReader(owner);
     }
 
+    /**
+     * A MediaProjection display only produces a frame when the screen changes. A static
+     * result screen therefore never sends a second frame; re-binding the output surface
+     * makes the display compose again so a failed read can be retried on fresh pixels.
+     */
+    public static void requestFreshFrame(SimpleAutomationService owner) {
+        ProOverlayProbeService session = active;
+        if (session != null) session.rebindSurface(owner);
+    }
+
+    private void rebindSurface(SimpleAutomationService owner) {
+        if (receiptOwner != owner || finished || display == null || reader == null) return;
+        try {
+            android.view.Surface surface = reader.getSurface();
+            display.setSurface(null);
+            display.setSurface(surface);
+        } catch (Exception error) {
+            android.util.Log.w("NVU-Pro", "Falha ao pedir novo quadro", error);
+        }
+    }
+
     public static void endReceiptCapture(SimpleAutomationService owner) {
         ProOverlayProbeService session = active;
         if (session != null) session.detachReceiptReader(owner);

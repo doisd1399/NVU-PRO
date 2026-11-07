@@ -264,10 +264,23 @@ public final class SimpleAutomationService extends Service {
     private volatile boolean captureOcrInFlight;
     private volatile int captureOcrAttempts;
     private String captureOcrEvidence = "";
+    // Frame source of the running capture (direct or temporary projection), kept so a failed read can
+    // poll the reader again instead of waiting for a new frame a static result screen never sends.
+    private volatile ImageReader lastFrameReader;
+    private volatile int lastFrameWidth;
+    private volatile int lastFrameHeight;
+    private volatile int captureFramesSeen;
+    private volatile int captureFreshFrameRequests;
+    private volatile long captureLastFreshFrameAt;
+    private final java.util.concurrent.atomic.AtomicBoolean captureRetryScheduled = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private volatile Long captureToe3PreviousAmount;
+    private volatile String captureOcrDebug = "";
     private long captureStartedAt;
     private volatile long captureStartedElapsedAt;
     private static final long CAPTURE_FRAME_WARMUP_MS = 250L;
     private static final long CAPTURE_FRAME_RETRY_MS = 160L;
+    private static final long CAPTURE_RETRY_POLL_MS = 400L;
+    private static final int CAPTURE_MAX_FRESH_FRAME_REQUESTS = 12;
     // Four independent OCR passes can take longer than the old eight-second
     // timer on a busy phone. Keep a bounded capture without aborting an active
     // read and report separately when the projection supplies no frames.
@@ -2014,6 +2027,7 @@ public final class SimpleAutomationService extends Service {
         captureOcrInFlight = false;
         captureOcrAttempts = 0;
         captureOcrEvidence = "";
+        resetCaptureRetryState();
         captureStartedAt = System.currentTimeMillis();
         captureStartedElapsedAt = SystemClock.elapsedRealtime();
         temporaryReceiptCapture = true;
@@ -2052,6 +2066,7 @@ public final class SimpleAutomationService extends Service {
         captureOcrInFlight = false;
         captureOcrAttempts = 0;
         captureOcrEvidence = "";
+        resetCaptureRetryState();
         captureStartedAt = System.currentTimeMillis();
         captureStartedElapsedAt = SystemClock.elapsedRealtime();
         android.util.Log.i(PRO_TIMING_TAG, "stage=projection_granted elapsedMs=0");
@@ -2116,7 +2131,7 @@ public final class SimpleAutomationService extends Service {
             ? "A captura autorizada não forneceu imagens. Reabra o resultado e tente novamente."
             : captureOcrInFlight
                 ? "A leitura do resultado demorou. Tente capturar novamente."
-                : "Não foi possível confirmar o valor do recebimento. Mantenha o resultado aberto e tente novamente.";
+                : "Não foi possível confirmar o valor do recebimento. Mantenha o resultado aberto e tente novamente." + debugSuffix();
         android.util.Log.w(PRO_TIMING_TAG, "stage=capture_watchdog elapsedMs=" + elapsed
             + " frameAttempts=" + captureOcrAttempts + " ocrInFlight=" + captureOcrInFlight
             + " temporaryProjection=" + temporaryReceiptCapture);
@@ -2126,11 +2141,16 @@ public final class SimpleAutomationService extends Service {
     }
 
     private void captureLatestFrame(ImageReader reader, int width, int height) {
-        if (!captureFrameRequested || captureOcrInFlight || reader == null) return;
+        if (!captureFrameRequested || reader == null) return;
+        lastFrameReader = reader;
+        lastFrameWidth = width;
+        lastFrameHeight = height;
+        if (captureOcrInFlight) return;
         Image image = null;
         try {
             image = reader.acquireLatestImage();
             if (image == null) return;
+            captureFramesSeen += 1;
             long warmupUntil = prefs.getLong("captureWarmupUntil", captureStartedAt + CAPTURE_FRAME_WARMUP_MS);
             if (System.currentTimeMillis() < warmupUntil) return;
             Image.Plane[] planes = image.getPlanes();
@@ -2171,9 +2191,16 @@ public final class SimpleAutomationService extends Service {
             // field. The old bilinear fast path could soften a 6 into an 8. Agreement
             // between the two dedicated passes prevents that single-glyph error from
             // becoming the registered payout.
-            final Bitmap amountCrop = createResultAmountCrop(frame, width, height, 2.0f, simulatorKey);
-            final Bitmap amountCropAlt = createResultAmountCrop(frame, width, height, 3.0f, simulatorKey);
+            final boolean toe3 = "toe-3".equals(simulatorKey);
+            final Bitmap amountCrop = createResultAmountCrop(frame, width, height, toe3 ? 3.0f : 2.0f,
+                GtoResultOcrConsensusPolicy.amountRegion(simulatorKey, width, height));
+            final Bitmap amountCropAlt = createResultAmountCrop(frame, width, height, toe3 ? 4.0f : 3.0f,
+                GtoResultOcrConsensusPolicy.amountAltRegion(simulatorKey, width, height));
             final long captureId = captureStartedElapsedAt;
+            if (toe3) {
+                runToe3Ocr(fullFrame, modalCrop, amountCrop, amountCropAlt, attempt, captureId);
+                return;
+            }
             // The modal and amount are the smallest useful regions. Run them
             // together; reserve the full screen for uncertain reads only.
             com.google.android.gms.tasks.Task<com.google.mlkit.vision.text.Text> modalTask =
@@ -2223,13 +2250,125 @@ public final class SimpleAutomationService extends Service {
         }
     }
 
-    private Bitmap createResultAmountCrop(Bitmap frame, int width, int height, float scaleFactor, String simulatorKey) {
+    /**
+     * TOE 3 result read. Three crops run together (label+value row, the white value
+     * cell alone, the modal) and the full frame only when they do not agree. A value
+     * needs two reads (two crops of one frame, or the same crop on two frames) and
+     * the screen must be recognised by its grid/buttons, so a mid-animation or
+     * partially covered frame is retried instead of being trusted.
+     */
+    private void runToe3Ocr(final Bitmap fullFrame, final Bitmap modalCrop, final Bitmap rowCrop,
+                            final Bitmap cellCrop, final int attempt, final long captureId) {
+        final Long previous = captureToe3PreviousAmount;
+        final com.google.android.gms.tasks.Task<com.google.mlkit.vision.text.Text> modalTask =
+            textRecognizer.process(InputImage.fromBitmap(modalCrop, 0));
+        final com.google.android.gms.tasks.Task<com.google.mlkit.vision.text.Text> rowTask =
+            textRecognizer.process(InputImage.fromBitmap(rowCrop, 0));
+        final com.google.android.gms.tasks.Task<com.google.mlkit.vision.text.Text> cellTask =
+            textRecognizer.process(InputImage.fromBitmap(cellCrop, 0));
+        com.google.android.gms.tasks.Tasks.whenAllComplete(modalTask, rowTask, cellTask).addOnCompleteListener(first -> {
+            final String modalText = modalTask.isSuccessful() ? modalTask.getResult().getText() : "";
+            final String rowText = rowTask.isSuccessful() ? rowTask.getResult().getText() : "";
+            final String cellText = cellTask.isSuccessful() ? cellTask.getResult().getText() : "";
+            final String evidence = GtoResultOcrConsensusPolicy.mergeEvidence(
+                GtoResultOcrConsensusPolicy.mergeEvidence(modalText, rowText), cellText);
+            Long amount = GtoResultOcrConsensusPolicy.findToe3Amount(rowText, cellText, modalText, "", previous);
+            if (amount != null && GtoResultOcrConsensusPolicy.isToe3ResultScreen(evidence)) {
+                noteToe3Debug(attempt, rowText, cellText, modalText, "", amount);
+                recycleCaptureBitmaps(fullFrame, modalCrop, rowCrop, cellCrop);
+                handleOcrEvidence(evidence, "toe-3", attempt, amount, captureId);
+                return;
+            }
+            textRecognizer.process(InputImage.fromBitmap(fullFrame, 0)).addOnCompleteListener(last -> {
+                String fullText = last.isSuccessful() ? last.getResult().getText() : "";
+                String allEvidence = GtoResultOcrConsensusPolicy.mergeEvidence(evidence, fullText);
+                Long confirmed = GtoResultOcrConsensusPolicy.findToe3Amount(rowText, cellText, modalText, fullText, previous);
+                captureToe3PreviousAmount = GtoResultOcrConsensusPolicy.toe3BestCandidate(rowText, cellText, modalText, fullText);
+                noteToe3Debug(attempt, rowText, cellText, modalText, fullText, confirmed);
+                recycleCaptureBitmaps(fullFrame, modalCrop, rowCrop, cellCrop);
+                handleOcrEvidence(allEvidence, "toe-3", attempt, confirmed, captureId);
+            });
+        });
+    }
+
+    private void noteToe3Debug(int attempt, String rowText, String cellText, String modalText, String fullText, Long amount) {
+        Long row = GtoResultOcrConsensusPolicy.extractAmountCents("toe-3", rowText);
+        Long cell = GtoResultOcrConsensusPolicy.extractToe3CellAmountCents(cellText);
+        Long modal = GtoResultOcrConsensusPolicy.extractAmountCents("toe-3", modalText);
+        Long full = GtoResultOcrConsensusPolicy.extractAmountCents("toe-3", fullText);
+        captureOcrDebug = "leitura " + attempt + ", quadros " + captureFramesSeen
+            + ", linha " + debugAmount(row) + ", célula " + debugAmount(cell)
+            + ", modal " + debugAmount(modal) + ", tela " + debugAmount(full)
+            + (amount == null ? "" : ", ok " + debugAmount(amount));
+        prefs.edit().putString("captureOcrDebug", captureOcrDebug).apply();
+        android.util.Log.i(PRO_TIMING_TAG, "stage=toe3_reads " + captureOcrDebug);
+    }
+
+    private static String debugAmount(Long cents) {
+        return cents == null ? "—" : GtoResultOcrConsensusPolicy.formatAmountCents(cents);
+    }
+
+    private void resetCaptureRetryState() {
+        lastFrameReader = null;
+        captureFramesSeen = 0;
+        captureFreshFrameRequests = 0;
+        captureLastFreshFrameAt = 0L;
+        captureRetryScheduled.set(false);
+        captureToe3PreviousAmount = null;
+        captureOcrDebug = "";
+    }
+
+    /**
+     * A MediaProjection display only delivers a frame when the screen changes. The
+     * result screen is usually static, so after a read that did not confirm the
+     * amount the capture used to wait for a frame that never came and ended at the
+     * watchdog. Poll the reader again and, when it has nothing new, ask the display
+     * for a fresh frame.
+     */
+    private void scheduleCaptureRetry(final long captureId) {
+        if (captureHandler == null || !captureRetryScheduled.compareAndSet(false, true)) return;
+        captureHandler.postDelayed(() -> {
+            captureRetryScheduled.set(false);
+            retryCaptureFrame(captureId);
+        }, CAPTURE_RETRY_POLL_MS);
+    }
+
+    private void retryCaptureFrame(final long captureId) {
+        if (!captureFrameRequested || captureStartedElapsedAt != captureId) return;
+        if (!captureOcrInFlight) {
+            final int before = captureOcrAttempts;
+            ImageReader reader = lastFrameReader;
+            if (reader != null) {
+                try { captureLatestFrame(reader, lastFrameWidth, lastFrameHeight); } catch (Exception ignored) {}
+            }
+            if (captureOcrAttempts == before && !captureOcrInFlight) requestFreshCaptureFrame();
+        }
+        scheduleCaptureRetry(captureId);
+    }
+
+    private void requestFreshCaptureFrame() {
+        long now = SystemClock.elapsedRealtime();
+        if (captureFreshFrameRequests >= CAPTURE_MAX_FRESH_FRAME_REQUESTS || now - captureLastFreshFrameAt < 1000L) return;
+        captureLastFreshFrameAt = now;
+        captureFreshFrameRequests += 1;
+        try {
+            if (temporaryReceiptCapture) {
+                ProOverlayProbeService.requestFreshFrame(this);
+            } else if (virtualDisplay != null && imageReader != null) {
+                virtualDisplay.setSurface(null);
+                virtualDisplay.setSurface(imageReader.getSurface());
+            }
+        } catch (Exception error) {
+            android.util.Log.w(PRO_TIMING_TAG, "stage=fresh_frame_failed " + error.getClass().getSimpleName());
+        }
+    }
+
+    private Bitmap createResultAmountCrop(Bitmap frame, int width, int height, float scaleFactor, float[] region) {
         if (frame == null || width <= 0 || height <= 0) return frame;
         // Dedicated monetary region: includes both the earnings label and the
         // amount while excluding most gameplay/HUD. Upscaling improves OCR on
         // the small stylized font used by the result modal. The region depends on
         // the simulator: the TOE 3 "Renda total" row sits lower than GTO's.
-        float[] region = GtoResultOcrConsensusPolicy.amountRegion(simulatorKey);
         int left = Math.max(0, Math.round(width * region[0]));
         int top = Math.max(0, Math.round(height * region[1]));
         int cropWidth = Math.min(frame.getWidth() - left, Math.round(width * region[2]));
@@ -2298,20 +2437,28 @@ public final class SimpleAutomationService extends Service {
             }
             String receipt = "global-truck".equals(simulatorKey) ? "CONCLUÍDO\n" : "";
             String currency = GtoResultOcrConsensusPolicy.extractCurrency(simulatorKey, merged);
+            // TOE 3: the value cell crop carries the currency sign but no label to bind it to.
+            if (currency.isEmpty() && "toe-3".equals(simulatorKey)) currency = GtoResultOcrConsensusPolicy.toe3Currency(merged);
             finishCapture(receipt + canonicalLabel + ": " + currency + " " + canonicalAmount);
             return;
         }
         if (attempt >= CAPTURE_MAX_OCR_ATTEMPTS) {
             captureFrameRequested = false;
-            failCapture(!semanticReady
+            failCapture((!semanticReady
                 ? "A tela de conclusão não foi confirmada. Mantenha o resultado aberto e tente novamente."
-                : "Não foi possível confirmar o mesmo ganho em duas leituras independentes");
+                : "Não foi possível confirmar o mesmo ganho em duas leituras independentes") + debugSuffix());
             return;
         }
 
         prefs.edit().putString("captureStage", readable ? "OCR_RETRYING" : "OCR_WAITING_FOR_RESULT")
             .putLong("captureNextRetryAt", System.currentTimeMillis() + CAPTURE_FRAME_RETRY_MS)
             .apply();
+        scheduleCaptureRetry(captureId);
+    }
+
+    private String debugSuffix() {
+        String debug = captureOcrDebug;
+        return debug == null || debug.isEmpty() ? "" : " (" + debug + ")";
     }
 
     private void handleOcrFailure(int attempt) {
@@ -2324,6 +2471,7 @@ public final class SimpleAutomationService extends Service {
             prefs.edit().putString("captureStage", "OCR_RETRYING")
                 .putLong("captureNextRetryAt", System.currentTimeMillis() + CAPTURE_FRAME_RETRY_MS)
                 .apply();
+            scheduleCaptureRetry(captureStartedElapsedAt);
         }
     }
 
@@ -2339,7 +2487,7 @@ public final class SimpleAutomationService extends Service {
             return compact.contains("CONCLUIDO") && compact.contains("VALORARECEBER");
         }
         if ("toe-3".equals(simulatorKey)) {
-            return compact.contains("RENDATOTAL") || compact.contains("GANHOS");
+            return GtoResultOcrConsensusPolicy.isToe3ResultScreen(text);
         }
         if ("wtds".equals(simulatorKey) || "wbds".equals(simulatorKey)) {
             return compact.contains("GANHOS") || compact.contains("TOTAL");
@@ -2655,6 +2803,7 @@ public final class SimpleAutomationService extends Service {
         captureFrameRequested = false;
         captureOcrInFlight = false;
         captureOcrAttempts = 0;
+        lastFrameReader = null;
         try { if (imageReader != null) imageReader.close(); } catch (Exception ignored) {}
         imageReader = null;
         try { if (virtualDisplay != null) virtualDisplay.release(); } catch (Exception ignored) {}
