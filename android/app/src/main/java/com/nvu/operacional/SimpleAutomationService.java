@@ -2171,8 +2171,8 @@ public final class SimpleAutomationService extends Service {
             // field. The old bilinear fast path could soften a 6 into an 8. Agreement
             // between the two dedicated passes prevents that single-glyph error from
             // becoming the registered payout.
-            final Bitmap amountCrop = createResultAmountCrop(frame, width, height, 2.0f);
-            final Bitmap amountCropAlt = createResultAmountCrop(frame, width, height, 3.0f);
+            final Bitmap amountCrop = createResultAmountCrop(frame, width, height, 2.0f, simulatorKey);
+            final Bitmap amountCropAlt = createResultAmountCrop(frame, width, height, 3.0f, simulatorKey);
             final long captureId = captureStartedElapsedAt;
             // The modal and amount are the smallest useful regions. Run them
             // together; reserve the full screen for uncertain reads only.
@@ -2223,15 +2223,17 @@ public final class SimpleAutomationService extends Service {
         }
     }
 
-    private Bitmap createResultAmountCrop(Bitmap frame, int width, int height, float scaleFactor) {
+    private Bitmap createResultAmountCrop(Bitmap frame, int width, int height, float scaleFactor, String simulatorKey) {
         if (frame == null || width <= 0 || height <= 0) return frame;
-        // Dedicated monetary region: includes both the "Valor a receber" label and
-        // the amount while excluding most gameplay/HUD. Upscaling improves OCR on
-        // the small stylized font used by the result modal.
-        int left = Math.max(0, Math.round(width * 0.28f));
-        int top = Math.max(0, Math.round(height * 0.27f));
-        int cropWidth = Math.min(frame.getWidth() - left, Math.round(width * 0.44f));
-        int cropHeight = Math.min(frame.getHeight() - top, Math.round(height * 0.34f));
+        // Dedicated monetary region: includes both the earnings label and the
+        // amount while excluding most gameplay/HUD. Upscaling improves OCR on
+        // the small stylized font used by the result modal. The region depends on
+        // the simulator: the TOE 3 "Renda total" row sits lower than GTO's.
+        float[] region = GtoResultOcrConsensusPolicy.amountRegion(simulatorKey);
+        int left = Math.max(0, Math.round(width * region[0]));
+        int top = Math.max(0, Math.round(height * region[1]));
+        int cropWidth = Math.min(frame.getWidth() - left, Math.round(width * region[2]));
+        int cropHeight = Math.min(frame.getHeight() - top, Math.round(height * region[3]));
         if (cropWidth <= 8 || cropHeight <= 8) return frame;
         Bitmap crop = Bitmap.createBitmap(frame, left, top, cropWidth, cropHeight);
         int scaledWidth = Math.max(crop.getWidth(), Math.round(crop.getWidth() * Math.max(1.5f, scaleFactor)));

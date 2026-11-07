@@ -44,6 +44,7 @@ final class GtoResultOcrConsensusPolicy {
     static Long extractAmountCents(String simulatorKey, String rawText) {
         String normalized = normalize(rawText);
         if (normalized.isEmpty()) return null;
+        if ("toe-3".equals(simulatorKey)) return extractToe3AmountCents(normalized);
         String[] labels;
         if ("global-truck".equals(simulatorKey)) {
             labels = new String[]{"VALOR A RECEBER"};
@@ -72,6 +73,70 @@ final class GtoResultOcrConsensusPolicy {
             }
         }
         return null;
+    }
+
+
+    private static final java.util.regex.Pattern TOE3_AMOUNT = java.util.regex.Pattern
+        .compile("(R\\$|EUR|BRL|€|\\$)?\\s*([0-9]+(?:[.,][0-9]{3})*(?:[.,][0-9]{1,2})?)");
+    private static final java.util.regex.Pattern TOE3_UNIT_AFTER = java.util.regex.Pattern
+        .compile("^\\s*(?:%|KM\\b|L\\b|H\\b|M\\b|MIN\\b)");
+    // Text that ends the "Renda total" value area: the other grid labels and the buttons.
+    private static final String[] TOE3_WINDOW_END = {
+        "PENA DE DANO", "PENALIDADE", "DISTANCIA", "TEMPO GASTO", "COMBUSTIVEL",
+        "CONTINUAR", "REMOVER", "BONUS", "DOBRAR"
+    };
+
+    /**
+     * TOE 3 result screen: a two-column grid whose right column is "Pena de dano",
+     * "Penalidade de tempo" and "Renda total" (bottom row). OCR may return it row
+     * by row ("Renda total € 3.503") or grouped by column (all labels, then all
+     * values: "Renda total - € 202 - € 3.503"). Taking the first number after the
+     * label read the damage penalty (€ 202) as the payout in the grouped layout, and
+     * the "20%" of the bonus button when the value cell was not read.
+     *
+     * The payout is the LAST amount between the "Renda total" label and the next
+     * grid label/button: it is the bottom row, so in a grouped read it comes after
+     * the penalty values. Percentages and distance/time/fuel figures are ignored and
+     * amounts with a currency sign win over bare numbers.
+     */
+    private static Long extractToe3AmountCents(String normalized) {
+        for (boolean requireCurrency : new boolean[]{true, false}) {
+            for (String label : new String[]{"RENDA TOTAL", "GANHOS"}) {
+                int from = normalized.indexOf(label);
+                while (from >= 0) {
+                    int start = from + label.length();
+                    int end = Math.min(normalized.length(), start + 100);
+                    for (String stop : TOE3_WINDOW_END) {
+                        int at = normalized.indexOf(stop, start);
+                        if (at >= 0 && at < end) end = at;
+                    }
+                    String window = normalized.substring(start, end);
+                    Long last = null;
+                    java.util.regex.Matcher m = TOE3_AMOUNT.matcher(window);
+                    while (m.find()) {
+                        if (requireCurrency && m.group(1) == null) continue;
+                        if (TOE3_UNIT_AFTER.matcher(window.substring(m.end())).find()) continue;
+                        Long cents = parseAmountCents(m.group(2));
+                        if (cents != null && cents > 0L) last = cents;
+                    }
+                    if (last != null) return last;
+                    from = normalized.indexOf(label, from + 1);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Normalized {left, top, width, height} of the dedicated monetary crop. The
+     * default region (GTO/Global Truck "Valor a receber") ends at 61% of the
+     * height, above the TOE 3 "Renda total" row (about 62-66%), so the two
+     * dedicated TOE 3 reads never saw the payout and only the modal/full-frame
+     * reads could vote. TOE 3 gets a region over its two bottom grid rows.
+     */
+    static float[] amountRegion(String simulatorKey) {
+        if ("toe-3".equals(simulatorKey)) return new float[]{0.34f, 0.56f, 0.42f, 0.18f};
+        return new float[]{0.28f, 0.27f, 0.44f, 0.34f};
     }
 
     /**
@@ -166,7 +231,7 @@ final class GtoResultOcrConsensusPolicy {
         // OCR does not see a separate "ad watched" label. The untouched
         // "Dobrar valor (ADS)" offer has no bonus amount and stays allowed.
         java.util.regex.Matcher bonus = java.util.regex.Pattern
-            .compile("bonus\\s+(?:video\\s+)?ads?\\s*[:=]?\\s*(?:r\\$\\s*)?([0-9]+(?:[.,][0-9]{1,2})?)")
+            .compile("bonus\\s+(?:video\\s+)?ads?\\s*[:=]?\\s*(?:r\\$|us\\$|eur|usd|€|\\$)?\\s*([0-9]+(?:[.,][0-9]{1,2})?)")
             .matcher(normalized);
         while (bonus.find()) {
             Long cents = parseAmountCents(bonus.group(1));
