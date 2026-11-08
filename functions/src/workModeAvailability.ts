@@ -1,6 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v1/https";
+import * as functions from "firebase-functions/v1";
+import { HttpsError } from "firebase-functions/v1/https";
+import { CALLABLE_REGIONS } from "./callableRegions";
 import { WORK_MODE_SIMULATORS, type WorkMode } from "./operationalWorkModePolicy";
 
 if (getApps().length === 0) initializeApp();
@@ -65,7 +67,7 @@ const changedKeys = (previous: Record<string, unknown>, next: Record<string, unk
   return { modes, simulators };
 };
 
-export const updateWorkModeAvailability = onCall(async (data, context) => {
+export const updateWorkModeAvailability = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const auth = context.auth;
   if (!auth?.uid) throw new HttpsError("unauthenticated", "Autenticação obrigatória.");
   if (auth.token.senior !== true) throw new HttpsError("permission-denied", "Apenas usuários Sênior podem alterar o controle de envio.");

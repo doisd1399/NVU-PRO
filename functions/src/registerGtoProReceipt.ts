@@ -12,6 +12,7 @@ import { operationAwaitingCompletionPatch } from "./operationCompletion";
 import { reconcileOperationTripsCore } from "./reconcileOperationTrips";
 import { isOperationallySuspended, isSupportedReceiptCurrency, proReceiptEventKey, proReceiptEventFingerprints, readSimpleReceiptCurrency } from "./tripReceiptPolicy";
 import { proSubmissionReasonCode } from "./proSubmissionFailure";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 type Data = FirebaseFirestore.DocumentData;
 
@@ -64,7 +65,7 @@ const matches = (row: Data, expectedId: string, uid: string, jobId: string,
  * the next slot. Legacy expectedProgress is accepted only for compatibility
  * and diagnostics; it is never an authority.
  */
-export const registerGtoProReceipt = functions.region("us-central1").https.onCall(
+export const registerGtoProReceipt = functions.region(...CALLABLE_REGIONS).https.onCall(
   async (raw: unknown, context) => {
     const uid = context.auth?.uid;
     if (!uid) return fail("unauthenticated", "Faça login para enviar a viagem.");

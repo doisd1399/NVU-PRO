@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { auth, functions } from "../lib/firebase";
 import { isGroupUnsupported, isRenameAcknowledged, parseAddResult, parseDeactivateResult, parseGroupCapabilities, type AddResult, type DeactivateResult } from "./companyGroupCore";
 

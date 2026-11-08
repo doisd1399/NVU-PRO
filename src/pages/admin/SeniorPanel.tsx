@@ -41,7 +41,7 @@ import {
   X,
 } from "lucide-react";
 import { db, auth, functions } from "../../lib/firebase";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../../lib/regionalCallable";
 import {
   collection,
   query,

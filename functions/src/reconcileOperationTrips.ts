@@ -11,6 +11,7 @@ import {
 import { isCanonicalConfirmedTrip } from "./isCanonicalConfirmedTrip";
 import { decideReconciledProgress } from "./operationReconciliationPolicy";
 import { operationAwaitingCompletionPatch } from "./operationCompletion";
+import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
 
 
 const canonicalTripMetricMillis = (row: FirebaseFirestore.DocumentData): number => {
@@ -409,8 +410,9 @@ export const reconcileOperationTripsCore = async (
   });
 };
 
-export const reconcileOperationTrips = functions.region("us-central1").https.onCall(
+export const reconcileOperationTrips = functions.region(...CALLABLE_REGIONS).https.onCall(
   async (input: unknown, context) => {
+    if (isWarmPing(input)) return { warm: true } as never;
     const uid = context.auth?.uid;
     if (!uid) throw new functions.https.HttpsError("unauthenticated", "Faça login para conferir a operação.");
     const jobId = (input as { jobId?: unknown } | null)?.jobId;

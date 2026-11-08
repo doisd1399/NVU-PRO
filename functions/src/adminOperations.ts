@@ -2,6 +2,7 @@ import * as admin from "./firebaseAdmin";
 import * as functions from "firebase-functions/v1";
 import { requireCompanyManager } from "./companyAccess";
 import { approveFleetMemberCore } from "./fleetMembership";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 const db = admin.firestore();
 
@@ -120,13 +121,13 @@ async function resolveRequestIdentity(
   return { userId: created.id, userRef: created };
 }
 
-export const approveDriverRequest = functions.https.onCall(async (data, context) => {
+export const approveDriverRequest = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const result = await approveFleetMemberCore(db, context, { requestId: requireId(data, "requestId"),
     ...(nonEmpty(data?.companyId) ? { companyId: nonEmpty(data.companyId) } : {}) });
   return { ...result, status: "approved" };
 });
 
-export const rejectDriverRequest = functions.https.onCall(
+export const rejectDriverRequest = functions.region(...CALLABLE_REGIONS).https.onCall(
   async (data, context): Promise<OperationResult> => {
     const actorId = requireAuthenticated(context);
     const requestId = requireId(data, "requestId");
@@ -204,13 +205,13 @@ export const rejectDriverRequest = functions.https.onCall(
   },
 );
 
-export const approveRecruitmentApplication = functions.https.onCall(async (data, context) => {
+export const approveRecruitmentApplication = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const result = await approveFleetMemberCore(db, context, { applicationId: requireId(data, "applicationId"),
     ...(nonEmpty(data?.companyId) ? { companyId: nonEmpty(data.companyId) } : {}) });
   return { ...result, status: "approved" };
 });
 
-export const rejectRecruitmentApplication = functions.https.onCall(
+export const rejectRecruitmentApplication = functions.region(...CALLABLE_REGIONS).https.onCall(
   async (data, context): Promise<OperationResult> => {
     const actorId = requireAuthenticated(context);
     const applicationId = requireId(data, "applicationId");

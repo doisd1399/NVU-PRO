@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { collection, doc, getDoc, getDocs, limit, query, startAfter, where } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { db, functions } from "../lib/firebase";
 import { selectCurrentOperationJob, operationAssignmentTimestamp } from "../lib/currentOperation";
 import { resolveVehiclePhotoOperationSimulatorId } from "../lib/vehiclePhotoIdentity";

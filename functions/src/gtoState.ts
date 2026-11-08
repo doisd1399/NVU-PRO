@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "./firebaseAdmin";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 const db = () => admin.firestore();
 const STATES = new Set([
@@ -36,7 +37,7 @@ const assertState = (state: string) => {
 const sessionRef = (sessionId: string) => db().collection("gto_trip_sessions").doc(sessionId);
 const activeRef = (driverId: string) => db().collection("gto_active_gto_sessions").doc(driverId);
 
-export const syncGtoTripState = functions.region("us-central1").https.onCall(async (rawData: any, context) => {
+export const syncGtoTripState = functions.region(...CALLABLE_REGIONS).https.onCall(async (rawData: any, context) => {
   const uid = context.auth?.uid;
   if (!uid) throw new functions.https.HttpsError("unauthenticated", "Autenticação obrigatória.");
 

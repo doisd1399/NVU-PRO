@@ -1,6 +1,8 @@
 import { getApps, initializeApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { onCall, HttpsError } from "firebase-functions/v1/https";
+import * as functions from "firebase-functions/v1";
+import { HttpsError } from "firebase-functions/v1/https";
+import { CALLABLE_REGIONS } from "./callableRegions";
 import { requireActiveSenior, submitAccountCommand } from "./seniorAccountCommands";
 import { removeFleetMemberCore } from "./fleetMembership";
 
@@ -71,14 +73,14 @@ const parseDate = (value: unknown): Date | null => {
 /** Expiration is owned by the independent command worker, never by a list read. */
 const normalizeExpiredSuspension = async (_id: string, user: RecordLike, _actor: string, _company?: string) => user;
 
-export const removeDriverFromFleetSenior = onCall(async (data, context) => {
+export const removeDriverFromFleetSenior = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   await getActor(context);
   const payload = getPayload(data);
   return removeFleetMemberCore(db, context, asNonEmptyString(payload.targetUserId, "targetUserId"),
     asNonEmptyString(payload.companyId, "companyId"), optionalString(payload.reason, "reason") || "removed_from_fleet");
 });
 
-export const suspendSeniorAccount = onCall(async (data, context) => {
+export const suspendSeniorAccount = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const actor = await getActor(context), payload = getPayload(data);
   const targetUserId = asNonEmptyString(payload.targetUserId, "targetUserId"), companyId = asNonEmptyString(payload.companyId, "companyId");
   const reason = asNonEmptyString(payload.reason, "reason"), expiresAt = optionalString(payload.expiresAt, "expiresAt");
@@ -92,7 +94,7 @@ export const suspendSeniorAccount = onCall(async (data, context) => {
     } });
 });
 
-export const reactivateSeniorAccount = onCall(async (data, context) => {
+export const reactivateSeniorAccount = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const actor = await getActor(context), payload = getPayload(data), targetUserId = asNonEmptyString(payload.targetUserId, "targetUserId");
   requireTarget(actor, targetUserId);
   // Global Senior account action. A removed fleet membership is never restored.
@@ -104,7 +106,7 @@ export const reactivateSeniorAccount = onCall(async (data, context) => {
     } });
 });
 
-export const deleteSeniorProfile = onCall(async (data, context) => {
+export const deleteSeniorProfile = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const actor = await getActor(context), payload = getPayload(data), targetUserId = asNonEmptyString(payload.targetUserId, "targetUserId"), companyId = asNonEmptyString(payload.companyId, "companyId");
   if (payload.confirmation !== true) throw new HttpsError("failed-precondition", "A confirmação visual da exclusão é obrigatória.");
   const reason = asNonEmptyString(payload.reason, "reason"); requireTarget(actor, targetUserId); await requireTargetContext(targetUserId, companyId);
@@ -112,7 +114,7 @@ export const deleteSeniorProfile = onCall(async (data, context) => {
     buildPatch: () => ({ accountStatus: "deleted", deleted: true, deletedAt: new Date().toISOString(), deletedBy: actor.uid, deletionReason: reason }) });
 });
 
-export const endSeniorOperationalSuspension = onCall(async (data, context) => {
+export const endSeniorOperationalSuspension = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const actor = await getActor(context);
   const payload = getPayload(data);
   const targetUserId = asNonEmptyString(payload.targetUserId, "targetUserId");
@@ -173,7 +175,7 @@ export const endSeniorOperationalSuspension = onCall(async (data, context) => {
   return { success: true, action: "END_OPERATIONAL_SUSPENSION", actionId: actionRef.id };
 });
 
-export const reverseSeniorSuspension = onCall(async (data, context) => {
+export const reverseSeniorSuspension = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) => {
   const actor = await getActor(context), payload = getPayload(data), targetUserId = asNonEmptyString(payload.targetUserId, "targetUserId");
   requireTarget(actor, targetUserId);
   return submitAccountCommand({ action: "REVERSE_SUSPENSION", actorUid: actor.uid, targetUserId, companyId: text(payload.companyId), disabled: false,
@@ -185,7 +187,7 @@ export const reverseSeniorSuspension = onCall(async (data, context) => {
     } });
 });
 
-export const listSeniorSuspendedMembers = onCall(async (_data, context) => {
+export const listSeniorSuspendedMembers = functions.region(...CALLABLE_REGIONS).https.onCall(async (_data, context) => {
   const actor = await getActor(context);
   const now = Date.now();
   const nowTimestamp = Timestamp.fromMillis(now);

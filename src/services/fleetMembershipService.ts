@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { auth, functions } from "../lib/firebase";
 import { executeFleetMembershipClient, type MembershipCommand } from "./fleetMembershipClientCore";
 const flights = new Map<string, Promise<any>>();

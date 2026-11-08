@@ -4414,7 +4414,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       assertOperationalCommandScope(uid, scope);
       try { operationOutbox.enqueueStart({ requestId, transport: managed ? "managed" : "legacy", command, job: local }); }
       catch (error) { if (!operationOutbox.startUnsettled(uid, id)) void mirrorOperationStart(uid, target.companyId, id, false); throw error; }
-      toast.message("Início salvo neste aparelho. A confirmação será sincronizada.");
+      toast.message(navigator.onLine === false ? "Início salvo neste aparelho. A confirmação será sincronizada." : "Operação iniciada. Confirmando no servidor…");
     } finally { startJobInFlightRef.current.delete(id); }
   };
 

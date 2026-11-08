@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { doc, getDocFromServer } from "firebase/firestore";
 import { db, functions } from "../lib/firebase";
 import { ingestOperationTripSnapshot } from "../lib/operationTripRecovery";

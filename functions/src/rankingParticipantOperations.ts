@@ -1,5 +1,6 @@
 import * as admin from "./firebaseAdmin";
 import * as functions from "firebase-functions/v1";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 type Data = FirebaseFirestore.DocumentData;
 type DB = FirebaseFirestore.Firestore;
@@ -180,7 +181,7 @@ export const syncRankingVehicleChange = functions.region("us-central1").firestor
  * Lazy creation: a viewer asks for a participant whose projection does not exist yet and the server builds it from the
  * history once. Later job changes keep it current through the trigger. Only reads and writes the projection.
  */
-export const ensureRankingParticipantOperations = functions.region("us-central1").https.onCall(async (input, context) => {
+export const ensureRankingParticipantOperations = functions.region(...CALLABLE_REGIONS).https.onCall(async (input, context) => {
   if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Faça login para continuar.");
   const uid = text(input?.participantId);
   if (!uid || uid.length > 180 || /[\/\0]/.test(uid) || uid === "." || uid === "..") throw new functions.https.HttpsError("invalid-argument", "Participante inválido.");

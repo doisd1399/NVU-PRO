@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { getDownloadURL, ref, uploadBytes, uploadBytesResumable } from "firebase/storage";
 import { prepareTripReceipt } from "../lib/prepareTripReceipt";
 import imageCompression from "browser-image-compression";

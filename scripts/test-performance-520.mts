@@ -104,7 +104,7 @@ const compiled = await build({ stdin: { contents: 'export { FirebaseTripSyncAdap
     builder.onResolve({ filter: /^firebase\/(firestore|functions)$/ }, args => ({ path: args.path, namespace: "fake" }));
     builder.onLoad({ filter: /.*/, namespace: "fake" }, args => ({ contents: args.path.endsWith("firestore")
       ? 'export const doc=(_db,_collection,id)=>({id}); export const getDocFromServer=(ref)=>globalThis.__qa519.read(ref); export const runTransaction=()=>{throw Error("unexpected transaction")}; export const serverTimestamp=()=>"server";'
-      : 'export const httpsCallable=()=>()=>{throw Error("unexpected callable")};' }));
+      : 'export const getFunctions=()=>({});export const httpsCallable=()=>()=>{throw Error("unexpected callable")};' }));
     builder.onLoad({ filter: /src\/lib\/firebase\.ts$/ }, () => ({ contents: 'export const auth={currentUser:null}; export const db={}; export const functions={};', loader: "ts" }));
     builder.onLoad({ filter: /src\/lib\/offlineReceiptStore\.ts$/ }, () => ({ contents: 'export const getOfflineReceipt=()=>{throw Error("unexpected receipt read")}; export const markOfflineReceiptUploaded=()=>{};', loader: "ts" }));
     builder.onLoad({ filter: /src\/services\/uploadService\.ts$/ }, () => ({ contents: 'export const uploadService={uploadImage:()=>{throw Error("unexpected upload")}};', loader: "ts" }));
@@ -144,7 +144,7 @@ const uploadBundle = await build({ entryPoints: ["src/services/uploadService.ts"
   plugins: [{ name: "isolated-storage", setup(builder) {
     builder.onResolve({ filter: /^firebase\/(storage|functions)$/ }, args => ({ path: args.path, namespace: "storage-fake" }));
     builder.onLoad({ filter: /.*/, namespace: "storage-fake" }, args => ({ contents: args.path.endsWith("functions")
-      ? 'export const httpsCallable=()=>async()=>{const s=globalThis.__upload519;s.ensures++;if(s.refuseRepair)throw Error("membership refused");};'
+      ? 'export const getFunctions=()=>({});export const httpsCallable=()=>async()=>{const s=globalThis.__upload519;s.ensures++;if(s.refuseRepair)throw Error("membership refused");};'
       : 'export const ref=(_s,path)=>({path}); export const getDownloadURL=async()=>"https://firebasestorage.googleapis.com/v0/b/demo/o/receipt.png?alt=media"; export const uploadBytes=async(ref,file)=>{const s=globalThis.__upload519;s.uploads++;s.bytes=file.size;s.direct=true;if(s.alwaysDenied||(s.denyFirst&&s.uploads===1))throw {code:"storage/unauthorized"};return {ref};}; export const uploadBytesResumable=(ref)=>{const s=globalThis.__upload519;s.uploads++;const denied=s.alwaysDenied||(s.denyFirst&&s.uploads===1);return {snapshot:{ref},cancel(){},on(_name,_progress,error,complete){queueMicrotask(()=>denied?error({code:"storage/unauthorized"}):complete());}}};' }));
     builder.onLoad({ filter: /src\/lib\/firebase\.ts$/ }, () => ({ contents: 'export const auth={authStateReady:async()=>{},get currentUser(){return {uid:"driver519"}}};export const functions={};export const storage={};', loader: "ts" }));
   } }] });

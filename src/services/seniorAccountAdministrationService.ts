@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { functions } from "../lib/firebase";
 
 async function callSenior<T extends Record<string, unknown>>(name: string, payload: T) {

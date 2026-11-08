@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import { DurableOperationOutbox, automaticOperationJobId, FINISH_UPLOAD_GRACE_MS, FINISH_WAIT_HINT, friendlyOperationError } from "../src/application/operation/DurableOperationOutbox.ts";
+import { CONFIRMED_KEEP, CONFIRMED_RETENTION_MS, DurableOperationOutbox, automaticOperationJobId, FINISH_UPLOAD_GRACE_MS, FINISH_WAIT_HINT, friendlyOperationError } from "../src/application/operation/DurableOperationOutbox.ts";
 
 let checks = 0;
 async function test(name, run) { await run(); checks++; console.log("PASS", name); }
@@ -213,5 +213,51 @@ await test("Friendly error text never leaks server codes", async () => {
     assert.doesNotMatch(friendlyOperationError(new Error(code)), /OPERATION_/);
   assert.match(friendlyOperationError({ code: "functions/permission-denied", message: "x" }), /Sem permissão/);
   assert.equal(friendlyOperationError(new Error("Mensagem do servidor")), "Mensagem do servidor");
+});
+// ── v43: settled history is bounded, so each tap does not get slower with use ──
+const seedHistory = (h: any, rows: any[]) => {
+  const entries = rows.map((row, index) => ({ version: 1, actorId: "driver", companyId: "company", transport: "managed", requestId: "r" + index, attempts: 1, retryAt: 0,
+    job: { id: row.jobId, companyId: "company", driverId: "driver", contractId: "contract", status: "completed", totalDeliveries: 2 }, ...row }));
+  h.storage.values.set("nvu.operation.outbox.v1.driver", JSON.stringify({ version: 1, actorId: "driver", entries }));
+};
+await test("Old confirmed history is trimmed on the next write; nothing unconfirmed or recent is lost", async () => {
+  const h = harness(); h.clock(CONFIRMED_RETENTION_MS * 3);
+  const day = 24 * 3_600_000, now = CONFIRMED_RETENTION_MS * 3;
+  seedHistory(h, [
+    { id: "start:old", jobId: "old", kind: "start", state: "CONFIRMED", createdAt: now - 20 * day, observed: true },
+    { id: "finish:old", jobId: "old", kind: "finish", state: "CONFIRMED", createdAt: now - 20 * day, nativeCleanupDone: true, resultPresented: true },
+    { id: "finish:stuck", jobId: "stuck", kind: "finish", state: "REJECTED", createdAt: now - 40 * day },
+    { id: "finish:waiting", jobId: "waiting", kind: "finish", state: "PENDING", createdAt: now - 30 * day },
+    { id: "finish:recent", jobId: "recent", kind: "finish", state: "CONFIRMED", createdAt: now - 1 * day },
+  ]);
+  h.start({ id: "fresh" }, { jobId: "fresh" });
+  const ids = h.outbox.entries().map(entry => entry.id).sort();
+  assert.deepEqual(ids, ["finish:recent", "finish:stuck", "finish:waiting", "start:fresh"].sort());
+});
+await test("The confirmed history never exceeds the cap, newest kept; unfinished native cleanup is never dropped by the cap", async () => {
+  const h = harness(); h.clock(10_000_000);
+  const rows: any[] = [];
+  for (let i = 0; i < CONFIRMED_KEEP + 25; i++) rows.push({ id: "start:j" + i, jobId: "j" + i, kind: "start", state: "CONFIRMED", createdAt: 10_000_000 - (CONFIRMED_KEEP + 25 - i) * 1000, observed: true });
+  rows.push({ id: "finish:cleanup", jobId: "cleanup", kind: "finish", state: "CONFIRMED", createdAt: 10_000_000 - 999_000, nativeCleanupDone: false });
+  seedHistory(h, rows);
+  h.start({ id: "fresh" }, { jobId: "fresh" });
+  const kept = h.outbox.entries();
+  assert.ok(kept.filter(entry => entry.state === "CONFIRMED").length <= CONFIRMED_KEEP + 1, "teto do histórico");
+  assert.ok(kept.some(entry => entry.id === "finish:cleanup"), "limpeza nativa pendente é preservada");
+  assert.ok(kept.some(entry => entry.id === "start:j" + (CONFIRMED_KEEP + 24)), "o mais recente fica");
+  assert.ok(!kept.some(entry => entry.id === "start:j0"), "o mais antigo sai");
+  assert.ok(kept.some(entry => entry.id === "start:fresh"));
+});
+await test("A long-term user's queue stays small and fast: 400 operations of history do not grow the stored queue", async () => {
+  const h = harness(); let now = 100_000; h.clock(now);
+  const sizes: number[] = [];
+  for (let i = 0; i < 400; i++) {
+    now += 6 * 3_600_000; h.clock(now);
+    const id = "op" + i, e = h.outbox.enqueueStart({ requestId: "r" + i, transport: "managed", job: { ...h.job, id, status: "pending" } as any, command: { action: "start", companyId: "company", jobId: id } as any });
+    h.online(true); await h.outbox.synchronize("start");
+    assert.equal(h.outbox.entries().find(entry => entry.id === e.id)?.state, "CONFIRMED");
+    sizes.push(h.outbox.entries().length);
+  }
+  assert.ok(Math.max(...sizes) <= CONFIRMED_KEEP + 2, "tamanho máximo " + Math.max(...sizes));
 });
 console.log(`DURABLE_OPERATION_OUTBOX_PASS (${checks} checks)`);

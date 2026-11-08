@@ -3,6 +3,7 @@ import * as functions from "firebase-functions/v1";
 import { randomUUID } from "node:crypto";
 import { hasSeniorClaim } from "./authorization";
 import { accountUsable, companyOwner, companyUsable } from "./companyAccess";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 /**
  * One company, several simulators. A company stays a single-simulator fleet document (`frotas/{id}`): every server rule
@@ -233,7 +234,7 @@ export async function renameCompanyGroupCore(db: FirebaseFirestore.Firestore, co
  * One callable for the group commands. The client calls `capabilities` first and offers "adicionar simuladores" and the
  * company-wide rename only when the published server lists them.
  */
-export const manageCompanyGroup = functions.region("us-central1").runWith({ ingressSettings: "ALLOW_ALL" }).https.onCall(async (input, context) => {
+export const manageCompanyGroup = functions.region(...CALLABLE_REGIONS).runWith({ ingressSettings: "ALLOW_ALL" }).https.onCall(async (input, context) => {
   const diagnosticId = /^[a-zA-Z0-9_-]{8,80}$/.test(text(input?.diagnosticId)) ? text(input?.diagnosticId) : randomUUID();
   const action = text(input?.action);
   try {

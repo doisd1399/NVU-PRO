@@ -9,7 +9,7 @@ const stubs={
  firebase:'export const functions={};export const auth={get currentUser(){return globalThis.__pushTest.authUser;}};',
  lifecycle:'export const isAuthTeardownActive=()=>globalThis.__pushTest.teardown;',
  core:'export const Capacitor={isNativePlatform:()=>true,getPlatform:()=>"android"};',
- functions:'export const httpsCallable=(_,name)=>async input=>globalThis.__pushTest.rpc(name,input);',
+ functions:'export const getFunctions=()=>({});export const httpsCallable=(_,name)=>async input=>globalThis.__pushTest.rpc(name,input);',
  app:'export const App={addListener:async(_,callback)=>{globalThis.__pushTest.resume=callback;return{remove:async()=>{}};}};',
  native:`const H=()=>globalThis.__pushTest;export const PushNotifications={
   removeAllListeners:async()=>H().listeners.clear(),addListener:async(name,callback)=>{H().listenerAdds++;H().listeners.set(name,callback);return{remove:async()=>{}};},

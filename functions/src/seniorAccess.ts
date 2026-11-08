@@ -2,6 +2,7 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "./firebaseAdmin";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { requireActiveAccount } from "./seniorAccountCommands";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 const db = admin.firestore();
 
@@ -98,6 +99,7 @@ async function registerAttempt(
 }
 
 export const authenticateSeniorAccess = functions
+  .region(...CALLABLE_REGIONS)
   .runWith({ timeoutSeconds: 30, memory: "256MB" })
   .https.onCall(async (data, context) => {
     if (!context.auth) {

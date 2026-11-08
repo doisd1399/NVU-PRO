@@ -1,5 +1,6 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { isAuthTeardownActive } from "../lib/authLifecycle";
+import { warmHotCallables } from "../lib/warmCallables";
 import { operationOutbox, OPERATION_OUTBOX_CHANGED, reconcileOperationOutboxNativeState, setOperationPendingTripReader } from "./operationOutbox";
 import { isConnectivityError } from "../lib/connectivity";
 import {
@@ -145,14 +146,26 @@ export class SyncManager {
     };
     setOperationPendingTripReader((_uid, jobId) => this.getPendingRegistrationIds(jobId));
     window.addEventListener("online", resume);
-    window.addEventListener(OPERATION_OUTBOX_CHANGED, resume);
+    // A saved start/finish is sent at once on its own lane. The general flight below also reconciles native state and replays
+    // queued trips (uploads can take seconds); a tap must never wait behind that. The outbox single-flights per kind.
+    const sendOperationCommandsNow = () => {
+      if (isAuthTeardownActive() || !auth.currentUser?.uid || navigator.onLine === false) return;
+      try {
+        const now = Date.now();
+        const ready = (kind: "start" | "finish") => operationOutbox.pending().some(entry => entry.kind === kind && entry.state === "PENDING" && entry.retryAt <= now);
+        for (const kind of ["start", "finish"] as const)
+          if (ready(kind)) void operationOutbox.synchronize(kind).catch(error => console.warn("[NVU] Comando salvo será reenviado", error));
+      } catch (error) { console.warn("[NVU] Fila de comandos será retomada", error); }
+    };
+    window.addEventListener(OPERATION_OUTBOX_CHANGED, () => { sendOperationCommandsNow(); resume(); });
     window.addEventListener("nvu-canonical-trip-updated", resume);
     window.addEventListener(CANONICAL_TRIP_UPDATED, resume);
     window.addEventListener("storage", event => { if (event.key === OfflineDatabase.storageKey) resume(); });
     window.addEventListener("nvu-canonical-trip-queued", resumeNewCanonicalCommand);
     window.addEventListener("nvu-offline-trip-queued", resume);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) resume(); });
-    onAuthStateChanged(auth, () => resume());
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) { resume(); warmHotCallables(); } });
+    window.addEventListener("online", () => { warmHotCallables(); });
+    onAuthStateChanged(auth, () => { resume(); warmHotCallables(); });
     // A suspended WebView may miss a native receipt ACK. Resume only while a
     // local operation command is pending; no idle server polling is introduced.
     window.setInterval(() => {

@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db, functions } from "../lib/firebase";
 import { isNativeAndroid } from "../lib/gtoObserver";

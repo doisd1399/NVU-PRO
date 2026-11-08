@@ -20,6 +20,7 @@ import { isCanonicalConfirmedTrip } from "./isCanonicalConfirmedTrip";
 import { reconcileOperationTripsCore } from "./reconcileOperationTrips";
 import { normalizeSimulatorKey, normalizeWorkModeAvailability, isWorkModeAllowed } from "./operationalWorkModePolicy";
 import { assertScsTrip } from "./scsTelemetryEvidence";
+import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
 
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown, max = 220): string =>
@@ -111,8 +112,10 @@ const hasReceiptEvidence = (trip: Data, isPrint: boolean): boolean => {
 };
 
 /** Server-authoritative canonical registration for Web/Print/Pro/offline. Client counters and status fields are never trusted. */
-export const registerCanonicalSimpleTrip = functions.region("us-central1").https.onCall(
+export const registerCanonicalSimpleTrip = functions.region(...CALLABLE_REGIONS).https.onCall(
   async (rawData: { trip?: Record<string, unknown> }, context) => {
+    // Idle-instance wake-up sent by the app: answer before any authorization or database work.
+    if (isWarmPing(rawData)) return { warm: true } as never;
     const authenticatedUid = context.auth?.uid;
     if (!authenticatedUid) fail("unauthenticated", "Autenticação necessária.");
     const uid = String(authenticatedUid || "");

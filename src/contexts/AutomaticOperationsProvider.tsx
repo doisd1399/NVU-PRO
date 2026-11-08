@@ -8,7 +8,7 @@ import React, {
   useState,
 } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { auth, db, functions } from "../lib/firebase";
 import { useSessionStore, useOperationalStore } from "../context/AppContext";
 import { useCompanyStore } from "../context/CompanyContext";

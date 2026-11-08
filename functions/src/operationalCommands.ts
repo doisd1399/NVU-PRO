@@ -3,6 +3,7 @@ import * as admin from "./firebaseAdmin";
 import * as functions from "firebase-functions/v1";
 import { createHash } from "node:crypto";
 import { text, field, fail, id, millis, manager, membership, assertAccount, assertCompany, driverEligibility, simulatorKey, maintenance, snapshot, assets, readOperationalPreparation } from "./operationalCommandPolicy";
+import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
 
 type Data = Record<string, any>;
 type Tx = FirebaseFirestore.Transaction;
@@ -208,7 +209,7 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
   });
 }
 
-export const operationalCommand = functions.region("us-central1").https.onCall((input, context) => executeOperationalCommand(admin.firestore(), input, context));
+export const operationalCommand = functions.region(...CALLABLE_REGIONS).https.onCall((input, context) => isWarmPing(input) ? { warm: true } : executeOperationalCommand(admin.firestore(), input, context));
 
 export async function settleOperationalAssignment(db: DB, jobId: string): Promise<boolean> {
   return db.runTransaction(async tx => {
@@ -230,7 +231,7 @@ export const notifyOperationalAssignment = functions.region("us-central1").runWi
   .firestore.document("trabalhos/{jobId}").onCreate((_, context) => settleOperationalAssignment(admin.firestore(), context.params.jobId));
 
 /** Explicit opt-in only. Dry-run is the default and never changes any data. */
-export const prepareCompanyOperationalCommands = functions.region("us-central1").https.onCall(async (input: Data, context) => {
+export const prepareCompanyOperationalCommands = functions.region(...CALLABLE_REGIONS).https.onCall(async (input: Data, context) => {
   const uid = context.auth?.uid;
   if (!uid) fail("unauthenticated", "Autenticação obrigatória.");
   const companyId = id(input?.companyId, "Empresa"), db = admin.firestore();

@@ -64,6 +64,8 @@ export function OperationSyncNotice({ job }: { job?: { id: string; operationSync
               </>}
           </span>
         </>
-        : "Início salvo neste aparelho. Você pode trabalhar offline; a operação e as viagens aguardam confirmação ao sincronizar."}
+        : offline
+          ? "Início salvo neste aparelho. Você pode trabalhar offline; a operação e as viagens aguardam confirmação ao sincronizar."
+          : <span data-testid="operation-sync-message">{job.operationSyncError ? `${job.operationSyncError} Tentando de novo automaticamente.` : "Confirmando o início no servidor…"}</span>}
   </div>;
 }

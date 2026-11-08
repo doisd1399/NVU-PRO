@@ -1,12 +1,12 @@
 {
   "functionalRelease": "NVU-PRO-AUDITORIA-2026-10-27-CANDIDATA",
-  "androidVersion": "1.0.548",
-  "androidVersionCode": 548,
-  "webVersion": "2.3.205",
+  "androidVersion": "1.0.549",
+  "androidVersionCode": 549,
+  "webVersion": "2.3.206",
   "capacitorRuntime": "local",
   "otaEnabled": false,
   "otaManifestUrl": "",
-  "otaChannelPolicy": "production-548 (OTA disabled)",
+  "otaChannelPolicy": "production-549 (OTA disabled)",
   "netlifyUrl": "",
   "nativeBundleImmutable": true
 }

@@ -1,5 +1,5 @@
 import { getDocFromServer, doc } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { db, auth, functions } from "../lib/firebase";
 import { normalizeWorkModeAvailability, isWorkModeAllowed, type WorkModeAvailability, type WorkMode } from "../lib/workModeAvailability";
 import { isConnectivityError, isDefinitelyOffline } from "../lib/connectivity";

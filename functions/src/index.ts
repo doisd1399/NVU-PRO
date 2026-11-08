@@ -6,6 +6,7 @@ export { registerPushDevice, revokePushDevice } from "./pushDevices";
 import { buildCanonicalProductionAudit } from "./canonicalProductionAudit";
 import { requireActiveSenior } from "./seniorAccountCommands";
 import { approveFleetMemberCore } from "./fleetMembership";
+import { CALLABLE_REGIONS } from "./callableRegions";
 export { manageFleetMembership } from "./fleetMembership";
 export { manageCompanyGroup } from "./companyGroups";
 export { ensureCompanyAccess, syncCompanyAccessOnMembershipWrite, syncCompanyPublicProfile, syncCompanyAccessOnUserWrite } from "./companyAccess";
@@ -82,7 +83,7 @@ export const sendPushNotification = functions.https.onCall(async (_data, context
 /**
  * Repara de forma idempotente o vínculo de uma inscrição já aprovada.
  */
-export const repairApprovedMembership = functions.https.onCall(async (data, context) =>
+export const repairApprovedMembership = functions.region(...CALLABLE_REGIONS).https.onCall(async (data, context) =>
   approveFleetMemberCore(db, context, { applicationId: String(data?.applicationId || ""), repair: true }));
 
 export {

@@ -10,7 +10,7 @@ import {
 import type { CanonicalTrip } from "../../domain/trip/CanonicalTrip";
 import { getOfflineReceipt, markOfflineReceiptUploaded } from "../../lib/offlineReceiptStore";
 import { uploadService } from "../uploadService";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../../lib/regionalCallable";
 import { buildCanonicalTripRegistrationRequest } from "./CanonicalTripRegistrationRequest";
 import { tripSyncDeadline } from "../../lib/tripSyncDeadline";
 import { receiptUploadFlight } from "./receiptUploadFlight";

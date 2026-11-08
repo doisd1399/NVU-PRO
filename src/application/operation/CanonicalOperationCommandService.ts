@@ -1,7 +1,7 @@
 import { doc, updateDoc, runTransaction } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { auth, functions } from '../../lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { httpsCallable } from "../../lib/regionalCallable";
 import { OperationalCommandClient, type OperationalCommandInput, type OperationalCommandResult } from './OperationalCommandClient';
 import { operationalRequestId } from '../../lib/operationalRequestId';
 

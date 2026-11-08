@@ -1,5 +1,5 @@
 import { doc, getDoc, getDocFromServer, onSnapshot } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { db, functions } from "../lib/firebase";
 import {
   buildRankingAggregateDocumentId,

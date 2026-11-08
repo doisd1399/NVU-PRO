@@ -4,6 +4,7 @@ import { accountUsable, requireCompanyManager } from "./companyAccess";
 import { hasSeniorClaim } from "./authorization";
 import { requireActiveAccount } from "./seniorAccountCommands";
 import { driverDisplayIdentity } from "./driverDisplayIdentity";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 const text = (value: unknown, max = 160) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const id = (value: unknown) => typeof value === "string" && value.length > 0 && value.length <= 128 && !value.includes("/");
@@ -54,7 +55,7 @@ export const syncUserPublicProfile = functions.runWith({ failurePolicy: true }).
   });
 
 /** Private reads are explicit and bounded; ordinary directory views use public_users. */
-export const readPrivateUserProfiles = functions.https.onCall(async (input, context) => {
+export const readPrivateUserProfiles = functions.region(...CALLABLE_REGIONS).https.onCall(async (input, context) => {
   const uid = context.auth?.uid;
   if (!uid) throw new functions.https.HttpsError("unauthenticated", "Autenticação obrigatória.");
   const data = input || {};

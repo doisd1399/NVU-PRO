@@ -7,7 +7,7 @@ import {
   where,
   type Firestore,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../../lib/regionalCallable";
 import { auth, db, functions } from "../../lib/firebase";
 import { normalizeTrip } from "../../lib/tripNormalizer";
 import type { CanonicalTrip } from "../../domain/trip/CanonicalTrip";

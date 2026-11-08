@@ -1,6 +1,6 @@
 import { auth, functions } from './firebase';
 import { Capacitor } from '@capacitor/core';
-import { httpsCallable } from 'firebase/functions';
+import { httpsCallable } from "./regionalCallable";
 import { isAuthTeardownActive } from './authLifecycle';
 import {reservePushRevision,pushTokenHash,rememberPushDevice,rememberedPushDevice,forgetPushDevice,pendingPushRevocations,queuePushRevocation,acknowledgePushRevocation} from './pushDeviceState';
 export type PushContext = { userId?: string | null; companyId?: string | null; activeProfile?: string | null };

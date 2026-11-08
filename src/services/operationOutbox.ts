@@ -9,6 +9,7 @@ import { confirmCompletedOperationQueueCleanup } from "./completedOperationQueue
 import { isSimpleAutomationNativeAvailable, SimpleAutomation } from "../lib/simpleAutomationNative";
 
 export const OPERATION_OUTBOX_CHANGED = "nvu-operation-outbox-changed";
+const SETTLED_NATIVE_SKIP_MS = 2 * 24 * 3_600_000;
 const mirrored = new Map<string, boolean>();
 const pausedCapture = new Map<string, boolean>();
 let pendingTripIds = (_uid: string, _jobId: string): string[] => [];
@@ -81,8 +82,12 @@ export async function reconcileOperationOutboxNativeState() {
   const uid = auth.currentUser?.uid || "";
   if (!uid) return;
   const entries = operationOutbox.entries(uid);
+  const now = Date.now();
   for (const entry of entries) {
     if (auth.currentUser?.uid !== uid) break;
+    // A command confirmed days ago whose native cleanup is finished has nothing left to repair on the native side. Skipping it
+    // keeps the first sync after the app opens from making two bridge calls for every historical command.
+    if (entry.state === "CONFIRMED" && now - entry.createdAt > SETTLED_NATIVE_SKIP_MS && (entry.kind !== "finish" || entry.nativeCleanupDone)) continue;
     if (entry.kind === "start") await mirrorOperationStart(uid, entry.companyId, entry.jobId, entry.state !== "CONFIRMED");
     const pause = entries.some(row => row.jobId === entry.jobId && row.companyId === entry.companyId &&
       (row.kind === "start" && row.state === "REJECTED" || row.kind === "finish" && row.state !== "REJECTED"));

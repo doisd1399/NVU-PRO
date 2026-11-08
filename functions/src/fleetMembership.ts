@@ -9,6 +9,7 @@ import { recruitmentIdentityPatch } from "./recruitmentIdentity";
 import { leaveFleetMemberCore, previewLeaveFleetMember } from "./fleetMembershipLeave";
 import { operationalDriverStateId } from "./operationalCommands";
 import { membershipCapabilities, withdrawApplicationCore, WITHDRAWN } from "./fleetApplications";
+import { CALLABLE_REGIONS } from "./callableRegions";
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
 /** Jobs a removal closes together with the access: a driver that is no longer in the company must not keep work open in it. */
@@ -284,7 +285,7 @@ export async function executeFleetMembershipCommand(db: FirebaseFirestore.Firest
 /** Keep domain refusals distinct from infrastructure failures. A reference
  * joins the user's error to server logs without exposing database details. */
 let firstFleetInvocation = true;
-export const manageFleetMembership = functions.region("us-central1").runWith({ ingressSettings: "ALLOW_ALL" }).https.onCall(async (input, context) => {
+export const manageFleetMembership = functions.region(...CALLABLE_REGIONS).runWith({ ingressSettings: "ALLOW_ALL" }).https.onCall(async (input, context) => {
   const startedAt = Date.now(), coldStart = firstFleetInvocation;
   firstFleetInvocation = false;
   const suppliedId = text(input?.diagnosticId);

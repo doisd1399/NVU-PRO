@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { auth, functions } from "../lib/firebase";
 
 type Lookup = { ids?: string[]; email?: string; companyId?: string; existenceOnly?: boolean };

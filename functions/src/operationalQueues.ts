@@ -33,6 +33,7 @@ import {
   type QueueItem,
   type QueueSettings,
 } from "./operationalQueueModel";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 type Data = Record<string, any>;
 type DB = FirebaseFirestore.Firestore;
@@ -674,7 +675,7 @@ async function readCatalog(
 }
 
 export const getOperationalQueues = functions
-  .region("us-central1")
+  .region(...CALLABLE_REGIONS)
   .runWith({ timeoutSeconds: 120, memory: "512MB" })
   .https.onCall(async (input: Data, context) => {
     const companyId = id(input?.companyId, "Empresa"),
@@ -783,7 +784,7 @@ function signal(tx: Tx, db: DB, companyId: string) {
 export const operationalQueueSignal = signal;
 
 export const configureOperationalQueues = functions
-  .region("us-central1")
+  .region(...CALLABLE_REGIONS)
   .runWith({ timeoutSeconds: 120, memory: "512MB" })
   .https.onCall(async (input: Data, context) => {
     const companyId = id(input?.companyId, "Empresa"),

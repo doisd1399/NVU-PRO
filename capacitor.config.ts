@@ -15,7 +15,7 @@ const selfHostedOtaEnabled =
   && Boolean(selfHostedOtaManifestUrl)
   && Boolean(selfHostedOtaPublicKey);
 const nativeChannel = String(
-  process.env.NVU_NATIVE_CHANNEL || "production-548",
+  process.env.NVU_NATIVE_CHANNEL || "production-549",
 ).trim();
 
 /**

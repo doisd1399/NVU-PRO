@@ -3,6 +3,7 @@ import * as functions from "firebase-functions/v1";
 import { buildCanonicalOperationProjection, field } from "./canonicalOperationProjection";
 import { operationCompletionPatch } from "./operationCompletion";
 import { applyOperationalCompletion, readOperationalCompletion } from "./operationalCommands";
+import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
 
 const validJobId = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{1,180}$/.test(value);
@@ -15,8 +16,9 @@ const validJobId = (value: unknown): value is string =>
  * `completed` transition after re-validating the canonical trip ledger.
  */
 export const completeCanonicalOperation = functions
-  .region("us-central1")
+  .region(...CALLABLE_REGIONS)
   .https.onCall(async (input: unknown, context) => {
+    if (isWarmPing(input)) return { warm: true } as never;
     const uid = context.auth?.uid;
     if (!uid) {
       throw new functions.https.HttpsError(

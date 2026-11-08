@@ -21,6 +21,9 @@ type Ports = {
   syncTimeoutMs?: number;
 };
 const prefix = "nvu.operation.outbox.v1.";
+/** Confirmed commands are kept this long / at most this many (see compact()). */
+export const CONFIRMED_RETENTION_MS = 7 * 24 * 3_600_000;
+export const CONFIRMED_KEEP = 30;
 /** After the driver asks to finish, saved receipts get this long to upload first. Past it the server decides: it only
  * completes an operation whose confirmed trips match the total, so a leftover local attempt can never block it forever. */
 export const FINISH_UPLOAD_GRACE_MS = 90_000;
@@ -75,9 +78,21 @@ export class DurableOperationOutbox {
     }
     return value.entries;
   }
+  /** Settled history is bounded: every read parses (and every write rewrites) the whole queue, so an ever-growing list of
+   * long-confirmed commands made each tap slower with use and would eventually exhaust localStorage. Anything that can
+   * still matter is kept: unconfirmed entries, and recent confirmed ones (the projection and native cleanup need them). */
+  private compact(entries: OperationOutboxEntry[]): OperationOutboxEntry[] {
+    const now = this.now();
+    const alive = entries.filter(entry => entry.state !== "CONFIRMED" || now - entry.createdAt <= CONFIRMED_RETENTION_MS);
+    const confirmed = alive.filter(entry => entry.state === "CONFIRMED");
+    if (confirmed.length <= CONFIRMED_KEEP) return alive;
+    const oldest = new Set(confirmed.sort((a, b) => a.createdAt - b.createdAt).slice(0, confirmed.length - CONFIRMED_KEEP)
+      .filter(entry => entry.kind !== "finish" || entry.nativeCleanupDone === true).map(entry => entry.id));
+    return alive.filter(entry => !oldest.has(entry.id));
+  }
   private write(uid: string, entries: OperationOutboxEntry[]) {
     const storage = this.ports.storage();
-    const raw = JSON.stringify({ version: 1, actorId: uid, entries });
+    const raw = JSON.stringify({ version: 1, actorId: uid, entries: this.compact(entries) });
     storage.setItem(prefix + uid, raw);
     if (storage.getItem(prefix + uid) !== raw) throw new Error("OPERATION_OUTBOX_NOT_DURABLE");
     this.ports.notify?.(uid);

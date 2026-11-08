@@ -18,6 +18,8 @@ export function useCompanyStore() {
 }
 let transport: (name: string, input: any) => Promise<any> = async () => { throw Error("Set isolated callable fixture"); };
 export const setTransport = (fn: typeof transport) => { transport = fn; };
+// regionalCallable.ts asks the SDK for a second-region instance; this harness has no regions, so any value works (it only routes real instances).
+export const getFunctions = (..._args: any[]) => ({});
 export const httpsCallable = (_functions: any, name: string) => async (input: any) => ({ data: await transport(name, input) });
 const signals = new Set<(snapshot: any) => void>();
 export const doc = (..._args: any[]) => ({});

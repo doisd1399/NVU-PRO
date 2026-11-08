@@ -1,6 +1,7 @@
 import * as admin from "./firebaseAdmin";
 import * as functions from "firebase-functions/v1";
 import { hasSeniorClaim } from "./authorization";
+import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
 
 type Data = FirebaseFirestore.DocumentData;
 type Tx = FirebaseFirestore.Transaction;
@@ -78,7 +79,8 @@ export async function refreshCompanyAccess(db: FirebaseFirestore.Firestore, uid:
   });
 }
 
-export const ensureCompanyAccess = functions.region("us-central1").https.onCall(async (input, context) => {
+export const ensureCompanyAccess = functions.region(...CALLABLE_REGIONS).https.onCall(async (input, context) => {
+  if (isWarmPing(input)) return { warm: true } as never;
   const uid = context.auth?.uid, companyId = String(input?.companyId || "").trim();
   if (!uid) throw new functions.https.HttpsError("unauthenticated", "Faça login para enviar a imagem.");
   if (!companyId || companyId.length > 180 || /[\/\0]/.test(companyId)) throw new functions.https.HttpsError("invalid-argument", "Empresa inválida.");

@@ -1,4 +1,4 @@
-import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "../lib/regionalCallable";
 import { functions } from "../lib/firebase";
 
 export interface RepairApprovedMembershipResult {

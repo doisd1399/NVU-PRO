@@ -2,10 +2,11 @@ import * as functions from "firebase-functions/v1";
 import * as admin from "./firebaseAdmin";
 import { companyUsable, requireCompanyManager } from "./companyAccess";
 import { parseFinancialGoalRequest, type GoalRequest } from "./operationalGoalPolicy";
+import { CALLABLE_REGIONS } from "./callableRegions";
 
 /** Financial goals use canonical server authorization, independent of a missing
  * derived simulator index. */
-export const manageOperationalGoal = functions.region("us-central1").runWith({ maxInstances: 4, timeoutSeconds: 30, memory: "256MB" }).https.onCall(async (raw: unknown, context) => {
+export const manageOperationalGoal = functions.region(...CALLABLE_REGIONS).runWith({ maxInstances: 4, timeoutSeconds: 30, memory: "256MB" }).https.onCall(async (raw: unknown, context) => {
   if (!context.auth) throw new functions.https.HttpsError("unauthenticated", "Entre na sua conta para consultar a meta.");
   let input: GoalRequest;
   try { input = parseFinancialGoalRequest(raw); }

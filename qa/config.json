@@ -22,7 +22,9 @@
       "operation-vehicle",
       "ranking-internal",
       "app-guides",
-      "ghost-jobs"
+      "ghost-jobs",
+      "callable-regions",
+      "durable-outbox"
     ],
     "web": [
       "harness",
@@ -48,6 +50,8 @@
       "ranking-internal",
       "app-guides",
       "ghost-jobs",
+      "callable-regions",
+      "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
       "windows-settings"
@@ -77,6 +81,8 @@
       "ranking-internal",
       "app-guides",
       "ghost-jobs",
+      "callable-regions",
+      "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
       "windows-settings"
@@ -347,6 +353,26 @@
         "scripts/test-operation-ghost-jobs.mts"
       ],
       "timeoutMs": 30000
+    },
+    "callable-regions": {
+      "label": "Ações atendidas em São Paulo (região do Firestore) com retorno seguro e aquecimento barato",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-callable-regions.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "durable-outbox": {
+      "label": "Fila local de iniciar/finalizar: envio durável, ordem, espera e histórico limitado",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-durable-operation-outbox.mts"
+      ],
+      "timeoutMs": 60000
     }
   },
   "auditBlockersFile": "qa/audit-blockers.json"
