@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { selectBlockingRunningJobs, selectCurrentOperationJob, selectCurrentOperationJobs, selectHiddenRunningJobs } from "../src/lib/currentOperation.ts";
-import { canManageCompanyOperations, isManagedOperation, isOpenSupportJob, listOpenSupportJobs, supportJobName, supportStatusLabel } from "../src/lib/seniorOperationSupport.ts";
+import { canManageCompanyOperations, isDriverOutsideCompany, isManagedOperation, isOpenSupportJob, listOpenSupportJobs, supportJobName, supportStatusLabel } from "../src/lib/seniorOperationSupport.ts";
 
 // Relato (Dudu TV): "Finalize sua operação atual antes de iniciar outra" sem nenhuma operação visível no painel do motorista, e a empresa
 // só via a operação nova (não iniciada). A regra de exibição esconde trabalhos antigos "em andamento" (legado, mais antigos que o último
@@ -49,4 +49,13 @@ assert.equal(can(["senior"], { seniorCompanyId: C, seniorAccess: true }), true, 
 assert.equal(can(["senior"], { seniorCompanyId: "other", seniorAccess: true }), false, "Sênior dentro de outra empresa");
 assert.equal(can(["senior"], { seniorCompanyId: C, seniorAccess: false }), false, "sessão Sênior não confirmada");
 assert.equal(canManageCompanyOperations({ viewerIds: ["senior"], company: null, members, seniorCompanyId: C, seniorAccess: true }), false);
+// Motorista que já saiu da empresa (removido da frota): o trabalho dele ficou aberto. Sem a lista de membros carregada, ninguém é "ex-membro".
+const co = { id: C, ownerId: "owner", userId: "owner" };
+const roster = [{ companyId: C, userId: "ativo", status: "active" }, { companyId: C, userId: "removido", status: "removed" }, { companyId: C, userId: "pendente", status: "pending" }, { companyId: "outra", userId: "dudu", status: "active" }];
+const outside = (driverId: string, over: Record<string, unknown> = {}) => isDriverOutsideCompany({ driverId, company: co, members: roster, membersReady: true, ...over } as any);
+assert.equal(outside("dudu"), true, "Dudu é membro de OUTRA empresa, não desta");
+assert.equal(outside("removido"), true); assert.equal(outside("pendente"), true); assert.equal(outside("desconhecido"), true);
+assert.equal(outside("ativo"), false); assert.equal(outside("owner"), false, "o dono nunca é ex-membro");
+assert.equal(outside("dudu", { membersReady: false }), false, "lista ainda não carregada: não conclui nada");
+assert.equal(outside("dudu", { members: null }), false); assert.equal(outside(""), false); assert.equal(outside("dudu", { company: null }), false);
 console.log("trabalhos escondidos × bloqueio de início e suporte do Sênior: ok");

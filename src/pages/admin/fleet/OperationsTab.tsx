@@ -31,7 +31,7 @@ import { preloadImages } from "../../../lib/imageCache";
 import { formatGoalAmount, formatGoalDraft, parseGoalAmount } from "../../../lib/goalMoneyInput";
 import { goalCurrencySymbol, goalRevenueIn, resolveGoalCurrency } from "../../../lib/goalCurrency";
 import { commitNavigation } from "../../../lib/navigationTransition";
-import { canManageCompanyOperations } from "../../../lib/seniorOperationSupport";
+import { canManageCompanyOperations, isDriverOutsideCompany } from "../../../lib/seniorOperationSupport";
 import { isRunningJobStatus } from "../../../lib/jobStatus";
 
 type SummaryPeriod = "semana" | "mensal" | "personalizado";
@@ -174,9 +174,10 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
         deadline: due ? dateFormat.format(new Date(due)) : "Não definido", deadlineTimestamp: due,
         timeRemaining: !due ? "Não definido" : diff <= 0 ? "Prazo vencido" : `${Math.floor(diff / 86400000)}d · ${Math.floor(diff / 3600000) % 24}h · ${Math.floor(diff / 60000) % 60}min`,
         nearDeadline: Boolean(due && diff <= 2 * 86400000), state, jobStatus: String(job.status || ""),
+        driverOutsideCompany: isDriverOutsideCompany({ driverId: job.driverId, company: activeCompany, members: allCompanyMembers as any[], membersReady: Boolean(allCompanyMembersReady) }),
       };
     });
-  }, [activeCompany, activeCompanyId, companies, contracts, historicoTrips, jobs, now, selectedSimulatorId, simulators, trailers, users, vehicles]);
+  }, [activeCompany, activeCompanyId, allCompanyMembers, allCompanyMembersReady, companies, contracts, historicoTrips, jobs, now, selectedSimulatorId, simulators, trailers, users, vehicles]);
   type CentralSnapshot = { earnings: string[]; tripCount: number; goalRevenue: number; operations: ManagementOperation[] };
   const summaryKey = managementCacheKey("summary", cacheScope);
   const [lastSnapshot, setLastSnapshot] = useState<{ key: string; value: CentralSnapshot; savedAt: number } | null>(null);

@@ -7,9 +7,14 @@ import { membershipCommandReceipt, readMembershipCommandStatus, runMembershipTra
 import { driverDisplayIdentity } from "./driverDisplayIdentity";
 import { recruitmentIdentityPatch } from "./recruitmentIdentity";
 import { leaveFleetMemberCore, previewLeaveFleetMember } from "./fleetMembershipLeave";
+import { operationalDriverStateId } from "./operationalCommands";
 import { membershipCapabilities, withdrawApplicationCore, WITHDRAWN } from "./fleetApplications";
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
+/** Jobs a removal closes together with the access: a driver that is no longer in the company must not keep work open in it. */
+const REMOVAL_OPEN_JOB_STATUSES = ["pending", "active", "delayed", "awaiting_completion"];
+const REMOVAL_MAX_JOBS = 25;
+const REMOVAL_MAX_LEGACY_RECORDS = 200;
 const id = (value: unknown, label: string) => {
   const result = text(value);
   if (!result || result.length > 180 || /[\/\0]/.test(result) || [".", ".."].includes(result))
@@ -33,14 +38,39 @@ export async function removeFleetMemberCore(db: FirebaseFirestore.Firestore, con
     // Single-field identity indexes: work scales with this driver's records,
     // never with every applicant/employee of a large company. Legacy email
     // and driverId aliases remain covered and tenant-checked below.
-    const [applicationQueries, requestQueries, companyMembers, simulatorMembers] = await Promise.all([
+    const jobsCollection = db.collection("trabalhos");
+    const [applicationQueries, requestQueries, companyMembers, simulatorMembers, canonicalJobs, legacyJobs, driverState] = await Promise.all([
       Promise.all([tx.get(db.collection("recruitment_applications").where("userId", "==", targetUserId)),
         ...emails.map(email => tx.get(db.collection("recruitment_applications").where("email", "==", email)))]),
       Promise.all([tx.get(db.collection("solicitacoes_motoristas").where("motoristaId", "==", targetUserId)),
         tx.get(db.collection("solicitacoes_motoristas").where("driverId", "==", targetUserId))]),
       target.owner ? tx.get(db.collection("companyMembers").where("companyId", "==", companyId)) : Promise.resolve(null),
       tx.get(db.collection("simulator_members").where("userId", "==", targetUserId).where("companyId", "==", companyId)),
+      tx.get(jobsCollection.where("companyId", "==", companyId).where("driverId", "==", targetUserId).where("status", "in", REMOVAL_OPEN_JOB_STATUSES)),
+      // Equality-only legacy alias; status is filtered below so no new index is required.
+      tx.get(jobsCollection.where("companyId", "==", companyId).where("motoristaId", "==", targetUserId).limit(REMOVAL_MAX_LEGACY_RECORDS + 1)),
+      tx.get(db.collection("operationalDriverStates").doc(operationalDriverStateId(companyId, targetUserId))),
     ]);
+    if (legacyJobs.size > REMOVAL_MAX_LEGACY_RECORDS)
+      throw new functions.https.HttpsError("failed-precondition", "O histórico deste vínculo requer manutenção administrativa antes da remoção.");
+    const openJobs = [...new Map([...canonicalJobs.docs, ...legacyJobs.docs].filter(row =>
+      REMOVAL_OPEN_JOB_STATUSES.includes(text(row.get("status"))) && row.get("deleted") !== true &&
+      (text(row.get("companyId")) || text(row.get("empresaId"))) === companyId).map(row => [row.id, row])).values()];
+    if (openJobs.length > REMOVAL_MAX_JOBS)
+      throw new functions.https.HttpsError("failed-precondition", "Há trabalhos demais para encerrar de uma vez. Cancele alguns trabalhos deste motorista e tente de novo.");
+    // Vehicle/trailer of the jobs being closed, and whether another running job of the company still uses them.
+    const closing = new Set(openJobs.map(row => row.id));
+    const resources = new Map<string, { collection: string; id: string; key: string }>();
+    for (const row of openJobs) {
+      const vehicle = text(row.get("vehicleId")) || text(row.get("veiculoId")), trailer = text(row.get("trailerId")) || text(row.get("reboqueId"));
+      if (vehicle) resources.set(`veiculos/${vehicle}`, { collection: "veiculos", id: id(vehicle, "Veículo"), key: "vehicleId" });
+      if (trailer) resources.set(`reboques/${trailer}`, { collection: "reboques", id: id(trailer, "Reboque"), key: "trailerId" });
+    }
+    const usage = await Promise.all([...resources.values()].map(async resource => {
+      const [asset, others] = await Promise.all([tx.get(db.collection(resource.collection).doc(resource.id)),
+        tx.get(jobsCollection.where("companyId", "==", companyId).where(resource.key, "==", resource.id).where("status", "in", ["active", "delayed", "awaiting_completion"]))]);
+      return { asset, shared: others.docs.some(row => !closing.has(row.id) && row.get("deleted") !== true) };
+    }));
     // A tombstone may predate cleanup of old user fields and application/request
     // projections. A repeated removal must finish that cleanup instead of
     // reporting success while stale fleet associations remain visible.
@@ -63,8 +93,8 @@ export async function removeFleetMemberCore(db: FirebaseFirestore.Firestore, con
       target.user.companyId === companyId || target.user.empresaId === companyId ||
       target.user.currentRecruitmentCompanyId === companyId);
     if (target.revoked && target.members.empty && !target.owner && simulatorMembers.empty &&
-        revokedApplications.length === 0 && revokedRequests.length === 0 && !staleUserMembership)
-      return { success: true, targetUserId, companyId, removed: true };
+        revokedApplications.length === 0 && revokedRequests.length === 0 && !staleUserMembership && openJobs.length === 0)
+      return { success: true, targetUserId, companyId, removed: true, cancelledJobs: 0, cancelledJobIds: [] as string[] };
     let replacement = "";
     if (target.owner) {
       if (!hasSeniorClaim(context)) throw new functions.https.HttpsError("failed-precondition", "Transfira a propriedade antes de remover o responsável pela empresa.");
@@ -73,9 +103,17 @@ export async function removeFleetMemberCore(db: FirebaseFirestore.Firestore, con
       const successor = await readCompanyAccess(db, tx, replacement, companyId);
       if (!successor.active) throw new functions.https.HttpsError("failed-precondition", "O novo responsável não está ativo.");
     }
-    if (target.members.docs.length + simulatorMembers.docs.length + revokedApplications.length + revokedRequests.length > 400)
+    if (target.members.docs.length + simulatorMembers.docs.length + revokedApplications.length + revokedRequests.length + openJobs.length * 3 > 400)
       throw new functions.https.HttpsError("failed-precondition", "O vínculo requer manutenção administrativa antes da remoção.");
-    const now = admin.firestore.FieldValue.serverTimestamp();
+    const now = admin.firestore.FieldValue.serverTimestamp(), iso = new Date().toISOString();
+    // Cancelled, never completed: the trips already recorded stay. Without this the driver kept running jobs in a company he no
+    // longer belongs to (nobody listed them, the vehicle stayed "in use", and the company still counted them).
+    for (const row of openJobs) tx.update(row.ref, { status: "cancelled", cancelledAt: row.get("cancelledAt") || iso, cancelledBy: context.auth!.uid,
+      cancelReason: reason, operationalRevision: Number(row.get("operationalRevision") || 0) + 1 });
+    if (driverState.exists && closing.has(text(driverState.get("currentJobId")))) tx.set(driverState.ref, { currentJobId: null, updatedAt: now }, { merge: true });
+    usage.forEach(({ asset, shared }) => {
+      if (asset.exists && asset.get("companyId") === companyId && asset.get("status") === "in_use" && !shared) tx.update(asset.ref, { status: "available" });
+    });
     target.members.docs.forEach(row => tx.delete(row.ref));
     const canonicalSimulator = db.collection("simulator_members").doc(`${targetUserId}_${companyId}`);
     simulatorMembers.docs.filter(row => row.ref.path !== canonicalSimulator.path).forEach(row => tx.delete(row.ref));
@@ -105,8 +143,8 @@ export async function removeFleetMemberCore(db: FirebaseFirestore.Firestore, con
       tx.update(target.userSnap.ref, patch);
     }
     tx.create(db.collection("audit_senior_employee_actions").doc(), { action: "remove_from_fleet", actorUid: context.auth!.uid,
-      targetUserId, companyId, result: "completed", reason, createdAt: now });
-    return { success: true, targetUserId, companyId, removed: true };
+      targetUserId, companyId, result: "completed", reason, cancelledJobIds: openJobs.map(row => row.id), createdAt: now });
+    return { success: true, targetUserId, companyId, removed: true, cancelledJobs: openJobs.length, cancelledJobIds: openJobs.map(row => row.id) };
   });
 }
 

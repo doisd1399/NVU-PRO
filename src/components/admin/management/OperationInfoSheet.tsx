@@ -54,6 +54,8 @@ export function OperationInfoSheet({ operation, now, canManage, onAction, onClos
           </div>
         </div>
       </div>
+      {operation.driverOutsideCompany && <p className="nvu-op-sheet-note" role="note" data-testid="operation-orphan-note">
+        Este motorista não faz mais parte da empresa, mas o trabalho ficou aberto e mantém o veículo em uso. Cancele-o para encerrar. As viagens já registradas são preservadas.</p>}
       <div className="nvu-op-sheet-actions">
         {actions.map(({ id, label, icon: Icon, enabled, hint }) => <button type="button" key={id} className="nvu-op-sheet-action" data-action={id} data-danger={id === "cancel" || undefined}
           disabled={!enabled} title={hint} onClick={() => onAction(id)}>

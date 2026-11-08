@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { ArrowLeftRight, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ManagementDialog } from "./management/ManagementDialog";
-import { listOpenSupportJobs, supportJobName, supportStatusLabel, type SupportJob } from "../../lib/seniorOperationSupport";
+import { isDriverOutsideCompany, listOpenSupportJobs, supportJobName, supportStatusLabel, type SupportJob } from "../../lib/seniorOperationSupport";
 import { seniorCancelOperation, seniorChangeOperationVehicle, supportFailureMessage } from "../../services/seniorOperationSupportService";
 import "./management/ManagementDashboard.css";
 import "./management/OperationInfoSheet.css";
@@ -17,9 +17,11 @@ const personName = (person?: Person) => person ? (`${person.firstName || ""} ${p
  * Painel Sênior › empresa › Trabalhos em aberto. Lista TODOS os trabalhos pendentes ou em execução da empresa (inclusive os
  * antigos que a tela do motorista não mostra) e permite ao Sênior cancelar ou trocar o veículo, como suporte direto.
  */
-export function SeniorOperationsSupport({ company, jobs, users, vehicles, onChanged }: {
-  company: { id: string; companyName?: string; operationalCommandVersion?: unknown };
+export function SeniorOperationsSupport({ company, jobs, users, vehicles, members, onChanged }: {
+  company: { id: string; companyName?: string; operationalCommandVersion?: unknown; ownerId?: string; userId?: string };
   jobs: SupportJob[]; users: Person[]; vehicles: Vehicle[];
+  /** Members of the company (null while not loaded: nobody is called an ex-member without the list). */
+  members: { companyId?: string; userId?: string; status?: string }[] | null;
   onChanged: (jobId: string, patch: Partial<SupportJob>) => void;
 }) {
   const open = useMemo(() => listOpenSupportJobs(jobs, company.id), [jobs, company.id]);
@@ -67,6 +69,8 @@ export function SeniorOperationsSupport({ company, jobs, users, vehicles, onChan
               <small>{driverOf(job)} · {vehicleOf(job)}</small>
               <small>{Number(job.progress || 0)}/{Number(job.totalDeliveries || 0)} entregas · <span className="nvu-senior-job-id">{job.id.slice(0, 8)}</span></small>
             </div>
+            {isDriverOutsideCompany({ driverId: job.driverId || job.motoristaId, company, members, membersReady: members !== null }) &&
+              <span className="nvu-senior-chip" data-tone="warn" data-orphan="true"><i />Motorista fora da empresa</span>}
             <span className="nvu-senior-chip" data-tone={job.status === "delayed" ? "warn" : job.status === "pending" ? undefined : "ok"}><i />{supportStatusLabel(job.status)}</span>
             <div className="nvu-senior-guide-actions">
               <button type="button" className="nvu-senior-mini" data-action="vehicle" onClick={() => { setError(""); setVehicleId(job.id); }}><ArrowLeftRight size={15} aria-hidden="true" />Trocar veículo</button>

@@ -16,6 +16,8 @@ export type ManagementOperation = {
   state: "active" | "pending" | "overdue" | "ready";
   /** Raw job status; lets the information card tell a finished or cancelled job from an open one. */
   jobStatus?: string;
+  /** The driver is no longer an active member of the company: the job was left open when he was removed. */
+  driverOutsideCompany?: boolean;
 };
 const statusLabels = { active: "Em andamento", pending: "Não iniciado", overdue: "Atrasado", ready: "Aguardando conclusão" };
 
@@ -78,6 +80,7 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
           referrerPolicy="no-referrer" fallback={<span>{operation.driverName.slice(0, 2).toUpperCase()}</span>} />
         <strong>{operation.driverName}</strong>
       </button>
+      {operation.driverOutsideCompany && <span className="nvu-central-job-status" data-state="overdue" data-orphan="true"><i aria-hidden="true" />Fora da empresa</span>}
       <span className="nvu-central-job-status" data-state={operation.state}><i aria-hidden="true" />{statusLabels[operation.state]}</span>
       <button type="button" className="nvu-central-operation-toggle" aria-expanded={expanded} aria-controls={photoId} onClick={() => setExpanded(value => !value)}
         aria-label={`${expanded ? "Minimizar" : "Expandir"} operação de ${operation.driverName}`}><ChevronDown size={20} strokeWidth={2.2} aria-hidden="true" /></button>

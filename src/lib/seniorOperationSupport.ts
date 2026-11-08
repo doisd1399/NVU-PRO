@@ -88,3 +88,21 @@ export function canManageCompanyOperations(input: {
     member.companyId === companyId && ids.includes(String(member.userId || "")) && member.status === "active" &&
     (member.roles || []).some((role) => role === "admin" || role === "owner"));
 }
+
+/**
+ * A job of a driver who is no longer an active member of the company. Removing a driver used to leave his open jobs behind (the
+ * vehicle stayed "in use", the company kept counting them), so they show up as orphans. Unknown membership data is never an
+ * orphan: only a loaded member list can say that someone left.
+ */
+export function isDriverOutsideCompany(input: {
+  driverId?: string | null;
+  company: { id?: string; ownerId?: string; userId?: string } | null | undefined;
+  members: readonly { companyId?: string; userId?: string; status?: string }[] | null | undefined;
+  membersReady: boolean;
+}): boolean {
+  const driverId = String(input.driverId || "");
+  const companyId = String(input.company?.id || "");
+  if (!driverId || !companyId || !input.membersReady || !input.members) return false;
+  if (driverId === String(input.company?.ownerId || "") || driverId === String(input.company?.userId || "")) return false;
+  return !input.members.some((member) => member.companyId === companyId && member.userId === driverId && member.status === "active");
+}

@@ -54,9 +54,10 @@ function SeniorSupportStage() {
     { id: "A70-pending-0002", companyId: "c1", driverId: "dudu", vehicleId: "v1", status: "pending", contractNameSnapshot: "A.70", progress: 0, totalDeliveries: 12, assignedAt: "2026-11-05T10:00:00Z", operationalCommandVersion: 1 },
     { id: "done-0003", companyId: "c1", driverId: "dudu", vehicleId: "v1", status: "completed", contractNameSnapshot: "A.01" },
     { id: "other-0004", companyId: "c2", driverId: "x", vehicleId: "v9", status: "active", contractNameSnapshot: "Z.9" },
+    { id: "member-0005", companyId: "c1", driverId: "ativo", vehicleId: "v2", status: "delayed", contractNameSnapshot: "B.2", progress: 1, totalDeliveries: 5, assignedAt: "2026-10-10T10:00:00Z" },
   ]);
   window.__jobs = jobs;
-  return <SeniorOperationsSupport company={{ id: "c1", companyName: "Tijoleira" }} jobs={jobs} users={[{ id: "dudu", firstName: "Dudu", lastName: "Tv" }]}
+  return <SeniorOperationsSupport company={{ id: "c1", companyName: "Tijoleira" }} jobs={jobs} users={[{ id: "dudu", firstName: "Dudu", lastName: "Tv" }, { id: "ativo", firstName: "Ana", lastName: "Souza" }]} members={[{ companyId: "c1", userId: "ativo", status: "active" }, { companyId: "c2", userId: "dudu", status: "active" }]}
     vehicles={[{ id: "v1", companyId: "c1", name: "Scania G R 540", status: "in_use" }, { id: "v2", companyId: "c1", name: "Volvo FH12", plate: "ABC-1D23", status: "available" }, { id: "v3", companyId: "c1", name: "Em oficina", status: "maintenance" }, { id: "v9", companyId: "c2", name: "De outra empresa", status: "available" }]}
     onChanged={(id, patch) => setJobs(current => current.map(job => job.id === id ? { ...job, ...patch } : job))} />;
 }
@@ -251,7 +252,9 @@ try {
   await check("Suporte do Sênior: lista todos os trabalhos em aberto da empresa (inclusive o antigo escondido) e cancela com confirmação", async () => {
     const { context, page } = await open("support");
     await page.getByTestId("senior-operations-support").waitFor();
-    assert.deepEqual(await page.locator("[data-job-id]").evaluateAll(rows => rows.map(row => row.getAttribute("data-job-id"))), ["old-active-0001", "A70-pending-0002"], "só os abertos da empresa, em execução primeiro");
+    assert.deepEqual(await page.locator("[data-job-id]").evaluateAll(rows => rows.map(row => row.getAttribute("data-job-id"))), ["old-active-0001", "member-0005", "A70-pending-0002"], "só os abertos da empresa, em execução primeiro");
+    assert.deepEqual(await page.locator("[data-orphan]").evaluateAll(chips => chips.map(chip => chip.closest("[data-job-id]").getAttribute("data-job-id"))), ["old-active-0001", "A70-pending-0002"], "só os trabalhos de quem não é mais membro (Dudu é de outra empresa) levam o aviso");
+    assert(await page.locator('[data-job-id="old-active-0001"]').getByText("Motorista fora da empresa").isVisible());
     assert(await page.locator('[data-job-id="old-active-0001"]').getByText("Em andamento").isVisible());
     assert(await page.locator('[data-job-id="A70-pending-0002"]').getByText("Não iniciado").isVisible());
     assert(await page.getByText("Dudu Tv · Scania G R 540").first().isVisible());
@@ -265,7 +268,7 @@ try {
     const calls = await page.evaluate(() => window.__calls);
     assert.deepEqual(calls.map(call => [call.type, call.company, call.job]), [["support-cancel", "c1", "old-active-0001"]]);
     assert.equal(await page.locator('[data-job-id="old-active-0001"]').count(), 0, "sai da lista ao cancelar");
-    assert.equal(await page.locator("[data-job-id]").count(), 1);
+    assert.equal(await page.locator("[data-job-id]").count(), 2);
     await context.close();
   });
   await check("Suporte do Sênior: recusa do servidor aparece na tela e o trabalho continua na lista", async () => {
@@ -274,7 +277,7 @@ try {
     await page.getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
     await page.getByRole("alert").waitFor();
     assert.equal(await page.getByRole("alert").innerText(), "A empresa ainda não foi preparada.");
-    assert.equal(await page.locator("[data-job-id]").count(), 2);
+    assert.equal(await page.locator("[data-job-id]").count(), 3);
     await shot(page, "senior-support-error");
     await context.close();
   });

@@ -1888,6 +1888,7 @@ export default function SeniorPanel() {
                 jobs={allJobs}
                 users={allUsers}
                 vehicles={allVehicles}
+                members={(() => { const list = uniqueCompanyMembers(allMembers, selectedCompany.id); return list.length ? list : null; })()}
                 onChanged={(jobId, patch) => setAllJobs((current) => current.map((job) => (job.id === jobId ? { ...job, ...patch } : job)))}
               />
 

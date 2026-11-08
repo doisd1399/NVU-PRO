@@ -88,3 +88,4 @@
 /* Confirmation of the cancellation uses the warning orange of the app. */
 .nvu-central-dialog-actions > button[data-orange="true"] { background: #ff8800; border-color: transparent; color: #1c1200; font-weight: 600; }
 .nvu-central-dialog-actions > button[data-orange="true"]:disabled { opacity: .6; }
+.nvu-op-sheet-note { margin: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--central-warning) 45%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--central-warning) 10%, transparent); color: var(--central-text); font-size: 13px; line-height: 1.45; }
