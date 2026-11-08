@@ -99,11 +99,11 @@ import { markSessionBootEvent } from "../lib/sessionBootTelemetry";
 import { markProfilePerf } from "../lib/profilePerformanceTelemetry";
 import { getOperationalSuspension } from "../lib/driverSuspension";
 import { clearTripHistoryCacheForUser } from "../lib/tripHistoryPersistentCache";
-import { isOpenJobStatus, normalizeJobStatus } from "../lib/jobStatus";
+import { isOpenJobStatus, isRunningJobStatus, normalizeJobStatus } from "../lib/jobStatus";
 import { isSimpleAutomationNativeAvailable } from "../lib/simpleAutomationNative";
 import type { ConfirmedOperationCompletion } from "../application/operation/FinalizeOperation";
 import { discardCompletedOperationQueue, reconcileCompletedOperationQueues } from "../services/completedOperationQueueCleanup";
-import { selectCurrentOperationJob } from "../lib/currentOperation";
+import { selectBlockingRunningJobs, selectCurrentOperationJob } from "../lib/currentOperation";
 import {
   resolveCurrentFleetUsageJobs,
   resolveFleetJobAssetId,
@@ -4354,6 +4354,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  /**
+   * The same set the server counts when a driver starts another operation (every running job of the driver in the company),
+   * not only the one the panel displays. A candidate that the server already closed (cancelled/completed/removed) is a stale
+   * copy on this device: it is corrected here instead of blocking the start. What still runs on the server blocks the start
+   * with a message that names it, so the company or the Senior knows which job to cancel.
+   */
+  const assertNoBlockingOperation = async (driverId: string, companyId: string, exceptJobId: string) => {
+    const candidates = selectBlockingRunningJobs(jobs as any[], driverId, companyId, exceptJobId) as Job[];
+    if (!candidates.length) return;
+    let blocking = candidates;
+    if (navigator.onLine !== false) {
+      const checked = await Promise.all(candidates.slice(0, 5).map(async (job): Promise<Job | null> => {
+        try {
+          const row = await getDocFromServer(doc(db, "trabalhos", job.id));
+          return row.exists() ? { ...(row.data() as Job), id: job.id } : null;
+        } catch { return job; }
+      }));
+      const closed = new Map<string, string>();
+      candidates.slice(0, 5).forEach((job, index) => {
+        const fresh = checked[index];
+        if (!fresh || (fresh as any).deleted === true || !isRunningJobStatus(fresh.status)) closed.set(job.id, fresh && (fresh as any).deleted !== true ? String(fresh.status) : "cancelled");
+      });
+      if (closed.size) setJobs(current => current.map(job => closed.has(job.id) ? { ...job, status: closed.get(job.id) as Job["status"] } : job));
+      blocking = candidates.filter(job => !closed.has(job.id));
+    }
+    if (!blocking.length) return;
+    const first = blocking[0] as any;
+    const name = String(first.contractNameSnapshot || first.contractName || first.contractSnapshot?.name || "").trim();
+    throw new Error(`Você já tem uma operação em andamento${name ? `: ${name}` : ""}. Finalize-a, ou peça à empresa para cancelá-la, antes de iniciar outra.`);
+  };
+
   const startJob = async (jobId: string) => {
     const id = String(jobId || "").trim(), uid = getCurrentUserId(), scope = operationalCommandScopeRef.current;
     if (!id || activeRole !== "driver" || !activeCompanyId) throw new Error("Selecione seu perfil de motorista para iniciar.");
@@ -4370,7 +4401,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!target || target.driverId !== uid || target.companyId !== activeCompanyId) throw new Error("Esta operação não está disponível para este motorista no aparelho.");
       if (["active", "delayed", "awaiting_completion"].includes(target.status)) return;
       if (target.status !== "pending") throw new Error("A operação não está aguardando início.");
-      if (jobs.some(job => job.id !== id && job.driverId === uid && job.companyId === activeCompanyId && ["active", "delayed", "awaiting_completion"].includes(job.status))) throw new Error("Finalize sua operação atual antes de iniciar outra.");
+      await assertNoBlockingOperation(uid, activeCompanyId, id);
       const company = companies.find(company => company.id === target!.companyId), contract = resolveOperationContract(target, contracts);
       const simulatorId = String(target.simulatorId || contract?.simulator || resolveAvailabilitySimulator(company, simulators) || "");
       assertCachedNewOperationAllowed(simulatorId);
@@ -4391,7 +4422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     const uid = getCurrentUserId(), scope = operationalCommandScopeRef.current, companyId = activeCompanyId;
     if (activeRole !== "driver" || !companyId || !next || !vehicleId) throw new Error("Escolha a operação e um veículo disponível.");
     if (getOperationalSuspension(currentUser as any).active) throw new Error("Suas atividades operacionais estão suspensas.");
-    if (jobs.some(job => job.companyId === companyId && job.driverId === uid && ["active", "delayed", "awaiting_completion"].includes(job.status))) throw new Error("Finalize sua operação atual antes de iniciar outra.");
+    await assertNoBlockingOperation(uid, companyId, "");
     const company = companies.find(company => company.id === companyId);
     const cache = await readOperationalQueueCache(automaticQueueScope(uid, companyId, "driver", String(company?.simulatorId || company?.simulatorName || "unknown")));
     const view = cache?.snapshot;

@@ -16,7 +16,7 @@ import { auth } from "../../../lib/firebase";
 import { useOperationalGoal } from "../../../hooks/useOperationalGoal";
 import { useNetworkOnline } from "../../../hooks/useNetworkOnline";
 import { managementCacheKey, readManagementCache, writeManagementCache } from "../../../lib/managementOfflineCache";
-import { deriveCurrentOperationProgress, selectCanonicalOperationTrips, selectCurrentOperationJobs } from "../../../lib/currentOperation";
+import { deriveCurrentOperationProgress, selectCanonicalOperationTrips } from "../../../lib/currentOperation";
 import { operationDateMs, resolveOperationContract } from "../../../lib/operationResultSummary";
 import { normalizeTrip, calculateWeeklyMetrics, getWeeklyRange, getMonthlyRange, applySimulatorCurrencyContext } from "../../../lib/metricsEngine";
 import { isTrailerlessSimulator, resolveSimulatorId } from "../../../lib/resolveSimulator";
@@ -31,6 +31,8 @@ import { preloadImages } from "../../../lib/imageCache";
 import { formatGoalAmount, formatGoalDraft, parseGoalAmount } from "../../../lib/goalMoneyInput";
 import { goalCurrencySymbol, goalRevenueIn, resolveGoalCurrency } from "../../../lib/goalCurrency";
 import { commitNavigation } from "../../../lib/navigationTransition";
+import { canManageCompanyOperations } from "../../../lib/seniorOperationSupport";
+import { isRunningJobStatus } from "../../../lib/jobStatus";
 
 type SummaryPeriod = "semana" | "mensal" | "personalizado";
 const dateFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -48,7 +50,7 @@ function savedSummaryPeriod(key: string, companyId: string) {
 
 /** Data adapter only. Both mobile and desktop mount the new management view. */
 export default function OperationsTab({ active = true }: { active?: boolean }) {
-  const { currentUser } = useSessionStore();
+  const { currentUser, seniorCompanyId } = useSessionStore();
   const { companies, activeCompanyId, allCompanyMembers, allCompanyMembersReady } = useCompanyStore();
   const { users, contracts, jobs, vehicles, trailers, simulators, sequences, cancelJob, changeJobVehicle, rejectJobDemand, operationalDataReady, operationalDataRefreshing } = useOperationalStore();
   const { jobDemands } = useActivityStore();
@@ -116,6 +118,9 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const goalDocumentId = `${activeCompanyId}__${selectedSimulatorId || "unknown"}__${dateKey(range.start).replaceAll("-", "")}_${dateKey(range.end).replaceAll("-", "")}`;
   const identities = [viewerId, currentUser?.id].filter(Boolean);
   const canManageGoal = Boolean(viewerId && activeCompanyId && (identities.includes(activeCompany?.ownerId) || identities.includes(activeCompany?.userId) || allCompanyMembers.some(member => member.companyId === activeCompanyId && identities.includes(member.userId) && member.status === "active" && (member.roles?.includes("admin") || member.roles?.includes("owner" as any)))));
+  // Cancelar trabalho e trocar veículo: administradores da empresa e o Sênior que está dentro desta empresa (suporte direto).
+  const seniorAccess = (() => { try { return sessionStorage.getItem("seniorAccess") === "true"; } catch { return false; } })();
+  const canManageOperations = canManageCompanyOperations({ viewerIds: identities, company: activeCompany, members: allCompanyMembers as any[], seniorCompanyId, seniorAccess });
   const cacheScope = { viewerId, companyId: activeCompanyId || "", simulatorId: selectedSimulatorId, periodId: goalDocumentId };
   const goal = useOperationalGoal(cacheScope, goalDocumentId, canManageGoal);
   const { target: goalTarget, loading: goalLoading, error: goalError } = goal;
@@ -135,14 +140,15 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     const userMap = new Map(users.map(user => [user.id, user]));
     const vehicleMap = new Map(vehicles.map(vehicle => [vehicle.id, vehicle]));
     const trailerMap = new Map(trailers.map(trailer => [trailer.id, trailer]));
-    const currentIds = new Set(selectCurrentOperationJobs(jobs, activeCompanyId).map(job => job.id));
     const tripsByJob = new Map<string, any[]>();
     for (const trip of historicoTrips) {
       for (const key of new Set([trip.jobId, trip.operationId].map(value => String(value || "")).filter(Boolean))) {
         const group = tripsByJob.get(key) || []; group.push(trip); tripsByJob.set(key, group);
       }
     }
-    return jobs.filter(job => job.companyId === activeCompanyId && (job.status === "pending" || currentIds.has(job.id))).map(job => {
+    // Todo trabalho pendente ou em execução da empresa, não só o "atual" de cada motorista: um trabalho em andamento que nenhuma tela
+    // lista, mas que o servidor conta, impede o motorista de iniciar outro e ninguém consegue cancelá-lo.
+    return jobs.filter(job => job.companyId === activeCompanyId && (job.status === "pending" || isRunningJobStatus(job.status)) && (job as any).deleted !== true).map(job => {
       const contract = resolveOperationContract(job, contracts);
       const driver = userMap.get(job.driverId);
       const vehicle = vehicleMap.get(job.vehicleId);
@@ -232,7 +238,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const confirmCancel = async () => {
     if (cancelSaveRef.current || !jobToCancel) return;
     const job = jobs.find(item => item.id === jobToCancel);
-    if (!canManageGoal) { setCancelError("Somente administradores da empresa podem cancelar trabalhos."); return; }
+    if (!canManageOperations) { setCancelError("Somente administradores da empresa podem cancelar trabalhos."); return; }
     if (!job || !openJobStatuses.includes(String(job.status))) { setCancelError("Este trabalho já foi encerrado."); return; }
     if (!online) { setCancelError("Sem conexão. Conecte-se para cancelar o trabalho."); return; }
     // Immediate response: the dialog closes and the card leaves the list now.
@@ -283,7 +289,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
         <div className="nvu-central-dialog-actions"><button type="button" disabled={goalSaving} onClick={() => setGoalOpen(false)}>Cancelar</button><button type="submit" disabled={goalSaving || !canManageGoal} data-primary="true">{goalSaving ? "Salvando…" : "Salvar meta"}</button></div>
       </form>
     </ManagementDialog>}
-    {info && <OperationInfoSheet operation={info} now={now.getTime()} canManage={canManageGoal} onClose={() => setInfoId(null)} onAction={(action: OperationInfoAction) => {
+    {info && <OperationInfoSheet operation={info} now={now.getTime()} canManage={canManageOperations} onClose={() => setInfoId(null)} onAction={(action: OperationInfoAction) => {
       if (action === "profile") onDriver(info);
       else if (action === "trips") setTripsId(info.id);
       else if (action === "vehicle") setVehicleJobId(info.id);

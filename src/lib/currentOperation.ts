@@ -178,6 +178,41 @@ export function selectCurrentOperationJobs<T extends OperationSelectionJob>(
   });
 }
 
+/**
+ * Every running job (active, delayed, awaiting completion) of one driver in one company, regardless of which of them the
+ * panel chooses to display. This is the set the server counts when a driver starts another operation, so the start guard
+ * and the company/Senior lists must use it: a running job that no screen lists but that still blocks the start can never
+ * be cancelled by anyone.
+ */
+export function selectBlockingRunningJobs<T extends OperationSelectionJob>(
+  jobs: readonly T[],
+  driverId?: string | null,
+  companyId?: string | null,
+  exceptJobId?: string | null,
+): T[] {
+  const normalizedDriverId = String(driverId || "").trim();
+  const normalizedCompanyId = String(companyId || "").trim();
+  const except = String(exceptJobId || "").trim();
+  if (!normalizedDriverId) return [];
+  return jobs.filter((job) =>
+    operationSelectionDriverId(job) === normalizedDriverId &&
+    (!normalizedCompanyId || companyIdOf(job) === normalizedCompanyId) &&
+    String((job as { id?: unknown }).id || "") !== except &&
+    (job as { deleted?: unknown }).deleted !== true &&
+    isRunningJobStatus(job.status));
+}
+
+/** Running jobs that selectCurrentOperationJob does not surface (older leftovers, or a second running job of the same driver). */
+export function selectHiddenRunningJobs<T extends OperationSelectionJob>(jobs: readonly T[], companyId?: string | null): T[] {
+  const visible = new Set(selectCurrentOperationJobs(jobs, companyId).map((job) => String((job as { id?: unknown }).id || "")));
+  const normalizedCompanyId = String(companyId || "").trim();
+  return jobs.filter((job) =>
+    (!normalizedCompanyId || companyIdOf(job) === normalizedCompanyId) &&
+    (job as { deleted?: unknown }).deleted !== true &&
+    isRunningJobStatus(job.status) &&
+    !visible.has(String((job as { id?: unknown }).id || "")));
+}
+
 export function deriveCurrentOperationProgress(
   job: CurrentOperationJob | null | undefined,
   trips: readonly RawTrip[],

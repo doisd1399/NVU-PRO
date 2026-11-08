@@ -33,10 +33,13 @@ export const reactivateSeniorAccount = async (...a) => { calls.push({ type: "rea
 export const reverseSeniorSuspension = async (...a) => { calls.push({ type: "reverse", args: a }); };
 export const endSeniorOperationalSuspension = async (...a) => { calls.push({ type: "end", args: a }); };
 export const deleteSeniorProfile = async (...a) => { calls.push({ type: "delete-profile", args: a }); };
+export const seniorCancelOperation = async (company, job, all) => { calls.push({ type: "support-cancel", company: company.id, job: job.id, others: all.length }); if (window.__supportFail) { const e = new Error("A empresa ainda não foi preparada."); e.code = "functions/failed-precondition"; throw e; } };
+export const seniorChangeOperationVehicle = async (companyId, jobId, vehicleId) => { calls.push({ type: "support-vehicle", companyId, jobId, vehicleId }); };
+export const supportFailureMessage = (error, fallback) => error?.code === "functions/failed-precondition" ? error.message : fallback;
 export const db = {}; export const auth = {}; export const storage = {};
 export const doc = () => ({}); export const onSnapshot = () => () => {};
 `;
-const adapters = new Set(["AppContext.tsx", "appGuidesService.ts", "privateUserProfiles.ts", "seniorAccountAdministrationService.ts", "firebase.ts"]);
+const adapters = new Set(["AppContext.tsx", "seniorOperationSupportService.ts", "appGuidesService.ts", "privateUserProfiles.ts", "seniorAccountAdministrationService.ts", "firebase.ts"]);
 const bundle = await build({
   stdin: { resolveDir: root, sourcefile: "senior-sheets-ui.tsx", loader: "tsx", contents: `
 import React, { useState } from "react";import { createRoot } from "react-dom/client";import { MemoryRouter } from "react-router-dom";
@@ -44,6 +47,19 @@ import { SeniorOptionsSheet } from "./src/components/admin/SeniorOptionsSheet";
 import { SeniorMemberActions } from "./src/components/admin/SeniorMemberActions";
 import { AppGuidesManagerModal } from "./src/components/admin/AppGuidesManagerModal";
 import Manual from "./src/pages/Manual";
+import { SeniorOperationsSupport } from "./src/components/admin/SeniorOperationsSupport";
+function SeniorSupportStage() {
+  const [jobs, setJobs] = useState([
+    { id: "old-active-0001", companyId: "c1", driverId: "dudu", vehicleId: "v1", status: "active", contractNameSnapshot: "A.10", progress: 3, totalDeliveries: 10, assignedAt: "2026-10-01T10:00:00Z" },
+    { id: "A70-pending-0002", companyId: "c1", driverId: "dudu", vehicleId: "v1", status: "pending", contractNameSnapshot: "A.70", progress: 0, totalDeliveries: 12, assignedAt: "2026-11-05T10:00:00Z", operationalCommandVersion: 1 },
+    { id: "done-0003", companyId: "c1", driverId: "dudu", vehicleId: "v1", status: "completed", contractNameSnapshot: "A.01" },
+    { id: "other-0004", companyId: "c2", driverId: "x", vehicleId: "v9", status: "active", contractNameSnapshot: "Z.9" },
+  ]);
+  window.__jobs = jobs;
+  return <SeniorOperationsSupport company={{ id: "c1", companyName: "Tijoleira" }} jobs={jobs} users={[{ id: "dudu", firstName: "Dudu", lastName: "Tv" }]}
+    vehicles={[{ id: "v1", companyId: "c1", name: "Scania G R 540", status: "in_use" }, { id: "v2", companyId: "c1", name: "Volvo FH12", plate: "ABC-1D23", status: "available" }, { id: "v3", companyId: "c1", name: "Em oficina", status: "maintenance" }, { id: "v9", companyId: "c2", name: "De outra empresa", status: "available" }]}
+    onChanged={(id, patch) => setJobs(current => current.map(job => job.id === id ? { ...job, ...patch } : job))} />;
+}
 function Stage() {
   const [view, setView] = useState(new URLSearchParams(location.search).get("view") || "manual");
   window.__setView = setView;
@@ -54,6 +70,7 @@ function Stage() {
     {view === "options" && <SeniorOptionsSheet onClose={() => setView("closed")} onSelect={id => { setPicked(id); window.__selected = id; if (id === "guides") setView("guides"); }} />}
     {view === "guides" && <AppGuidesManagerModal onClose={() => setView("closed")} />}
     {view === "member" && <SeniorMemberActions member={{ userId: "u1", suspension: window.__qaSuspension }} user={{ firstName: "Marcos", lastName: "Oliveira", email: "marcos@exemplo.com", accountStatus: window.__qaAccountStatus || "active" }} companyId="c1" companyName="Matecom" triggerLabel="Ações" />}
+    {view === "support" && <SeniorSupportStage />}
     {view === "closed" && <p data-testid="closed">fechado</p>}
   </div>;
 }
@@ -231,6 +248,50 @@ try {
       await context.close();
     });
   }
+  await check("Suporte do Sênior: lista todos os trabalhos em aberto da empresa (inclusive o antigo escondido) e cancela com confirmação", async () => {
+    const { context, page } = await open("support");
+    await page.getByTestId("senior-operations-support").waitFor();
+    assert.deepEqual(await page.locator("[data-job-id]").evaluateAll(rows => rows.map(row => row.getAttribute("data-job-id"))), ["old-active-0001", "A70-pending-0002"], "só os abertos da empresa, em execução primeiro");
+    assert(await page.locator('[data-job-id="old-active-0001"]').getByText("Em andamento").isVisible());
+    assert(await page.locator('[data-job-id="A70-pending-0002"]').getByText("Não iniciado").isVisible());
+    assert(await page.getByText("Dudu Tv · Scania G R 540").first().isVisible());
+    await shot(page, "senior-support-list");
+    await page.locator('[data-job-id="old-active-0001"] [data-action="cancel"]').click();
+    await page.getByTestId("senior-cancel-sheet").waitFor();
+    await sheetAtBottom(page);
+    assert(await page.getByText("As viagens já registradas são preservadas").isVisible());
+    await page.getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
+    await page.getByTestId("senior-cancel-sheet").waitFor({ state: "detached" });
+    const calls = await page.evaluate(() => window.__calls);
+    assert.deepEqual(calls.map(call => [call.type, call.company, call.job]), [["support-cancel", "c1", "old-active-0001"]]);
+    assert.equal(await page.locator('[data-job-id="old-active-0001"]').count(), 0, "sai da lista ao cancelar");
+    assert.equal(await page.locator("[data-job-id]").count(), 1);
+    await context.close();
+  });
+  await check("Suporte do Sênior: recusa do servidor aparece na tela e o trabalho continua na lista", async () => {
+    const { context, page } = await open("support", { seed: { __supportFail: true } });
+    await page.locator('[data-job-id="A70-pending-0002"] [data-action="cancel"]').click();
+    await page.getByRole("button", { name: "Cancelar trabalho", exact: true }).click();
+    await page.getByRole("alert").waitFor();
+    assert.equal(await page.getByRole("alert").innerText(), "A empresa ainda não foi preparada.");
+    assert.equal(await page.locator("[data-job-id]").count(), 2);
+    await shot(page, "senior-support-error");
+    await context.close();
+  });
+  await check("Suporte do Sênior: trocar veículo oferece só os veículos da empresa (sem o atual, oficina ou outra empresa)", async () => {
+    const { context, page } = await open("support");
+    await page.locator('[data-job-id="A70-pending-0002"] [data-action="vehicle"]').click();
+    await page.getByTestId("senior-vehicle-sheet").waitFor();
+    await sheetAtBottom(page);
+    assert.deepEqual(await page.locator("[data-vehicle-id]").evaluateAll(rows => rows.map(row => row.getAttribute("data-vehicle-id"))), ["v2"]);
+    await shot(page, "senior-support-vehicle");
+    await page.locator('[data-vehicle-id="v2"]').click();
+    await page.getByTestId("senior-vehicle-sheet").waitFor({ state: "detached" });
+    const calls = await page.evaluate(() => window.__calls);
+    assert.deepEqual(calls.map(call => [call.type, call.companyId, call.jobId, call.vehicleId]), [["support-vehicle", "c1", "A70-pending-0002", "v2"]]);
+    assert(await page.getByText("Dudu Tv · Volvo FH12").first().isVisible(), "a lista mostra o novo veículo");
+    await context.close();
+  });
   await check("Guias: motorista abre no guia do motorista", async () => {
     const { context, page } = await open("manual", { role: "driver" });
     await page.getByTestId("guides-page").waitFor();

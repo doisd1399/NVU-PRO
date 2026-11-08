@@ -21,7 +21,8 @@
       "goal-currency",
       "operation-vehicle",
       "ranking-internal",
-      "app-guides"
+      "app-guides",
+      "ghost-jobs"
     ],
     "web": [
       "harness",
@@ -46,6 +47,7 @@
       "operation-vehicle",
       "ranking-internal",
       "app-guides",
+      "ghost-jobs",
       "senior-sheets-ui",
       "windows-overlay",
       "windows-settings"
@@ -74,6 +76,7 @@
       "operation-vehicle",
       "ranking-internal",
       "app-guides",
+      "ghost-jobs",
       "senior-sheets-ui",
       "windows-overlay",
       "windows-settings"
@@ -334,6 +337,16 @@
         "scripts/test-senior-sheets-ui.mjs"
       ],
       "timeoutMs": 150000
+    },
+    "ghost-jobs": {
+      "label": "Trabalho em andamento escondido bloqueia o início; Sênior age nas operações da empresa",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-operation-ghost-jobs.mts"
+      ],
+      "timeoutMs": 30000
     }
   },
   "auditBlockersFile": "qa/audit-blockers.json"

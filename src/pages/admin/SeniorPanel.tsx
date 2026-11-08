@@ -73,6 +73,7 @@ import { SeniorMemberActions } from "../../components/admin/SeniorMemberActions"
 import { SuspendedMembersModal } from "../../components/admin/SuspendedMembersModal";
 import { AppGuidesManagerModal } from "../../components/admin/AppGuidesManagerModal";
 import { SeniorOptionsSheet } from "../../components/admin/SeniorOptionsSheet";
+import { SeniorOperationsSupport } from "../../components/admin/SeniorOperationsSupport";
 import { WorkModeAvailabilityModal } from "../../components/admin/WorkModeAvailabilityModal";
 import {
   isCompanyRegistration,
@@ -1881,6 +1882,14 @@ export default function SeniorPanel() {
     </div>
     </div>
     </div>
+
+              <SeniorOperationsSupport
+                company={selectedCompany as any}
+                jobs={allJobs}
+                users={allUsers}
+                vehicles={allVehicles}
+                onChanged={(jobId, patch) => setAllJobs((current) => current.map((job) => (job.id === jobId ? { ...job, ...patch } : job)))}
+              />
 
               <div className="mt-10 space-y-4">
                 <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase px-1 border-b border-gray-100 dark:border-nvu-line pb-2">
