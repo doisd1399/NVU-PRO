@@ -1,6 +1,11 @@
-# NVU PRO 1.0.565 (Android) / Web 2.3.222 / Windows 0.2.2
+# NVU PRO 1.0.566 (Android) / Web 2.3.223 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 565 — instala como atualização da 564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 566 — instala como atualização da 565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.566 — Recompensas: prévia da operação e conta da meta
+- **Prévia da operação igual à lista “Escolher operação”:** depois de escolher, o formulário mostra o mesmo cartão da lista (ícone, nome, reboque, entregas e dias); tocar nele reabre a lista para trocar.
+- **O app calcula a conta e mostra cada passo:** meta por motorista (viagens × valor por viagem) e custo máximo (motoristas × meta), por exemplo 12 × R$ 25,00 = R$ 300,00 e 3 × R$ 300,00 = R$ 900,00.
+- A meta é alcançada **realizando as viagens dentro da operação**. Na oferta, o motorista vê a **barra de progresso** e quantas viagens faltam; na campanha, a empresa vê “x de N viagens” por motorista.
 
 ## 1.0.565 — Recompensas: formulário simples por operação e correções
 - **Teclado fechando a cada letra (corrigido):** os campos da “Nova campanha” eram recriados a cada letra digitada; agora ficam fixos e o teclado não fecha.

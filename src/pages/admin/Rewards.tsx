@@ -10,7 +10,7 @@ import { formatMoney, maskMoney, parseMoneyToCents } from "../../lib/partnership
 import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, periodText, rewardErrorMessage, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
 import { BackLink, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
 import { PayrollTab, PaymentDetail, TransfersTab } from "./RewardPayroll";
-import AssignJobAssetPicker from "../../components/admin/AssignJobAssetPicker";
+import AssignJobAssetPicker, { OperationCardBody } from "../../components/admin/AssignJobAssetPicker";
 import "../../components/partnerships/Partnerships.css";
 
 const TONE: Record<CampaignState, string> = { active: "good", scheduled: "warn", ended: "muted", cancelled: "muted", capped: "late" };
@@ -120,11 +120,11 @@ function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack
     <BackLink label="Recompensas" onClick={onBack} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
       <Field label="1. Operação" hint="A recompensa vale só para viagens dessa operação.">
-        <button type="button" className="b2p-input" onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={contract ? `Alterar operação: ${contract.name}` : "Escolher operação"} style={{ minHeight: 54, textAlign: "left" }}>
-          <ClipboardList size={20} aria-hidden="true" />
-          <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1, color: contract ? undefined : "var(--central-muted)" }}>
-            {contract ? <><b>{contract.name}</b><small style={{ color: "var(--central-muted)" }}>{trailer?.name ? `${trailer.name} · ` : ""}{contractTrips} {contractTrips === 1 ? "entrega" : "entregas"}{contract.deadlineDays ? ` · ${contract.deadlineDays} dias` : ""}</small></> : "Escolher operação"}</span>
-          <ChevronRight size={18} aria-hidden="true" /></button>
+        {/* Prévia igual ao cartão da lista "Escolher operação"; tocar abre a lista para trocar */}
+        <div className="nvu-assignment-theme"><button type="button" className={"nvu-assignment-choice nvu-assignment-contract-choice" + (contract ? " is-selected" : "")} onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={contract ? `Alterar operação: ${contract.name}` : "Escolher operação"}>
+          {contract ? <OperationCardBody name={contract.name} trailerName={trailer?.name || "Qualquer reboque"} totalDeliveries={contract.totalDeliveries} deadlineDays={contract.deadlineDays} />
+            : <><span className="nvu-assignment-choice-symbol"><ClipboardList size={23} strokeWidth={1.65} /></span><span className="nvu-assignment-choice-copy"><strong>Escolher operação</strong></span></>}
+          <ChevronRight size={18} aria-hidden="true" style={{ alignSelf: "center", justifySelf: "center" }} /></button></div>
         {!contracts.length ? <span className="b2p-note-box" data-tone="warn" role="note">Nenhuma operação ativa. Cadastre uma em Central de gestão → Operações e volte aqui.</span> : null}
       </Field>
       <div className="b2p-grid2">
@@ -137,10 +137,11 @@ function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack
       <div className="b2p-grid2"><Field label="5. Início"><div className="b2p-input"><input type="date" value={start} onChange={event => setStart(event.target.value)} /></div></Field><Field label="Fim"><div className="b2p-input"><input type="date" value={end} onChange={event => setEnd(event.target.value)} /></div></Field></div>
       <Field label="6. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
       <div className="b2p-settle">
-        <Row label="Valor por viagem" value={formatMoney(perTripCents)} /><Row label="Viagens" value={trips} />
-        <Row label="Meta de valor por motorista" value={formatMoney(goal)} strong /><Row label="Motoristas" value={people} /><Row label="Custo máximo (teto)" value={formatMoney(budget)} strong />
+        <Row label="Valor por viagem" value={formatMoney(perTripCents)} /><Row label="Viagens por motorista" value={trips} />
+        <Row label={`Meta por motorista (${trips} × ${formatMoney(perTripCents)})`} value={formatMoney(goal)} strong /><Row label="Motoristas" value={people} />
+        <Row label={`Custo máximo (${people} × ${formatMoney(goal)})`} value={formatMoney(budget)} strong />
       </div>
-      <p className="b2p-hint">O motorista alcança a meta de valor ao concluir a operação: valor por viagem × total de viagens. O teto sai da conta (motoristas × meta). Você só paga o que cada motorista realmente fizer. Só contam viagens da operação confirmadas depois do aceite e dentro do período.</p>
+      <p className="b2p-hint">O motorista alcança a meta realizando as viagens dentro da operação: viagens × valor por viagem. O app calcula o teto sozinho: motoristas × viagens × valor. Você só paga o que cada motorista realmente fizer. Só contam viagens da operação confirmadas depois do aceite e dentro do período.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>
@@ -167,7 +168,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
     <Section title="Motoristas" count={offers.length}>
       {offers.length ? [...offers].sort((a, b) => b.totalCents - a.totalCents || a.driverName.localeCompare(b.driverName)).map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
         <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(offer.driverName)}</span>
-        <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips} ${offer.trips === 1 ? "viagem" : "viagens"}${offer.goalReached ? " · bônus de meta" : ""}` : OFFER_STATE_LABEL[offer.status]}</small></div>
+        <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${offer.goalReached ? " · bônus de meta" : ""}` : OFFER_STATE_LABEL[offer.status]}</small></div>
         <span className="b2p-amt"><strong data-k="x">{offer.status === "accepted" ? formatMoney(offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{OFFER_STATE_LABEL[offer.status]}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}
       <p className="b2p-hint">Contam só as viagens confirmadas pelo servidor, depois do aceite do motorista e dentro do período.</p>

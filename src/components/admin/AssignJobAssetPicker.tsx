@@ -56,6 +56,21 @@ type Props = {
 const normalizeText = (value: unknown) =>
   String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
+/** Corpo do cartão de operação (ícone, nome, reboque, entregas e prazo): o mesmo na lista "Escolher operação" e na prévia da operação escolhida. */
+export function OperationCardBody({ name, trailerName, totalDeliveries, deadlineDays }: { name: string; trailerName: string; totalDeliveries?: number; deadlineDays?: number }) {
+  return <>
+    <span className="nvu-assignment-choice-symbol"><ClipboardList size={23} strokeWidth={1.65} /></span>
+    <span className="nvu-assignment-choice-copy">
+      <strong>{name}</strong>
+      <span className="nvu-assignment-choice-description"><Truck size={14} strokeWidth={1.7} />{trailerName}</span>
+      <span className="nvu-assignment-choice-meta">
+        <span><Package size={16} strokeWidth={1.7} />{totalDeliveries ?? 0} entregas</span>
+        <span><CalendarDays size={16} strokeWidth={1.7} />{deadlineDays ?? 0} dias</span>
+      </span>
+    </span>
+  </>;
+}
+
 export function AssignJobAssetPicker({
   kind, open, selectedId, contracts = [], sequences = [], vehicles = [], trailers = [],
   vehicleUsageById, currentId, onClose, onSelect,
@@ -202,15 +217,7 @@ export function AssignJobAssetPicker({
       <button type="button" role="radio" aria-checked={selected} aria-label={contract.name}
         key={contract.id} data-value={contract.id} onClick={() => setDraftId(contract.id)}
         className={"nvu-assignment-choice nvu-assignment-contract-choice" + (selected ? " is-selected" : "")}>
-        <span className="nvu-assignment-choice-symbol"><ClipboardList size={23} strokeWidth={1.65} /></span>
-        <span className="nvu-assignment-choice-copy">
-          <strong>{contract.name}</strong>
-          <span className="nvu-assignment-choice-description"><Truck size={14} strokeWidth={1.7} />{trailer?.name || "Qualquer reboque"}</span>
-          <span className="nvu-assignment-choice-meta">
-            <span><Package size={16} strokeWidth={1.7} />{contract.totalDeliveries ?? 0} entregas</span>
-            <span><CalendarDays size={16} strokeWidth={1.7} />{contract.deadlineDays ?? 0} dias</span>
-          </span>
-        </span>
+        <OperationCardBody name={contract.name} trailerName={trailer?.name || "Qualquer reboque"} totalDeliveries={contract.totalDeliveries} deadlineDays={contract.deadlineDays} />
         {radio}
       </button>
     );

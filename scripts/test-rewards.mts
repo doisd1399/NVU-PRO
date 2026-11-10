@@ -144,7 +144,7 @@ test("Formulário da campanha: campos fora do componente (o teclado não fecha a
   assert.doesNotMatch(form, /\bconst Field\s*=/, "componente declarado dentro de outro remonta os campos a cada letra e fecha o teclado");
   assert.match(page, /^const Field = /m);
   assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Viagens da operação", "4. Quem participa", "5. Início", "6. Nome da campanha"].filter(label => !form.includes(label)), []);
-  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Meta de valor por motorista/); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
+  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Meta por motorista \(/); assert.match(form, /Custo máximo \(\$\{people\} × /, "o app mostra a conta: motoristas × viagens × valor"); assert.match(form, /OperationCardBody/, "prévia da operação igual à lista"); assert.match(readFileSync("src/components/admin/AssignJobAssetPicker.tsx", "utf8"), /<OperationCardBody name=\{contract\.name\}/, "a lista usa o mesmo cartão da prévia"); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
   assert.match(page, /item\.status === "active" && item\.deleted !== true/, "só operações ativas");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);
