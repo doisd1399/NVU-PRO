@@ -1,6 +1,15 @@
-# NVU PRO 1.0.562 (Android) / Web 2.3.219 / Windows 0.2.2
+# NVU PRO 1.0.563 (Android) / Web 2.3.220 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 562 — instala como atualização da 561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 563 — instala como atualização da 562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.563 — Recompensas (fase 1: empresa → motoristas da própria equipe)
+- **Empresário:** Central de gestão → **Recompensas**. Cria campanha (nome, período de até 92 dias, todos ou motoristas escolhidos, **valor fixo por viagem**, **bônus de meta** opcional e **teto de investimento**) com **simulador do custo máximo**. Acompanha ganhos por motorista e pode **encerrar** a campanha.
+- **Motorista:** card **Recompensas** no painel → vê as ofertas, **aceita ou recusa** e acompanha o ganho acumulado.
+- **Regra de contagem (no servidor):** só contam viagens **confirmadas pelo servidor**, da empresa da campanha, **depois do aceite** e dentro do período; sem duplicar; o bônus entra ao atingir a meta; ao chegar no teto a campanha para de creditar e a empresa é avisada.
+- **Nesta fase o NVU só calcula e registra o ganho.** O pagamento é combinado e feito pela empresa diretamente ao motorista; **fechamento semanal, folha, Pix copia-e-cola, comprovante, Recebimentos/Transferências e contestação ficam para a fase 2.**
+- Servidor novo: `createRewardCampaign`, `respondRewardOffer`, `cancelRewardCampaign`, `recomputeRewardCampaign`, gatilho `syncRewardTrips`; regras `rewardCampaigns` / `rewardOffers` (escrita só pelo servidor). **Exige publicar as funções e as regras** para funcionar.
+- Testes: `scripts/test-rewards.mts` (política) e `scripts/test-rewards-emulator.mjs` (emulador), no `npm run qa`.
+
 
 ## O que mudou desde a 550 — Parcerias B2P
 

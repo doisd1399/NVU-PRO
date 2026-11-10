@@ -25,6 +25,7 @@
       "ghost-jobs",
       "callable-regions",
       "partnerships",
+      "rewards",
       "vehicle-photo-prepare",
       "durable-outbox"
     ],
@@ -54,6 +55,7 @@
       "ghost-jobs",
       "callable-regions",
       "partnerships",
+      "rewards",
       "vehicle-photo-prepare",
       "durable-outbox",
       "senior-sheets-ui",
@@ -87,6 +89,7 @@
       "ghost-jobs",
       "callable-regions",
       "partnerships",
+      "rewards",
       "vehicle-photo-prepare",
       "durable-outbox",
       "senior-sheets-ui",
@@ -387,6 +390,16 @@
         "--import",
         "tsx",
         "scripts/test-partnerships.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "rewards": {
+      "label": "Recompensas: campanhas, ganho por viagem, bônus, teto, aceite e regras (cálculo do servidor e do app)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-rewards.mts"
       ],
       "timeoutMs": 60000
     },

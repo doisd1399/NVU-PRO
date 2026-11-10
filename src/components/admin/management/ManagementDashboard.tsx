@@ -1,9 +1,9 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, BellRing, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, Trophy, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
 import { ManagementOperationCard, type ManagementOperation } from "./ManagementOperationCard";
 import "./ManagementDashboard.css";
 
-export type ManagementAction = "operations" | "assign" | "teams" | "hr" | "fleet" | "trips" | "partnerships";
+export type ManagementAction = "operations" | "assign" | "teams" | "hr" | "fleet" | "trips" | "partnerships" | "rewards";
 const actions = [
   { id: "operations", label: "Operações", icon: List },
   { id: "assign", label: "Designar Trabalhos", icon: ClipboardPaste },
@@ -12,6 +12,7 @@ const actions = [
   { id: "fleet", label: "Frota", icon: Warehouse },
   { id: "trips", label: "Viagens", icon: MapPinned },
   { id: "partnerships", label: "Parcerias B2P", icon: Handshake },
+  { id: "rewards", label: "Recompensas", icon: Trophy },
 ] as const;
 
 /** Keep a full currency amount on one line, also with large real totals. */

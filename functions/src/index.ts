@@ -158,3 +158,4 @@ export { processSeniorAccountCommand, recoverSeniorAccountCommands } from "./sen
 export { deleteCompanyCanonical, processCompanyDeletion, recoverCompanyDeletions } from "./companyDeletion";
 
 export { createPartnershipOffer, respondPartnershipOffer, cancelPartnershipOffer, designatePartnershipDriver, settlePartnershipPayment, setPartnershipPix, hidePartnership, syncPartnershipFromJob, syncPartnershipTrips } from "./partnerships";
+export { createRewardCampaign, respondRewardOffer, cancelRewardCampaign, syncRewardTrips } from "./rewards";

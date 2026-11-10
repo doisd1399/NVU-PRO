@@ -83,6 +83,8 @@ const RegisterCompany = lazy(() => import("./pages/RegisterCompany"));
 
 const AssignJob = lazy(() => import("./pages/admin/AssignJob"));
 const Partnerships = lazy(() => import("./pages/admin/Partnerships"));
+const Rewards = lazy(() => import("./pages/admin/Rewards"));
+const DriverRewards = lazy(() => import("./pages/driver/Rewards"));
 const AddDriver = lazy(() => import("./pages/admin/AddDriver"));
 const ManageContract = lazy(() => import("./pages/admin/ManageContract"));
 const ContractDetailsPage = lazy(() => import("./pages/admin/ContractDetailsPage"));
@@ -812,6 +814,7 @@ function AppRouteContent() {
           <Route path="operations" element={<Navigate to="fleet" replace />} />
           <Route path="assign" element={<LazyRoute><AssignJob /></LazyRoute>} />
           <Route path="parcerias" element={<LazyRoute><Partnerships /></LazyRoute>} />
+          <Route path="recompensas" element={<LazyRoute><Rewards /></LazyRoute>} />
           <Route path="add-driver" element={<LazyRoute><AddDriver /></LazyRoute>} />
           <Route path="contract/new" element={<LazyRoute><ManageContract /></LazyRoute>} />
           <Route path="contract/:id" element={<LazyRoute><ContractDetailsPage /></LazyRoute>} />
@@ -840,6 +843,7 @@ function AppRouteContent() {
           <Route path="join" element={<LazyRoute><JoinCompany /></LazyRoute>} />
           <Route path="companies" element={<LazyRoute><JoinCompany mode="browse" /></LazyRoute>} />
           <Route path="trip" element={<LazyRoute><RecordTrip /></LazyRoute>} />
+          <Route path="recompensas" element={<LazyRoute><DriverRewards /></LazyRoute>} />
           <Route path="history" element={<TripHistory />} />
           <Route path="news" element={<NewsFeed />} />
           <Route path="reports" element={<Reports />} />

@@ -287,6 +287,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const onAction = (action: ManagementAction) => {
     if (action === "assign") { commitNavigation(() => navigate("/admin/assign")); return; }
     if (action === "partnerships") { commitNavigation(() => navigate("/admin/parcerias")); return; }
+    if (action === "rewards") { commitNavigation(() => navigate("/admin/recompensas")); return; }
     const state = action === "hr" ? { activeTab: "hr" } : action === "trips" ? { activeTab: "history" } : { activeTab: "fleet", activeFleetTab: action === "operations" ? "contracts" : action === "teams" ? "drivers" : "vehicles" };
     commitNavigation(() => navigate("/admin/fleet", { state }));
   };

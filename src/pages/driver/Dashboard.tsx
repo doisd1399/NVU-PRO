@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { OperationSyncNotice } from "../../components/OperationSyncNotice";
 import { DriverOperationCard } from "../../components/driver/DriverOperationCard";
 import { PartnershipStartSheet } from "../../components/driver/PartnershipStartSheet";
+import { DriverRewardsEntry } from "../../components/driver/DriverRewardsEntry";
 import { DiscreetDisclosure } from "../../components/common/DiscreetDisclosure";
 import { RetainedPanel } from "../../components/common/RetainedPanel";
 import { AutomaticDriverQueue } from "../../components/operations/AutomaticDriverQueue";
@@ -1153,6 +1154,7 @@ function DashboardComponent({
             />
           </div>
         )}
+        <DriverRewardsEntry />
         {/* Main Job Card: the same card as "Trabalhos ativos" (without the driver row). */}
         <DriverOperationCard
           photo={{ src: displayedVehiclePhoto, busy: vehiclePhotoBusy, canEdit: Boolean(vehicle?.id), error: vehiclePhotoError || undefined, pending: vehiclePhotoPending,
