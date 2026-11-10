@@ -87,7 +87,7 @@ export function DesignateScreen({ p, me, ownCompany, users, members, membersRead
           <Container size={18} aria-hidden="true" /><span style={{ flex: 1, color: trailer ? undefined : "var(--central-muted)" }}>{trailer ? trailer.name : "Escolher reboque"}</span><ChevronRight size={18} aria-hidden="true" /></button>
         {needsTrailer && !trailerChoices.length ? <span className="b2p-hint">Sua frota não tem reboque “{p.trailerRequirement}”. Cadastre em Frota para poder aceitar esta operação.</span> : null}</div> : null}
 
-      <p className="b2p-note-box"><Camera size={14} aria-hidden="true" style={{ verticalAlign: -2 }} /> Para iniciar, o motorista anexa a <b>foto do veículo</b>. Ele continua vinculado à sua empresa e a pontuação vai para {shortName(p.contractorName)}.</p>
+      <p className="b2p-note-box"><Camera size={14} aria-hidden="true" style={{ verticalAlign: -2 }} /> Para iniciar, o motorista escolhe na galeria a <b>foto do veículo</b>. Ele continua vinculado à sua empresa e a pontuação vai para {shortName(p.contractorName)}.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : missing ? <p className="b2p-hint">{missing}</p> : null}
       <div className="b2p-actions">
         <button type="button" className="b2p-btn" data-v="primary" disabled={!ready || busy} onClick={() => void submit()}>{busy ? "Designando…" : "Designar motorista"}</button>

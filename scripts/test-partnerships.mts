@@ -384,3 +384,9 @@ test("Detalhe da parceria: card da operação + resumo curto; o resto fica em 'I
   assert.doesNotMatch(sheet, /Contratante|Executora|Aceita em/, "sem repetir o que o cabeçalho e o card já mostram");
   assert.match(readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), /Informações da operação/);
 });
+
+test("Foto de início da parceria: escolhida na galeria (sem `capture` da câmera)", () => {
+  const sheet = readFileSync("src/components/driver/PartnershipStartSheet.tsx", "utf8");
+  assert.doesNotMatch(sheet.replace(/\{\/\*[^]*?\*\/\}/g, ""), /capture=/, "o input não pode forçar a câmera");
+  assert.match(sheet, /type="file" accept="image\/\*"/); assert.match(sheet, /galeria/);
+});

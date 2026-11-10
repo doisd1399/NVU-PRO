@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Camera, Handshake, X } from "lucide-react";
+import { Handshake, ImagePlus, X } from "lucide-react";
 import { auth } from "../../lib/firebase";
 import { uploadService } from "../../services/uploadService";
 import "./PartnershipStartSheet.css";
@@ -47,12 +47,13 @@ export function PartnershipStartSheet({ open, partnershipId, operationName, part
       <h2 id="nvu-pss-title">{operationName || "Operação em parceria"}</h2>
       {partnerName ? <p className="nvu-pss-partner">Acordo com {partnerName}</p> : null}
       <p className="nvu-pss-notice" role="note">{PARTNERSHIP_START_NOTICE}</p>
-      <input ref={input} type="file" accept="image/*" capture="environment" className="nvu-pss-input"
+      {/* Sem `capture`: o Android abre a galeria/seletor de imagens (o motorista escolhe a foto já tirada), não a câmera. */}
+      <input ref={input} type="file" accept="image/*" className="nvu-pss-input"
         onChange={event => { setFile(event.target.files?.[0] || null); setError(""); event.target.value = ""; }} />
       <button type="button" className="nvu-pss-photo" onClick={() => input.current?.click()} disabled={busy} data-filled={preview ? "true" : "false"}>
-        {preview ? <img src={preview} alt="Foto do veículo selecionada" /> : <span><Camera size={22} aria-hidden="true" />Foto do veículo</span>}
+        {preview ? <img src={preview} alt="Foto do veículo selecionada" /> : <span><ImagePlus size={22} aria-hidden="true" />Escolher foto do veículo</span>}
       </button>
-      <small className="nvu-pss-hint">{file ? "Toque na foto para trocar." : "Obrigatória para iniciar. Fotografe o veículo da operação."}</small>
+      <small className="nvu-pss-hint">{file ? "Toque na foto para trocar." : "Obrigatória para iniciar. Escolha, na galeria, a foto do veículo da operação."}</small>
       {error ? <p className="nvu-pss-error" role="alert">{error}</p> : null}
       <button type="button" className="nvu-pss-start" disabled={!file || busy} onClick={() => void confirm()}>{busy ? "Enviando foto e iniciando…" : "Iniciar operação"}</button>
     </section>

@@ -1,6 +1,6 @@
-# NVU PRO 1.0.554 (Android) / Web 2.3.211 / Windows 0.2.2
+# NVU PRO 1.0.555 (Android) / Web 2.3.212 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 554 — instala como atualização da 553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 555 — instala como atualização da 554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -31,7 +31,10 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
 
-### 6. Ajustes da rodada seguinte (nesta versão)
+### 6. Correção da 1.0.555 — foto de início da parceria pela galeria
+O motorista agora **escolhe a foto do veículo na galeria** ao iniciar uma operação em parceria (antes o campo forçava a câmera). O botão passou a "Escolher foto do veículo" e o texto orienta a usar a galeria. A foto continua obrigatória e o servidor continua exigindo a URL da foto para iniciar.
+
+### 6b. Ajustes da rodada anterior (1.0.554)
 - **Nova oferta compacta:** sem rótulos repetidos (o texto do campo é o próprio rótulo; "viagens"/"dias" só aparecem depois de preencher), menos espaçamento e uma única observação sobre o prazo.
 - **Cabeçalho igual ao da Central em todas as telas de Parcerias** (título e descrição centralizados, empresa e simulador): Nova oferta, Oferta recebida, Designar trabalho, Detalhe e Resultados.
 - **Seletor de empresas** no mesmo estilo dos de reboque e veículo (tela de seleção com busca; nada de lista aberta sob a barra), **sem o nome do simulador**. A busca também encontra pelo nome completo.
