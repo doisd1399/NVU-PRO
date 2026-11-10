@@ -49,6 +49,13 @@ export const DUAL_REGION_CALLABLES: readonly string[] = [
   "createRewardCampaign",
   "respondRewardOffer",
   "cancelRewardCampaign",
+  "setRewardPayDay",
+  "setRewardPix",
+  "generateRewardPayroll",
+  "markRewardPaid",
+  "confirmRewardReceived",
+  "contestRewardPayment",
+  "cancelRewardPayment",
 ];
 
 /** Callables that answer a `{ __warm: true }` ping before any authorization or database work. */

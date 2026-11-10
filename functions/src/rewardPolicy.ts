@@ -78,3 +78,76 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
   drivers.forEach(row => { row.totalCents = row.tripCents + row.bonusCents; });
   return { drivers, accruedCents, tripsCount, capped };
 }
+
+// ───────────── Fase 2: folha de pagamento, comprovante e confirmação ─────────────
+export const REWARD_SETTINGS = "rewardSettings";
+export const REWARD_PAYEES = "rewardPayees";
+export const REWARD_PAYMENTS = "rewardPayments";
+export const MAX_PAYROLL_DRIVERS = 200;
+export type PaymentStatus = "pending" | "paid" | "received" | "contested" | "cancelled";
+export type PaymentAction = "pay" | "receive" | "contest" | "cancel";
+export type PayrollOffer = { id: string; campaignId: string; campaignName: string; driverId: string; totalCents: number; settledCents: number };
+export type PayrollLine = { driverId: string; amountCents: number; items: { offerId: string; campaignId: string; campaignName: string; cents: number }[] };
+
+/** Dia da semana (0 = domingo) em horário de Brasília. */
+export const weekdayBRT = (ms: number): number => new Date(ms - 3 * 3_600_000).getUTCDay();
+/** Data (AAAA-MM-DD) em horário de Brasília. */
+export const dateBRT = (ms: number): string => new Date(ms - 3 * 3_600_000).toISOString().slice(0, 10);
+export const normalizePayDay = (value: unknown): number => {
+  const day = Number(value);
+  if (!Number.isInteger(day) || day < 0 || day > 6) fail("invalid-argument", "Escolha o dia da semana do pagamento.");
+  return day;
+};
+
+/**
+ * O que cada motorista ainda tem a receber: ganho calculado (campanhas aceitas) menos o que já entrou em uma folha.
+ * Valores negativos (viagem removida depois) contam como zero. Só entra quem tem saldo; ordem estável por nome do motorista (id).
+ */
+export function buildPayroll(offers: PayrollOffer[]): PayrollLine[] {
+  const byDriver = new Map<string, PayrollLine>();
+  for (const offer of [...offers].sort((a, b) => a.driverId.localeCompare(b.driverId) || a.id.localeCompare(b.id))) {
+    const cents = Math.max(0, Math.floor(offer.totalCents) - Math.max(0, Math.floor(offer.settledCents)));
+    if (cents <= 0) continue;
+    const line = byDriver.get(offer.driverId) || { driverId: offer.driverId, amountCents: 0, items: [] };
+    line.amountCents += cents; line.items.push({ offerId: offer.id, campaignId: offer.campaignId, campaignName: offer.campaignName, cents });
+    byDriver.set(offer.driverId, line);
+  }
+  return [...byDriver.values()];
+}
+
+const TRANSITIONS: Record<PaymentAction, { from: PaymentStatus[]; to: PaymentStatus }> = {
+  pay: { from: ["pending", "contested"], to: "paid" },
+  receive: { from: ["paid"], to: "received" },
+  contest: { from: ["paid"], to: "contested" },
+  cancel: { from: ["pending", "contested"], to: "cancelled" },
+};
+/** Estado seguinte de um pagamento; `null` quando a ação não vale no estado atual. Recebido e cancelado são finais. */
+export const nextPaymentStatus = (current: PaymentStatus, action: PaymentAction): PaymentStatus | null => TRANSITIONS[action].from.includes(current) ? TRANSITIONS[action].to : null;
+
+/** Número do comprovante, estável para o mesmo pagamento e a mesma data de pagamento (ex.: RC-20261110-3FA9C2D1). */
+export const receiptNumber = (paymentId: string, paidAtMs: number): string => {
+  let hash = 0x811c9dc5;
+  for (const char of `${paymentId}|${paidAtMs}`) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 0x01000193) >>> 0; }
+  return `RC-${dateBRT(paidAtMs).replace(/-/g, "")}-${hash.toString(16).toUpperCase().padStart(8, "0")}`;
+};
+/** Chave Pix parcialmente escondida para o comprovante (o comprovante circula entre as duas partes). */
+export const maskPixKey = (type: string, key: string): string => {
+  if (!key) return "";
+  if (type === "cpf") return `***.${key.slice(3, 6)}.${key.slice(6, 9)}-**`;
+  if (type === "cnpj") return `**.${key.slice(2, 5)}.${key.slice(5, 8)}/****-**`;
+  if (type === "phone") return `${key.slice(0, 5)}*****${key.slice(-2)}`;
+  if (type === "email") { const [name = "", host = ""] = key.split("@"); return `${name.slice(0, 2)}***@${host}`; }
+  return `${key.slice(0, 8)}-****-****-****-${key.slice(-4)}`;
+};
+/** Identificador da transação Pix (E2E) informado pela empresa; opcional. */
+export const normalizeE2e = (value: unknown): string => {
+  const raw = text(value).replace(/\s+/g, "");
+  if (!raw) return "";
+  if (!/^[A-Za-z0-9]{10,40}$/.test(raw)) fail("invalid-argument", "O código da transação Pix deve ter de 10 a 40 letras e números.");
+  return raw;
+};
+export const normalizeDispute = (value: unknown): string => {
+  const reason = text(value).replace(/\s+/g, " ");
+  if (reason.length < 5 || reason.length > 300) fail("invalid-argument", "Explique o motivo em 5 a 300 caracteres.");
+  return reason;
+};

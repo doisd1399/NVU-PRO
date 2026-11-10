@@ -1,6 +1,17 @@
-# NVU PRO 1.0.563 (Android) / Web 2.3.220 / Windows 0.2.2
+# NVU PRO 1.0.564 (Android) / Web 2.3.221 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 563 — instala como atualização da 562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 564 — instala como atualização da 563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.564 — Recompensas (fase 2: folha, Pix, comprovante, Recebimentos e Transferências)
+- **Empresário → Recompensas** agora tem 3 abas: **Campanhas**, **Folha** e **Transferências**.
+  - **Folha:** escolhe o **dia da semana do pagamento**. Nesse dia, às 8h (Brasília), o NVU **monta a folha sozinho** (ganho de cada motorista que ainda não foi pago) e avisa a gestão; também dá para **Gerar folha agora**. Cada valor entra em **uma só folha** (sem pagar duas vezes).
+  - **Pagar por Pix:** em cada motorista aparecem a **chave Pix**, o valor, o **Pix copia e cola** e o **QR Code** do valor exato. A empresa paga no app do banco e toca em **Marcar como pago** (com o código da transação opcional). O NVU gera o **comprovante** (número RC-…, data, valor, pagador, recebedor, chave parcialmente escondida) para as duas partes.
+  - **Transferências:** pagamentos feitos, com comprovante e a situação da confirmação do motorista.
+- **Motorista → Recompensas → Recebimentos:** cadastra a **chave Pix**, vê o que vai receber, o comprovante e **confirma o recebimento** ou **contesta** (“não recebi / não confere”, com motivo). A empresa é avisada e responde pagando de novo (novo comprovante) ou cancelando o pagamento (o valor volta para a próxima folha). Recebido e cancelado são finais.
+- **Importante:** o dinheiro **não passa pelo NVU**; o comprovante é um **registro do NVU** a partir do que a empresa informou, não um comprovante bancário.
+- Servidor novo: `setRewardPayDay`, `setRewardPix`, `generateRewardPayroll`, `markRewardPaid`, `confirmRewardReceived`, `contestRewardPayment`, `cancelRewardPayment`, agendamento `rewardPayDayTick` (diário, 8h); regras `rewardSettings` / `rewardPayees` / `rewardPayments` (escrita só pelo servidor). **Exige publicar funções e regras.**
+- Nova dependência: `qrcode-generator` 2.0.4 (QR Code gerado no próprio aparelho).
+- Testes: `scripts/test-rewards.mts` (14 verificações, inclui o CRC do Pix) e `scripts/test-reward-payments-emulator.mjs` (7 cenários no emulador: folha, pagar, contestar, cancelar, agendamento, regras). O QR gerado foi lido por um decodificador independente e o texto bate com o copia e cola.
 
 ## 1.0.563 — Recompensas (fase 1: empresa → motoristas da própria equipe)
 - **Empresário:** Central de gestão → **Recompensas**. Cria campanha (nome, período de até 92 dias, todos ou motoristas escolhidos, **valor fixo por viagem**, **bônus de meta** opcional e **teto de investimento**) com **simulador do custo máximo**. Acompanha ganhos por motorista e pode **encerrar** a campanha.

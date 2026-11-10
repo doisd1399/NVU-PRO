@@ -159,3 +159,4 @@ export { deleteCompanyCanonical, processCompanyDeletion, recoverCompanyDeletions
 
 export { createPartnershipOffer, respondPartnershipOffer, cancelPartnershipOffer, designatePartnershipDriver, settlePartnershipPayment, setPartnershipPix, hidePartnership, syncPartnershipFromJob, syncPartnershipTrips } from "./partnerships";
 export { createRewardCampaign, respondRewardOffer, cancelRewardCampaign, syncRewardTrips } from "./rewards";
+export { setRewardPayDay, setRewardPix, generateRewardPayroll, rewardPayDayTick, markRewardPaid, confirmRewardReceived, contestRewardPayment, cancelRewardPayment } from "./rewardPayments";

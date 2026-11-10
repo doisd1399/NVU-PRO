@@ -8,7 +8,7 @@ export type RewardOfferStatus = "pending" | "accepted" | "declined" | "cancelled
 export type RewardOffer = {
   id: string; campaignId: string; companyId: string; companyName: string; driverId: string; driverName: string; status: RewardOfferStatus; name: string;
   startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number;
-  trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
+  trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; settledCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
 };
 const ms = (value: any): number => (value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")))) || 0;
 const text = (value: unknown) => String(value ?? "").trim();
@@ -23,7 +23,7 @@ export function normalizeOffer(id: string, raw: Record<string, any>): RewardOffe
   const status = (["pending", "accepted", "declined", "cancelled"] as const).find(item => item === raw.status) || "pending";
   return { id, campaignId: text(raw.campaignId), companyId: text(raw.companyId), companyName: text(raw.companyName) || "Empresa", driverId: text(raw.driverId), driverName: text(raw.driverName) || "Motorista", status, name: text(raw.name) || "Campanha",
     startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents), bonusGoalTrips: num(raw.bonusGoalTrips),
-    trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt) };
+    trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt) };
 }
 
 export type CampaignState = "active" | "scheduled" | "ended" | "cancelled" | "capped";

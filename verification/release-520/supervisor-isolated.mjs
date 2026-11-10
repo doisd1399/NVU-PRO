@@ -51,7 +51,14 @@ var DUAL_REGION_CALLABLES = [
   "hidePartnership",
   "createRewardCampaign",
   "respondRewardOffer",
-  "cancelRewardCampaign"
+  "cancelRewardCampaign",
+  "setRewardPayDay",
+  "setRewardPix",
+  "generateRewardPayroll",
+  "markRewardPaid",
+  "confirmRewardReceived",
+  "contestRewardPayment",
+  "cancelRewardPayment"
 ];
 var WARMABLE_CALLABLES = [
   "operationalCommand",

@@ -2,6 +2,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { accrueRewards, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
+import { buildPayroll, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
+import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
+import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
 import { campaignState, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, periodText } from "../src/lib/rewards.ts";
 
 let checks = 0;
@@ -58,11 +61,64 @@ test("Ligações: funções exportadas, regiões, regras, rotas e entradas do me
   for (const name of ["createRewardCampaign", "respondRewardOffer", "cancelRewardCampaign"]) { assert.match(index, new RegExp(`\\b${name}\\b`)); assert.match(regions, new RegExp(`"${name}"`)); }
   assert.match(index, /syncRewardTrips/); assert.match(rules, /match \/rewardCampaigns\/\{campaignId\}/); assert.match(rules, /match \/rewardOffers\/\{offerId\}/);
   const block = rules.slice(rules.indexOf("match /rewardCampaigns"), rules.indexOf("// English aliases"));
-  assert.equal((block.match(/allow create, update, delete: if false;/g) || []).length, 2, "o cliente nunca escreve campanhas nem ofertas"); assert.doesNotMatch(block, /allow (create|update|delete|write)(?!, update, delete: if false)/);
+  assert.equal((block.match(/allow create, update, delete: if false;/g) || []).length, 5, "o cliente nunca escreve campanhas, ofertas, dia de pagamento, chave Pix nem pagamentos"); assert.doesNotMatch(block, /allow (create|update|delete|write)(?!, update, delete: if false)/);
   assert.match(app, /path="recompensas" element=\{<LazyRoute><Rewards \/>/); assert.match(app, /path="recompensas" element=\{<LazyRoute><DriverRewards \/>/);
   assert.match(readFileSync("src/components/admin/management/ManagementDashboard.tsx", "utf8"), /id: "rewards", label: "Recompensas"/); assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /"\/admin\/recompensas"/);
   assert.match(readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), /<DriverRewardsEntry \/>/);
   const server = readFileSync("functions/src/rewards.ts", "utf8"); assert.match(server, /isTrustedServerConfirmedTrip/, "só viagem confirmada pelo servidor conta"); assert.match(server, /acceptedAtMs/);
   assert.match(readFileSync("scripts/qa/integration.mts", "utf8"), /test-rewards-emulator\.mjs/);
+});
+
+const offer = (extra: Record<string, unknown> = {}) => ({ id: "o1", campaignId: "c1", campaignName: "Semana de Ouro", driverId: "d1", totalCents: 7500, settledCents: 0, ...extra }) as Parameters<typeof buildPayroll>[0][number];
+test("Folha: cada motorista recebe o ganho ainda fora de folha; saldo zero ou negativo não entra; várias campanhas somam", () => {
+  const lines = buildPayroll([offer(), offer({ id: "o2", campaignId: "c2", campaignName: "Meta", totalCents: 2500, settledCents: 1000 }), offer({ id: "o3", driverId: "d2", totalCents: 5000, settledCents: 5000 }), offer({ id: "o4", driverId: "d3", totalCents: 100, settledCents: 900 }), offer({ id: "o5", driverId: "d4", totalCents: 0 })]);
+  assert.deepEqual(lines.map(line => [line.driverId, line.amountCents]), [["d1", 9000]]);
+  assert.deepEqual(lines[0].items.map(item => [item.offerId, item.cents]), [["o1", 7500], ["o2", 1500]]);
+  assert.deepEqual(buildPayroll([offer({ id: "o9", driverId: "z" }), offer({ id: "o8", driverId: "a" })]).map(line => line.driverId), ["a", "z"], "ordem estável");
+  assert.deepEqual(buildPayroll([offer({ settledCents: 7500 })]), [], "o que já entrou em folha não entra de novo");
+});
+test("Pagamento: pago só de pendente/contestado; recebido só de pago; cancelar só antes de pago; recebido e cancelado são finais", () => {
+  const all: PaymentStatus[] = ["pending", "paid", "received", "contested", "cancelled"];
+  const table: Record<PaymentAction, Partial<Record<PaymentStatus, PaymentStatus>>> = { pay: { pending: "paid", contested: "paid" }, receive: { paid: "received" }, contest: { paid: "contested" }, cancel: { pending: "cancelled", contested: "cancelled" } };
+  for (const action of Object.keys(table) as PaymentAction[]) for (const status of all) assert.equal(nextPaymentStatus(status, action), table[action][status] ?? null, `${action} em ${status}`);
+});
+test("Comprovante e entradas: número estável com data de Brasília, chave escondida, código E2E e motivo validados, dia da semana", () => {
+  const at = Date.parse("2026-11-11T01:30:00Z"); // 10/11 22:30 em Brasília
+  assert.match(receiptNumber("rp_1_d1", at), /^RC-20261110-[0-9A-F]{8}$/); assert.equal(receiptNumber("rp_1_d1", at), receiptNumber("rp_1_d1", at)); assert.notEqual(receiptNumber("rp_1_d1", at), receiptNumber("rp_1_d1", at + 1)); assert.notEqual(receiptNumber("rp_1_d1", at), receiptNumber("rp_1_d2", at));
+  assert.equal(dateBRT(at), "2026-11-10"); assert.equal(weekdayBRT(at), 2, "terça em Brasília, mesmo já sendo quarta em UTC");
+  assert.equal(maskPixKey("cpf", "52998224725"), "***.982.247-**"); assert.equal(maskPixKey("cnpj", "12345678000190"), "**.345.678/****-**"); assert.equal(maskPixKey("phone", "+5511912345678"), "+5511*****78");
+  assert.equal(maskPixKey("email", "naylson@mail.com"), "na***@mail.com"); assert.equal(maskPixKey("random", "123e4567-e89b-12d3-a456-426614174000"), "123e4567-****-****-****-4000"); assert.equal(maskPixKey("cpf", ""), "");
+  assert.equal(normalizeE2e(""), ""); assert.equal(normalizeE2e(" E123456789 0ABCDEF "), "E1234567890ABCDEF"); rejects(() => normalizeE2e("curto"), /10 a 40/); rejects(() => normalizeE2e("com espaço e símbolos!!!!"), /10 a 40/);
+  assert.equal(normalizeDispute("  não   caiu "), "não caiu"); rejects(() => normalizeDispute("x"), /5 a 300/); rejects(() => normalizeDispute("a".repeat(301)), /5 a 300/);
+  assert.equal(normalizePayDay("5"), 5); rejects(() => normalizePayDay(7), /dia da semana/); rejects(() => normalizePayDay("x"), /dia da semana/);
+});
+test("Pix copia e cola: CRC16 do padrão, campos obrigatórios, nome/cidade sem acento e valor com duas casas", () => {
+  assert.equal(crc16("123456789"), "29B1", "vetor de teste do CRC16/CCITT-FALSE");
+  const code = buildPixBrCode({ key: "52998224725", amountCents: 7550, name: "João da Silva Ávila Ferreira Junior", city: "São Paulo" }), parsed = parsePixBrCode(code);
+  assert.ok(parsed.crcOk); assert.ok(code.startsWith("000201010211")); assert.equal(parsed.fields["54"], "75.50"); assert.equal(parsed.fields["53"], "986"); assert.equal(parsed.fields["58"], "BR"); assert.equal(parsed.fields["52"], "0000");
+  assert.equal(parsed.fields["59"], "JOAO DA SILVA AVILA FERRE", "até 25 caracteres, sem acento"); assert.ok(parsed.fields["59"].length <= 25); assert.equal(parsed.fields["60"], "SAO PAULO");
+  assert.deepEqual(parsePixBrCode(parsed.fields["26"]).fields, { "00": "br.gov.bcb.pix", "01": "52998224725" }); assert.equal(parsePixBrCode(parsed.fields["62"]).fields["05"], "***");
+  assert.equal(parsePixBrCode(code.slice(0, -1) + (code.endsWith("0") ? "1" : "0")).crcOk, false, "alterar o código quebra o CRC");
+  assert.equal(brText("  ", 25, "RECEBEDOR"), "RECEBEDOR"); assert.equal(parsePixBrCode(buildPixBrCode({ key: "+5511912345678", amountCents: 1, name: "A" })).fields["54"], "0.01");
+  rejects(() => buildPixBrCode({ key: "", amountCents: 100, name: "A" }), /Chave Pix/); rejects(() => buildPixBrCode({ key: "x", amountCents: 0, name: "A" }), /Valor/); rejects(() => buildPixBrCode({ key: "x", amountCents: 1.5, name: "A" }), /Valor/);
+});
+test("App: leitura do pagamento, saldo da próxima folha, datas de Brasília e próximo dia de pagamento", () => {
+  const payment = normalizePayment("p1", { companyId: "a", driverId: "d1", amountCents: 5000, status: "paid", items: [{ offerId: "o1", campaignName: "Semana", cents: 5000 }], receipt: { number: "RC-1", paidAtMs: 5, amountCents: 5000, campaigns: ["Semana"] }, createdAt: { seconds: 10 } });
+  assert.deepEqual([payment.status, payment.items.length, payment.receipt?.number, payment.createdAtMs, normalizePayment("x", { status: "estranho" }).status], ["paid", 1, "RC-1", 10_000, "pending"]);
+  const balance = pendingBalance([normalizeOffer("o1", { status: "accepted", driverId: "d1", driverName: "Ana", totalCents: 7500, settledCents: 2500 }), normalizeOffer("o2", { status: "accepted", driverId: "d1", driverName: "Ana", totalCents: 1000 }), normalizeOffer("o3", { status: "pending", driverId: "d2", totalCents: 900 }), normalizeOffer("o4", { status: "accepted", driverId: "d3", totalCents: 100, settledCents: 100 })]);
+  assert.deepEqual([balance.totalCents, balance.rows.map(row => [row.driverId, row.cents])], [6000, [["d1", 6000]]]);
+  assert.equal(dateTimeText(Date.parse("2026-11-10T17:32:00Z")), "10/11/2026 às 14:32"); assert.equal(dateTimeText(0), "—");
+  assert.deepEqual([formatPixKey("cpf", "52998224725"), formatPixKey("cnpj", "12345678000190"), formatPixKey("phone", "+5511912345678"), formatPixKey("phone", "+551133334444"), formatPixKey("email", "a@b.co")], ["529.982.247-25", "12.345.678/0001-90", "+55 (11) 91234-5678", "+55 (11) 3333-4444", "a@b.co"]);
+  const tuesday = Date.parse("2026-11-10T15:00:00Z"); assert.equal(nextPayDayText(2, tuesday), "hoje"); assert.equal(nextPayDayText(5, tuesday), "sexta, 13/11"); assert.equal(nextPayDayText(1, tuesday), "segunda, 16/11");
+});
+test("Ligações da fase 2: funções exportadas e nas regiões, regras, telas, QR e agendamento diário", () => {
+  const index = readFileSync("functions/src/index.ts", "utf8"), regions = readFileSync("src/lib/callableRegions.ts", "utf8"), rules = readFileSync("firestore.rules", "utf8"), server = readFileSync("functions/src/rewardPayments.ts", "utf8");
+  for (const name of ["setRewardPayDay", "setRewardPix", "generateRewardPayroll", "markRewardPaid", "confirmRewardReceived", "contestRewardPayment", "cancelRewardPayment"]) { assert.match(index, new RegExp(`\\b${name}\\b`)); assert.match(regions, new RegExp(`"${name}"`)); assert.match(server, new RegExp(`export const ${name} = functions\\.region\\(\\.\\.\\.CALLABLE_REGIONS\\)`)); }
+  assert.match(index, /rewardPayDayTick/); assert.match(server, /schedule\("0 8 \* \* \*"\)\.timeZone\("America\/Sao_Paulo"\)/);
+  for (const name of ["rewardSettings/{companyId}", "rewardPayees/{userId}", "rewardPayments/{paymentId}"]) assert.ok(rules.includes(`match /${name}`), name);
+  assert.match(server, /where\("payrollId", "==", payrollId\)/, "a folha é idempotente pelo identificador"); assert.match(server, /settledCents: admin\.firestore\.FieldValue\.increment/); assert.match(server, /requireCompanyManager/); assert.doesNotMatch(server, /allow|CALLABLE_REGIONS\)\.https\.onRequest/);
+  assert.match(readFileSync("src/components/rewards/PaymentParts.tsx", "utf8"), /qrcode-generator/); assert.match(readFileSync("package.json", "utf8"), /"qrcode-generator": "2\.0\.4"/);
+  assert.match(readFileSync("src/pages/admin/Rewards.tsx", "utf8"), /PayrollTab[\s\S]*TransfersTab/); assert.match(readFileSync("src/pages/driver/Rewards.tsx", "utf8"), /ReceiptsTab/);
+  assert.match(readFileSync("scripts/qa/integration.mts", "utf8"), /test-reward-payments-emulator\.mjs/);
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

@@ -732,6 +732,24 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Recompensas (fase 2): dia de pagamento, chave Pix do motorista e pagamentos (folha, comprovante, confirmação). Escrita só pelo servidor.
+    match /rewardSettings/{companyId} {
+      allow get: if isAuthenticated() && (isSenior() || isCompanyManager(companyId));
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+    match /rewardPayees/{userId} {
+      allow get: if isAuthenticated() && userId == request.auth.uid;
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+    match /rewardPayments/{paymentId} {
+      allow get: if isAuthenticated() && (isSenior() || isCompanyManager(resource.data.companyId) || resource.data.driverId == request.auth.uid);
+      allow list: if isAuthenticated() && (isSenior() || isCompanyManager(resource.data.companyId));
+      allow list: if isAuthenticated() && resource.data.driverId == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     // English aliases still used by the historical trip repository.
     match /vehicles/{id} {
       allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());

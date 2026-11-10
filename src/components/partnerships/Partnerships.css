@@ -197,3 +197,9 @@
 
 /* lista de operações dentro da seção "Parcerias ativas": mesma folga lateral da lista de Trabalhos ativos (10 px) */
 .nvu-b2p .b2p-sec > .b2p-oplist { padding: 0; margin-inline: -6px; }
+
+/* Recompensas, fase 2: código Pix e QR */
+.b2p-pix-code { padding: 10px 12px; border-radius: 12px; background: var(--central-card, rgba(127,127,127,.12)); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.45; overflow-wrap: anywhere; user-select: all; max-height: 92px; overflow: auto; }
+.b2p-qr { display: grid; place-items: center; padding: 12px; border-radius: 16px; background: #fff; width: min(240px, 100%); margin: 0 auto; }
+.b2p-qr svg { width: 100%; height: auto; display: block; }
+.b2p-textarea { min-height: 84px; }

@@ -90,13 +90,18 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
   if (writes) await batch.commit();
   if (result.capped && !campaign.capped) await notifyManagers(db, String(campaign.companyId), `A campanha ${campaign.name} chegou ao teto de ${money(campaign.budgetCents)} e parou de creditar novas viagens.`, campaignId);
 }
+/** Responsáveis da empresa (dono e administradores ativos). */
+export async function managerIds(db: DB, companyId: string): Promise<string[]> {
+  const company = (await db.collection("frotas").doc(companyId).get()).data() || {}, targets = new Set<string>([text(company.ownerId), text(company.userId)]);
+  const members = await db.collection("companyMembers").where("companyId", "==", companyId).where("status", "==", "active").get();
+  members.docs.forEach(row => { const roles = [...(Array.isArray(row.get("roles")) ? row.get("roles") : []), row.get("role")]; if (roles.some(r => r === "admin" || r === "owner")) targets.add(text(row.get("userId"))); });
+  targets.delete("");
+  return [...targets];
+}
 async function notifyManagers(db: DB, companyId: string, message: string, refId: string) {
   try {
-    const company = (await db.collection("frotas").doc(companyId).get()).data() || {}, targets = new Set<string>([text(company.ownerId), text(company.userId)]);
-    const members = await db.collection("companyMembers").where("companyId", "==", companyId).where("status", "==", "active").get();
-    members.docs.forEach(row => { const roles = [...(Array.isArray(row.get("roles")) ? row.get("roles") : []), row.get("role")]; if (roles.some(r => r === "admin" || r === "owner")) targets.add(text(row.get("userId"))); });
-    targets.delete("");
-    await Promise.all([...targets].map(userId => db.collection("notifications").doc(`REWARD_CAP_${refId}_${userId}`).set({ userId, companyId, targetProfile: "admin", type: "REWARD_CAP", title: "Teto da campanha atingido", message,
+    const targets = await managerIds(db, companyId);
+    await Promise.all(targets.map(userId => db.collection("notifications").doc(`REWARD_CAP_${refId}_${userId}`).set({ userId, companyId, targetProfile: "admin", type: "REWARD_CAP", title: "Teto da campanha atingido", message,
       titulo: "Teto da campanha atingido", mensagem: message, tipo: "REWARD_CAP", metadata: { campaignId: refId }, dedupeKey: `REWARD_CAP_${refId}`, schemaVersion: 3, read: false, lida: false, createdAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: false }).catch(() => undefined)));
   } catch { /* o aviso nunca desfaz o cálculo */ }
 }

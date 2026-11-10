@@ -3,12 +3,13 @@ import { toast } from "sonner";
 import { ChevronRight, Send, Trophy } from "lucide-react";
 import { useOperationalStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
-import { useCompanyRewards } from "../../hooks/useRewards";
+import { useCompanyPayments, useCompanyRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { formatMoney, maskMoney, parseMoneyToCents } from "../../lib/partnerships";
 import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignState, estimateMaxCost, periodText, rewardErrorMessage, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
-import { BackLink, PageHeader, Section } from "../../components/partnerships/shared";
+import { BackLink, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
+import { PayrollTab, PaymentDetail, TransfersTab } from "./RewardPayroll";
 import "../../components/partnerships/Partnerships.css";
 
 const TONE: Record<CampaignState, string> = { active: "good", scheduled: "warn", ended: "muted", cancelled: "muted", capped: "late" };
@@ -18,16 +19,19 @@ const Bar = ({ pct, warn }: { pct: number; warn?: boolean }) => <div className="
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
 const dateInput = (offsetDays = 0) => { const d = new Date(Date.now() + offsetDays * 86_400_000); return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); };
 
-type View = { name: "list" } | { name: "new" } | { name: "detail"; id: string };
+type View = { name: "list" } | { name: "new" } | { name: "detail"; id: string } | { name: "payment"; id: string; from: Tab };
+type Tab = "campaigns" | "payroll" | "transfers";
 
-/** Recompensas (Central de gestão): campanhas de ganho por viagem da empresa para os motoristas dela. Fase 1: criar, enviar ofertas e acompanhar. */
+/** Recompensas (Central de gestão): campanhas de ganho por viagem, folha de pagamento por Pix e transferências com comprovante. */
 export default function Rewards() {
   const { activeCompanyId, companies, allCompanies, allCompanyMembers } = useCompanyStore();
   const { users, simulators } = useOperationalStore();
   const me = activeCompanyId || "";
   const { campaigns, offers, ready, error } = useCompanyRewards(me);
   const ownCompany = companies.find(item => item.id === me) || allCompanies.find(item => item.id === me);
+  const { payments, payDay, ready: paymentsReady } = useCompanyPayments(me);
   const [view, setView] = useState<View>({ name: "list" });
+  const [tab, setTab] = useState<Tab>("campaigns");
   const [busy, setBusy] = useState(false);
   const now = useMemo(() => Date.now(), [campaigns, view]);
   useEffect(() => { window.scrollTo?.({ top: 0 }); }, [view.name]);
@@ -45,6 +49,10 @@ export default function Rewards() {
       catch (reason) { toast.error(rewardErrorMessage(reason, "Não foi possível enviar a campanha.")); } finally { setBusy(false); }
     }} />);
   }
+  if (view.name === "payment") {
+    const back = view.from;
+    return shell("Pagamento", "Pague por Pix e registre o comprovante.", <PaymentDetail payment={payments.find(item => item.id === view.id)} backLabel={back === "transfers" ? "Transferências" : "Folha"} onBack={() => { setTab(back); goList(); }} />);
+  }
   if (view.name === "detail") {
     const campaign = campaigns.find(item => item.id === view.id);
     if (!campaign) return shell("Campanha", "Acompanhe o ganho dos motoristas.", <><BackLink label="Recompensas" onClick={goList} /><p className="b2p-empty">{ready ? "Esta campanha não está mais disponível." : "Carregando…"}</p></>);
@@ -55,7 +63,12 @@ export default function Rewards() {
 
   const live = campaigns.filter(item => { const state = campaignState(item, now); return state === "active" || state === "scheduled" || state === "capped"; });
   const accrued = live.reduce((sum, item) => sum + item.accruedCents, 0), budget = live.reduce((sum, item) => sum + item.budgetCents, 0);
-  return shell("Recompensas", "Campanhas de ganho por viagem para os motoristas.", <>
+  const toPay = payments.filter(item => item.status === "pending" || item.status === "contested").length;
+  const tabs = <Tabs<Tab> label="Seções de recompensas" value={tab} onChange={setTab} items={[{ id: "campaigns", label: "Campanhas" }, { id: "payroll", label: "Folha", count: toPay, warn: true }, { id: "transfers", label: "Transferências" }]} />;
+  if (tab === "payroll") return shell("Recompensas", "Campanhas, folha de pagamento e transferências.", <>{tabs}<PayrollTab companyId={me} payments={payments} offers={offers} payDay={payDay} ready={paymentsReady} now={now} onOpen={id => setView({ name: "payment", id, from: "payroll" })} /></>);
+  if (tab === "transfers") return shell("Recompensas", "Campanhas, folha de pagamento e transferências.", <>{tabs}<TransfersTab payments={payments} ready={paymentsReady} onOpen={id => setView({ name: "payment", id, from: "transfers" })} /></>);
+  return shell("Recompensas", "Campanhas, folha de pagamento e transferências.", <>
+    {tabs}
     {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar as campanhas agora. Os dados podem estar desatualizados.</p> : null}
     <section className="nvu-central-section b2p-sec">
       <div className="b2p-sec-head"><h2>Investimento</h2></div>
@@ -114,7 +127,7 @@ function NewCampaign({ me, drivers, busy, onBack, onSend }: { me: string; driver
       {budgetCents ? cost.totalCents <= budgetCents
         ? <p className="b2p-note-box">Dentro do teto de <b>{formatMoney(budgetCents)}</b>. Você só paga o que os motoristas realmente fizerem.</p>
         : <p className="b2p-note-box" data-tone="warn">A estimativa passa do teto de <b>{formatMoney(budgetCents)}</b>: a campanha para de creditar quando o teto for atingido.</p> : null}
-      <p className="b2p-hint">Cada motorista recebe a oferta e <b>aceita ou recusa</b>. Só contam viagens confirmadas depois do aceite e dentro do período. O pagamento é feito por você, por Pix (nesta fase o NVU calcula e registra o ganho).</p>
+      <p className="b2p-hint">Cada motorista recebe a oferta e <b>aceita ou recusa</b>. Só contam viagens confirmadas depois do aceite e dentro do período. O NVU calcula o ganho, monta a folha de pagamento e mostra a chave Pix e o valor de cada motorista; você paga por Pix e marca como pago.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>

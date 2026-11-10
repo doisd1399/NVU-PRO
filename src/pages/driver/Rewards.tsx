@@ -2,11 +2,12 @@ import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Trophy } from "lucide-react";
 import { useSessionStore } from "../../context/AppContext";
-import { useDriverRewards } from "../../hooks/useRewards";
+import { useDriverPayments, useDriverRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { formatMoney } from "../../lib/partnerships";
 import { OFFER_STATE_LABEL, periodText, rewardErrorMessage, type RewardOffer } from "../../lib/rewards";
-import { BackLink, PageHeader, Section } from "../../components/partnerships/shared";
+import { BackLink, Section, Tabs } from "../../components/partnerships/shared";
+import { ReceiptDetail, ReceiptsTab } from "./RewardPayments";
 import "../../components/partnerships/Partnerships.css";
 
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
@@ -16,7 +17,8 @@ const TONE: Record<string, string> = { pending: "warn", accepted: "good", declin
 export default function DriverRewards() {
   const { currentUser } = useSessionStore();
   const { offers, ready, error } = useDriverRewards(currentUser?.id);
-  const [openId, setOpenId] = useState(""), [busy, setBusy] = useState(false);
+  const { payments, pix, ready: paymentsReady } = useDriverPayments(currentUser?.id);
+  const [openId, setOpenId] = useState(""), [busy, setBusy] = useState(false), [tab, setTab] = useState<"offers" | "receipts">("offers"), [paymentId, setPaymentId] = useState("");
   const now = useMemo(() => Date.now(), [offers]);
   const open = offers.find(offer => offer.id === openId);
   const respond = async (offer: RewardOffer, decision: "accept" | "decline") => {
@@ -26,6 +28,7 @@ export default function DriverRewards() {
   };
   const pending = offers.filter(offer => offer.status === "pending" && offer.endMs >= now), mine = offers.filter(offer => offer.status === "accepted"), total = mine.reduce((sum, offer) => sum + offer.totalCents, 0);
   const shell = (title: string, description: string, children: React.ReactNode) => <div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack"><header className="nvu-central-intro nvu-workspace-page-heading"><div className="nvu-workspace-page-title"><h1>{title}</h1><p>{description}</p></div></header>{children}</div></div>;
+  if (paymentId) return shell("Recebimento", "Confira o pagamento e o comprovante.", <ReceiptDetail payment={payments.find(item => item.id === paymentId)} pix={pix} onBack={() => setPaymentId("")} />);
   if (open) return shell("Oferta de recompensa", "Analise as condições e responda.", <>
     <BackLink label="Recompensas" onClick={() => setOpenId("")} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
@@ -36,11 +39,15 @@ export default function DriverRewards() {
         {open.status === "accepted" ? <><Row label="Suas viagens" value={`${open.trips}${open.goalReached ? " · meta atingida" : ""}`} /><Row label="Você já ganhou" value={formatMoney(open.totalCents)} strong /></> : null}
       </div>
       <p className="b2p-note-box">Cada viagem confirmada na empresa <b>{open.companyName}</b>, depois do seu aceite e dentro do período, soma ao seu ganho.</p>
-      <p className="b2p-note-box" data-tone="warn">O pagamento é combinado e feito pela empresa diretamente a você. O NVU calcula e registra o ganho, mas não paga nem garante o pagamento.</p>
+      <p className="b2p-note-box" data-tone="warn">O pagamento é feito pela empresa, por Pix, na chave que você cadastrar. O NVU calcula o ganho, organiza a folha e registra o comprovante, mas não paga nem garante o pagamento.</p>
       {open.status === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void respond(open, "accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => void respond(open, "decline")}>Recusar</button></div>
         : <p className="b2p-hint">{OFFER_STATE_LABEL[open.status]}.</p>}
     </div></section></>);
+  const toConfirm = payments.filter(item => item.status === "paid").length;
+  const tabs = <Tabs<"offers" | "receipts"> label="Seções de recompensas" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }]} />;
+  if (tab === "receipts") return shell("Recompensas", "Campanhas, pagamentos e comprovantes.", <>{tabs}<ReceiptsTab payments={payments} pix={pix} ready={paymentsReady} onOpen={setPaymentId} /></>);
   return shell("Recompensas", "Campanhas das empresas para você.", <>
+    {tabs}
     {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar as recompensas agora.</p> : null}
     <section className="nvu-central-section b2p-sec"><div className="b2p-sum"><div><small>Ganho acumulado</small><b data-tone={total ? "pos" : undefined}>{formatMoney(total)}</b><em>{mine.length} {mine.length === 1 ? "campanha aceita" : "campanhas aceitas"}</em></div><div><small>Ofertas novas</small><b data-tone={pending.length ? "warn" : undefined}>{pending.length}</b><em>aguardando resposta</em></div></div></section>
     <Section title="Campanhas" count={offers.length}>
