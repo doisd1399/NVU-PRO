@@ -7,7 +7,7 @@ import { useCompanyPayments, useCompanyRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { formatMoney, maskMoney, parseMoneyToCents } from "../../lib/partnerships";
-import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, periodText, rewardErrorMessage, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
+import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, driverMaxCents, goalOf, periodText, rewardErrorMessage, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
 import { BackLink, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
 import { PayrollTab, PaymentDetail, TransfersTab } from "./RewardPayroll";
 import AssignJobAssetPicker, { OperationCardBody } from "../../components/admin/AssignJobAssetPicker";
@@ -97,24 +97,27 @@ type ContractChoice = { id: string; name: string; deadlineDays?: number; totalDe
 
 /** Nova campanha: 1) operação (seletor "Escolher operação"), 2) valor por viagem, 3) viagens, 4) quem participa, 5) período, 6) nome. Total = valor por viagem × viagens da operação; o teto sai da conta. */
 function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack, onSend }: { me: string; drivers: { id: string; name: string }[]; contracts: ContractChoice[]; sequences: any[]; trailers: any[]; busy: boolean; onBack: () => void; onSend: (payload: Parameters<typeof rewardService.create>[0]) => Promise<void> }) {
-  const [contractId, setContractId] = useState(""), [pickerOpen, setPickerOpen] = useState(false), [perTrip, setPerTrip] = useState(""), [tripsInput, setTripsInput] = useState<string | null>(null);
+  const [contractId, setContractId] = useState(""), [pickerOpen, setPickerOpen] = useState(false), [perTrip, setPerTrip] = useState(""), [goalInput, setGoalInput] = useState("");
   const [audience, setAudience] = useState<"all" | "selected">("all"), [picked, setPicked] = useState<string[]>([]), [start, setStart] = useState(dateInput()), [end, setEnd] = useState(dateInput(6));
   const [name, setName] = useState(""), [error, setError] = useState("");
   const [requestId] = useState(() => crypto.randomUUID());
   const contract = contracts.find(item => item.id === contractId), contractTrips = Math.max(0, Math.floor(Number(contract?.totalDeliveries) || 0));
   const trailer = trailers.find(item => item.id === contract?.trailerId);
-  const tripsText = tripsInput ?? (contractTrips ? String(contractTrips) : ""); // começa no total de viagens da operação
   const suggestion = contract ? `Campanha ${contract.name}`.slice(0, 60) : "", finalName = name.trim() || suggestion; // nome em branco usa a sugestão (sem texto pré-preenchido atrapalhando a digitação)
-  const perTripCents = parseMoneyToCents(perTrip) || 0, trips = Math.max(0, Math.floor(Number(tripsText) || 0)), people = audience === "all" ? drivers.length : picked.length;
-  const goal = perTripCents * trips, budget = campaignBudget({ perTripCents, bonusCents: 0, maxTripsPerDriver: trips }, people);
+  // As viagens vêm da operação (o empresário não digita): total de viagens = motoristas × viagens da operação.
+  const perTripCents = parseMoneyToCents(perTrip) || 0, trips = contractTrips, people = audience === "all" ? drivers.length : picked.length;
+  const possible = perTripCents * trips, goalTyped = parseMoneyToCents(goalInput) || 0, goal = goalTyped || possible; // sem meta digitada, vale tudo que a operação permite
+  const goalTooHigh = goalTyped > possible && possible > 0, perDriver = driverMaxCents({ perTripCents, maxTripsPerDriver: trips, goalCents: goalTyped }), totalTrips = people * trips;
+  const budget = campaignBudget({ perTripCents, bonusCents: 0, maxTripsPerDriver: trips, goalCents: goalTyped }, people);
   const send = async () => {
     if (!contractId) return setError("Escolha a operação da campanha.");
     if (!perTripCents) return setError("Informe o valor por viagem.");
-    if (!trips) return setError("Informe quantas viagens cada motorista pode fazer.");
+    if (!trips) return setError("Essa operação não tem viagens. Escolha outra operação.");
+    if (goalTooHigh) return setError(`A meta de ganhos passa do que o motorista consegue ganhar na operação (${formatMoney(possible)}).`);
     if (!people) return setError(audience === "all" ? "A empresa não tem motoristas ativos." : "Escolha ao menos um motorista.");
     if (end < start) return setError("O fim da campanha não pode ser antes do início.");
     if (finalName.length < 3) return setError("Dê um nome à campanha (ao menos 3 letras).");
-    setError(""); await onSend({ companyId: me, contractId, name: finalName, startDate: start, endDate: end, perTripCents, maxTripsPerDriver: trips, audience, driverIds: audience === "selected" ? picked : [], requestId });
+    setError(""); await onSend({ companyId: me, contractId, name: finalName, startDate: start, endDate: end, perTripCents, goalCents: goalTyped, audience, driverIds: audience === "selected" ? picked : [], requestId });
   };
   return <>
     <BackLink label="Recompensas" onClick={onBack} />
@@ -129,23 +132,26 @@ function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack
       </Field>
       <div className="b2p-grid2">
         <Field label="2. Valor por viagem"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} placeholder="25,00" onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
-        <Field label="3. Viagens da operação"><div className="b2p-input"><input inputMode="numeric" value={tripsText} placeholder="12" onFocus={event => event.currentTarget.select()} onChange={event => setTripsInput(event.target.value.replace(/\D/g, "").slice(0, 4))} /></div></Field>
+        <Field label="3. Meta de ganhos (por motorista)"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalInput} placeholder={possible ? formatMoney(possible).replace("R$ ", "") : "300,00"} onChange={event => setGoalInput(maskMoney(event.target.value))} /></div></Field>
       </div>
       <Field label="4. Quem participa"><div className="b2p-seg" role="group" aria-label="Quem participa">{(["all", "selected"] as const).map(item => <button type="button" key={item} data-on={audience === item ? "1" : "0"} aria-pressed={audience === item} onClick={() => setAudience(item)}>{item === "all" ? `Todos (${drivers.length})` : "Escolher"}</button>)}</div></Field>
       {audience === "selected" ? <div className="b2p-picklist" role="group" aria-label="Motoristas">{drivers.map(driver => <button type="button" className="b2p-pick" key={driver.id} data-on={picked.includes(driver.id) ? "1" : "0"} aria-pressed={picked.includes(driver.id)} onClick={() => setPicked(list => list.includes(driver.id) ? list.filter(item => item !== driver.id) : [...list, driver.id])}>
         <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 34, height: 34, fontWeight: 700 }}>{initials(driver.name)}</span><span><b>{driver.name}</b></span><span className="b2p-radio">{picked.includes(driver.id) ? "✓" : ""}</span></button>)}</div> : null}
       <div className="b2p-grid2"><Field label="5. Início"><div className="b2p-input"><input type="date" value={start} onChange={event => setStart(event.target.value)} /></div></Field><Field label="Fim"><div className="b2p-input"><input type="date" value={end} onChange={event => setEnd(event.target.value)} /></div></Field></div>
       <Field label="6. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
+      {goalTooHigh ? <p className="b2p-note-box" data-tone="warn" role="note">Essa meta passa do máximo possível ({formatMoney(possible)} = {trips} × {formatMoney(perTripCents)}). Diminua a meta ou aumente o valor por viagem.</p> : null}
       <div className="b2p-settle">
-        <Row label="Valor por viagem" value={formatMoney(perTripCents)} /><Row label="Viagens por motorista" value={trips} />
-        <Row label={`Meta por motorista (${trips} × ${formatMoney(perTripCents)})`} value={formatMoney(goal)} strong /><Row label="Motoristas" value={people} />
-        <Row label={`Custo máximo (${people} × ${formatMoney(goal)})`} value={formatMoney(budget)} strong />
+        <Row label="Viagens da operação (por motorista)" value={trips} /><Row label="Motoristas" value={people} />
+        <Row label={`Total de viagens (${people} × ${trips})`} value={totalTrips} strong />
+        <Row label="Valor por viagem" value={formatMoney(perTripCents)} />
+        <Row label="Meta de ganhos por motorista" value={formatMoney(goal)} />
+        <Row label={`Investimento total (${people} × ${formatMoney(perDriver)})`} value={formatMoney(budget)} strong />
       </div>
-      <p className="b2p-hint">O motorista alcança a meta realizando as viagens dentro da operação: viagens × valor por viagem. O app calcula o teto sozinho: motoristas × viagens × valor. Você só paga o que cada motorista realmente fizer. Só contam viagens da operação confirmadas depois do aceite e dentro do período.</p>
+      <p className="b2p-hint">A meta de ganhos é o quanto cada motorista pode ganhar na campanha. As viagens vêm da operação escolhida; o app soma motoristas × viagens e calcula o investimento. Você só paga o que cada motorista realmente fizer, e ninguém passa da meta. Só contam viagens da operação confirmadas depois do aceite e dentro do período.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>
-    <AssignJobAssetPicker kind="contract" open={pickerOpen} selectedId={contractId} contracts={contracts} sequences={sequences} trailers={trailers} onClose={() => setPickerOpen(false)} onSelect={id => { setContractId(id); setTripsInput(null); }} />
+    <AssignJobAssetPicker kind="contract" open={pickerOpen} selectedId={contractId} contracts={contracts} sequences={sequences} trailers={trailers} onClose={() => setPickerOpen(false)} onSelect={id => { setContractId(id); setGoalInput(""); }} />
   </>;
 }
 
@@ -159,7 +165,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
       <Bar pct={campaign.budgetCents ? campaign.accruedCents / campaign.budgetCents * 100 : 0} warn={campaign.capped} />
       <div className="b2p-settle">
         {campaign.contractName ? <Row label="Operação" value={campaign.contractName} /> : null}<Row label="Período" value={periodText(campaign.startMs, campaign.endMs)} /><Row label="Ganho por viagem" value={formatMoney(campaign.perTripCents)} />
-        {campaign.maxTripsPerDriver ? <><Row label="Viagens por motorista" value={`até ${campaign.maxTripsPerDriver}`} /><Row label="Meta de valor por motorista" value={formatMoney(campaign.perTripCents * campaign.maxTripsPerDriver)} /></> : null}
+        {campaign.maxTripsPerDriver ? <><Row label="Viagens da operação" value={campaign.maxTripsPerDriver} /><Row label="Meta de ganhos por motorista" value={formatMoney(goalOf(campaign))} /></> : null}
         {campaign.bonusCents ? <Row label="Bônus da meta" value={`${formatMoney(campaign.bonusCents)} em ${campaign.bonusGoalTrips} viagens`} /> : null}
         <Row label="Aceitaram" value={`${campaign.acceptedCount} de ${campaign.driversCount}`} />
       </div>

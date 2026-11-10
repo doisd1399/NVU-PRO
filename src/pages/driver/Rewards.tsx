@@ -5,7 +5,7 @@ import { useSessionStore } from "../../context/AppContext";
 import { useDriverPayments, useDriverRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { formatMoney } from "../../lib/partnerships";
-import { OFFER_STATE_LABEL, periodText, rewardErrorMessage, type RewardOffer } from "../../lib/rewards";
+import { OFFER_STATE_LABEL, goalOf, periodText, rewardErrorMessage, type RewardOffer } from "../../lib/rewards";
 import { BackLink, Section, Tabs } from "../../components/partnerships/shared";
 import { ReceiptDetail, ReceiptsTab } from "./RewardPayments";
 import "../../components/partnerships/Partnerships.css";
@@ -36,12 +36,12 @@ export default function DriverRewards() {
       <div className="b2p-settle">
         {open.contractName ? <Row label="Operação" value={open.contractName} /> : null}
         <Row label="Ganho por viagem" value={formatMoney(open.perTripCents)} />
-        {open.maxTripsPerDriver ? <><Row label="Viagens pagas" value={`até ${open.maxTripsPerDriver}`} /><Row label="Meta de valor ao concluir" value={formatMoney(open.perTripCents * open.maxTripsPerDriver)} /></> : null}
+        {open.maxTripsPerDriver ? <><Row label="Viagens da operação" value={open.maxTripsPerDriver} /><Row label="Meta de ganhos" value={formatMoney(goalOf(open))} /></> : null}
         {open.bonusCents ? <><Row label="Bônus da meta" value={formatMoney(open.bonusCents)} /><Row label="Meta" value={`${open.bonusGoalTrips} viagens`} /></> : null}
         {open.status === "accepted" ? <><Row label="Suas viagens" value={`${open.trips}${open.goalReached ? " · meta atingida" : ""}`} /><Row label="Você já ganhou" value={formatMoney(open.totalCents)} strong /></> : null}
       </div>
-      {open.status === "accepted" && open.maxTripsPerDriver ? <div><div className="nvu-central-progress" role="progressbar" aria-label="Progresso até a meta" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(100, open.trips / open.maxTripsPerDriver * 100))}><span style={{ width: `${Math.min(100, open.trips / open.maxTripsPerDriver * 100)}%` }} /></div>
-        <p className="b2p-hint">{open.trips >= open.maxTripsPerDriver ? "Meta alcançada!" : `Faltam ${open.maxTripsPerDriver - open.trips} ${open.maxTripsPerDriver - open.trips === 1 ? "viagem" : "viagens"} para a meta de ${formatMoney(open.perTripCents * open.maxTripsPerDriver)}.`}</p></div> : null}
+      {open.status === "accepted" && open.maxTripsPerDriver ? (() => { const goal = goalOf(open), pct = goal ? Math.min(100, open.tripCents / goal * 100) : 0; return <div><div className="nvu-central-progress" role="progressbar" aria-label="Progresso até a meta de ganhos" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${pct}%` }} /></div>
+        <p className="b2p-hint">{open.tripCents >= goal ? "Meta de ganhos alcançada!" : `Você ganhou ${formatMoney(open.tripCents)} de ${formatMoney(goal)}. Faltam ${formatMoney(goal - open.tripCents)}.`}</p></div>; })() : null}
       <p className="b2p-note-box">Cada viagem confirmada{open.contractName ? <> na operação <b>{open.contractName}</b></> : null} da empresa <b>{open.companyName}</b>, depois do seu aceite e dentro do período, soma ao seu ganho.</p>
       <p className="b2p-note-box" data-tone="warn">O pagamento é feito pela empresa, por Pix, na chave que você cadastrar. O NVU calcula o ganho, organiza a folha e registra o comprovante, mas não paga nem garante o pagamento.</p>
       {open.status === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void respond(open, "accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => void respond(open, "decline")}>Recusar</button></div>

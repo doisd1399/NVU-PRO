@@ -1,11 +1,11 @@
 /** Recompensas (fase 1): regras puras do servidor, paridade com o app e ligações entre arquivos. O fluxo com banco roda em scripts/test-rewards-emulator.mjs. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { accrueRewards, campaignBudget as serverBudget, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
+import { accrueRewards, campaignBudget as serverBudget, driverMaxCents as serverDriverMax, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
 import { buildPayroll, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
-import { campaignBudget, campaignState, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, periodText, rewardErrorMessage } from "../src/lib/rewards.ts";
+import { campaignBudget, campaignState, driverMaxCents, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, periodText, rewardErrorMessage } from "../src/lib/rewards.ts";
 
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
@@ -143,8 +143,20 @@ test("Formulário da campanha: campos fora do componente (o teclado não fecha a
   const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), form = page.slice(page.indexOf("function NewCampaign("), page.indexOf("function CampaignDetail("));
   assert.doesNotMatch(form, /\bconst Field\s*=/, "componente declarado dentro de outro remonta os campos a cada letra e fecha o teclado");
   assert.match(page, /^const Field = /m);
-  assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Viagens da operação", "4. Quem participa", "5. Início", "6. Nome da campanha"].filter(label => !form.includes(label)), []);
-  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Meta por motorista \(/); assert.match(form, /Custo máximo \(\$\{people\} × /, "o app mostra a conta: motoristas × viagens × valor"); assert.match(form, /OperationCardBody/, "prévia da operação igual à lista"); assert.match(readFileSync("src/components/admin/AssignJobAssetPicker.tsx", "utf8"), /<OperationCardBody name=\{contract\.name\}/, "a lista usa o mesmo cartão da prévia"); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
+  assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Meta de ganhos (por motorista)", "4. Quem participa", "5. Início", "6. Nome da campanha"].filter(label => !form.includes(label)), []);
+  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Total de viagens \(\$\{people\} × \$\{trips\}\)/, "o app soma motoristas × viagens da operação"); assert.match(form, /Investimento total \(\$\{people\} × /, "e calcula o investimento"); assert.doesNotMatch(form, /setTripsInput|label="[0-9]\. Viagens/, "o empresário não digita viagens: vêm da operação"); assert.doesNotMatch(form.slice(form.indexOf("onSend({"), form.indexOf("onSend({") + 300), /maxTripsPerDriver/, "o pedido não envia viagens"); assert.match(form, /OperationCardBody/, "prévia da operação igual à lista"); assert.match(readFileSync("src/components/admin/AssignJobAssetPicker.tsx", "utf8"), /<OperationCardBody name=\{contract\.name\}/, "a lista usa o mesmo cartão da prévia"); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
   assert.match(page, /item\.status === "active" && item\.deleted !== true/, "só operações ativas");
+});
+test("Meta de ganhos: definida no formulário, limita o ganho do motorista (última viagem credita só o que falta); teto e total iguais no servidor e no app", () => {
+  assert.equal(normalizeCampaign(input({ goalCents: 30000 }), NOW).goalCents, 30000); assert.equal(normalizeCampaign(input({}), NOW).goalCents, 0); assert.equal(normalizeCampaign(input({ goalCents: 0 }), NOW).goalCents, 0);
+  rejects(() => normalizeCampaign(input({ goalCents: 100 }), NOW), /meta de ganhos/); rejects(() => normalizeCampaign(input({ goalCents: 1.5 }), NOW), /meta de ganhos/);
+  const terms = { startMs: 0, endMs: Number.MAX_SAFE_INTEGER, perTripCents: 2500, bonusCents: 0, bonusGoalTrips: 0, budgetCents: 1_000_000, contractId: "ct-1", maxTripsPerDriver: 12, goalCents: 7000 };
+  const trips = Array.from({ length: 6 }, (_, i) => ({ id: `t${i}`, driverId: "d1", at: 10 + i, contractId: "ct-1" })), result = accrueRewards(terms, [{ driverId: "d1", acceptedAtMs: 1 }], trips);
+  assert.deepEqual([result.drivers.get("d1")!.trips, result.drivers.get("d1")!.tripCents, result.accruedCents, result.capped], [3, 7000, 7000, false], "2500 + 2500 + 2000 = meta; as demais viagens não somam");
+  assert.equal(accrueRewards({ ...terms, goalCents: 0 }, [{ driverId: "d1", acceptedAtMs: 1 }], trips).accruedCents, 15000, "sem meta, vale cada viagem");
+  const serverMax = serverDriverMax(terms), clientMax = driverMaxCents(terms); assert.deepEqual([serverMax, clientMax, serverBudget(terms, 3), campaignBudget(terms, 3)], [7000, 7000, 21000, 21000]);
+  assert.deepEqual([driverMaxCents({ ...terms, goalCents: 0 }), campaignBudget({ ...terms, goalCents: 0 }, 3), campaignBudget({ ...terms, goalCents: 999999 }, 3)], [30000, 90000, 90000], "meta maior que o possível não aumenta o teto");
+  assert.deepEqual([goalOf({ perTripCents: 2500, maxTripsPerDriver: 12, goalCents: 0 }), goalOf({ perTripCents: 2500, maxTripsPerDriver: 12, goalCents: 7000 }), normalizeOffer("o", { goalCents: 7000 }).goalCents], [30000, 7000, 7000]);
+  const people = 3, tripsPerDriver = 12; assert.equal(people * tripsPerDriver, 36, "total de viagens = motoristas × viagens da operação");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

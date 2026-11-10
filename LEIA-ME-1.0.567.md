@@ -1,6 +1,13 @@
-# NVU PRO 1.0.566 (Android) / Web 2.3.223 / Windows 0.2.2
+# NVU PRO 1.0.567 (Android) / Web 2.3.224 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 566 — instala como atualização da 565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 567 — instala como atualização da 566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.567 — Recompensas: meta de ganhos no formulário e conta automática
+- **Meta de ganhos por motorista é definida no formulário** (campo “3. Meta de ganhos”). Em branco vale o máximo da operação (viagens × valor por viagem). Não pode passar desse máximo.
+- **O empresário não digita mais viagens:** elas vêm da operação escolhida (o servidor usa o total de entregas da operação).
+- **O app soma e mostra:** viagens da operação, motoristas, **total de viagens (motoristas × viagens)**, valor por viagem, meta por motorista e **investimento total** (motoristas × o que cada um pode ganhar). Ex.: 3 motoristas × 12 viagens = 36 viagens; meta R$ 200 → investimento R$ 600.
+- **Regra no servidor:** o ganho do motorista para exatamente na meta (a última viagem credita só o que falta); só contam viagens da operação, depois do aceite e dentro do período.
+- Oferta do motorista: meta de ganhos, barra de progresso e quanto falta.
 
 ## 1.0.566 — Recompensas: prévia da operação e conta da meta
 - **Prévia da operação igual à lista “Escolher operação”:** depois de escolher, o formulário mostra o mesmo cartão da lista (ícone, nome, reboque, entregas e dias); tocar nele reabre a lista para trocar.

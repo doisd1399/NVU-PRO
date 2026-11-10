@@ -39,15 +39,16 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
   if (!input.contractId) fail("invalid-argument", "Escolha a operação da campanha.");
   const contractSnap = await db.collection("contratos").doc(input.contractId).get(), contract = contractSnap.data() || {};
   if (!contractSnap.exists || contract.companyId !== companyId || contract.deleted === true) fail("failed-precondition", "A operação escolhida não existe nesta empresa.");
-  // Sem limite informado, vale o total de viagens da operação (meta de valor = valor por viagem × total de viagens).
-  input.maxTripsPerDriver = input.maxTripsPerDriver || Math.max(0, Math.floor(Number(contract.totalDeliveries) || 0));
-  if (!input.maxTripsPerDriver) fail("invalid-argument", "Informe quantas viagens cada motorista pode fazer na campanha.");
+  // As viagens vêm da operação (o empresário não estipula): cada motorista pode ser pago pelas viagens da operação, até a meta de ganhos.
+  input.maxTripsPerDriver = Math.max(0, Math.floor(Number(contract.totalDeliveries) || 0));
+  if (!input.maxTripsPerDriver) fail("invalid-argument", "Essa operação não tem viagens cadastradas.");
   const contractName = text(contract.name) || "Operação";
   const members = await activeDrivers(db, companyId);
   const driverIds = input.audience === "all" ? members : input.driverIds;
   if (input.audience === "selected" && driverIds.some(driver => !members.includes(driver))) fail("failed-precondition", "Um dos motoristas escolhidos não faz parte da equipe ativa da empresa.");
   if (!driverIds.length) fail("failed-precondition", "A empresa não tem motoristas ativos para receber a campanha.");
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("resource-exhausted", `A campanha pode ter no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
+  if (input.goalCents && input.goalCents > input.maxTripsPerDriver * input.perTripCents) fail("invalid-argument", "A meta de ganhos não pode passar do que o motorista consegue ganhar na operação (viagens × valor por viagem).");
   const budgetCents = input.budgetCents || campaignBudget(input, driverIds.length);
   if (budgetCents < input.perTripCents) fail("invalid-argument", "O teto de investimento precisa cobrir ao menos uma viagem.");
   const users = await db.getAll(...driverIds.map(driver => db.collection("users").doc(driver)));
@@ -59,11 +60,11 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
     assertCompany(manager.company, false);
     const now = admin.firestore.FieldValue.serverTimestamp();
     tx.create(ref, { schemaVersion: 1, companyId, companyName: companyLabel(manager.company), simulatorId: text(manager.company.simulatorId) || text(manager.company.simulatorName),
-      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, budgetCents, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver,
+      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, budgetCents, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents,
       audience: input.audience, status: "active", accruedCents: 0, tripsCount: 0, capped: false, driversCount: driverIds.length, acceptedCount: 0, createdBy: uid, createdAt: now, updatedAt: now });
     for (const driverId of driverIds) tx.create(db.collection(REWARD_OFFERS).doc(`${campaignId}_${driverId}`), {
       schemaVersion: 1, campaignId, companyId, companyName: companyLabel(manager.company), driverId, driverName: names.get(driverId) || "Motorista", status: "pending",
-      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver,
+      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents,
       trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
     return { replayed: false, company: manager.company, contractName };
   });
@@ -86,7 +87,7 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
       trips.push({ id: row.id, driverId: text(offer.get("driverId")), contractId: canonicalTripField(data, "contractId", "contratoId"), at: ms(data.completedAt) || ms(data.createdAt) || ms(data.dataLancamento) });
     }
   }
-  const result = accrueRewards({ startMs: campaign.startMs, endMs: campaign.endMs, perTripCents: campaign.perTripCents, bonusCents: campaign.bonusCents, bonusGoalTrips: campaign.bonusGoalTrips, budgetCents: campaign.budgetCents, contractId: text(campaign.contractId), maxTripsPerDriver: Number(campaign.maxTripsPerDriver) || 0 },
+  const result = accrueRewards({ startMs: campaign.startMs, endMs: campaign.endMs, perTripCents: campaign.perTripCents, bonusCents: campaign.bonusCents, bonusGoalTrips: campaign.bonusGoalTrips, budgetCents: campaign.budgetCents, contractId: text(campaign.contractId), maxTripsPerDriver: Number(campaign.maxTripsPerDriver) || 0, goalCents: Number(campaign.goalCents) || 0 },
     offers.docs.map(offer => ({ driverId: text(offer.get("driverId")), acceptedAtMs: Number(offer.get("acceptedAtMs")) || 0 })), trips);
   const batch = db.batch(); let writes = 0;
   for (const offer of offers.docs) {
