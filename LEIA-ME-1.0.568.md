@@ -1,6 +1,13 @@
-# NVU PRO 1.0.567 (Android) / Web 2.3.224 / Windows 0.2.2
+# NVU PRO 1.0.568 (Android) / Web 2.3.225 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 567 — instala como atualização da 566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 568 — instala como atualização da 567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.568 — Recompensas: prazo da operação, pagamento só de quem concluiu e formulário empilhado
+- **Sem início e fim:** o prazo é o da operação. A campanha vale a partir do envio e fica aberta até ser encerrada; só contam viagens da operação depois do aceite do motorista.
+- **Meta de ganhos = total que o motorista alcança ao concluir a operação.** Valor por viagem e meta andam juntos: mexer em um recalcula o outro (meta = valor por viagem × viagens da operação). Os dois campos ficam **empilhados**.
+- **Formulário:** 1. Operação → 2. Valor por viagem → 3. Meta de ganhos → 4. Quem participa → 5. Nome. O resumo mostra só o essencial: **viagens no total** (ex.: 1 operação de 10 viagens × 2 motoristas = 20 viagens) e o **total de ganhos se todos atingirem a meta** (ex.: meta de R$ 600 × 2 motoristas = R$ 1.200).
+- **Pagamento no dia do pagamento, só de quem concluiu a operação:** a folha (automática ou manual) inclui apenas motoristas que alcançaram a meta. Quem não concluiu na semana entra na folha da semana seguinte em que concluir. A tela Folha mostra “Pronto para a folha” e “Ainda não concluíram” (com “x de N viagens”).
+- Oferta do motorista: prazo da operação, meta de ganhos, progresso e o aviso de como funciona o pagamento.
 
 ## 1.0.567 — Recompensas: meta de ganhos no formulário e conta automática
 - **Meta de ganhos por motorista é definida no formulário** (campo “3. Meta de ganhos”). Em branco vale o máximo da operação (viagens × valor por viagem). Não pode passar desse máximo.

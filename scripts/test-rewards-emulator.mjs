@@ -84,6 +84,13 @@ try {
     for (const id of ["g1", "g2", "g3", "g4"]) { await trip(id, "drv-1", "a", 1000 + Number(id.slice(1))); await fire(id); }
     const row = (await get(`rewardOffers/${campaignId}_drv-1`)).data(); assert.deepEqual([row.trips, row.tripCents, row.totalCents], [3, 6000, 6000], "2500 + 2500 + 1000 = meta; a quarta viagem não soma");
   });
+  await test("campanha sem datas: vale o prazo da operação (aberta a partir de agora); com datas continua valendo o período", async () => {
+    const { campaignId } = await create({ startDate: undefined, endDate: undefined }), c = (await get(`rewardCampaigns/${campaignId}`)).data();
+    assert.deepEqual([c.openEnded, c.deadlineDays, c.endMs - c.startMs], [true, 0, 365 * 86_400_000]); assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("openEnded"), true);
+    await respond(`${campaignId}_drv-1`, "accept", "drv-1"); await trip("ab1", "drv-1", "a", 1000); await fire("ab1"); assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("trips"), 1);
+    await failsWith(() => create({ startDate: day(0), endDate: undefined }), "invalid-argument");
+    assert.equal((await get(`rewardCampaigns/${(await create({}) ).campaignId}`)).get("openEnded"), false);
+  });
   await test("responder: só o motorista dono; aceitar/recusar; repetir é idempotente; mudar de ideia depois não vale", async () => {
     const { campaignId } = await create(), offer = `${campaignId}_drv-1`;
     await failsWith(() => respond(offer, "accept", "drv-2"), "permission-denied"); await failsWith(() => respond(offer, "talvez", "drv-1"), "invalid-argument"); await failsWith(() => respond("rc_x_nada", "accept", "drv-1"), "not-found");

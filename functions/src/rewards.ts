@@ -60,16 +60,16 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
     assertCompany(manager.company, false);
     const now = admin.firestore.FieldValue.serverTimestamp();
     tx.create(ref, { schemaVersion: 1, companyId, companyName: companyLabel(manager.company), simulatorId: text(manager.company.simulatorId) || text(manager.company.simulatorName),
-      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, budgetCents, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents,
+      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, budgetCents, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents, openEnded: input.openEnded, deadlineDays: Math.max(0, Math.floor(Number(contract.deadlineDays) || 0)),
       audience: input.audience, status: "active", accruedCents: 0, tripsCount: 0, capped: false, driversCount: driverIds.length, acceptedCount: 0, createdBy: uid, createdAt: now, updatedAt: now });
     for (const driverId of driverIds) tx.create(db.collection(REWARD_OFFERS).doc(`${campaignId}_${driverId}`), {
       schemaVersion: 1, campaignId, companyId, companyName: companyLabel(manager.company), driverId, driverName: names.get(driverId) || "Motorista", status: "pending",
-      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents,
+      name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents, openEnded: input.openEnded, deadlineDays: Math.max(0, Math.floor(Number(contract.deadlineDays) || 0)),
       trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
     return { replayed: false, company: manager.company, contractName };
   });
   if (!outcome.replayed) await notifyUsers(db, driverIds, { type: "REWARD_OFFER", refId: campaignId, companyId, title: "Nova recompensa",
-    message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, até ${input.maxTripsPerDriver} viagens${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
+    message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, meta de ${money(input.goalCents || input.perTripCents * input.maxTripsPerDriver)} ao concluir as ${input.maxTripsPerDriver} viagens${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
   return { success: true, campaignId, drivers: driverIds.length, replayed: outcome.replayed };
 });
 

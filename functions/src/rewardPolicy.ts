@@ -8,9 +8,10 @@ export const REWARD_CAMPAIGNS = "rewardCampaigns";
 export const REWARD_OFFERS = "rewardOffers";
 export const MAX_REWARD_DRIVERS = 100;
 export const MAX_CAMPAIGN_DAYS = 92;
+export const OPEN_ENDED_DAYS = 365;
 export type RewardAudience = "all" | "selected";
 export type RewardTerms = { startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number; contractId?: string; maxTripsPerDriver?: number; goalCents?: number };
-export type RewardCampaignInput = RewardTerms & { name: string; audience: RewardAudience; driverIds: string[]; contractId: string; maxTripsPerDriver: number; goalCents: number };
+export type RewardCampaignInput = RewardTerms & { name: string; audience: RewardAudience; driverIds: string[]; contractId: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean };
 
 const DAY = 86_400_000, BRT = "-03:00";
 const dateKey = (value: unknown): string => { const raw = text(value); if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || Number.isNaN(Date.parse(`${raw}T00:00:00${BRT}`))) fail("invalid-argument", "Informe as datas da campanha."); return raw; };
@@ -25,10 +26,15 @@ export const dayBounds = (start: string, end: string) => ({ startMs: Date.parse(
 export function normalizeCampaign(raw: Record<string, any>, now: number): RewardCampaignInput {
   const name = text(raw.name).replace(/\s+/g, " ");
   if (name.length < 3 || name.length > 60) fail("invalid-argument", "O nome da campanha precisa ter de 3 a 60 caracteres.");
-  const startDate = dateKey(raw.startDate), endDate = dateKey(raw.endDate), { startMs, endMs } = dayBounds(startDate, endDate);
-  if (endMs < startMs) fail("invalid-argument", "O fim da campanha não pode ser antes do início.");
-  if (endMs < now) fail("invalid-argument", "O período da campanha já terminou.");
-  if ((endMs - startMs) / DAY > MAX_CAMPAIGN_DAYS) fail("invalid-argument", `A campanha pode durar no máximo ${MAX_CAMPAIGN_DAYS} dias.`);
+  // Sem datas: o prazo é o da operação. A campanha vale a partir de agora e fica aberta até ser encerrada (teto de 1 ano só como limite técnico).
+  const openEnded = !text(raw.startDate) && !text(raw.endDate);
+  let startMs = now, endMs = now + OPEN_ENDED_DAYS * DAY;
+  if (!openEnded) {
+    ({ startMs, endMs } = dayBounds(dateKey(raw.startDate), dateKey(raw.endDate)));
+    if (endMs < startMs) fail("invalid-argument", "O fim da campanha não pode ser antes do início.");
+    if (endMs < now) fail("invalid-argument", "O período da campanha já terminou.");
+    if ((endMs - startMs) / DAY > MAX_CAMPAIGN_DAYS) fail("invalid-argument", `A campanha pode durar no máximo ${MAX_CAMPAIGN_DAYS} dias.`);
+  }
   const perTripCents = cents(raw.perTripCents, "O valor por viagem", 1, 1_000_000);
   const bonusCents = cents(raw.bonusCents ?? 0, "O bônus", 0, 10_000_000);
   const bonusGoalTrips = cents(raw.bonusGoalTrips ?? 0, "A meta do bônus", 0, 1000);
@@ -43,7 +49,7 @@ export function normalizeCampaign(raw: Record<string, any>, now: number): Reward
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("invalid-argument", `Escolha no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
   // Meta de ganhos por motorista (R$): opcional; sem ela vale viagens da operação × valor por viagem.
   const goalCents = raw.goalCents === undefined || raw.goalCents === null || raw.goalCents === 0 ? 0 : cents(raw.goalCents, "A meta de ganhos", perTripCents, 100_000_000);
-  return { name, startMs, endMs, perTripCents, bonusCents: bonusGoalTrips ? bonusCents : 0, bonusGoalTrips: bonusCents ? bonusGoalTrips : 0, budgetCents, audience, driverIds, contractId, maxTripsPerDriver, goalCents };
+  return { name, startMs, endMs, perTripCents, bonusCents: bonusGoalTrips ? bonusCents : 0, bonusGoalTrips: bonusCents ? bonusGoalTrips : 0, budgetCents, audience, driverIds, contractId, maxTripsPerDriver, goalCents, openEnded };
 }
 
 /** Máximo que um motorista pode ganhar: viagens da operação × valor por viagem, limitado pela meta de ganhos (se houver). Igual no app. */
@@ -106,7 +112,7 @@ export const REWARD_PAYMENTS = "rewardPayments";
 export const MAX_PAYROLL_DRIVERS = 200;
 export type PaymentStatus = "pending" | "paid" | "received" | "contested" | "cancelled";
 export type PaymentAction = "pay" | "receive" | "contest" | "cancel";
-export type PayrollOffer = { id: string; campaignId: string; campaignName: string; driverId: string; totalCents: number; settledCents: number };
+export type PayrollOffer = { id: string; campaignId: string; campaignName: string; driverId: string; totalCents: number; settledCents: number; completed: boolean };
 export type PayrollLine = { driverId: string; amountCents: number; items: { offerId: string; campaignId: string; campaignName: string; cents: number }[] };
 
 /** Dia da semana (0 = domingo) em horário de Brasília. */
@@ -120,12 +126,20 @@ export const normalizePayDay = (value: unknown): number => {
 };
 
 /**
+ * O motorista concluiu a operação: ganhou a meta de ganhos (viagens da operação × valor por viagem, ou a meta definida).
+ * Campanhas antigas (sem operação nem meta) contam o que foi ganho, como antes.
+ */
+export const offerCompleted = (offer: { totalCents: number; goalCents?: number; perTripCents?: number; maxTripsPerDriver?: number }): boolean => {
+  const goal = Number(offer.goalCents) || (Number(offer.perTripCents) || 0) * (Number(offer.maxTripsPerDriver) || 0);
+  return goal > 0 ? (Number(offer.totalCents) || 0) >= goal : (Number(offer.totalCents) || 0) > 0;
+};
+/**
  * O que cada motorista ainda tem a receber: ganho calculado (campanhas aceitas) menos o que já entrou em uma folha.
  * Valores negativos (viagem removida depois) contam como zero. Só entra quem tem saldo; ordem estável por nome do motorista (id).
  */
 export function buildPayroll(offers: PayrollOffer[]): PayrollLine[] {
   const byDriver = new Map<string, PayrollLine>();
-  for (const offer of [...offers].sort((a, b) => a.driverId.localeCompare(b.driverId) || a.id.localeCompare(b.id))) {
+  for (const offer of [...offers].filter(item => item.completed).sort((a, b) => a.driverId.localeCompare(b.driverId) || a.id.localeCompare(b.id))) {
     const cents = Math.max(0, Math.floor(offer.totalCents) - Math.max(0, Math.floor(offer.settledCents)));
     if (cents <= 0) continue;
     const line = byDriver.get(offer.driverId) || { driverId: offer.driverId, amountCents: 0, items: [] };

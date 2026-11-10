@@ -39,7 +39,7 @@ const seed = async () => {
   const batch = db.batch(); rows.forEach(([ref, data]) => batch.set(db.doc(ref), data)); await batch.commit();
   for (const [uid, companyId] of [["owner-a", "a"], ["owner-b", "b"], ["drv-1", "a"], ["drv-2", "a"], ["drv-b", "b"]]) await refreshCompanyAccess(db, uid, companyId).catch(() => undefined);
 };
-const trip = async (id, driverId, companyId, offsetMs, extra = {}) => db.doc(`historico_viagens/${id}`).set({ driverId, companyId, status: "completed", contractId: "ct-1", serverValidatedAt: admin.firestore.Timestamp.now(), completedAt: admin.firestore.Timestamp.fromMillis(Date.now() + offsetMs), valorCents: 999999, ...extra });
+const trip = async (id, driverId, companyId, offsetMs, extra = {}) => db.doc(`historico_viagens/${id}`).set({ driverId, companyId, status: "completed", contractId: "ct-2", serverValidatedAt: admin.firestore.Timestamp.now(), completedAt: admin.firestore.Timestamp.fromMillis(Date.now() + offsetMs), valorCents: 999999, ...extra });
 const fire = async tripId => { const after = (await get(`historico_viagens/${tripId}`)).data(); return rewards.syncRewardTrips.run({ before: { exists: false, data: () => undefined }, after: { exists: true, data: () => after } }, { params: { tripId } }); };
 const results = [];
 async function test(name, fn) {
@@ -50,7 +50,7 @@ async function test(name, fn) {
 let tripSeq = 0;
 /** Campanha aceita por drv-1 (n viagens) e, se pedido, por drv-2 (m viagens). */
 const earn = async (drv1Trips, drv2Trips = 0, extra = {}) => {
-  const { campaignId } = await create({ bonusCents: 0, bonusGoalTrips: 0, ...extra });
+  const { campaignId } = await create({ contractId: "ct-2", startDate: undefined, endDate: undefined, bonusCents: 0, bonusGoalTrips: 0, ...extra }); // operação de 2 viagens: 2 viagens = concluiu
   for (const [driver, count] of [["drv-1", drv1Trips], ["drv-2", drv2Trips]]) {
     if (!count) continue;
     await respond(`${campaignId}_${driver}`, "accept", driver);
@@ -70,22 +70,22 @@ try {
     const saved = await pay.setRewardPix.run({ type: "phone", key: "(11) 91234-5678" }, ctx("drv-1")); assert.equal(saved.key, "+5511912345678");
     assert.deepEqual([(await get("rewardPayees/drv-1")).get("pixType"), (await get("rewardPayees/drv-1")).get("pixKey")], ["phone", "+5511912345678"]);
   });
-  await test("folha: só o gestor; soma o ganho de cada motorista, usa a chave Pix, avisa e não repete valores nem pagamentos", async () => {
+  await test("folha: só o gestor; paga só quem concluiu a operação (os demais ficam para a folha seguinte); usa a chave Pix, avisa e não repete valores nem pagamentos", async () => {
     await pay.setRewardPix.run({ type: "cpf", key: "529.982.247-25" }, ctx("drv-1"));
-    await earn(3, 1); // drv-1: R$ 75, drv-2: R$ 25 (sem chave Pix)
+    const campaignId = await earn(2, 1); // drv-1 concluiu (2 de 2 viagens = R$ 50); drv-2 fez 1 de 2 (R$ 25, em andamento)
     await failsWith(() => payroll("drv-1"), "permission-denied"); await failsWith(() => payroll("owner-b"), "permission-denied"); await failsWith(() => pay.generateRewardPayroll.run({ companyId: "a" }, ctx("owner-a")), "invalid-argument");
     const request = { companyId: "a", requestId: "fixo-1" }, first = await pay.generateRewardPayroll.run(request, ctx("owner-a"));
-    assert.deepEqual([first.payments, first.totalCents, first.replayed], [2, 10000, false]);
-    const rows = await payments(); assert.deepEqual(rows.map(row => [row.driverId, row.amountCents, row.status, row.pixKey]), [["drv-1", 7500, "pending", "52998224725"], ["drv-2", 2500, "pending", ""]]);
-    assert.deepEqual(rows[0].items.map(item => [item.campaignName, item.cents]), [["Semana de Ouro", 7500]]);
-    assert.equal((await pay.generateRewardPayroll.run(request, ctx("owner-a"))).replayed, true); assert.equal((await payments()).length, 2, "repetir o pedido não duplica");
-    const again = await payroll(); assert.deepEqual([again.payments, again.totalCents], [0, 0], "o que já está em folha não entra de novo");
-    assert.equal((await db.collection("notifications").where("type", "==", "REWARD_PAYROLL").get()).size, 2);
-    // nova viagem: a próxima folha leva só a diferença
+    assert.deepEqual([first.payments, first.totalCents, first.replayed], [1, 5000, false], "só quem concluiu entra na folha");
+    const rows = await payments(); assert.deepEqual(rows.map(row => [row.driverId, row.amountCents, row.status, row.pixKey]), [["drv-1", 5000, "pending", "52998224725"]]);
+    assert.deepEqual(rows[0].items.map(item => [item.campaignName, item.cents]), [["Semana de Ouro", 5000]]);
+    assert.equal((await pay.generateRewardPayroll.run(request, ctx("owner-a"))).replayed, true); assert.equal((await payments()).length, 1, "repetir o pedido não duplica");
+    const again = await payroll(); assert.deepEqual([again.payments, again.totalCents], [0, 0], "o que já está em folha não entra de novo; quem não concluiu continua de fora");
+    assert.equal((await db.collection("notifications").where("type", "==", "REWARD_PAYROLL").get()).size, 1);
+    // drv-2 conclui depois (2ª viagem): entra só na folha seguinte, com o valor todo
     const id = `p${++tripSeq}`; await trip(id, "drv-2", "a", 9000); await fire(id);
-    const campaignId = (await db.collection("rewardCampaigns").get()).docs[0].id; await rewards.recomputeRewardCampaign(db, campaignId);
-    const next = await payroll(); assert.deepEqual([next.payments, next.totalCents], [1, 2500]);
-    assert.equal((await payments()).length, 3);
+    const next = await payroll(); assert.deepEqual([next.payments, next.totalCents], [1, 5000]);
+    assert.deepEqual((await payments()).map(row => [row.driverId, row.amountCents]), [["drv-1", 5000], ["drv-2", 5000]]);
+    assert.equal((await get(`rewardCampaigns/${campaignId}`)).get("openEnded"), true, "campanha sem datas: vale o prazo da operação");
   });
   await test("pagar: só a gestão da empresa; gera comprovante com número e chave escondida; repetir não gera outro; recebido é final", async () => {
     await pay.setRewardPix.run({ type: "cpf", key: "52998224725" }, ctx("drv-1")); await earn(2); await payroll();
@@ -105,7 +105,7 @@ try {
     await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "não caiu" }), "failed-precondition"); await failsWith(() => act("cancelRewardPayment", row.id, "owner-a"), "failed-precondition"); await failsWith(() => act("markRewardPaid", row.id, "owner-a"), "failed-precondition");
   });
   await test("contestar: só depois de pago, com motivo; a empresa paga de novo (novo comprovante) e o motorista confirma", async () => {
-    await earn(1); await payroll(); const [row] = await payments();
+    await earn(2); await payroll(); const [row] = await payments();
     await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "não caiu" }), "failed-precondition"); await act("markRewardPaid", row.id, "owner-a");
     await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "x" }), "invalid-argument"); await failsWith(() => act("contestRewardPayment", row.id, "drv-2", { reason: "não caiu na conta" }), "permission-denied");
     const first = (await get(`rewardPayments/${row.id}`)).get("receipt.number");
@@ -128,16 +128,16 @@ try {
     assert.equal((await db.collection("notifications").where("type", "==", "REWARD_CANCELLED").get()).size, 1);
   });
   await test("fechamento automático: no dia de pagamento (8h) monta a folha e avisa a gestão; outro dia não; repetir não duplica", async () => {
-    await earn(2, 1);
+    await earn(2, 1); // só drv-1 concluiu
     const weekday = new Date(Date.now() - 3 * 3_600_000).getUTCDay(), other = (weekday + 1) % 7;
     await db.doc("rewardSettings/a").set({ companyId: "a", payDay: other }); await pay.rewardPayDayTick.run({}); assert.equal((await payments()).length, 0, "não é o dia de pagamento");
     await db.doc("rewardSettings/a").set({ companyId: "a", payDay: weekday }); await pay.rewardPayDayTick.run({});
-    const rows = await payments(); assert.deepEqual(rows.map(row => [row.driverId, row.amountCents, row.source]), [["drv-1", 5000, "auto"], ["drv-2", 2500, "auto"]]);
-    await pay.rewardPayDayTick.run({}); assert.equal((await payments()).length, 2, "rodar de novo no mesmo dia não duplica");
-    const ready = await db.collection("notifications").where("type", "==", "REWARD_PAYROLL_READY").get(); assert.ok(ready.size >= 1); assert.match(ready.docs[0].get("message"), /R\$ 75,00 para 2 motoristas/);
+    const rows = await payments(); assert.deepEqual(rows.map(row => [row.driverId, row.amountCents, row.source]), [["drv-1", 5000, "auto"]], "só quem concluiu");
+    await pay.rewardPayDayTick.run({}); assert.equal((await payments()).length, 1, "rodar de novo no mesmo dia não duplica");
+    const ready = await db.collection("notifications").where("type", "==", "REWARD_PAYROLL_READY").get(); assert.ok(ready.size >= 1); assert.match(ready.docs[0].get("message"), /R\$ 50,00 para 1 motorista/);
   });
   await test("regras do Firestore: gestão lê pagamentos da empresa; motorista só os próprios e a própria chave; ninguém escreve do cliente", async () => {
-    await pay.setRewardPix.run({ type: "cpf", key: "52998224725" }, ctx("drv-1")); await earn(1, 1); await payroll(); const [mine, other] = await payments();
+    await pay.setRewardPix.run({ type: "cpf", key: "52998224725" }, ctx("drv-1")); await earn(2, 2); await payroll(); const [mine, other] = await payments();
     const read = (uid, path) => getDoc(doc(environment.authenticatedContext(uid).firestore(), ...path.split("/")));
     await assertSucceeds(read("owner-a", `rewardPayments/${mine.id}`)); await assertSucceeds(read("drv-1", `rewardPayments/${mine.id}`)); await assertFails(read("drv-2", `rewardPayments/${mine.id}`)); await assertFails(read("owner-b", `rewardPayments/${mine.id}`)); await assertSucceeds(read("drv-2", `rewardPayments/${other.id}`));
     const list = (uid, field, value) => getDocs(query(collection(environment.authenticatedContext(uid).firestore(), "rewardPayments"), where(field, "==", value)));

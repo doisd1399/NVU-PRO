@@ -2,10 +2,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { accrueRewards, campaignBudget as serverBudget, driverMaxCents as serverDriverMax, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
-import { buildPayroll, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
+import { buildPayroll, offerCompleted as serverCompleted, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
-import { campaignBudget, campaignState, driverMaxCents, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, periodText, rewardErrorMessage } from "../src/lib/rewards.ts";
+import { campaignBudget, campaignState, driverMaxCents, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, offerCompleted, periodText, rewardErrorMessage, termText } from "../src/lib/rewards.ts";
 
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
@@ -69,7 +69,7 @@ test("Ligações: funções exportadas, regiões, regras, rotas e entradas do me
   assert.match(readFileSync("scripts/qa/integration.mts", "utf8"), /test-rewards-emulator\.mjs/);
 });
 
-const offer = (extra: Record<string, unknown> = {}) => ({ id: "o1", campaignId: "c1", campaignName: "Semana de Ouro", driverId: "d1", totalCents: 7500, settledCents: 0, ...extra }) as Parameters<typeof buildPayroll>[0][number];
+const offer = (extra: Record<string, unknown> = {}) => ({ id: "o1", campaignId: "c1", campaignName: "Semana de Ouro", driverId: "d1", totalCents: 7500, settledCents: 0, completed: true, ...extra }) as Parameters<typeof buildPayroll>[0][number];
 test("Folha: cada motorista recebe o ganho ainda fora de folha; saldo zero ou negativo não entra; várias campanhas somam", () => {
   const lines = buildPayroll([offer(), offer({ id: "o2", campaignId: "c2", campaignName: "Meta", totalCents: 2500, settledCents: 1000 }), offer({ id: "o3", driverId: "d2", totalCents: 5000, settledCents: 5000 }), offer({ id: "o4", driverId: "d3", totalCents: 100, settledCents: 900 }), offer({ id: "o5", driverId: "d4", totalCents: 0 })]);
   assert.deepEqual(lines.map(line => [line.driverId, line.amountCents]), [["d1", 9000]]);
@@ -143,8 +143,8 @@ test("Formulário da campanha: campos fora do componente (o teclado não fecha a
   const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), form = page.slice(page.indexOf("function NewCampaign("), page.indexOf("function CampaignDetail("));
   assert.doesNotMatch(form, /\bconst Field\s*=/, "componente declarado dentro de outro remonta os campos a cada letra e fecha o teclado");
   assert.match(page, /^const Field = /m);
-  assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Meta de ganhos (por motorista)", "4. Quem participa", "5. Início", "6. Nome da campanha"].filter(label => !form.includes(label)), []);
-  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Total de viagens \(\$\{people\} × \$\{trips\}\)/, "o app soma motoristas × viagens da operação"); assert.match(form, /Investimento total \(\$\{people\} × /, "e calcula o investimento"); assert.doesNotMatch(form, /setTripsInput|label="[0-9]\. Viagens/, "o empresário não digita viagens: vêm da operação"); assert.doesNotMatch(form.slice(form.indexOf("onSend({"), form.indexOf("onSend({") + 300), /maxTripsPerDriver/, "o pedido não envia viagens"); assert.match(form, /OperationCardBody/, "prévia da operação igual à lista"); assert.match(readFileSync("src/components/admin/AssignJobAssetPicker.tsx", "utf8"), /<OperationCardBody name=\{contract\.name\}/, "a lista usa o mesmo cartão da prévia"); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
+  assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Meta de ganhos", "4. Quem participa", "5. Nome da campanha"].filter(label => !form.includes(label)), []);
+  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Viagens no total \(1 operação de \$\{trips\}[^`]*× \$\{people\} /, "o app soma motoristas × viagens da operação"); assert.doesNotMatch(form, /type="date"|Início|label="Fim"|startDate|endDate/, "o prazo é o da operação: sem início e fim"); assert.doesNotMatch(form, /b2p-grid2/, "valor por viagem e meta empilhados"); assert.match(form, /changePerTrip[\s\S]*changeGoal/, "valor por viagem e meta andam juntos"); assert.match(form, /Investimento total se todos atingirem a meta \(\$\{people\} /, "e mostra o total de ganhos se todos atingirem a meta (ex.: 2 × R$ 600 = R$ 1.200)"); assert.doesNotMatch(form, /Row label="Meta de ganhos por motorista"/, "a meta por motorista já está no campo"); assert.doesNotMatch(form, /setTripsInput|label="[0-9]\. Viagens/, "o empresário não digita viagens: vêm da operação"); assert.doesNotMatch(form.slice(form.indexOf("onSend({"), form.indexOf("onSend({") + 300), /maxTripsPerDriver/, "o pedido não envia viagens"); assert.match(form, /OperationCardBody/, "prévia da operação igual à lista"); assert.match(readFileSync("src/components/admin/AssignJobAssetPicker.tsx", "utf8"), /<OperationCardBody name=\{contract\.name\}/, "a lista usa o mesmo cartão da prévia"); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
   assert.match(page, /item\.status === "active" && item\.deleted !== true/, "só operações ativas");
 });
 test("Meta de ganhos: definida no formulário, limita o ganho do motorista (última viagem credita só o que falta); teto e total iguais no servidor e no app", () => {
@@ -158,5 +158,17 @@ test("Meta de ganhos: definida no formulário, limita o ganho do motorista (últ
   assert.deepEqual([driverMaxCents({ ...terms, goalCents: 0 }), campaignBudget({ ...terms, goalCents: 0 }, 3), campaignBudget({ ...terms, goalCents: 999999 }, 3)], [30000, 90000, 90000], "meta maior que o possível não aumenta o teto");
   assert.deepEqual([goalOf({ perTripCents: 2500, maxTripsPerDriver: 12, goalCents: 0 }), goalOf({ perTripCents: 2500, maxTripsPerDriver: 12, goalCents: 7000 }), normalizeOffer("o", { goalCents: 7000 }).goalCents], [30000, 7000, 7000]);
   const people = 3, tripsPerDriver = 12; assert.equal(people * tripsPerDriver, 36, "total de viagens = motoristas × viagens da operação");
+});
+test("Pagamento só de quem concluiu a operação; quem não concluiu fica para a folha seguinte; campanha sem datas vale o prazo da operação", () => {
+  const lines = buildPayroll([offer({ completed: false }), offer({ id: "o2", driverId: "d2", totalCents: 5000 })]); assert.deepEqual(lines.map(line => [line.driverId, line.amountCents]), [["d2", 5000]], "d1 não concluiu: fica fora da folha");
+  assert.deepEqual(buildPayroll([offer({ completed: false })]), []); assert.deepEqual(buildPayroll([offer({ completed: true })]).map(line => line.amountCents), [7500], "concluiu: entra na próxima folha (na mesma semana ou na seguinte)");
+  const base = { totalCents: 0, perTripCents: 2500, maxTripsPerDriver: 10, goalCents: 0 };
+  assert.deepEqual([serverCompleted({ ...base, totalCents: 24999 }), serverCompleted({ ...base, totalCents: 25000 }), serverCompleted({ ...base, goalCents: 7000, totalCents: 7000 }), serverCompleted({ totalCents: 500 }), serverCompleted({ totalCents: 0 })], [false, true, true, true, false], "meta = viagens × valor (ou a meta definida); campanha antiga conta o que foi ganho");
+  assert.deepEqual([base, { ...base, totalCents: 25000 }, { ...base, goalCents: 7000, totalCents: 7000 }, { totalCents: 500 }].map(offerCompleted), [false, true, true, true], "servidor e app iguais");
+  const open = normalizeCampaign({ ...input({}), startDate: undefined, endDate: undefined, contractId: "ct-1" }, NOW); assert.deepEqual([open.openEnded, open.startMs, open.endMs - open.startMs], [true, NOW, 365 * DAY], "sem datas: aberta, a partir de agora"); assert.equal(normalizeCampaign(input({}), NOW).openEnded, false);
+  rejects(() => normalizeCampaign({ ...input({}), endDate: undefined }, NOW), /datas/);
+  assert.equal(termText({ openEnded: true, deadlineDays: 4, startMs: 0, endMs: 0 }), "prazo da operação: 4 dias"); assert.equal(termText({ openEnded: false, deadlineDays: 4, startMs: NOW, endMs: NOW + DAY }), periodText(NOW, NOW + DAY));
+  const waiting = pendingBalance([normalizeOffer("a", { status: "accepted", driverId: "d1", driverName: "Ana", totalCents: 2500, perTripCents: 2500, maxTripsPerDriver: 4, trips: 1 }), normalizeOffer("b", { status: "accepted", driverId: "d2", driverName: "Beto", totalCents: 10000, perTripCents: 2500, maxTripsPerDriver: 4, trips: 4 })]);
+  assert.deepEqual([waiting.rows.map(row => row.driverId), waiting.totalCents, waiting.waiting.map(row => [row.driverId, row.trips, row.of])], [["d2"], 10000, [["d1", 1, 4]]], "pronto para a folha × em andamento");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

@@ -30,7 +30,7 @@ export function PayrollTab({ companyId, payments, offers, payDay, ready, now, on
   return <>
     <section className="nvu-central-section b2p-sec">
       <div className="b2p-sec-head"><h2>Folha de pagamento</h2></div>
-      <div className="b2p-sum"><div><small>A pagar</small><b>{formatMoney(openTotal)}</b><em>{open.length} {open.length === 1 ? "pagamento" : "pagamentos"} na folha</em></div><div><small>Ainda fora da folha</small><b>{formatMoney(balance.totalCents)}</b><em>{balance.rows.length ? `${balance.rows.length} ${balance.rows.length === 1 ? "motorista" : "motoristas"} com saldo` : "sem saldo novo"}</em></div></div>
+      <div className="b2p-sum"><div><small>A pagar</small><b>{formatMoney(openTotal)}</b><em>{open.length} {open.length === 1 ? "pagamento" : "pagamentos"} na folha</em></div><div><small>Pronto para a folha</small><b>{formatMoney(balance.totalCents)}</b><em>{balance.rows.length ? `${balance.rows.length} ${balance.rows.length === 1 ? "motorista concluiu" : "motoristas concluíram"}` : balance.waiting.length ? `${balance.waiting.length} em andamento` : "sem saldo novo"}</em></div></div>
       <div className="b2p-form">
         <div className="b2p-field"><span className="b2p-label">Dia do pagamento</span>
           <div className="b2p-input"><select value={payDay ?? ""} aria-label="Dia da semana do pagamento" disabled={busy} onChange={event => { const day = Number(event.target.value); void run(async () => { await rewardService.setPayDay(companyId, day); toast.success(`Pagamento toda ${WEEKDAYS[day].toLowerCase()}${day === 0 || day === 6 ? "" : "-feira"}.`); }, "Não foi possível salvar o dia."); }}>
@@ -42,7 +42,8 @@ export function PayrollTab({ companyId, payments, offers, payDay, ready, now, on
     <Section title="A pagar" count={open.length}>
       {open.length ? open.map(payment => <PaymentRow key={payment.id} payment={payment} onOpen={() => onOpen(payment.id)} />)
         : <p className="b2p-empty">{ready ? "Nenhum pagamento na folha. Quando houver ganhos, gere a folha ou espere o dia do pagamento." : "Carregando a folha…"}</p>}
-      {balance.rows.length ? <><p className="b2p-hint">Saldo que entra na próxima folha:</p>{balance.rows.map(row => <div className="b2p-wrow" key={row.driverId}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>ganho ainda não pago</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
+      {balance.waiting.length ? <><p className="b2p-hint">Ainda não concluíram a operação (recebem na folha da semana em que concluírem; se não for nesta, na próxima):</p>{balance.waiting.map(row => <div className="b2p-wrow" key={row.id}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>em andamento{row.of ? ` · ${row.trips} de ${row.of} viagens` : ""}</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
+      {balance.rows.length ? <><p className="b2p-hint">Concluíram e entram na próxima folha:</p>{balance.rows.map(row => <div className="b2p-wrow" key={row.driverId}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>ganho ainda não pago</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
     </Section>
   </>;
 }

@@ -1,5 +1,5 @@
 /** Recompensas, fase 2 (cliente): pagamentos da folha, comprovante e contas simples. O servidor é quem muda os estados. */
-import type { RewardOffer } from "./rewards";
+import { offerCompleted, type RewardOffer } from "./rewards";
 import { crc16 } from "./pixBrCode";
 
 export type PaymentStatus = "pending" | "paid" | "received" | "contested" | "cancelled";
@@ -31,18 +31,22 @@ export const DRIVER_PAYMENT_LABEL: Record<PaymentStatus, string> = { pending: "A
 export const PAYMENT_TONE: Record<PaymentStatus, string> = { pending: "warn", paid: "good", received: "good", contested: "late", cancelled: "muted" };
 export const WEEKDAYS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 
-/** Saldo que ainda não entrou em nenhuma folha (o que a próxima folha vai pagar), por motorista e no total. */
+/**
+ * Saldo por motorista. Só quem concluiu a operação (alcançou a meta) entra na próxima folha (`rows`); quem ainda não concluiu
+ * fica em `waiting` e recebe na folha da semana em que concluir (na próxima, se não der nesta).
+ */
 export function pendingBalance(offers: RewardOffer[]) {
-  const byDriver = new Map<string, { driverId: string; driverName: string; cents: number }>();
+  const ready = new Map<string, { driverId: string; driverName: string; cents: number }>(), waiting: { id: string; driverId: string; driverName: string; trips: number; of: number; cents: number }[] = [];
   for (const offer of offers) {
     if (offer.status !== "accepted") continue;
     const cents = Math.max(0, (Number(offer.totalCents) || 0) - (Number(offer.settledCents) || 0));
     if (cents <= 0) continue;
-    const row = byDriver.get(offer.driverId) || { driverId: offer.driverId, driverName: offer.driverName, cents: 0 };
-    row.cents += cents; byDriver.set(offer.driverId, row);
+    if (!offerCompleted(offer)) { waiting.push({ id: offer.id, driverId: offer.driverId, driverName: offer.driverName, trips: offer.trips, of: offer.maxTripsPerDriver, cents }); continue; }
+    const row = ready.get(offer.driverId) || { driverId: offer.driverId, driverName: offer.driverName, cents: 0 };
+    row.cents += cents; ready.set(offer.driverId, row);
   }
-  const rows = [...byDriver.values()].sort((a, b) => b.cents - a.cents || a.driverName.localeCompare(b.driverName));
-  return { rows, totalCents: rows.reduce((sum, row) => sum + row.cents, 0) };
+  const rows = [...ready.values()].sort((a, b) => b.cents - a.cents || a.driverName.localeCompare(b.driverName));
+  return { rows, totalCents: rows.reduce((sum, row) => sum + row.cents, 0), waiting: waiting.sort((a, b) => a.driverName.localeCompare(b.driverName)) };
 }
 /** "10/11/2026 às 14:32" em horário de Brasília, igual em qualquer aparelho. */
 export const dateTimeText = (value: number): string => {

@@ -7,7 +7,7 @@ import { useCompanyPayments, useCompanyRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { formatMoney, maskMoney, parseMoneyToCents } from "../../lib/partnerships";
-import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, driverMaxCents, goalOf, periodText, rewardErrorMessage, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
+import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, goalOf, rewardErrorMessage, termText, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
 import { BackLink, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
 import { PayrollTab, PaymentDetail, TransfersTab } from "./RewardPayroll";
 import AssignJobAssetPicker, { OperationCardBody } from "../../components/admin/AssignJobAssetPicker";
@@ -18,7 +18,6 @@ const OFFER_TONE: Record<string, string> = { pending: "warn", accepted: "good", 
 const initials = (name: string) => name.split(/\s+/).map(word => word[0]).slice(0, 2).join("").toUpperCase();
 const Bar = ({ pct, warn }: { pct: number; warn?: boolean }) => <div className="nvu-central-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: warn ? "var(--central-warning)" : undefined }} /></div>;
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
-const dateInput = (offsetDays = 0) => { const d = new Date(Date.now() + offsetDays * 86_400_000); return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(d); };
 
 type View = { name: "list" } | { name: "new" } | { name: "detail"; id: string } | { name: "payment"; id: string; from: Tab };
 type Tab = "campaigns" | "payroll" | "transfers";
@@ -83,7 +82,7 @@ export default function Rewards() {
         return <button type="button" className="b2p-row" key={campaign.id} onClick={() => setView({ name: "detail", id: campaign.id })} aria-label={`${campaign.name}, ${CAMPAIGN_STATE_LABEL[state]}`}>
           <span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={20} aria-hidden="true" /></span>
           <span className="b2p-row-head"><strong className="b2p-row-title">{campaign.name}</strong><span className="b2p-pill b2p-row-status" data-tone={TONE[state]}><i aria-hidden="true" />{CAMPAIGN_STATE_LABEL[state]}</span></span>
-          <span className="b2p-row-sub">{campaign.contractName ? `${campaign.contractName} · ` : ""}{periodText(campaign.startMs, campaign.endMs)} · {formatMoney(campaign.perTripCents)} por viagem</span>
+          <span className="b2p-row-sub">{campaign.contractName ? `${campaign.contractName} · ` : ""}{termText(campaign)} · {formatMoney(campaign.perTripCents)} por viagem</span>
           <span className="b2p-row-facts"><span>{formatMoney(campaign.accruedCents)}</span><span>{campaign.tripsCount} {campaign.tripsCount === 1 ? "viagem" : "viagens"}</span><span>{campaign.acceptedCount} de {campaign.driversCount} aceitaram</span></span>
           <ChevronRight className="b2p-row-chev" size={18} aria-hidden="true" />
         </button>; }) : <p className="b2p-empty">{ready ? "Nenhuma campanha ainda. Toque em + Nova campanha." : "Carregando campanhas…"}</p>}
@@ -95,34 +94,38 @@ export default function Rewards() {
 const Field = ({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) => <div className="b2p-field"><span className="b2p-label">{label}</span>{children}{hint ? <span className="b2p-hint">{hint}</span> : null}</div>;
 type ContractChoice = { id: string; name: string; deadlineDays?: number; totalDeliveries?: number; mode?: string; trailerId?: string | null; sequenceId?: string | null; sequenceOrder?: number | null };
 
-/** Nova campanha: 1) operação (seletor "Escolher operação"), 2) valor por viagem, 3) viagens, 4) quem participa, 5) período, 6) nome. Total = valor por viagem × viagens da operação; o teto sai da conta. */
+/**
+ * Nova campanha: 1) operação (seletor "Escolher operação"), 2) valor por viagem, 3) meta de ganhos, 4) quem participa, 5) nome.
+ * As viagens e o prazo vêm da operação. Valor por viagem e meta andam juntos: meta = valor por viagem × viagens da operação (o total que o motorista alcança ao concluir).
+ */
 function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack, onSend }: { me: string; drivers: { id: string; name: string }[]; contracts: ContractChoice[]; sequences: any[]; trailers: any[]; busy: boolean; onBack: () => void; onSend: (payload: Parameters<typeof rewardService.create>[0]) => Promise<void> }) {
-  const [contractId, setContractId] = useState(""), [pickerOpen, setPickerOpen] = useState(false), [perTrip, setPerTrip] = useState(""), [goalInput, setGoalInput] = useState("");
-  const [audience, setAudience] = useState<"all" | "selected">("all"), [picked, setPicked] = useState<string[]>([]), [start, setStart] = useState(dateInput()), [end, setEnd] = useState(dateInput(6));
+  const [contractId, setContractId] = useState(""), [pickerOpen, setPickerOpen] = useState(false), [perTrip, setPerTrip] = useState(""), [goalText, setGoalText] = useState("");
+  const [audience, setAudience] = useState<"all" | "selected">("all"), [picked, setPicked] = useState<string[]>([]);
   const [name, setName] = useState(""), [error, setError] = useState("");
   const [requestId] = useState(() => crypto.randomUUID());
-  const contract = contracts.find(item => item.id === contractId), contractTrips = Math.max(0, Math.floor(Number(contract?.totalDeliveries) || 0));
+  const contract = contracts.find(item => item.id === contractId), trips = Math.max(0, Math.floor(Number(contract?.totalDeliveries) || 0));
   const trailer = trailers.find(item => item.id === contract?.trailerId);
   const suggestion = contract ? `Campanha ${contract.name}`.slice(0, 60) : "", finalName = name.trim() || suggestion; // nome em branco usa a sugestão (sem texto pré-preenchido atrapalhando a digitação)
-  // As viagens vêm da operação (o empresário não digita): total de viagens = motoristas × viagens da operação.
-  const perTripCents = parseMoneyToCents(perTrip) || 0, trips = contractTrips, people = audience === "all" ? drivers.length : picked.length;
-  const possible = perTripCents * trips, goalTyped = parseMoneyToCents(goalInput) || 0, goal = goalTyped || possible; // sem meta digitada, vale tudo que a operação permite
-  const goalTooHigh = goalTyped > possible && possible > 0, perDriver = driverMaxCents({ perTripCents, maxTripsPerDriver: trips, goalCents: goalTyped }), totalTrips = people * trips;
-  const budget = campaignBudget({ perTripCents, bonusCents: 0, maxTripsPerDriver: trips, goalCents: goalTyped }, people);
+  const perTripCents = parseMoneyToCents(perTrip) || 0, people = audience === "all" ? drivers.length : picked.length;
+  const goalCents = perTripCents * trips; // total que o motorista alcança ao concluir a operação
+  const totalTrips = people * trips, budget = people * goalCents;
+  const money = (cents: number) => cents ? maskMoney(String(cents)) : "";
+  // Os dois campos andam juntos: mexer em um recalcula o outro (a meta é sempre valor por viagem × viagens da operação).
+  const changePerTrip = (value: string) => { const text = maskMoney(value); setPerTrip(text); setGoalText(trips ? money((parseMoneyToCents(text) || 0) * trips) : ""); };
+  const changeGoal = (value: string) => { const text = maskMoney(value), each = trips ? Math.floor((parseMoneyToCents(text) || 0) / trips) : 0; setGoalText(text); setPerTrip(each ? money(each) : ""); };
+  const snapGoal = () => setGoalText(goalCents ? money(goalCents) : ""); // ao sair do campo, mostra a meta exata (valor por viagem × viagens)
   const send = async () => {
     if (!contractId) return setError("Escolha a operação da campanha.");
-    if (!perTripCents) return setError("Informe o valor por viagem.");
     if (!trips) return setError("Essa operação não tem viagens. Escolha outra operação.");
-    if (goalTooHigh) return setError(`A meta de ganhos passa do que o motorista consegue ganhar na operação (${formatMoney(possible)}).`);
+    if (!perTripCents) return setError("Informe o valor por viagem ou a meta de ganhos.");
     if (!people) return setError(audience === "all" ? "A empresa não tem motoristas ativos." : "Escolha ao menos um motorista.");
-    if (end < start) return setError("O fim da campanha não pode ser antes do início.");
     if (finalName.length < 3) return setError("Dê um nome à campanha (ao menos 3 letras).");
-    setError(""); await onSend({ companyId: me, contractId, name: finalName, startDate: start, endDate: end, perTripCents, goalCents: goalTyped, audience, driverIds: audience === "selected" ? picked : [], requestId });
+    setError(""); await onSend({ companyId: me, contractId, name: finalName, perTripCents, goalCents, audience, driverIds: audience === "selected" ? picked : [], requestId });
   };
   return <>
     <BackLink label="Recompensas" onClick={onBack} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
-      <Field label="1. Operação" hint="A recompensa vale só para viagens dessa operação.">
+      <Field label="1. Operação" hint={contract?.deadlineDays ? `O prazo é o da operação (${contract.deadlineDays} dias). A recompensa vale só para viagens dessa operação.` : "O prazo é o da operação. A recompensa vale só para viagens dessa operação."}>
         {/* Prévia igual ao cartão da lista "Escolher operação"; tocar abre a lista para trocar */}
         <div className="nvu-assignment-theme"><button type="button" className={"nvu-assignment-choice nvu-assignment-contract-choice" + (contract ? " is-selected" : "")} onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={contract ? `Alterar operação: ${contract.name}` : "Escolher operação"}>
           {contract ? <OperationCardBody name={contract.name} trailerName={trailer?.name || "Qualquer reboque"} totalDeliveries={contract.totalDeliveries} deadlineDays={contract.deadlineDays} />
@@ -130,28 +133,21 @@ function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack
           <ChevronRight size={18} aria-hidden="true" style={{ alignSelf: "center", justifySelf: "center" }} /></button></div>
         {!contracts.length ? <span className="b2p-note-box" data-tone="warn" role="note">Nenhuma operação ativa. Cadastre uma em Central de gestão → Operações e volte aqui.</span> : null}
       </Field>
-      <div className="b2p-grid2">
-        <Field label="2. Valor por viagem"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} placeholder="25,00" onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
-        <Field label="3. Meta de ganhos (por motorista)"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalInput} placeholder={possible ? formatMoney(possible).replace("R$ ", "") : "300,00"} onChange={event => setGoalInput(maskMoney(event.target.value))} /></div></Field>
-      </div>
+      <Field label="2. Valor por viagem"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} placeholder="25,00" onChange={event => changePerTrip(event.target.value)} /></div></Field>
+      <Field label="3. Meta de ganhos" hint="Total que o motorista alcança ao concluir a operação."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} placeholder="300,00" onChange={event => changeGoal(event.target.value)} onBlur={snapGoal} /></div></Field>
       <Field label="4. Quem participa"><div className="b2p-seg" role="group" aria-label="Quem participa">{(["all", "selected"] as const).map(item => <button type="button" key={item} data-on={audience === item ? "1" : "0"} aria-pressed={audience === item} onClick={() => setAudience(item)}>{item === "all" ? `Todos (${drivers.length})` : "Escolher"}</button>)}</div></Field>
       {audience === "selected" ? <div className="b2p-picklist" role="group" aria-label="Motoristas">{drivers.map(driver => <button type="button" className="b2p-pick" key={driver.id} data-on={picked.includes(driver.id) ? "1" : "0"} aria-pressed={picked.includes(driver.id)} onClick={() => setPicked(list => list.includes(driver.id) ? list.filter(item => item !== driver.id) : [...list, driver.id])}>
         <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 34, height: 34, fontWeight: 700 }}>{initials(driver.name)}</span><span><b>{driver.name}</b></span><span className="b2p-radio">{picked.includes(driver.id) ? "✓" : ""}</span></button>)}</div> : null}
-      <div className="b2p-grid2"><Field label="5. Início"><div className="b2p-input"><input type="date" value={start} onChange={event => setStart(event.target.value)} /></div></Field><Field label="Fim"><div className="b2p-input"><input type="date" value={end} onChange={event => setEnd(event.target.value)} /></div></Field></div>
-      <Field label="6. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
-      {goalTooHigh ? <p className="b2p-note-box" data-tone="warn" role="note">Essa meta passa do máximo possível ({formatMoney(possible)} = {trips} × {formatMoney(perTripCents)}). Diminua a meta ou aumente o valor por viagem.</p> : null}
+      <Field label="5. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
       <div className="b2p-settle">
-        <Row label="Viagens da operação (por motorista)" value={trips} /><Row label="Motoristas" value={people} />
-        <Row label={`Total de viagens (${people} × ${trips})`} value={totalTrips} strong />
-        <Row label="Valor por viagem" value={formatMoney(perTripCents)} />
-        <Row label="Meta de ganhos por motorista" value={formatMoney(goal)} />
-        <Row label={`Investimento total (${people} × ${formatMoney(perDriver)})`} value={formatMoney(budget)} strong />
+        <Row label={`Viagens no total (1 operação de ${trips} ${trips === 1 ? "viagem" : "viagens"} × ${people} ${people === 1 ? "motorista" : "motoristas"})`} value={totalTrips} strong />
+        <Row label={`Investimento total se todos atingirem a meta (${people} ${people === 1 ? "motorista" : "motoristas"} × ${formatMoney(goalCents)})`} value={formatMoney(budget)} strong />
       </div>
-      <p className="b2p-hint">A meta de ganhos é o quanto cada motorista pode ganhar na campanha. As viagens vêm da operação escolhida; o app soma motoristas × viagens e calcula o investimento. Você só paga o que cada motorista realmente fizer, e ninguém passa da meta. Só contam viagens da operação confirmadas depois do aceite e dentro do período.</p>
+      <p className="b2p-hint">Cada motorista recebe a oferta e aceita ou recusa. Só contam viagens da operação confirmadas depois do aceite. O pagamento sai na folha do dia de pagamento, depois que o motorista conclui a operação; se não concluir na semana, recebe na semana seguinte.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>
-    <AssignJobAssetPicker kind="contract" open={pickerOpen} selectedId={contractId} contracts={contracts} sequences={sequences} trailers={trailers} onClose={() => setPickerOpen(false)} onSelect={id => { setContractId(id); setGoalInput(""); }} />
+    <AssignJobAssetPicker kind="contract" open={pickerOpen} selectedId={contractId} contracts={contracts} sequences={sequences} trailers={trailers} onClose={() => setPickerOpen(false)} onSelect={id => { setContractId(id); const next = contracts.find(item => item.id === id), n = Math.max(0, Math.floor(Number(next?.totalDeliveries) || 0)); setGoalText(n && perTripCents ? money(perTripCents * n) : ""); }} />
   </>;
 }
 
@@ -164,7 +160,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
       <div className="b2p-sum"><div><small>Ganhos acumulados</small><b>{formatMoney(campaign.accruedCents)}</b><em>{campaign.tripsCount} {campaign.tripsCount === 1 ? "viagem" : "viagens"}</em></div><div><small>Teto</small><b>{formatMoney(campaign.budgetCents)}</b><em>restam {formatMoney(Math.max(0, campaign.budgetCents - campaign.accruedCents))}</em></div></div>
       <Bar pct={campaign.budgetCents ? campaign.accruedCents / campaign.budgetCents * 100 : 0} warn={campaign.capped} />
       <div className="b2p-settle">
-        {campaign.contractName ? <Row label="Operação" value={campaign.contractName} /> : null}<Row label="Período" value={periodText(campaign.startMs, campaign.endMs)} /><Row label="Ganho por viagem" value={formatMoney(campaign.perTripCents)} />
+        {campaign.contractName ? <Row label="Operação" value={campaign.contractName} /> : null}<Row label="Prazo" value={termText(campaign)} /><Row label="Ganho por viagem" value={formatMoney(campaign.perTripCents)} />
         {campaign.maxTripsPerDriver ? <><Row label="Viagens da operação" value={campaign.maxTripsPerDriver} /><Row label="Meta de ganhos por motorista" value={formatMoney(goalOf(campaign))} /></> : null}
         {campaign.bonusCents ? <Row label="Bônus da meta" value={`${formatMoney(campaign.bonusCents)} em ${campaign.bonusGoalTrips} viagens`} /> : null}
         <Row label="Aceitaram" value={`${campaign.acceptedCount} de ${campaign.driversCount}`} />
@@ -177,7 +173,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
         <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${offer.goalReached ? " · bônus de meta" : ""}` : OFFER_STATE_LABEL[offer.status]}</small></div>
         <span className="b2p-amt"><strong data-k="x">{offer.status === "accepted" ? formatMoney(offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{OFFER_STATE_LABEL[offer.status]}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}
-      <p className="b2p-hint">Contam só as viagens confirmadas pelo servidor, depois do aceite do motorista e dentro do período.</p>
+      <p className="b2p-hint">Contam só as viagens confirmadas pelo servidor, da operação da campanha, depois do aceite do motorista.</p>
     </Section>
     {open || campaign.status === "active" && campaign.endMs >= now ? <div className="b2p-actions b2p-detail-actions"><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onCancel}>Encerrar campanha</button></div> : null}
   </>;

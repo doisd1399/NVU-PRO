@@ -5,7 +5,7 @@ import { useSessionStore } from "../../context/AppContext";
 import { useDriverPayments, useDriverRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { formatMoney } from "../../lib/partnerships";
-import { OFFER_STATE_LABEL, goalOf, periodText, rewardErrorMessage, type RewardOffer } from "../../lib/rewards";
+import { OFFER_STATE_LABEL, goalOf, rewardErrorMessage, termText, type RewardOffer } from "../../lib/rewards";
 import { BackLink, Section, Tabs } from "../../components/partnerships/shared";
 import { ReceiptDetail, ReceiptsTab } from "./RewardPayments";
 import "../../components/partnerships/Partnerships.css";
@@ -32,7 +32,7 @@ export default function DriverRewards() {
   if (open) return shell("Oferta de recompensa", "Analise as condições e responda.", <>
     <BackLink label="Recompensas" onClick={() => setOpenId("")} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
-      <div className="b2p-op-row"><span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={22} aria-hidden="true" /></span><div><b>{open.name}</b><small>{open.companyName} · {periodText(open.startMs, open.endMs)}</small></div></div>
+      <div className="b2p-op-row"><span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={22} aria-hidden="true" /></span><div><b>{open.name}</b><small>{open.companyName} · {termText(open)}</small></div></div>
       <div className="b2p-settle">
         {open.contractName ? <Row label="Operação" value={open.contractName} /> : null}
         <Row label="Ganho por viagem" value={formatMoney(open.perTripCents)} />
@@ -42,8 +42,8 @@ export default function DriverRewards() {
       </div>
       {open.status === "accepted" && open.maxTripsPerDriver ? (() => { const goal = goalOf(open), pct = goal ? Math.min(100, open.tripCents / goal * 100) : 0; return <div><div className="nvu-central-progress" role="progressbar" aria-label="Progresso até a meta de ganhos" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${pct}%` }} /></div>
         <p className="b2p-hint">{open.tripCents >= goal ? "Meta de ganhos alcançada!" : `Você ganhou ${formatMoney(open.tripCents)} de ${formatMoney(goal)}. Faltam ${formatMoney(goal - open.tripCents)}.`}</p></div>; })() : null}
-      <p className="b2p-note-box">Cada viagem confirmada{open.contractName ? <> na operação <b>{open.contractName}</b></> : null} da empresa <b>{open.companyName}</b>, depois do seu aceite e dentro do período, soma ao seu ganho.</p>
-      <p className="b2p-note-box" data-tone="warn">O pagamento é feito pela empresa, por Pix, na chave que você cadastrar. O NVU calcula o ganho, organiza a folha e registra o comprovante, mas não paga nem garante o pagamento.</p>
+      <p className="b2p-note-box">Cada viagem confirmada{open.contractName ? <> na operação <b>{open.contractName}</b></> : null} da empresa <b>{open.companyName}</b>, depois do seu aceite{open.openEnded ? "" : " e dentro do período"}, soma ao seu ganho.</p>
+      <p className="b2p-note-box" data-tone="warn">O pagamento é feito pela empresa, por Pix, na chave que você cadastrar, no dia de pagamento dela e depois que você concluir a operação. Se não concluir na semana, você recebe na semana seguinte. O NVU calcula o ganho, organiza a folha e registra o comprovante, mas não paga nem garante o pagamento.</p>
       {open.status === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void respond(open, "accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => void respond(open, "decline")}>Recusar</button></div>
         : <p className="b2p-hint">{OFFER_STATE_LABEL[open.status]}.</p>}
     </div></section></>);
@@ -56,7 +56,7 @@ export default function DriverRewards() {
     <section className="nvu-central-section b2p-sec"><div className="b2p-sum"><div><small>Ganho acumulado</small><b data-tone={total ? "pos" : undefined}>{formatMoney(total)}</b><em>{mine.length} {mine.length === 1 ? "campanha aceita" : "campanhas aceitas"}</em></div><div><small>Ofertas novas</small><b data-tone={pending.length ? "warn" : undefined}>{pending.length}</b><em>aguardando resposta</em></div></div></section>
     <Section title="Campanhas" count={offers.length}>
       {offers.length ? offers.map((offer, index) => <button type="button" className="b2p-wrow" key={offer.id} onClick={() => setOpenId(offer.id)} style={index ? undefined : { borderTop: 0 }}>
-        <span className="b2p-wico" data-k="ganho"><Trophy size={18} aria-hidden="true" /></span><div><b>{offer.name}</b><small>{offer.companyName} · {periodText(offer.startMs, offer.endMs)}</small></div>
+        <span className="b2p-wico" data-k="ganho"><Trophy size={18} aria-hidden="true" /></span><div><b>{offer.name}</b><small>{offer.companyName} · {termText(offer)}</small></div>
         <span className="b2p-amt"><strong data-k="ganho">{offer.status === "accepted" ? formatMoney(offer.totalCents) : formatMoney(offer.perTripCents) + "/viagem"}</strong><span className="b2p-pill" data-tone={TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.status === "pending" ? "Responder" : OFFER_STATE_LABEL[offer.status]}</span></span></button>)
         : <p className="b2p-empty">{ready ? "Nenhuma campanha por enquanto. Quando uma empresa enviar, ela aparece aqui." : "Carregando…"}</p>}
     </Section>
