@@ -1,6 +1,6 @@
-# NVU PRO 1.0.556 (Android) / Web 2.3.213 / Windows 0.2.2
+# NVU PRO 1.0.557 (Android) / Web 2.3.214 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 556 — instala como atualização da 555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 557 — instala como atualização da 556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -30,6 +30,12 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Reboque** (Nova oferta e Designar trabalho): agora usa a lista de seleção no mesmo estilo da lista de veículos (busca, cartões com rádio, "Cancelar / Usar reboque"; na designação, os que não atendem à exigência aparecem bloqueados com o motivo).
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
+
+### 6a0. Ajustes da 1.0.557
+- **Ícone de informações padrão:** nos cards de parceria o botão ⓘ é o mesmo da Central e do motorista (ícone pequeno, sem círculo extra em volta).
+- **"Informações da operação" da parceria igual à do motorista/Central:** mesmo desenho (motorista, operação e situação, lista Veículo · Reboque · Entregas · Prazo · Restante, barra e ações). O acordo entra como linhas extras (Valor do acordo; A pagar/A receber com a situação do pagamento).
+- **Foto do motorista da parceria:** quem vê a operação executada por outra empresa (ex.: contratante vendo o motorista da executora) agora mostra a **foto do perfil público** do motorista, nos cards da Central, nos cards de Parcerias e na folha de informações. Não depende de publicar nada no servidor.
+- **Nome da operação × nome do reboque:** conferido no servidor (teste no emulador): o trabalho do motorista usa exatamente o **nome digitado na oferta**; o reboque vai só no campo de reboque. Se uma oferta já existente foi criada com o nome igual ao do reboque, o nome continua assim (é o que está gravado na oferta); a nova validação (publicada) impede novos casos.
 
 ### 6a. Ajustes da 1.0.556
 - **O reboque é da CONTRATANTE.** Quem monta a oferta escolhe o reboque (lista da frota da contratante, sem digitar nome livre); a executora **não escolhe nem precisa ter** esse reboque. O trabalho do motorista mostra o nome do reboque da oferta, como numa operação comum. O nome da operação não pode ser igual ao nome do reboque (app e servidor recusam).

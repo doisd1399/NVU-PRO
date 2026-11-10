@@ -34,6 +34,7 @@ import { commitNavigation } from "../../../lib/navigationTransition";
 import { canManageCompanyOperations, isDriverOutsideCompany } from "../../../lib/seniorOperationSupport";
 import { isRunningJobStatus } from "../../../lib/jobStatus";
 import { usePartnerships } from "../../../hooks/usePartnerships";
+import { useVisibleDriverIdentity } from "../../../hooks/useVisibleDriverIdentity";
 import { usePartnershipAlerts } from "../../../hooks/usePartnershipAlerts";
 
 type SummaryPeriod = "semana" | "mensal" | "personalizado";
@@ -139,6 +140,8 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   };
 
   const partnershipState = usePartnerships(activeCompanyId);
+  // Foto do motorista de OUTRA empresa (contratante vendo a operação executada): vem do perfil público.
+  const partnershipDrivers = useVisibleDriverIdentity(partnershipState.rows.map(row => row.driverId || ""), Boolean(activeCompanyId));
   const jobOperations = useMemo<ManagementOperation[]>(() => {
     const partnershipById = new Map(partnershipState.rows.map(row => [row.id, row] as const));
     const partnershipInfo = (id: string, role: "contractor" | "executor") => {
@@ -195,7 +198,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
       const simulator = simulators.find(value => String(value.id) === String(row.simulatorId));
       return {
         id: `pn_${row.id}`, companyId: row.contractorCompanyId, companyName: activeCompany?.companyName || "Empresa",
-        driverId: row.driverId || "", driverName: formatDriverName(row.driverName || "Motorista"),
+        driverId: row.driverId || "", driverName: formatDriverName(row.driverName || "Motorista"), driverPhoto: partnershipDrivers[row.driverId || ""]?.profilePhotoURL || undefined,
         contractId: "", name: row.operationName, vehicleId: "", vehicleName: row.vehicleName || "Veículo a definir",
         trailerName: row.trailerName || row.trailerRequirement || undefined, showTrailer: Boolean(row.trailerRequirement || row.trailerName),
         simulatorId: row.simulatorId, simulatorLabel: resolveSimulatorDisplayLabel(simulator || { id: row.simulatorId }),
@@ -206,7 +209,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
         jobStatus: row.status === "accepted" ? "pending" : "active",
         partnership: { id: row.id, role: "contractor" as const, contractorName: row.contractorName, executorName: row.executorName, photoUrl: row.startPhotoUrl },
       };
-    }), [activeCompany, activeCompanyId, now, partnershipState.rows, simulators]);
+    }), [activeCompany, activeCompanyId, now, partnershipState.rows, partnershipDrivers, simulators]);
   const operations = useMemo(() => [...jobOperations, ...partnershipOperations], [jobOperations, partnershipOperations]);
   type CentralSnapshot = { earnings: string[]; tripCount: number; goalRevenue: number; operations: ManagementOperation[] };
   const summaryKey = managementCacheKey("summary", cacheScope);

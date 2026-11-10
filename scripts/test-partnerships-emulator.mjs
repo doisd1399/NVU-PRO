@@ -138,7 +138,8 @@ try {
     const contract = (await get(`contratos/pc_${partnershipId}`)).data();
     assert.equal(contract.partnershipDeadlineAt, accepted.deadlineAt, "a operação termina no prazo contado do aceite");
     assert.equal(contract.companyId, "b"); assert.equal(contract.partnership, true); assert.equal(contract.totalDeliveries, 5); assert.equal(contract.name, "Operação 031"); assert.equal(contract.trailerId, null); assert.equal(contract.trailerName, "Frigorífico", "o reboque é o da oferta (da contratante)");
-    assert.equal(job.trailerName, "Frigorífico", "o trabalho mostra o reboque da oferta, como uma operação comum"); assert.equal(job.trailerId ?? null, null); assert.equal(p.trailerName, "Frigorífico");
+    assert.equal(job.trailerName, "Frigorífico", "o trabalho mostra o reboque da oferta, como uma operação comum");
+    assert.equal(job.contractNameSnapshot, "Operação 031", "o NOME da operação no trabalho é o da oferta, nunca o do reboque"); assert.equal(job.contractName, "Operação 031"); assert.notEqual(job.contractName, job.trailerName); assert.equal(job.trailerId ?? null, null); assert.equal(p.trailerName, "Frigorífico");
     assert.equal((await designate(partnershipId, { vehicleId: "veh-b2" })).replayed, true, "designar o mesmo motorista de novo é idempotente");
     await failsWith(() => designate(partnershipId, { driverId: "drv-a" }), "failed-precondition");
     assert.equal((await db.collection("trabalhos").where("partnershipId", "==", partnershipId).get()).size, 1, "um único trabalho");

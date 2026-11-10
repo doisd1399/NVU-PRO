@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { usePartnerships } from "../../hooks/usePartnerships";
+import { useVisibleDriverIdentity } from "../../hooks/useVisibleDriverIdentity";
 import { partnershipService } from "../../services/partnershipService";
 import { partnerCandidates } from "../../lib/partnerCandidates";
 import { markPartnershipsSeen } from "../../lib/partnershipSeen";
@@ -54,7 +55,8 @@ export default function Partnerships() {
 
   const byId = useMemo(() => new Map(rows.map(row => [row.id, row])), [rows]);
   const logoById = useMemo(() => new Map(allCompanies.map(item => [item.id, String(item.logoUrl || item.logoURL || item.companyLogoURL || "")])), [allCompanies]);
-  const logoValue = useMemo(() => ({ logo: (companyId: string) => logoById.get(companyId) || "", viewerId }), [logoById, viewerId]);
+  const driverIdentities = useVisibleDriverIdentity(rows.map(row => row.driverId || ""), Boolean(me));
+  const logoValue = useMemo(() => ({ logo: (companyId: string) => logoById.get(companyId) || "", viewerId, driverPhoto: (driverId: string) => driverIdentities[driverId]?.profilePhotoURL || "" }), [logoById, viewerId, driverIdentities]);
   const candidates = useMemo(() => partnerCandidates({ ownCompany, allCompanies, simulators: simulators as any[], history: rows }), [ownCompany, allCompanies, simulators, rows]);
   const catalog = { loaded: companyCatalogLoaded, failed: companyCatalogAttempted && !companyCatalogLoaded, retry: () => void loadCompanyCatalog(true).catch(() => []) };
 
@@ -96,7 +98,7 @@ export default function Partnerships() {
     detail: ["Parceria", "Acompanhe a operação e o pagamento."], results: ["Resultados", "Ganhos e ritmo da operação."],
   };
   const header = <PageHeader title={TITLES[view.name][0]} description={TITLES[view.name][1]} companyName={companyName} simulator={simulatorLabel} />;
-  const shell = (children: React.ReactNode) => <LogoContext.Provider value={logoValue}><div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{header}{children}</div>{infoRow ? <PartnershipInfoSheet p={infoRow} me={me} onResults={() => setView({ name: "results", id: infoRow.id })} onRepeat={() => setView({ name: "new", from: infoRow })} onClose={() => setInfoId("")} /> : null}</div></LogoContext.Provider>;
+  const shell = (children: React.ReactNode) => <LogoContext.Provider value={logoValue}><div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{header}{children}</div>{infoRow ? <PartnershipInfoSheet p={infoRow} me={me} driverPhoto={infoRow.driverId ? driverIdentities[infoRow.driverId]?.profilePhotoURL : undefined} onResults={() => setView({ name: "results", id: infoRow.id })} onRepeat={() => setView({ name: "new", from: infoRow })} onClose={() => setInfoId("")} /> : null}</div></LogoContext.Provider>;
   if (!me) return shell(<p className="b2p-empty">Selecione uma empresa para ver as parcerias.</p>);
   const current = "id" in view ? byId.get(view.id) : undefined;
   const goList = () => setView({ name: "list" });

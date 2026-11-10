@@ -25,7 +25,7 @@ export function OperationCard({ p, me, now, onOpen, onInfo }: { p: Partnership; 
   return <article className="nvu-central-operation">
     <div className="nvu-central-driver-row">
       <button type="button" className="nvu-central-driver" onClick={onOpen} disabled={!onOpen} aria-label={`Abrir ${p.operationName}`}>
-        <Avatar name={p.driverName || other.name} companyId={p.driverName ? undefined : other.id} />
+        <Avatar name={p.driverName || other.name} companyId={p.driverName ? undefined : other.id} driverId={p.driverName ? p.driverId || undefined : undefined} />
         <strong>{p.driverName || other.name}<span className="b2p-sub">{other.name} · {roleText(p, me)}</span></strong>
       </button>
       <span className="nvu-central-job-status" data-state={late ? "overdue" : p.status === "accepted" || p.status === "pending" ? "pending" : "active"}><i aria-hidden="true" />{late ? "Atrasada" : p.status === "completed" ? "Concluída" : p.status === "accepted" ? "Aguardando início" : p.status === "pending" ? "Aguardando resposta" : "Em andamento"}</span>
@@ -34,7 +34,7 @@ export function OperationCard({ p, me, now, onOpen, onInfo }: { p: Partnership; 
     <div className="nvu-central-vehicle-line">
       <span className="b2p-ico"><Truck size={20} aria-hidden="true" /></span>
       <div className="nvu-central-vehicle-name"><strong>{p.vehicleName || "Veículo a definir"}</strong>{p.trailerName || p.trailerRequirement ? <small>{p.trailerName || p.trailerRequirement}</small> : null}</div>
-      {onInfo ? <button type="button" className="b2p-info-btn" onClick={onInfo} aria-label="Informações da operação"><Info size={20} aria-hidden="true" /></button> : null}
+      {onInfo ? <button type="button" className="nvu-central-operation-info" onClick={onInfo} aria-label="Informações da operação"><Info size={18} strokeWidth={1.8} aria-hidden="true" /></button> : null}
       <span className="nvu-central-operation-name" title={p.operationName}>{p.operationName}</span>
     </div>
     <div className="nvu-central-operation-stats">

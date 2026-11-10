@@ -380,8 +380,8 @@ test("Detalhe da parceria: card da operação + resumo curto; o resto fica em 'I
   const detailBody = detail.slice(detail.indexOf("export function Detail("), detail.indexOf("export function Results"));
   assert.doesNotMatch(detailBody, /Condições do acordo|startPhotoUrl|b2p-settle/, "condições, foto e tabela de pagamento ficam na folha de informações");
   const sheet = readFileSync("src/components/partnerships/PartnershipInfoSheet.tsx", "utf8");
-  for (const topic of ["Condições", "Pagamento"]) assert.match(sheet, new RegExp(`<h3>${topic}</h3>`));
-  assert.doesNotMatch(sheet, /Contratante|Executora|Aceita em/, "sem repetir o que o cabeçalho e o card já mostram");
+  for (const topic of ["Veículo", "Reboque", "Entregas", "Prazo", "Valor do acordo"]) assert.match(sheet, new RegExp(`<dt>${topic}</dt>`));
+  assert.match(sheet, /nvu-op-sheet-list/, "mesmo desenho da folha do motorista e da Central"); assert.doesNotMatch(sheet, /Contratante|Aceita em/, "sem repetir o que o cabeçalho e o card já mostram");
   assert.match(readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), /Informações da operação/);
 });
 
@@ -400,4 +400,12 @@ test("Reboque é da contratante; designar oferece cancelar a operação em andam
   const server = readFileSync("functions/src/partnerships.ts", "utf8");
   assert.doesNotMatch(server, /Escolha um reboque da sua empresa/); assert.match(server, /cancelRunning/);
   assert.equal(validateDraft({ ...emptyDraft("cts"), operationName: "Frigorífico", totalTrips: "5", durationDays: "5", trailerRequirement: "Frigorífico" }, NOW, false), "O nome da operação não pode ser igual ao nome do reboque.");
+});
+
+test("Ícone de informações padrão (sem círculo extra) e foto do motorista da parceria vem do perfil público", () => {
+  const parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8");
+  assert.match(parts, /className="nvu-central-operation-info"[^>]*><Info size=\{18\} strokeWidth=\{1\.8\}/); assert.doesNotMatch(parts, /b2p-info-btn/);
+  assert.match(readFileSync("src/pages/admin/Partnerships.tsx", "utf8"), /useVisibleDriverIdentity/);
+  assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /driverPhoto: partnershipDrivers/);
+  assert.match(readFileSync("src/components/partnerships/shared.tsx", "utf8"), /driverPhoto: \(driverId: string\) => string/);
 });
