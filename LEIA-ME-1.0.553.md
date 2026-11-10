@@ -1,6 +1,6 @@
-# NVU PRO 1.0.552 (Android) / Web 2.3.209 / Windows 0.2.2
+# NVU PRO 1.0.553 (Android) / Web 2.3.210 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 552 — instala como atualização da 551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 553 — instala como atualização da 552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -26,7 +26,12 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Carteira** da empresa: **ganhos em parcerias** (quando executa) e **investimento em parcerias** (quando contrata), com filtros e situações Previsto / A pagar / A receber / Pago / Liquidado.
 - **A carteira é um registro contábil dentro do app. Nenhum dinheiro passa pelo NVU.**
 
-### 5. Parceiras ativas do mesmo simulador
+### 5. Ajustes finais pedidos após testar no aparelho
+- **Reboque** (Nova oferta e Designar trabalho): agora usa a lista de seleção no mesmo estilo da lista de veículos (busca, cartões com rádio, "Cancelar / Usar reboque"; na designação, os que não atendem à exigência aparecem bloqueados com o motivo).
+- **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
+- **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
+
+### 6. Parceiras ativas do mesmo simulador
 A lista vem do **catálogo público** de empresas (antes lia só as empresas do usuário): ativas, não arquivadas/suspensas, do mesmo simulador (identidade canônica, GTO = Global Truck Online etc.). O servidor repete as regras ao enviar.
 
 ### Publicação

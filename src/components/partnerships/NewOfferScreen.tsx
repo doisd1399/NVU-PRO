@@ -1,14 +1,15 @@
-import React, { useMemo, useRef, useState } from "react";
-import { Check, Search } from "lucide-react";
+import React, { useContext, useMemo, useRef, useState } from "react";
+import { ChevronRight, Check, Container, Search } from "lucide-react";
+import { AssignmentOptionPicker, type PickerOption } from "../admin/AssignmentOptionPicker";
 import { partnershipService } from "../../services/partnershipService";
 import { operationalRequestId } from "../../lib/operationalRequestId";
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
 import type { PartnerCandidates } from "../../lib/partnerCandidates";
 import {
   clampDays, clampTrips, computeSettlement, emptyDraft, formatDays, formatMoney, MAX_CONDITIONS, offerHint, parseMoneyToCents, partnershipErrorMessage,
-  LATE_PENALTY_PERCENT, suggestOperationName, type OfferDraft, type Partnership,
+  LATE_PENALTY_PERCENT, type OfferDraft, type Partnership,
 } from "../../lib/partnerships";
-import { Avatar, BackLink } from "./shared";
+import { Avatar, BackLink, LogoContext } from "./shared";
 
 export type CatalogState = { loaded: boolean; failed: boolean; retry: () => void };
 
@@ -21,9 +22,12 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, r
   const money = (cents: number | null | undefined) => cents ? String(cents / 100).replace(".", ",") : "";
   const [draft, setDraft] = useState<OfferDraft>(() => ({
     ...emptyDraft(from ? from.executorCompanyId : initial.partnerId || ""),
-    operationName: suggestOperationName(rows, me), totalTrips: from ? String(from.totalTrips) : "10", durationDays: String(from?.durationDays || 5),
+    // Nada vem preenchido: só "Repetir oferta" copia os dados da oferta anterior (menos o nome).
+    totalTrips: from ? String(from.totalTrips) : "", durationDays: from?.durationDays ? String(from.durationDays) : "",
     trailerRequirement: from?.trailerRequirement || "", conditions: from?.conditions || "", goal: money(from?.goalAmountCents), agreed: money(from?.agreedAmountCents),
   }));
+  const { viewerId } = useContext(LogoContext);
+  const [trailerOpen, setTrailerOpen] = useState(false);
   const [query, setQuery] = useState(""), [searching, setSearching] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const requestId = useRef(operationalRequestId());
   const partner = candidates.list.find(item => item.id === draft.executorCompanyId);
@@ -35,6 +39,10 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, r
   const trailerNames = useMemo(() => [...new Set(trailers.filter(item => !item.companyId || item.companyId === me).map(item => String(item.name || "").trim()).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })), [trailers, me]);
 
+  const trailerOptions = useMemo<PickerOption[]>(() => {
+    const names = draft.trailerRequirement && !trailerNames.some(name => name.toLowerCase() === draft.trailerRequirement.toLowerCase()) ? [draft.trailerRequirement, ...trailerNames] : trailerNames;
+    return names.map(name => ({ id: name, title: name, description: "Reboque exigido na oferta", avatar: { icon: <Container size={22} strokeWidth={1.65} /> } }));
+  }, [trailerNames, draft.trailerRequirement]);
   const q = query.trim().toLowerCase();
   const results = (q ? candidates.list.filter(item => item.name.toLowerCase().includes(q)) : candidates.list).slice(0, 6);
   const sourceHint = !catalog.loaded ? (catalog.failed ? "Não foi possível carregar as empresas." : "Carregando as empresas ativas…")
@@ -76,7 +84,7 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, r
       </div>
 
       <div className="b2p-field"><span className="b2p-label">Operação</span>
-        <div className="b2p-input"><input aria-label="Nome da operação" value={draft.operationName} maxLength={60} onChange={event => set({ operationName: event.target.value })} placeholder="Nome (ex.: Operação 031)" /></div>
+        <div className="b2p-input"><input aria-label="Nome da operação" value={draft.operationName} maxLength={60} onChange={event => set({ operationName: event.target.value })} placeholder="Nome da operação" /></div>
         <div className="b2p-grid2">
           <label className="b2p-input"><input inputMode="numeric" aria-label="Viagens" value={draft.totalTrips} placeholder="Viagens" onChange={event => set({ totalTrips: event.target.value.replace(/\D/g, "").slice(0, 3) })}
             onBlur={() => draft.totalTrips && set({ totalTrips: String(clampTrips(Number(draft.totalTrips))) })} /><span className="b2p-pre">viagens</span></label>
@@ -86,9 +94,9 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, r
         <span className="b2p-hint">O prazo{Number(draft.durationDays) > 0 ? ` de ${formatDays(Number(draft.durationDays))}` : ""} só começa a contar quando a parceira aceitar.</span>
       </div>
 
-      {!trailerless ? <div className="b2p-field"><label htmlFor="b2p-trailer">Reboque <i>(opcional)</i></label>
-        <div className="b2p-input"><input id="b2p-trailer" list="b2p-trailers" value={draft.trailerRequirement} maxLength={60} onChange={event => set({ trailerRequirement: event.target.value })} placeholder="Ex.: Graneleiro" />
-          <datalist id="b2p-trailers">{trailerNames.map(name => <option key={name} value={name} />)}</datalist></div></div> : null}
+      {!trailerless ? <div className="b2p-field"><span className="b2p-label">Reboque <i>(opcional)</i></span>
+        <button type="button" className="b2p-input" onClick={() => setTrailerOpen(true)} aria-haspopup="dialog">
+          <Container size={18} aria-hidden="true" /><span style={{ flex: 1, color: draft.trailerRequirement ? undefined : "var(--central-muted)" }}>{draft.trailerRequirement || "Escolher reboque"}</span><ChevronRight size={18} aria-hidden="true" /></button></div> : null}
 
       <div className="b2p-field"><label htmlFor="b2p-terms">Condições do acordo <i>(opcional)</i></label>
         <div className="b2p-input" data-area="1"><textarea id="b2p-terms" value={draft.conditions} maxLength={MAX_CONDITIONS} rows={3} onChange={event => set({ conditions: event.target.value })} placeholder="Combinados entre as empresas…" /></div>
@@ -110,5 +118,9 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, r
         <button type="button" className="b2p-btn" data-v="ghost" onClick={onBack}>Cancelar</button>
       </div>
     </div></section>
+    <AssignmentOptionPicker open={trailerOpen} title="Escolher reboque" subtitle="Reboque que a parceira deve usar na operação." icon={<Container size={26} strokeWidth={1.65} />}
+      searchPlaceholder="Buscar ou digitar o reboque..." options={trailerOptions} selectedId={draft.trailerRequirement} counter={{ one: "1 reboque selecionado", none: "Nenhum reboque selecionado" }} confirmLabel="Usar reboque"
+      emptyText="Sua frota não tem reboques cadastrados. Digite o nome do reboque exigido." noneOption={{ title: "Sem exigência de reboque", description: "A parceira usa qualquer reboque (ou nenhum)." }}
+      custom={{ label: text => `Exigir “${text}”` }} viewerId={viewerId} onClose={() => setTrailerOpen(false)} onSelect={choice => set({ trailerRequirement: choice.id })} />
   </>;
 }

@@ -2,7 +2,9 @@
    Usa as classes e variáveis `--central-*` da Central (ManagementDashboard.css); aqui só o que a Central não tem. */
 .nvu-b2p .nvu-central-stack { display: flex; flex-direction: column; gap: 12px; }
 :where(.nvu-b2p) :is(h1, h2, h3, p, dl, dd, ol, ul) { margin: 0; padding: 0; }
-.nvu-b2p :is(button, input, textarea, select):focus-visible { outline: 2px solid var(--central-accent); outline-offset: 2px; }
+/* Seleção e foco em tons neutros (sem azul): o destaque é o contraste do próprio texto. */
+.nvu-b2p :is(button, input, textarea, select):focus-visible { outline: 2px solid color-mix(in srgb, var(--central-text) 42%, transparent); outline-offset: 2px; }
+.nvu-b2p .b2p-input :is(input, textarea, select):focus-visible { outline: 0; }
 :where(.nvu-b2p) button { cursor: pointer; font: inherit; color: inherit; border: 0; background: none; padding: 0; text-align: inherit; }
 :where(.nvu-b2p) button:disabled { cursor: not-allowed; }
 .b2p-back { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; padding: 4px 2px; color: var(--central-accent); font-size: 15px; font-weight: 500; }
@@ -11,13 +13,13 @@
 /* abas simples (texto) */
 .b2p-tabs { display: flex; justify-content: space-between; gap: 4px; padding: 0 6px; margin: 2px 0 2px; border-bottom: 1px solid var(--central-line); }
 .b2p-tabs button { position: relative; flex: 1; padding: 10px 2px 11px; text-align: center; font-size: 15px; font-weight: 500; color: var(--central-text); letter-spacing: -.01em; white-space: nowrap; }
-.b2p-tabs button[data-on="1"] { color: var(--central-accent); font-weight: 700; }
-.b2p-tabs button[data-on="1"]::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: -1px; height: 2px; border-radius: 2px; background: var(--central-accent); }
+.b2p-tabs button[data-on="1"] { color: var(--central-text); font-weight: 750; }
+.b2p-tabs button[data-on="1"]::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: -1px; height: 2px; border-radius: 2px; background: var(--central-text); }
 .b2p-tabs i { font-style: normal; margin-left: 5px; padding: 0 6px; border-radius: 8px; background: var(--central-line); font-size: 11px; font-weight: 700; color: var(--central-text); }
 .b2p-tabs i[data-warn="1"] { background: color-mix(in srgb, var(--central-warning) 22%, transparent); color: var(--central-warning); }
 .b2p-subtabs { display: flex; gap: 8px; }
 .b2p-subtabs button { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--central-line); font-size: 13px; font-weight: 600; color: var(--central-muted); }
-.b2p-subtabs button[data-on="1"] { color: var(--central-accent); border-color: color-mix(in srgb, var(--central-accent) 55%, transparent); background: color-mix(in srgb, var(--central-accent) 10%, transparent); }
+.b2p-subtabs button[data-on="1"] { color: var(--central-text); border-color: color-mix(in srgb, var(--central-text) 40%, transparent); background: color-mix(in srgb, var(--central-text) 9%, transparent); }
 
 /* seções */
 .b2p-sec { padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
@@ -76,7 +78,7 @@
 .b2p-field > label, .b2p-field > .b2p-label { font-size: 15px; font-weight: 500; }
 .b2p-field > label i { font-style: normal; color: var(--central-muted); font-weight: 400; font-size: 13px; }
 .b2p-input { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 0 14px; border-radius: 11px; background: var(--central-soft); border: 1px solid transparent; color: var(--central-text); font-size: 16px; }
-.b2p-input:focus-within { border-color: var(--central-accent); }
+.b2p-input:focus-within { border-color: color-mix(in srgb, var(--central-text) 38%, transparent); }
 .b2p-input[data-area="1"] { align-items: flex-start; padding: 12px 14px; line-height: 1.5; }
 .b2p-input input, .b2p-input textarea, .b2p-input select { flex: 1; min-width: 0; width: 100%; background: transparent; border: 0; outline: 0; font: inherit; color: inherit; resize: none; }
 .b2p-input input::placeholder, .b2p-input textarea::placeholder { color: var(--central-muted); opacity: .85; }
@@ -89,12 +91,12 @@
 .b2p-picklist { display: flex; flex-direction: column; border-radius: 11px; overflow: hidden; background: var(--central-soft); }
 .b2p-pick { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 54px; padding: 8px 12px; border-top: 1px solid var(--central-line); }
 .b2p-pick:first-child { border-top: 0; }
-.b2p-pick[data-on="1"] { background: color-mix(in srgb, var(--central-accent) 13%, transparent); }
+.b2p-pick[data-on="1"] { background: color-mix(in srgb, var(--central-text) 9%, transparent); }
 .b2p-pick > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .b2p-pick b { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; } .b2p-pick small { font-size: 12px; color: var(--central-muted); }
 .b2p-pick small[data-busy="1"] { color: var(--central-warning); }
 .b2p-radio { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--central-muted); display: grid; place-items: center; flex: none; }
-.b2p-pick[data-on="1"] .b2p-radio { background: var(--central-accent); border-color: var(--central-accent); color: #04222a; }
+.b2p-pick[data-on="1"] .b2p-radio { background: var(--central-text); border-color: var(--central-text); color: var(--central-card, #fff); }
 
 /* carteira */
 .b2p-filter { display: flex; gap: 8px; }

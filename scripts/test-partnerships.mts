@@ -336,3 +336,14 @@ test("Perfil da empresa não foi tocado por esta versão (instrução do usuári
   for (const file of ["src/components/driver/ProfileResultsCard.tsx", "src/pages/PublicProfile.tsx"]) assert.doesNotMatch(readFileSync(file, "utf8"), /[Pp]artnership|B2P|Parcerias/, file);
 });
 console.log(`${checks} verificações de Parcerias B2P passaram.`);
+
+// ───────────── formulário: nada vem preenchido ─────────────
+test("Nova oferta abre sem nome, viagens ou prazo preenchidos e o reboque usa a lista no padrão da Central", () => {
+  const screen = readFileSync("src/components/partnerships/NewOfferScreen.tsx", "utf8");
+  assert.doesNotMatch(screen, /suggestOperationName/, "o nome da operação não é preenchido sozinho");
+  assert.doesNotMatch(screen, /\?\s*String\(from\.totalTrips\)\s*:\s*"10"/); assert.doesNotMatch(screen, /\|\|\s*5\)/);
+  assert.match(screen, /AssignmentOptionPicker/); assert.doesNotMatch(screen, /<datalist/);
+  assert.match(readFileSync("src/components/partnerships/DesignateScreen.tsx", "utf8"), /AssignmentOptionPicker/);
+  const css = readFileSync("src/components/partnerships/Partnerships.css", "utf8");
+  assert.doesNotMatch(css, /\[data-on="1"\][^{]*\{[^}]*--central-accent/, "seleção sem azul (accent)");
+});

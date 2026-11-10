@@ -1,5 +1,6 @@
 import React, { useContext, useMemo, useState } from "react";
-import { Camera, Check, ChevronRight, Truck } from "lucide-react";
+import { Camera, Check, ChevronRight, Container, Truck } from "lucide-react";
+import { AssignmentOptionPicker, type PickerOption } from "../admin/AssignmentOptionPicker";
 import { StableImage } from "../common/StableImage";
 import AssignJobAssetPicker from "../admin/AssignJobAssetPicker";
 import { partnershipService } from "../../services/partnershipService";
@@ -31,11 +32,17 @@ export function DesignateScreen({ p, me, ownCompany, users, members, membersRead
   }, [ownVehicles, jobs, members, membersReady, contracts, me]);
 
   const [driverId, setDriverId] = useState(""), [vehicleId, setVehicleId] = useState(""), [trailerId, setTrailerId] = useState("");
-  const [vehicleOpen, setVehicleOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [vehicleOpen, setVehicleOpen] = useState(false), [trailerOpen, setTrailerOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const vehicle = ownVehicles.find(item => item.id === vehicleId);
   const needsTrailer = Boolean(p.trailerRequirement) && !trailerless;
   const fits = (name: string) => !p.trailerRequirement || matchesRequirement(p.trailerRequirement, name);
   const trailerChoices = ownTrailers.filter(item => !needsTrailer || fits(String(item.name)));
+  const trailer = ownTrailers.find(item => item.id === trailerId);
+  const trailerOptions = useMemo<PickerOption[]>(() => ownTrailers.map(item => ({
+    id: item.id, title: String(item.name), avatar: { icon: <Container size={22} strokeWidth={1.65} /> }, disabled: !fits(String(item.name)),
+    description: p.trailerRequirement ? (fits(String(item.name)) ? "Atende a exigência da oferta" : undefined) : "Da sua frota", disabledReason: `Não atende a exigência: ${p.trailerRequirement}`,
+    tag: p.trailerRequirement && fits(String(item.name)) ? { label: "Compatível", tone: "good" as const } : undefined,
+  })).sort((a, b) => Number(Boolean(a.disabled)) - Number(Boolean(b.disabled)) || a.title.localeCompare(b.title, "pt-BR", { numeric: true })), [ownTrailers, p.trailerRequirement]); // eslint-disable-line react-hooks/exhaustive-deps
   const suggested = useMemo(() => {
     const id = driverId ? lastVehicleOf(jobs, driverId, new Set(ownVehicles.map(item => item.id))) : null;
     return id && id !== vehicleId ? ownVehicles.find(item => item.id === id) : undefined;
@@ -76,10 +83,9 @@ export function DesignateScreen({ p, me, ownCompany, users, members, membersRead
         {suggested ? <button type="button" className="b2p-btn" data-v="text" data-size="sm" style={{ alignSelf: "flex-start" }} onClick={() => setVehicleId(suggested.id)}>Usar o último de {String(drivers.find(d => d.user.id === driverId)?.user.name || "").split(" ")[0]}: {suggested.name}</button> : null}
       </div>
 
-      {!trailerless ? <div className="b2p-field"><label htmlFor="b2p-dtr">Reboque {needsTrailer ? <i>(exigido: {p.trailerRequirement})</i> : <i>(opcional)</i>}</label>
-        <div className="b2p-input"><select id="b2p-dtr" value={trailerId} onChange={event => setTrailerId(event.target.value)}>
-          {!needsTrailer ? <option value="">Sem reboque</option> : <option value="">Escolher reboque…</option>}
-          {trailerChoices.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></div>
+      {!trailerless ? <div className="b2p-field"><span className="b2p-label">Reboque {needsTrailer ? <i>(exigido: {p.trailerRequirement})</i> : <i>(opcional)</i>}</span>
+        <button type="button" className="b2p-input" onClick={() => setTrailerOpen(true)} aria-haspopup="dialog">
+          <Container size={18} aria-hidden="true" /><span style={{ flex: 1, color: trailer ? undefined : "var(--central-muted)" }}>{trailer ? trailer.name : "Escolher reboque"}</span><ChevronRight size={18} aria-hidden="true" /></button>
         {needsTrailer && !trailerChoices.length ? <span className="b2p-hint">Sua frota não tem reboque “{p.trailerRequirement}”. Cadastre em Frota para poder aceitar esta operação.</span> : null}</div> : null}
 
       <p className="b2p-note-box"><Camera size={14} aria-hidden="true" style={{ verticalAlign: -2 }} /> Para iniciar, o motorista anexa a <b>foto do veículo</b>. Ele continua vinculado à sua empresa e a pontuação vai para {p.contractorName}.</p>
@@ -89,6 +95,10 @@ export function DesignateScreen({ p, me, ownCompany, users, members, membersRead
         <button type="button" className="b2p-btn" data-v="ghost" onClick={onBack}>Cancelar</button>
       </div>
     </div></section>
+    <AssignmentOptionPicker open={trailerOpen} title="Escolher reboque" subtitle={p.trailerRequirement ? `A oferta exige: ${p.trailerRequirement}.` : "Reboque opcional para esta operação."} icon={<Container size={26} strokeWidth={1.65} />}
+      searchPlaceholder="Buscar reboque..." options={trailerOptions} selectedId={trailerId} counter={{ one: "1 reboque selecionado", none: "Nenhum reboque selecionado" }} confirmLabel="Usar reboque"
+      emptyText="Sua frota não tem reboques cadastrados. Cadastre em Frota." noneOption={needsTrailer ? undefined : { title: "Sem reboque", description: "A operação segue sem reboque." }}
+      viewerId={viewerId} onClose={() => setTrailerOpen(false)} onSelect={choice => setTrailerId(choice.id)} />
     <AssignJobAssetPicker kind="vehicle" open={vehicleOpen} selectedId={vehicleId} vehicles={ownVehicles} sequences={sequences} vehicleUsageById={vehicleUsage} onClose={() => setVehicleOpen(false)} onSelect={setVehicleId} />
   </>;
 }
