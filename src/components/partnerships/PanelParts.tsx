@@ -1,5 +1,5 @@
 import React, { useContext, useMemo } from "react";
-import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, FileText } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, FileText, Trash2 } from "lucide-react";
 import {
   formatDays, formatMoney, resultsOf, roleIn, WALLET_STATUS_LABEL, type Partnership, type WalletEntry, type WalletTotals, shortName } from "../../lib/partnerships";
 import { partnershipOperation } from "../../lib/partnershipOperation";
@@ -61,14 +61,17 @@ export function OfferRow({ p, me, now, onOpen }: { p: Partnership; me: string; n
 }
 
 /** Linha do histórico (concluída, recusada ou cancelada). */
-export function HistoryRow({ p, me, onOpen }: { p: Partnership; me: string; onOpen: () => void }) {
+export function HistoryRow({ p, me, onOpen, onDelete, busy }: { p: Partnership; me: string; onOpen: () => void; onDelete?: () => void; busy?: boolean }) {
   const other = otherOf(p, me), results = resultsOf(p);
   const label = p.status === "completed" ? "Concluída" : p.status === "declined" ? "Recusada" : "Cancelada";
-  return <button type="button" className="b2p-wrow" onClick={onOpen} aria-label={`Abrir ${p.operationName}`}>
+  const row = <button type="button" className="b2p-wrow" onClick={onOpen} aria-label={`Abrir ${p.operationName}`}>
     <span className="b2p-wico" data-k={p.status === "completed" ? "ganho" : "investimento"} style={p.status === "completed" ? undefined : { background: "var(--central-soft)", color: "var(--central-muted)" }}>{p.status === "completed" ? <Check size={17} aria-hidden="true" /> : <FileText size={17} aria-hidden="true" />}</span>
     <div><b>{p.operationName}</b><small>{other.name} · {fmtDay(p.updatedAtMs)}</small></div>
     <span className="b2p-amt"><strong data-k="x">{p.status === "completed" ? `${p.progress}/${p.totalTrips}` : label}</strong><span>{p.status === "completed" ? (p.settlement ? formatMoney(p.settlement.finalCents, p.currency) : formatMoney(results.earningsCents, p.currency)) : "—"}</span></span>
   </button>;
+  // Cancelada ou recusada pode ser excluída da lista da empresa.
+  return onDelete && (p.status === "cancelled" || p.status === "declined")
+    ? <div className="b2p-hrow">{row}<button type="button" className="b2p-del" disabled={busy} onClick={onDelete} aria-label={`Excluir ${p.operationName}`} title="Excluir"><Trash2 size={18} aria-hidden="true" /></button></div> : row;
 }
 
 /** Movimento da carteira: ganho (recebe) ou investimento (paga), com status e, se houve atraso, o desconto de 25%. */

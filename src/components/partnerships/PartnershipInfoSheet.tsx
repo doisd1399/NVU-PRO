@@ -39,6 +39,7 @@ export function PartnershipInfoSheet({ p, me, driverPhoto, onResults, onRepeat, 
         <div><dt>Prazo</dt><dd>{p.deadlineMs ? new Date(p.deadlineMs).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) : p.durationDays ? formatDays(p.durationDays) : "Não definido"}</dd></div>
         <div><dt>{tone === "done" || tone === "cancelled" ? "Situação" : "Restante"}</dt><dd data-warning={late || undefined}>{time}</dd></div>
         {p.agreedAmountCents ? <div><dt>Valor do acordo</dt><dd>{money(p.agreedAmountCents)}</dd></div> : null}
+        {contractor && p.payeePix && pay?.status !== "settled" ? <div><dt>Pix do recebedor</dt><dd>{p.payeePix.key}</dd></div> : null}
         {s ? <div><dt>{contractor ? "A pagar" : "A receber"}</dt><dd data-warning={s.late || undefined}>{money(s.finalCents)}<small>{s.late ? `−${s.penaltyPercent}% fora do prazo · ` : ""}{pay?.status === "settled" ? "Liquidado" : pay?.status === "paid" ? "Pago · aguarda confirmação" : contractor ? "A pagar" : "A receber"}</small></dd></div> : null}
       </dl>
       <div className="nvu-central-progress nvu-op-sheet-bar" role="progressbar" aria-label="Progresso da operação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}><span style={{ width: `${percent}%` }} /></div>

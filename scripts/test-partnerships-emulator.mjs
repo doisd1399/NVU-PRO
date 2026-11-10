@@ -263,6 +263,35 @@ try {
     await failsWith(() => settle(running.partnershipId, "paid", "owner-a"), "failed-precondition");
   });
 
+  await test("Pix: só a executora informa a chave (validada); a contratante a vê; avisos ao concluir; excluir cancelada só da própria lista", async () => {
+    const { partnershipId, jobId } = await (async () => { const { partnershipId } = await createOffer("owner-a", { agreedAmountCents: 500_000, operationName: "Com Pix" }); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId); return { partnershipId, jobId }; })();
+    const pix = (uid, type, key, id = partnershipId) => partnerships.setPartnershipPix.run({ partnershipId: id, type, key }, ctx(uid));
+    await failsWith(() => pix("owner-a", "cpf", "52998224725"), "permission-denied"); // contratante não informa a chave do recebedor
+    await failsWith(() => pix("owner-b", "cpf", "123"), "invalid-argument"); await failsWith(() => pix("owner-b", "pix", "x"), "invalid-argument");
+    assert.equal((await pix("owner-b", "phone", "(11) 91234-5678")).key, "+5511912345678");
+    assert.deepEqual((({ type, key }) => ({ type, key }))((await get(`partnerships/${partnershipId}`)).get("payeePix")), { type: "phone", key: "+5511912345678" });
+    await pix("owner-b", "email", "Fin@Matecom.com"); assert.equal((await get(`partnerships/${partnershipId}`)).get("payeePix.key"), "fin@matecom.com", "trocar a chave antes de concluir é permitido");
+    // concluir: a contratante é avisada com a chave
+    await db.doc(`trabalhos/${jobId}`).update({ status: "completed", completedAt: new Date().toISOString() });
+    const job = (await get(`trabalhos/${jobId}`)).data();
+    await partnerships.syncPartnershipFromJob.run({ before: { exists: true, data: () => ({}) }, after: { exists: true, data: () => job } }, { params: { jobId } });
+    const notes = (await db.collection("notifications").where("type", "==", "PARTNERSHIP_PAYMENT_DUE").get()).docs.map(row => row.get("message"));
+    assert.ok(notes.some(text => text.includes("fin@matecom.com") && text.includes("Pague R$")), "aviso de pagamento com a chave Pix");
+    assert.equal((await partnerships.settlePartnershipPayment.run({ partnershipId, action: "paid" }, ctx("owner-a"))).status, "paid");
+    await partnerships.settlePartnershipPayment.run({ partnershipId, action: "received" }, ctx("owner-b"));
+    await failsWith(() => pix("owner-b", "cpf", "52998224725"), "failed-precondition"); // liquidado: a chave não muda mais
+    // excluir: só cancelada/recusada, só da própria lista
+    const hide = (uid, id, company) => partnerships.hidePartnership.run({ partnershipId: id, companyId: company }, ctx(uid));
+    const offerRow = await createOffer("owner-a", { operationName: "Para excluir" });
+    await failsWith(() => hide("owner-a", offerRow.partnershipId, "a"), "failed-precondition"); // pendente não pode
+    await partnerships.cancelPartnershipOffer.run({ partnershipId: offerRow.partnershipId }, ctx("owner-a"));
+    await failsWith(() => hide("owner-b", offerRow.partnershipId, "a"), "permission-denied"); // a outra empresa não exclui pela contratante
+    await failsWith(() => hide("owner-a", offerRow.partnershipId, "e"), "permission-denied"); // empresa que não é parte
+    await hide("owner-a", offerRow.partnershipId, "a");
+    assert.deepEqual((await get(`partnerships/${offerRow.partnershipId}`)).get("hiddenFor"), ["a"], "some só para a empresa que excluiu");
+    await failsWith(() => hide("owner-a", partnershipId, "a"), "failed-precondition"); // concluída não
+  });
+
   await test("regras do Firestore: contratante, executora e motorista leem; estranhos e outras empresas não; ninguém escreve do cliente", async () => {
     const { partnershipId } = await createOffer(); await respond(partnershipId, "accept"); await designate(partnershipId);
     const read = uid => getDoc(doc(environment.authenticatedContext(uid).firestore(), "partnerships", partnershipId));

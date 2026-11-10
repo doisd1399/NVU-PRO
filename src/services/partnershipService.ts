@@ -21,6 +21,10 @@ export const partnershipService = {
   settle: (partnershipId: string, action: "paid" | "received") => call<{ success: true; status: string }>("settlePartnershipPayment", { partnershipId, action }),
   /** Liga a confirmação operacional da empresa (exigida para aceitar). O servidor só liga se não houver trabalhos simultâneos em conflito. */
   prepareCompany: (companyId: string) => call<{ success: boolean; enabled: boolean; ready: boolean }>("prepareCompanyOperationalCommands", { companyId, enable: true }, 60_000),
+  /** Chave Pix da recebedora (executora) para a pagadora ver no acordo. */
+  setPix: (partnershipId: string, type: string, key: string) => call<{ success: true; type: string; key: string }>("setPartnershipPix", { partnershipId, type, key }),
+  /** Exclui da lista da empresa uma parceria cancelada ou recusada. */
+  hide: (partnershipId: string, companyId: string) => call<{ success: true }>("hidePartnership", { partnershipId, companyId }),
   cancel: (partnershipId: string) => call<{ success: true }>("cancelPartnershipOffer", { partnershipId }),
   designateDriver: (input: { partnershipId: string; driverId: string; vehicleId: string; cancelRunning?: boolean }) =>
     call<{ success: true; partnershipId: string; jobId: string }>("designatePartnershipDriver", input, 30_000),

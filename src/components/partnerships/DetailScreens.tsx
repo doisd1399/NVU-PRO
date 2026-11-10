@@ -1,8 +1,9 @@
 import React from "react";
 import { ArrowRight } from "lucide-react";
-import { formatDays, formatMoney, LATE_PENALTY_PERCENT, remainingText, resultsOf, roleIn, type Partnership, shortName } from "../../lib/partnerships";
+import { formatDays, formatMoney, LATE_PENALTY_PERCENT, remainingText, resultsOf, roleIn, type Partnership, type PixType, shortName } from "../../lib/partnerships";
 import { Avatar, BackLink, fmtDateTime } from "./shared";
 import { PartnershipOperationCard } from "./PanelParts";
+import { PixSection } from "./PixSection";
 
 const Row = ({ label, value, strong, neg }: { label: string; value: React.ReactNode; strong?: boolean; neg?: boolean }) =>
   <div data-total={strong ? "1" : undefined} data-neg={neg ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
@@ -37,9 +38,9 @@ export function OfferDetail({ p, busy, notReady, onBack, onAccept, onDecline, on
 }
 
 /** Detalhe da parceria: o card da operação e, abaixo, um resumo curto em lista (ganhos, duração, valor, pagamento). O resto fica em "Informações da operação" (ⓘ). */
-export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay, onInfo, company, onDriver }: {
+export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay, onInfo, company, onDriver, onSavePix }: {
   p: Partnership; me: string; now: number; busy: boolean; onBack: () => void; onDesignate: () => void; onCancel: () => void; onPay: (action: "paid" | "received") => void; onInfo: () => void;
-  company: { name: string; simulator: string }; onDriver?: () => void;
+  company: { name: string; simulator: string }; onDriver?: () => void; onSavePix: (type: PixType, key: string) => Promise<void>;
 }) {
   const role = roleIn(p, me), s = p.settlement, pay = p.payment, r = resultsOf(p);
   const needsDriver = role === "executor" && p.status === "accepted" && !p.jobId;
@@ -59,6 +60,7 @@ export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay,
       {rows.map(([label, value]) => <div key={label}><span>{label}</span><b>{value}</b></div>)}
       <button type="button" className="b2p-summary-more" onClick={onInfo}>Mais informações da operação<ArrowRight size={18} aria-hidden="true" /></button>
     </section>
+    <PixSection p={p} me={me} busy={busy} onSave={onSavePix} />
     {(needsDriver || (role === "contractor" && pay?.status === "pending") || (role === "executor" && pay && pay.status !== "settled") || (role === "contractor" && p.status === "pending")) ? <div className="b2p-actions b2p-detail-actions">
       {needsDriver ? <button type="button" className="b2p-btn" data-v="primary" onClick={onDesignate}>Designar trabalho</button> : null}
       {role === "contractor" && pay?.status === "pending" ? <button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onPay("paid")}>Marcar como pago</button> : null}

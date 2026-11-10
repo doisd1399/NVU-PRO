@@ -1832,7 +1832,9 @@ var DUAL_REGION_CALLABLES = [
   "respondPartnershipOffer",
   "cancelPartnershipOffer",
   "designatePartnershipDriver",
-  "settlePartnershipPayment"
+  "settlePartnershipPayment",
+  "setPartnershipPix",
+  "hidePartnership"
 ];
 var dual = new Set(DUAL_REGION_CALLABLES);
 var isDualRegionCallable = (name) => dual.has(name);

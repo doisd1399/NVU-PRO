@@ -22,8 +22,35 @@ export type Partnership = {
   progress: number; earningsCents: number; bestCents: number; averageCents: number; ledger: PartnershipLedgerEntry[];
   jobId: string | null; driverId: string | null; driverName?: string; vehicleId?: string; vehicleName?: string; vehiclePlate?: string; trailerName?: string;
   startPhotoUrl?: string;
+  /** Chave Pix da recebedora (executora), informada por ela; a pagadora (contratante) a vê no acordo. */
+  payeePix?: { type: PixType; key: string; holder: string };
+  /** Empresas que excluíram esta parceria (cancelada/recusada) da própria lista. */
+  hiddenFor: string[];
   createdAtMs: number; updatedAtMs: number;
 };
+export type PixType = "cpf" | "cnpj" | "phone" | "email" | "random";
+export const PIX_LABEL: Record<PixType, string> = { cpf: "CPF", cnpj: "CNPJ", phone: "Telefone", email: "E-mail", random: "Aleatória" };
+/** Mesma regra do servidor (`normalizePixKey`): devolve a chave limpa ou lança a mensagem a mostrar. */
+export function normalizePixKey(type: unknown, key: unknown): { type: PixType; key: string } {
+  const kind = String(type || "").trim().toLowerCase() as PixType, raw = String(key ?? "").trim();
+  if (!(kind in PIX_LABEL)) throw new Error("Escolha o tipo da chave Pix.");
+  const digits = raw.replace(/\D/g, "");
+  if (kind === "cpf") { if (digits.length !== 11) throw new Error("O CPF da chave Pix precisa ter 11 números."); return { type: kind, key: digits }; }
+  if (kind === "cnpj") { if (digits.length !== 14) throw new Error("O CNPJ da chave Pix precisa ter 14 números."); return { type: kind, key: digits }; }
+  if (kind === "phone") {
+    const national = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
+    if (national.length < 10 || national.length > 11) throw new Error("O telefone da chave Pix precisa ter DDD e número.");
+    return { type: kind, key: `+55${national}` };
+  }
+  if (kind === "email") {
+    const mail = raw.toLowerCase();
+    if (mail.length > 77 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) throw new Error("O e-mail da chave Pix é inválido.");
+    return { type: kind, key: mail };
+  }
+  const random = raw.toLowerCase();
+  if (!/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/.test(random)) throw new Error("A chave aleatória do Pix precisa ter 32 caracteres (letras de a a f e números).");
+  return { type: kind, key: random.replace(/-/g, "").replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5") };
+}
 
 export const PARTNERSHIP_ID_PREFIX = "po_";
 export const PARTNERSHIP_CONTRACT_PREFIX = "pc_";
@@ -59,6 +86,8 @@ export function normalizePartnership(id: string, raw: Record<string, any>): Part
     jobId: text(raw.jobId) || null, driverId: text(raw.driverId) || null, driverName: text(raw.driverName) || undefined,
     vehicleId: text(raw.vehicleId) || undefined, vehicleName: text(raw.vehicleName) || undefined, vehiclePlate: text(raw.vehiclePlate) || undefined, trailerName: text(raw.trailerName) || undefined,
     startPhotoUrl: text(raw.startPhotoUrl) || undefined,
+    payeePix: raw.payeePix && text(raw.payeePix.key) && text(raw.payeePix.type) in PIX_LABEL ? { type: text(raw.payeePix.type) as PixType, key: text(raw.payeePix.key), holder: text(raw.payeePix.holder) } : undefined,
+    hiddenFor: Array.isArray(raw.hiddenFor) ? raw.hiddenFor.map((value: unknown) => text(value)).filter(Boolean) : [],
     createdAtMs: ms(raw.createdAt), updatedAtMs: ms(raw.updatedAt),
   };
 }

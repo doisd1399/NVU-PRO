@@ -9,7 +9,7 @@ import { executeOperationalCommand } from "./operationalCommands";
 import { assertCompany, companySimulatorKey, fail, id, text } from "./operationalCommandPolicy";
 import {
   MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, computeSettlement, isPartnerAvailable, nextPayment, toMillis, type PaymentStatus, mayTransition, normalizeOffer, partnershipContractId,
-  statusFromJob, type PartnershipStatus,
+  statusFromJob, type PartnershipStatus, normalizePixKey,
 } from "./partnershipPolicy";
 
 type Data = FirebaseFirestore.DocumentData;
@@ -218,14 +218,14 @@ export const designatePartnershipDriver = functions.region(...CALLABLE_REGIONS).
 /** The partnership follows the physical job: status, driver, vehicle, start photo and dates. */
 async function projectJob(db: DB, partnershipId: string, jobId: string, job: Data | undefined) {
   if (!job) return;
-  await db.runTransaction(async tx => {
+  const done = await db.runTransaction(async tx => {
     const ref = db.collection(PARTNERSHIPS).doc(partnershipId);
     const snap = await tx.get(ref);
-    if (!snap.exists) return;
+    if (!snap.exists) return null;
     const p = snap.data() || {};
-    if (p.jobId && p.jobId !== jobId) return;
+    if (p.jobId && p.jobId !== jobId) return null;
     const revision = Number(job.operationalRevision || 0);
-    if (revision < Number(p.jobRevision || 0)) return;
+    if (revision < Number(p.jobRevision || 0)) return null;
     const next = statusFromJob(job.status);
     const patch: Data = { jobId, jobRevision: revision, driverId: text(job.driverId) || p.driverId || null, jobProgress: Number(job.progress || 0),
       vehicleName: text(job.vehicleName) || p.vehicleName || "", vehiclePlate: text(job.vehiclePlate) || p.vehiclePlate || "",
@@ -242,7 +242,16 @@ async function projectJob(db: DB, partnershipId: string, jobId: string, job: Dat
     }
     patch.updatedAt = admin.firestore.FieldValue.serverTimestamp();
     tx.update(ref, patch);
+    return patch.settlement ? { p, settlement: patch.settlement as { finalCents: number } } : null;
   });
+  // Conclusão com valor: a pagadora recebe o valor e a chave Pix da recebedora (se já informada); a recebedora é lembrada de informar a chave.
+  if (done) {
+    const { p, settlement } = done, pix = p.payeePix as { key?: string } | undefined, value = `R$ ${(settlement.finalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    await notifyCompany(db, text(p.contractorCompanyId), { type: "PARTNERSHIP_PAYMENT_DUE", partnershipId, title: "Pagamento da parceria",
+      message: `${text(p.operationName)} foi concluída. Pague ${value} a ${text(p.executorName)}. ${pix?.key ? `Chave Pix: ${pix.key}.` : "A chave Pix será informada por eles."}` });
+    if (!pix?.key) await notifyCompany(db, text(p.executorCompanyId), { type: "PARTNERSHIP_PIX_NEEDED", partnershipId, title: "Informe sua chave Pix",
+      message: `${text(p.operationName)} foi concluída (${value} a receber). Informe sua chave Pix para ${text(p.contractorName)} pagar.` });
+  }
 }
 export const syncPartnershipFromJob = functions.region("us-central1").runWith({ failurePolicy: true })
   .firestore.document("trabalhos/{jobId}").onWrite(async (change, context) => {
@@ -307,4 +316,52 @@ export const settlePartnershipPayment = functions.region(...CALLABLE_REGIONS).ht
     title: action === "paid" ? "Pagamento informado" : "Recebimento confirmado",
     message: action === "paid" ? `${text(outcome.p.contractorName)} informou o pagamento da ${text(outcome.p.operationName)}. Confirme o recebimento.` : `${text(outcome.p.executorName)} confirmou o recebimento da ${text(outcome.p.operationName)}.` });
   return { success: true, partnershipId, status: (outcome as Data).target || text(outcome.p.payment?.status), replayed: outcome.replayed };
+});
+
+/** A recebedora (executora) informa a chave Pix; a pagadora (contratante) a vê no acordo e a recebe por aviso ao concluir. */
+export const setPartnershipPix = functions.region(...CALLABLE_REGIONS).https.onCall(async (raw, context) => {
+  const uid = context.auth?.uid;
+  if (!uid) fail("unauthenticated", "Faça login para continuar.");
+  const db = admin.firestore();
+  const data = raw && typeof raw === "object" ? raw as Data : {};
+  const partnershipId = id(data.partnershipId, "Parceria");
+  let pix: { type: string; key: string } = { type: "", key: "" };
+  try { pix = normalizePixKey(data.type, data.key); } catch (error) { fail("invalid-argument", (error as Error).message); }
+  if (!pix.key) fail("invalid-argument", "Informe a chave Pix.");
+  const outcome = await db.runTransaction(async tx => {
+    const ref = db.collection(PARTNERSHIPS).doc(partnershipId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) fail("not-found", "A parceria não foi encontrada.");
+    const p = snap.data() || {};
+    const state = await requireCompanyManager(db, tx, context, text(p.executorCompanyId));
+    if (!["accepted", "active", "completed"].includes(text(p.status))) fail("failed-precondition", "Esta parceria não aceita chave Pix.");
+    if (text(p.payment?.status) === "settled") fail("failed-precondition", "Este pagamento já foi confirmado.");
+    const same = p.payeePix?.key === pix.key && p.payeePix?.type === pix.type;
+    if (!same) tx.update(ref, { payeePix: { type: pix.type, key: pix.key, holder: companyLabel(state.company), updatedAt: admin.firestore.FieldValue.serverTimestamp(), updatedBy: uid },
+      revision: Number(p.revision || 1) + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return { p, same };
+  });
+  if (!outcome.same && text(outcome.p.status) === "completed" && outcome.p.settlement) await notifyCompany(db, text(outcome.p.contractorCompanyId), { type: "PARTNERSHIP_PIX_SET", partnershipId,
+    title: "Chave Pix informada", message: `${text(outcome.p.executorName)} informou a chave Pix (${pix.key}) para o pagamento da ${text(outcome.p.operationName)}.` });
+  return { success: true, partnershipId, type: pix.type, key: pix.key };
+});
+
+/** Exclui da lista da empresa uma parceria cancelada ou recusada (some só para quem excluiu; o registro continua para a outra empresa). */
+export const hidePartnership = functions.region(...CALLABLE_REGIONS).https.onCall(async (raw, context) => {
+  const uid = context.auth?.uid;
+  if (!uid) fail("unauthenticated", "Faça login para continuar.");
+  const db = admin.firestore();
+  const data = raw && typeof raw === "object" ? raw as Data : {};
+  const partnershipId = id(data.partnershipId, "Parceria"), companyId = id(data.companyId, "Empresa");
+  await db.runTransaction(async tx => {
+    const ref = db.collection(PARTNERSHIPS).doc(partnershipId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) fail("not-found", "A parceria não foi encontrada.");
+    const p = snap.data() || {};
+    if (![text(p.contractorCompanyId), text(p.executorCompanyId)].includes(companyId)) fail("permission-denied", "Esta parceria não é da sua empresa.");
+    await requireCompanyManager(db, tx, context, companyId);
+    if (!["cancelled", "declined"].includes(text(p.status))) fail("failed-precondition", "Só dá para excluir operações canceladas ou recusadas.");
+    tx.update(ref, { hiddenFor: admin.firestore.FieldValue.arrayUnion(companyId) });
+  });
+  return { success: true, partnershipId };
 });

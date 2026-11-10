@@ -10,7 +10,7 @@ import { partnershipService } from "../../services/partnershipService";
 import { partnerCandidates } from "../../lib/partnerCandidates";
 import { markPartnershipsSeen } from "../../lib/partnershipSeen";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
-import { partnershipErrorMessage, roleIn, sectionFor, walletEntries, walletTotals, type Partnership, type WalletEntry } from "../../lib/partnerships";
+import { partnershipErrorMessage, roleIn, sectionFor, walletEntries, walletTotals, type Partnership, type PixType, type WalletEntry } from "../../lib/partnerships";
 import { NewOfferScreen } from "../../components/partnerships/NewOfferScreen";
 import { DesignateScreen } from "../../components/partnerships/DesignateScreen";
 import { Detail, OfferDetail, Results } from "../../components/partnerships/DetailScreens";
@@ -92,6 +92,8 @@ export default function Partnerships() {
     else { toast.message("Oferta recusada."); setView({ name: "list" }); }
   }, prepare ? "Não foi possível preparar a empresa." : "Não foi possível responder a oferta.");
   const cancel = (p: Partnership) => run(async () => { await partnershipService.cancel(p.id); toast.message("Oferta cancelada."); setView({ name: "list" }); }, "Não foi possível cancelar a oferta.");
+  const hide = (p: Partnership) => { if (window.confirm(`Excluir "${p.operationName}" da sua lista? Esta operação ${p.status === "declined" ? "recusada" : "cancelada"} não poderá ser recuperada.`)) void run(async () => { await partnershipService.hide(p.id, me); toast.message("Operação excluída."); }, "Não foi possível excluir a operação."); };
+  const savePix = (p: Partnership) => (type: PixType, key: string) => run(async () => { await partnershipService.setPix(p.id, type, key); toast.success("Chave Pix salva."); }, "Não foi possível salvar a chave Pix.");
   const pay = (partnershipId: string, action: "paid" | "received") => run(async () => {
     await partnershipService.settle(partnershipId, action);
     toast.success(action === "paid" ? "Pagamento registrado. A parceira será avisada." : "Recebimento confirmado.");
@@ -130,7 +132,7 @@ export default function Partnerships() {
   if (view.name === "results" && current) return shell(<Results p={current} me={me} onBack={() => setView({ name: "detail", id: current.id })} />);
   if (view.name === "detail" && current) return shell(<Detail p={current} me={me} now={now} busy={busy} onBack={goList}
     onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)} onPay={action => void pay(current.id, action)} onInfo={() => setInfoId(current.id)}
-    company={company} onDriver={openDriver(current)} />);
+    company={company} onDriver={openDriver(current)} onSavePix={savePix(current)} />);
 
   const open = (id: string, name: "offer" | "detail" | "designate" = "detail") => setView({ name, id });
   const openOffer = (p: Partnership) => open(p.id, p.status === "pending" && roleIn(p, me) === "executor" ? "offer" : p.status === "accepted" && !p.jobId && roleIn(p, me) === "executor" ? "designate" : "detail");
@@ -168,7 +170,7 @@ export default function Partnerships() {
     {tab === "carteira" ? <Section title="Carteira de parcerias"><WalletView entries={entries} totals={totals} busy={busy} onOpen={id => open(id)} onPay={payEntry} /></Section> : null}
 
     {tab === "historico" ? <Section title="Histórico" count={history.length}>
-      {history.length ? history.map(p => <HistoryRow key={p.id} p={p} me={me} onOpen={() => open(p.id)} />) : <p className="b2p-empty">Nenhuma parceria concluída, recusada ou cancelada.</p>}
+      {history.length ? history.map(p => <HistoryRow key={p.id} p={p} me={me} busy={busy} onOpen={() => open(p.id)} onDelete={() => hide(p)} />) : <p className="b2p-empty">Nenhuma parceria concluída, recusada ou cancelada.</p>}
     </Section> : null}
   </>);
 }

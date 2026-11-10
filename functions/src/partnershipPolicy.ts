@@ -177,6 +177,29 @@ export function nextPayment(current: PaymentStatus, action: "paid" | "received")
   if (action === "paid") return current === "pending" ? "paid" : null;
   return current === "pending" || current === "paid" ? "settled" : null;
 }
+export const PIX_TYPES = ["cpf", "cnpj", "phone", "email", "random"] as const;
+export type PixType = typeof PIX_TYPES[number];
+/** Chave Pix do recebedor, validada pelo formato (o NVU não move dinheiro: só mostra a chave à pagadora). Telefone vira +55DDDNÚMERO. */
+export function normalizePixKey(type: unknown, key: unknown): { type: PixType; key: string } {
+  const kind = String(type || "").trim().toLowerCase() as PixType, raw = String(key ?? "").trim();
+  if (!PIX_TYPES.includes(kind)) throw new Error("Escolha o tipo da chave Pix.");
+  const digits = raw.replace(/\D/g, "");
+  if (kind === "cpf") { if (digits.length !== 11) throw new Error("O CPF da chave Pix precisa ter 11 números."); return { type: kind, key: digits }; }
+  if (kind === "cnpj") { if (digits.length !== 14) throw new Error("O CNPJ da chave Pix precisa ter 14 números."); return { type: kind, key: digits }; }
+  if (kind === "phone") {
+    const national = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
+    if (national.length < 10 || national.length > 11) throw new Error("O telefone da chave Pix precisa ter DDD e número.");
+    return { type: kind, key: `+55${national}` };
+  }
+  if (kind === "email") {
+    const mail = raw.toLowerCase();
+    if (mail.length > 77 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(mail)) throw new Error("O e-mail da chave Pix é inválido.");
+    return { type: kind, key: mail };
+  }
+  const random = raw.toLowerCase();
+  if (!/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/.test(random)) throw new Error("A chave aleatória do Pix precisa ter 32 caracteres (letras de a a f e números).");
+  return { type: kind, key: random.replace(/-/g, "").replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, "$1-$2-$3-$4-$5") };
+}
 /** Instante (ms) de timestamps do Firestore, ISO ou números; 0 se não houver. */
 export function toMillis(value: any): number {
   const ms = value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")));

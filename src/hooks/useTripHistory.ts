@@ -1,4 +1,5 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
+import { usePartnershipTrips } from "./usePartnershipTrips";
 import { CanonicalTripQueryService } from "../application/trip/CanonicalTripQueryService";
 import { getTripMetricDate } from "../lib/tripNormalizer";
 import {
@@ -483,8 +484,11 @@ export function useTripHistory(
     ? state.value
     : getInitialState(scope);
 
+  // Contratante: as viagens das operações executadas por parceiras também contam no histórico e nos resumos da empresa.
+  const partnershipTrips = usePartnershipTrips(scope ? normalizedCompanyId : "");
+  const historicoTrips = useMemo(() => partnershipTrips.length ? sortTrips([...visibleState.trips, ...partnershipTrips]) : visibleState.trips, [visibleState.trips, partnershipTrips]);
   return {
-    historicoTrips: visibleState.trips,
+    historicoTrips,
     loading: visibleState.loading,
     refreshing: visibleState.refreshing,
     error: visibleState.error,

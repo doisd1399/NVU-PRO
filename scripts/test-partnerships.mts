@@ -16,6 +16,9 @@ import {
   offerHint, offerSummary, paceOf, parseMoneyToCents, partnershipAlerts, perTripCents, pipsFor, remainingText, resultsOf, roleIn, sectionFor, statusText, suggestOperationName, validateDraft,
 } from "../src/lib/partnerships.ts";
 import { operationClock, partnershipOperation } from "../src/lib/partnershipOperation.ts";
+import { partnershipTripRecords } from "../src/lib/partnershipTrips.ts";
+import { normalizePixKey as clientPix } from "../src/lib/partnerships.ts";
+import { normalizePixKey as serverPix } from "../functions/src/partnershipPolicy.ts";
 
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
@@ -476,4 +479,29 @@ test("Aceitar sem a confirmação operacional: o app oferece 'Preparar e aceitar
   assert.match(svc, /"prepareCompanyOperationalCommands", \{ companyId, enable: true \}/);
   assert.match(detail, /Preparar e aceitar/); assert.match(readFileSync("src/lib/callableRegions.ts", "utf8"), /"prepareCompanyOperationalCommands"/);
   assert.match(readFileSync("src/components/partnerships/shared.tsx", "utf8"), /className=\{companyId \? "object-contain" : "object-cover"\}/, "logo da empresa não é cortada; foto do motorista continua preenchendo");
+});
+
+test("Chave Pix: servidor e app validam e limpam igual (CPF, CNPJ, telefone, e-mail, aleatória)", () => {
+  const cases: [string, string, string | null][] = [["cpf", "529.982.247-25", "52998224725"], ["cnpj", "12.345.678/0001-95", "12345678000195"], ["phone", "(11) 91234-5678", "+5511912345678"], ["phone", "+55 11 91234-5678", "+5511912345678"],
+    ["email", " Fin@Matecom.COM ", "fin@matecom.com"], ["random", "123E4567E89B12D3A456426614174000", "123e4567-e89b-12d3-a456-426614174000"], ["cpf", "123", null], ["cnpj", "1", null], ["phone", "99", null], ["email", "sem-arroba", null], ["random", "abc", null], ["pix", "x", null]];
+  for (const [type, key, expected] of cases) for (const fn of [clientPix, serverPix]) {
+    if (expected === null) assert.throws(() => fn(type, key)); else assert.deepEqual(fn(type, key), { type, key: expected }, `${type} ${key}`);
+  }
+});
+test("Viagens da parceria entram nos números da contratante (resumo, histórico, relatórios) e só nela", () => {
+  const p = normalizePartnership("po_t1", { status: "active", contractorCompanyId: "dc", executorCompanyId: "cts", contractorName: "DC", executorName: "CTS", simulatorId: "gto", currency: "BRL", operationName: "BSX-002", jobId: "j1", driverId: "d1", driverName: "Dudu",
+    ledger: [{ n: 1, at: NOW, cents: 3_000_000 }, { n: 2, at: NOW + 1000, cents: 2_168_200 }, { n: 3, at: 0, cents: 5 }] });
+  const mine = partnershipTripRecords([p], "dc");
+  assert.equal(mine.length, 2, "viagem sem data não entra"); assert.deepEqual([mine[0].id, mine[0].companyId, mine[0].valorCents, mine[0].status, mine[0].currency, mine[0].partnershipRole], ["pt_po_t1_1", "dc", 3_000_000, "completed", "BRL", "contractor"]);
+  assert.equal(partnershipTripRecords([p], "cts").length, 0, "a executora já tem as viagens como suas"); assert.equal(partnershipTripRecords([p], "outra").length, 0);
+  assert.equal(partnershipTripRecords([{ ...p, hiddenFor: ["dc"] } as typeof p], "dc").length, 2, "o filtro de excluídas é do hook, não do mapeamento");
+  const hook = readFileSync("src/hooks/useTripHistory.ts", "utf8"); assert.match(hook, /usePartnershipTrips\(scope \? normalizedCompanyId : ""\)/); assert.match(hook, /sortTrips\(\[\.\.\.visibleState\.trips, \.\.\.partnershipTrips\]\)/);
+});
+test("Excluir canceladas e chave Pix: telas, serviço, regiões e funções", () => {
+  const page = readFileSync("src/pages/admin/Partnerships.tsx", "utf8"), parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), svc = readFileSync("src/services/partnershipService.ts", "utf8");
+  assert.match(page, /onDelete=\{\(\) => hide\(p\)\}/); assert.match(parts, /p\.status === "cancelled" \|\| p\.status === "declined"/); assert.match(svc, /"hidePartnership"/); assert.match(svc, /"setPartnershipPix"/);
+  assert.match(readFileSync("src/components/partnerships/DetailScreens.tsx", "utf8"), /<PixSection p=\{p\} me=\{me\}/);
+  const regions = readFileSync("src/lib/callableRegions.ts", "utf8"), index = readFileSync("functions/src/index.ts", "utf8");
+  for (const name of ["setPartnershipPix", "hidePartnership"]) { assert.match(regions, new RegExp(`"${name}"`)); assert.match(index, new RegExp(`\\b${name}\\b`)); }
+  const server = readFileSync("functions/src/partnerships.ts", "utf8"); assert.match(server, /PARTNERSHIP_PAYMENT_DUE/); assert.match(server, /arrayUnion\(companyId\)/); assert.match(readFileSync("src/hooks/usePartnerships.ts", "utf8"), /hiddenFor\.includes/);
 });
