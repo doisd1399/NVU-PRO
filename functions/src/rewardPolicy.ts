@@ -69,22 +69,23 @@ export function estimateMaxCost(terms: Pick<RewardTerms, "perTripCents" | "bonus
 }
 
 export type AccrualTrip = { id: string; driverId: string; at: number; contractId?: string; valueCents?: number };
-export type AccrualOffer = { driverId: string; acceptedAtMs: number };
-export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean; simCents: number };
+export type AccrualOffer = { driverId: string; acceptedAtMs: number; deadlineMs?: number };
+export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean; simCents: number; expired: boolean; lostCents: number };
 /**
  * Ganho por viagem confirmada dentro do período e depois do aceite de cada motorista (cada viagem conta uma vez, em ordem de conclusão).
  * O bônus entra quando o motorista completa a meta. Ao chegar no teto a campanha para: nada além do teto é creditado.
  */
-export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips: AccrualTrip[]) {
-  const accepted = new Map(offers.map(offer => [offer.driverId, offer.acceptedAtMs]));
+export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips: AccrualTrip[], nowMs = Date.now()) {
+  const accepted = new Map(offers.map(offer => [offer.driverId, offer.acceptedAtMs])), deadlines = new Map(offers.map(offer => [offer.driverId, Number(offer.deadlineMs) || 0]));
   const seen = new Set<string>();
   const eligible = trips.filter(trip => {
     if (seen.has(trip.id)) return false; seen.add(trip.id);
     if (terms.contractId && trip.contractId !== terms.contractId) return false; // só viagens da operação da campanha
     const from = accepted.get(trip.driverId);
-    return from !== undefined && trip.at > 0 && trip.at >= Math.max(terms.startMs, from) && trip.at <= terms.endMs;
+    const limit = deadlines.get(trip.driverId) || 0; // prazo do motorista: viagem depois do prazo não conta
+    return from !== undefined && trip.at > 0 && trip.at >= Math.max(terms.startMs, from) && trip.at <= terms.endMs && (!limit || trip.at <= limit);
   }).sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
-  const drivers = new Map<string, DriverAccrual>(offers.map(offer => [offer.driverId, { trips: 0, tripCents: 0, bonusCents: 0, totalCents: 0, goalReached: false, simCents: 0 }]));
+  const drivers = new Map<string, DriverAccrual>(offers.map(offer => [offer.driverId, { trips: 0, tripCents: 0, bonusCents: 0, totalCents: 0, goalReached: false, simCents: 0, expired: false, lostCents: 0 }]));
   let accruedCents = 0, tripsCount = 0, capped = false;
   for (const trip of eligible) {
     const row = drivers.get(trip.driverId)!;
@@ -99,7 +100,12 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
     }
     row.totalCents = row.tripCents + row.bonusCents;
   }
-  drivers.forEach(row => { row.totalCents = row.tripCents + row.bonusCents; if (terms.goalCents && row.simCents >= terms.goalCents) row.goalReached = true; });
+  drivers.forEach((row, driverId) => {
+    row.totalCents = row.tripCents + row.bonusCents; if (terms.goalCents && row.simCents >= terms.goalCents) row.goalReached = true;
+    // Prazo vencido sem concluir a operação: perde o pagamento (o que já tinha ganho vira "perdido" e não entra na folha).
+    const deadline = deadlines.get(driverId) || 0, completed = Boolean(terms.maxTripsPerDriver) && row.trips >= (terms.maxTripsPerDriver || 0);
+    if (deadline && nowMs > deadline && !completed) { row.expired = true; row.lostCents = row.totalCents; accruedCents -= row.totalCents; row.tripCents = 0; row.bonusCents = 0; row.totalCents = 0; }
+  });
   return { drivers, accruedCents, tripsCount, capped };
 }
 
@@ -108,6 +114,7 @@ export const REWARD_SETTINGS = "rewardSettings";
 export const REWARD_PAYEES = "rewardPayees";
 export const REWARD_PAYMENTS = "rewardPayments";
 export const MAX_PAYROLL_DRIVERS = 200;
+export const DAY_MS = 86_400_000;
 export type PaymentStatus = "pending" | "paid" | "received" | "contested" | "cancelled";
 export type PaymentAction = "pay" | "receive" | "contest" | "cancel";
 export type PayrollOffer = { id: string; campaignId: string; campaignName: string; driverId: string; totalCents: number; settledCents: number; completed: boolean };
@@ -127,7 +134,8 @@ export const normalizePayDay = (value: unknown): number => {
  * O motorista concluiu a operação: fez todas as viagens dela. Só então o salário entra na folha.
  * Campanhas antigas (sem operação) contam o que foi ganho, como antes.
  */
-export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number }): boolean => {
+export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number; expired?: boolean }): boolean => {
+  if (offer.expired) return false; // prazo perdido: não recebe
   const max = Number(offer.maxTripsPerDriver) || 0;
   return max > 0 ? (Number(offer.trips) || 0) >= max : (Number(offer.totalCents) || 0) > 0;
 };

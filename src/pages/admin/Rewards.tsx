@@ -7,7 +7,7 @@ import { useCompanyPayments, useCompanyRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { formatMoney, maskMoney, parseMoneyToCents } from "../../lib/partnerships";
-import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, goalEstimate, goalOf, rewardErrorMessage, termText, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
+import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, goalEstimate, goalOf, offerCompleted, rewardErrorMessage, termText, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
 import { BackLink, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
 import { PayrollTab, PaymentDetail, TransfersTab } from "./RewardPayroll";
 import { DriverMultiSelect, type DriverChoice } from "../../components/rewards/DriverMultiSelect";
@@ -165,7 +165,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
       {offers.length ? [...offers].sort((a, b) => b.totalCents - a.totalCents || a.driverName.localeCompare(b.driverName)).map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
         <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(offer.driverName)}</span>
         <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${goalOf(campaign) ? ` · operação ${formatMoney(offer.simCents)} de ${formatMoney(goalOf(campaign))}${offer.simCents >= goalOf(campaign) ? " ✓" : ""}` : ""}` : OFFER_STATE_LABEL[offer.status]}</small></div>
-        <span className="b2p-amt"><strong data-k="x">{offer.status === "accepted" ? formatMoney(offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{OFFER_STATE_LABEL[offer.status]}</span></span></div>)
+        <span className="b2p-amt"><strong data-k="x" style={offer.expired ? { textDecoration: "line-through", opacity: 0.7 } : undefined}>{offer.status === "accepted" ? formatMoney(offer.expired ? offer.lostCents : offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={offer.expired ? "late" : offerCompleted(offer) && offer.status === "accepted" ? "good" : OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.expired ? "Prazo perdido" : offerCompleted(offer) && offer.status === "accepted" ? "Concluiu" : OFFER_STATE_LABEL[offer.status]}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}
     </Section>
     {open || campaign.status === "active" && campaign.endMs >= now ? <div className="b2p-actions b2p-detail-actions"><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onCancel}>Encerrar campanha</button></div> : null}

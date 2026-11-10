@@ -2,14 +2,14 @@ import React from "react";
 import { CalendarDays, ClipboardList, Wallet } from "lucide-react";
 import { formatMoney } from "../../lib/partnerships";
 import { WEEKDAYS, type RewardPayment } from "../../lib/rewardPayments";
-import { goalOf, type RewardOffer } from "../../lib/rewards";
+import { goalOf, offerPhase, type RewardOffer } from "../../lib/rewards";
 import { Section } from "../../components/partnerships/shared";
 
-const STEPS = ["Aceite a oferta da empresa.", "Faça as viagens da operação.", "Concluiu? Entra na folha do dia de pagamento (senão, na semana seguinte).", "Receba por Pix e confirme."];
+const STEPS = ["Aceite a oferta da empresa.", "Conclua a operação dentro do prazo.", "Concluiu? Entra na folha do dia de pagamento (se perder o dia, na semana seguinte).", "Receba por Pix e confirme."];
 
 /** Seção exclusiva do motorista: ganhos, trabalho, dia de pagamento e como funciona, em resumo. */
 export function InfoTab({ offers, payments }: { offers: RewardOffer[]; payments: RewardPayment[] }) {
-  const accepted = offers.filter(offer => offer.status === "accepted"), earned = accepted.reduce((sum, offer) => sum + offer.totalCents, 0);
+  const accepted = offers.filter(offer => offerPhase(offer) === "active" || offerPhase(offer) === "done"), earned = accepted.reduce((sum, offer) => sum + offer.totalCents, 0);
   const sum = (status: RewardPayment["status"][]) => payments.filter(item => status.includes(item.status)).reduce((total, item) => total + item.amountCents, 0);
   const days = new Map<string, { company: string; day: number | null }>();
   for (const offer of offers.filter(item => item.status === "accepted" || item.status === "pending")) if (!days.has(offer.companyId) || (days.get(offer.companyId)!.day === null && offer.payDay !== null)) days.set(offer.companyId, { company: offer.companyName, day: offer.payDay });
@@ -21,8 +21,8 @@ export function InfoTab({ offers, payments }: { offers: RewardOffer[]; payments:
         <div><b>{formatMoney(sum(["received"]))}</b><span>Recebido</span></div>
       </div>
     </Section>
-    <Section title="Trabalho" count={accepted.length}>
-      {accepted.length ? accepted.map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
+    <Section title="Trabalho" count={accepted.filter(offer => offerPhase(offer) === "active").length}>
+      {accepted.filter(offer => offerPhase(offer) === "active").length ? accepted.filter(offer => offerPhase(offer) === "active").map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
         <span className="b2p-wico" data-k="ganho"><ClipboardList size={18} aria-hidden="true" /></span>
         <div><b>{offer.contractName || offer.name}</b><small>{offer.companyName}{offer.deadlineDays ? ` · ${offer.deadlineDays} dias` : ""}</small>{goalOf(offer) ? <small>Meta {formatMoney(offer.simCents)} de {formatMoney(goalOf(offer))}</small> : null}</div>
         <span className="b2p-amt"><strong>{offer.maxTripsPerDriver ? `${offer.trips}/${offer.maxTripsPerDriver}` : offer.trips}</strong><small>{formatMoney(offer.perTripCents)}/viagem</small></span></div>)
@@ -36,6 +36,7 @@ export function InfoTab({ offers, payments }: { offers: RewardOffer[]; payments:
     </Section>
     <Section title="Como funciona">
       <ol className="b2p-steps">{STEPS.map((step, index) => <li key={step}><span aria-hidden="true">{index + 1}</span>{step}</li>)}</ol>
+      <p className="b2p-note-box" data-tone="warn" role="note">Prazo vencido sem concluir: você perde o pagamento.</p>
       <p className="b2p-hint" style={{ display: "flex", gap: 6, alignItems: "center" }}><Wallet size={14} aria-hidden="true" />O NVU só registra: a empresa paga.</p>
     </Section>
   </>;

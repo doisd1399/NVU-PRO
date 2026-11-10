@@ -5,7 +5,7 @@ import { accrueRewards, campaignBudget as serverBudget, driverMaxCents as server
 import { buildPayroll, offerCompleted as serverCompleted, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
-import { campaignBudget, campaignState, driverMaxCents, goalEstimate, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, offerCompleted, periodText, rewardErrorMessage, termText } from "../src/lib/rewards.ts";
+import { PHASE_LABEL, offerPhase, timeLeftText, campaignBudget, campaignState, driverMaxCents, goalEstimate, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, offerCompleted, periodText, rewardErrorMessage, termText } from "../src/lib/rewards.ts";
 
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
@@ -175,10 +175,36 @@ test("Pagamento só de quem concluiu a operação; quem não concluiu fica para 
 });
 test("Motorista: seção exclusiva de informações (ganhos, trabalho, dia de pagamento, como funciona) e dia de pagamento nas ofertas", () => {
   const driver = readFileSync("src/pages/driver/Rewards.tsx", "utf8"), info = readFileSync("src/pages/driver/RewardInfo.tsx", "utf8");
-  assert.match(driver, /id: "info", label: "Informações"/); assert.match(driver, /<InfoTab offers=\{offers\} payments=\{payments\} \/>/);
+  assert.match(driver, /id: "info", label: "Info"/); assert.match(driver, /<InfoTab offers=\{offers\} payments=\{payments\} \/>/);
   for (const title of ["Ganhos", "Trabalho", "Dia de pagamento", "Como funciona"]) assert.match(info, new RegExp(`<Section title="${title}"`), title);
   assert.match(info, /offer\.payDay/, "o dia vem da própria oferta (o motorista não lê as configurações da empresa)"); assert.match(info, /STEPS = \[/);
   assert.equal(normalizeOffer("o", { payDay: 5 }).payDay, 5); assert.equal(normalizeOffer("o", {}).payDay, null); assert.equal(normalizeOffer("o", { payDay: 9 }).payDay, null);
   const server = readFileSync("functions/src/rewardPayments.ts", "utf8") + readFileSync("functions/src/rewards.ts", "utf8"); assert.match(server, /batch\.update\(row\.ref, \{ payDay \}\)/); assert.match(server, /payDay, trips: 0/);
+});
+test("Prazo: viagem depois do prazo não conta; prazo vencido sem concluir perde o pagamento; concluir no prazo vale; só recebe quem concluiu", () => {
+  const terms = { startMs: 0, endMs: Number.MAX_SAFE_INTEGER, perTripCents: 2500, bonusCents: 0, bonusGoalTrips: 0, budgetCents: 1_000_000, contractId: "ct-1", maxTripsPerDriver: 3, goalCents: 0 };
+  const t = (id: string, at: number, driverId = "d1") => ({ id, driverId, at, contractId: "ct-1", valueCents: 1000 }), deadline = 100;
+  const offers = [{ driverId: "d1", acceptedAtMs: 1, deadlineMs: deadline }, { driverId: "d2", acceptedAtMs: 1, deadlineMs: deadline }, { driverId: "d3", acceptedAtMs: 1, deadlineMs: 0 }];
+  const trips = [t("a", 10), t("b", 20), t("c", 150), t("d", 10, "d2"), t("e", 20, "d2"), t("f", 30, "d2"), t("g", 500, "d3")];
+  const before = accrueRewards(terms, offers, trips, 90), after = accrueRewards(terms, offers, trips, 200);
+  assert.deepEqual([before.drivers.get("d1")!.trips, before.drivers.get("d1")!.expired, before.drivers.get("d1")!.totalCents], [2, false, 5000], "dentro do prazo: ainda dá tempo; a viagem de t=150 não conta");
+  assert.deepEqual([after.drivers.get("d1")!.expired, after.drivers.get("d1")!.totalCents, after.drivers.get("d1")!.lostCents, after.drivers.get("d1")!.trips], [true, 0, 5000, 2], "prazo vencido sem concluir: perdeu o que tinha ganho");
+  assert.deepEqual([after.drivers.get("d2")!.expired, after.drivers.get("d2")!.totalCents, after.drivers.get("d2")!.trips], [false, 7500, 3], "concluiu no prazo: vale mesmo depois do prazo");
+  assert.deepEqual([after.drivers.get("d3")!.expired, after.drivers.get("d3")!.trips], [false, 1], "sem prazo (campanha antiga): nunca expira"); assert.equal(after.accruedCents, 7500 + 2500, "o perdido sai do total da campanha");
+  assert.deepEqual([serverCompleted({ totalCents: 0, trips: 3, maxTripsPerDriver: 3 }), serverCompleted({ totalCents: 0, trips: 3, maxTripsPerDriver: 3, expired: true }), offerCompleted({ totalCents: 0, trips: 3, maxTripsPerDriver: 3, expired: true })], [true, false, false], "expirada nunca está concluída");
+  assert.equal(buildPayroll([{ ...offer(), completed: serverCompleted({ totalCents: 7500, trips: 3, maxTripsPerDriver: 3, expired: true }) }]).length, 0, "prazo perdido: fora da folha");
+  const o = (extra: Record<string, unknown>) => normalizeOffer("o", { status: "accepted", maxTripsPerDriver: 3, trips: 1, totalCents: 2500, ...extra });
+  assert.deepEqual([offerPhase(o({ status: "pending" })), offerPhase(o({})), offerPhase(o({ trips: 3 })), offerPhase(o({ expired: true })), offerPhase(o({ status: "declined" })), offerPhase(o({ status: "cancelled" }))], ["pending", "active", "done", "expired", "declined", "cancelled"]);
+  assert.equal(PHASE_LABEL.expired, "Prazo perdido"); const H = 3_600_000;
+  assert.deepEqual([timeLeftText(0, 0), timeLeftText(100, 200), timeLeftText(30 * 60_000, 0), timeLeftText(5 * H, 0), timeLeftText(30 * H, 0), timeLeftText(72 * H, 0)], ["", "encerrado", "menos de 1 h", "5 h", "1 dia", "3 dias"]);
+  assert.deepEqual([o({ deadlineMs: 7, expired: true, lostCents: 2500 }).deadlineMs, o({ expired: true, lostCents: 2500 }).lostCents], [7, 2500]);
+});
+test("Motorista: página Pagamentos no menu do painel, com Ativos, Recebimentos, Histórico e Info; avisos de prazo e perda do pagamento", () => {
+  const dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), page = readFileSync("src/pages/driver/Rewards.tsx", "utf8"), det = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8"), work = readFileSync("src/pages/driver/RewardWork.tsx", "utf8");
+  assert.match(dash, /id: "\/driver\/recompensas", label: "Pagamentos"/, "item no menu flutuante do motorista");
+  for (const label of ["Ativos", "Recebimentos", "Histórico", "Info"]) assert.match(page, new RegExp(`label: "${label}"`), label);
+  assert.match(det, /Sem concluir no prazo, você perde o pagamento/); assert.match(det, /Prazo encerrado\. Você não concluiu a operação e perdeu o pagamento/); assert.match(det, /Pago por Pix só depois da operação concluída/);
+  assert.match(work, /Prazo perdido/); assert.match(work, /Concluídas/); assert.match(work, /Recebido/);
+  const server = readFileSync("functions/src/rewards.ts", "utf8"); assert.match(server, /rewardDeadlineTick = functions[\s\S]*schedule\("30 7 \* \* \*"\)\.timeZone\("America\/Sao_Paulo"\)/); assert.match(server, /REWARD_EXPIRED/); assert.match(server, /REWARD_DEADLINE_SOON/); assert.match(readFileSync("functions/src/index.ts", "utf8"), /rewardDeadlineTick/);
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

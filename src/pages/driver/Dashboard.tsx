@@ -61,6 +61,7 @@ import {
   CalendarDays,
   ChevronsUpDown,
   ChevronsDownUp,
+  Wallet,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { prepareAndCommitNavigation } from "../../lib/navigationTransition";
@@ -720,6 +721,7 @@ function DashboardComponent({
     { id: "/driver/profile", label: "Meu Perfil", icon: UserIcon },
     { id: "/driver/history", label: "Histórico de Viagens", icon: History },
     { id: "/driver/reports", label: "Relatórios", icon: Activity },
+    { id: "/driver/recompensas", label: "Pagamentos", icon: Wallet },
   ];
 
   const activePageDetails =

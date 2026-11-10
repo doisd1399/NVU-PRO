@@ -90,6 +90,14 @@ try {
     assert.deepEqual((await payments()).map(row => [row.driverId, row.amountCents]), [["drv-1", 5000], ["drv-2", 5000]]);
     assert.equal((await get(`rewardCampaigns/${campaignId}`)).get("openEnded"), true, "campanha sem datas: vale o prazo da operação");
   });
+  await test("prazo perdido: quem não concluiu no prazo não entra na folha, mesmo concluindo depois", async () => {
+    await db.doc("contratos/ct-2").update({ deadlineDays: 3 });
+    const campaignId = await earn(1, 0); // drv-1 fez 1 de 2 viagens
+    const limit = Date.now() + 1500; await db.doc(`rewardOffers/${campaignId}_drv-1`).update({ deadlineMs: limit, openDeadlineMs: limit }); await new Promise(resolve => setTimeout(resolve, 1700));
+    await rewards.rewardDeadlineTick.run({}); assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("expired"), true);
+    const id = `p${++tripSeq}`; await trip(id, "drv-1", "a", 8000); await fire(id); // 2ª viagem, mas fora do prazo
+    const result = await payroll(); assert.deepEqual([result.payments, result.totalCents], [0, 0], "perdeu o pagamento: só recebe quem concluiu a operação no prazo");
+  });
   await test("pagar: só a gestão da empresa; gera comprovante com número e chave escondida; repetir não gera outro; recebido é final", async () => {
     await pay.setRewardPix.run({ type: "cpf", key: "52998224725" }, ctx("drv-1")); await earn(2); await payroll();
     const [row] = await payments(); assert.equal(row.amountCents, 5000);

@@ -6,7 +6,7 @@ import { driverDisplayIdentity } from "./driverDisplayIdentity";
 import { CALLABLE_REGIONS } from "./callableRegions";
 import { assertCompany, fail, id, text } from "./operationalCommandPolicy";
 import { canonicalTripField, isTrustedServerConfirmedTrip } from "./isCanonicalConfirmedTrip";
-import { MAX_REWARD_DRIVERS, REWARD_CAMPAIGNS, REWARD_OFFERS, accrueRewards, campaignBudget, normalizeCampaign, type AccrualTrip } from "./rewardPolicy";
+import { DAY_MS, MAX_REWARD_DRIVERS, REWARD_CAMPAIGNS, REWARD_OFFERS, accrueRewards, campaignBudget, normalizeCampaign, type AccrualTrip } from "./rewardPolicy";
 
 type Data = FirebaseFirestore.DocumentData;
 type DB = FirebaseFirestore.Firestore;
@@ -90,17 +90,27 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
     }
   }
   const result = accrueRewards({ startMs: campaign.startMs, endMs: campaign.endMs, perTripCents: campaign.perTripCents, bonusCents: campaign.bonusCents, bonusGoalTrips: campaign.bonusGoalTrips, budgetCents: campaign.budgetCents, contractId: text(campaign.contractId), maxTripsPerDriver: Number(campaign.maxTripsPerDriver) || 0, goalCents: Number(campaign.goalCents) || 0 },
-    offers.docs.map(offer => ({ driverId: text(offer.get("driverId")), acceptedAtMs: Number(offer.get("acceptedAtMs")) || 0 })), trips);
+    offers.docs.map(offer => ({ driverId: text(offer.get("driverId")), acceptedAtMs: Number(offer.get("acceptedAtMs")) || 0, deadlineMs: Number(offer.get("deadlineMs")) || 0 })), trips, Date.now());
   const batch = db.batch(); let writes = 0;
+  const expiredNow: { offer: FirebaseFirestore.QueryDocumentSnapshot; lost: number }[] = [];
   for (const offer of offers.docs) {
     const row = result.drivers.get(text(offer.get("driverId")));
-    if (!row || (offer.get("trips") === row.trips && offer.get("totalCents") === row.totalCents && offer.get("goalReached") === row.goalReached && (Number(offer.get("simCents")) || 0) === row.simCents)) continue;
-    batch.update(offer.ref, { trips: row.trips, tripCents: row.tripCents, bonusEarnedCents: row.bonusCents, totalCents: row.totalCents, goalReached: row.goalReached, simCents: row.simCents, updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
+    if (!row) continue;
+    const completed = Number(campaign.maxTripsPerDriver) > 0 && row.trips >= Number(campaign.maxTripsPerDriver);
+    const same = offer.get("trips") === row.trips && offer.get("totalCents") === row.totalCents && offer.get("goalReached") === row.goalReached && (Number(offer.get("simCents")) || 0) === row.simCents && (offer.get("expired") === true) === row.expired && (Number(offer.get("lostCents")) || 0) === row.lostCents;
+    const closeDeadline = (completed || row.expired) && offer.get("openDeadlineMs") !== undefined;
+    if (same && !closeDeadline) continue;
+    batch.update(offer.ref, { trips: row.trips, tripCents: row.tripCents, bonusEarnedCents: row.bonusCents, totalCents: row.totalCents, goalReached: row.goalReached, simCents: row.simCents, expired: row.expired, lostCents: row.lostCents,
+      ...(row.expired && offer.get("expired") !== true ? { expiredAtMs: Date.now() } : {}), ...(completed && offer.get("completedAtMs") === undefined ? { completedAtMs: Date.now() } : {}),
+      ...(closeDeadline ? { openDeadlineMs: admin.firestore.FieldValue.delete() } : {}), updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
+    if (row.expired && offer.get("expired") !== true) expiredNow.push({ offer, lost: row.lostCents });
   }
   if (campaign.accruedCents !== result.accruedCents || campaign.tripsCount !== result.tripsCount || campaign.capped !== result.capped) {
     batch.update(campaignSnap.ref, { accruedCents: result.accruedCents, tripsCount: result.tripsCount, capped: result.capped, updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
   }
   if (writes) await batch.commit();
+  for (const { offer, lost } of expiredNow) await notifyUsers(db, [text(offer.get("driverId"))], { type: "REWARD_EXPIRED", refId: offer.id, companyId: text(campaign.companyId), title: "Prazo encerrado",
+    message: `Você não concluiu a operação ${text(offer.get("contractName")) || text(offer.get("name"))} no prazo e perdeu o pagamento${lost ? ` de ${money(lost)}` : ""}.` });
   if (result.capped && !campaign.capped) await notifyManagers(db, String(campaign.companyId), `A campanha ${campaign.name} chegou ao teto de ${money(campaign.budgetCents)} e parou de creditar novas viagens.`, campaignId);
 }
 /** Responsáveis da empresa (dono e administradores ativos). */
@@ -137,7 +147,9 @@ export const respondRewardOffer = functions.region(...CALLABLE_REGIONS).https.on
     if (!campaign.exists || campaign.get("status") !== "active" || Number(campaign.get("endMs")) < Date.now()) fail("failed-precondition", "Esta campanha já foi encerrada.");
     if (decision === "accept") await requireCompanyDriver(db, tx, uid as string, text(offer.companyId));
     const now = admin.firestore.FieldValue.serverTimestamp();
-    tx.update(ref, { status: target, respondedAt: now, updatedAt: now, ...(decision === "accept" ? { acceptedAtMs: Date.now() } : {}) });
+    const acceptedAt = Date.now(), days = Math.max(0, Math.floor(Number(offer.deadlineDays) || 0));
+    // Prazo da operação: conta a partir do aceite. Sem concluir até lá, perde o pagamento.
+    tx.update(ref, { status: target, respondedAt: now, updatedAt: now, ...(decision === "accept" ? { acceptedAtMs: acceptedAt, ...(days ? { deadlineMs: acceptedAt + days * DAY_MS, openDeadlineMs: acceptedAt + days * DAY_MS } : {}) } : {}) });
     if (decision === "accept") tx.update(campaignRef, { acceptedCount: admin.firestore.FieldValue.increment(1), updatedAt: now });
     return { replayed: false, offer };
   });
@@ -176,3 +188,16 @@ export const syncRewardTrips = functions.region("us-central1").runWith({ failure
     }
     for (const campaignId of campaigns) await recomputeRewardCampaign(db, campaignId);
   });
+
+/** Todo dia às 7h30 (Brasília): fecha as ofertas com prazo vencido (o motorista perde o pagamento e é avisado) e avisa quem está perto do prazo. */
+export const rewardDeadlineTick = functions.runWith({ timeoutSeconds: 300 }).pubsub.schedule("30 7 * * *").timeZone("America/Sao_Paulo").onRun(async () => {
+  const db = admin.firestore(), now = Date.now(), campaigns = new Set<string>();
+  (await db.collection(REWARD_OFFERS).where("openDeadlineMs", "<", now).get()).docs.forEach(row => { if (row.get("status") === "accepted") campaigns.add(text(row.get("campaignId"))); });
+  for (const campaignId of campaigns) { try { await recomputeRewardCampaign(db, campaignId); } catch (error) { functions.logger.error("rewardDeadlineTick", { campaignId, error: (error as Error).message }); } }
+  const soon = await db.collection(REWARD_OFFERS).where("openDeadlineMs", ">=", now).where("openDeadlineMs", "<", now + 36 * 3_600_000).get();
+  for (const row of soon.docs.filter(item => item.get("status") === "accepted" && item.get("expired") !== true)) {
+    await notifyUsers(db, [text(row.get("driverId"))], { type: "REWARD_DEADLINE_SOON", refId: row.id, companyId: text(row.get("companyId")), title: "Prazo termina em breve",
+      message: `Conclua a operação ${text(row.get("contractName")) || text(row.get("name"))} até ${new Date(Number(row.get("openDeadlineMs")) - 3 * 3_600_000).toISOString().slice(8, 10)}/${new Date(Number(row.get("openDeadlineMs")) - 3 * 3_600_000).toISOString().slice(5, 7)} para receber. Depois do prazo, o pagamento é perdido.` });
+  }
+  return null;
+});

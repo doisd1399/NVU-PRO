@@ -32,7 +32,7 @@ const seed = async () => {
     ["users/owner-a", { name: "Dono A", companyId: "a", role: "admin", status: "active" }], ["users/owner-b", { name: "Dono B", companyId: "b", role: "admin", status: "active" }],
     ["users/drv-1", { name: "Naylson Silva", role: "driver", roles: ["driver"], companyId: "a", status: "active" }], ["users/drv-2", { name: "Dudu Tv", role: "driver", roles: ["driver"], companyId: "a", status: "active" }],
     ["users/drv-b", { name: "Caio Lima", role: "driver", roles: ["driver"], companyId: "b", status: "active" }],
-    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, simulator: "GTO" }], ["contratos/ct-2", { companyId: "a", name: "Curta", status: "active", totalDeliveries: 2 }], ["contratos/ct-0", { companyId: "a", name: "Vazia", status: "active", totalDeliveries: 0 }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
+    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, simulator: "GTO" }], ["contratos/ct-2", { companyId: "a", name: "Curta", status: "active", totalDeliveries: 2 }], ["contratos/ct-0", { companyId: "a", name: "Vazia", status: "active", totalDeliveries: 0 }], ["contratos/ct-d", { companyId: "a", name: "Com prazo", status: "active", totalDeliveries: 2, deadlineDays: 3 }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
     member("drv-1", "a"), member("drv-2", "a"), member("drv-b", "b"),
   ];
   const batch = db.batch(); rows.forEach(([ref, data]) => batch.set(db.doc(ref), data)); await batch.commit();
@@ -85,6 +85,28 @@ try {
     assert.deepEqual([row.trips, row.totalCents, row.simCents, row.goalReached], [1, 2500, 400000, false], "salário R$ 25 por viagem; a operação gerou R$ 4.000, ainda abaixo da meta de R$ 10.000");
     for (const id of ["g2", "g3"]) { await trip(id, "drv-1", "a", 1000 + Number(id.slice(1)), { valorCents: 400000 }); await fire(id); }
     row = (await get(`rewardOffers/${campaignId}_drv-1`)).data(); assert.deepEqual([row.trips, row.totalCents, row.simCents, row.goalReached], [3, 7500, 1_200_000, true], "meta da operação alcançada (R$ 12.000 ≥ R$ 10.000); o salário continua sendo só viagens × R$ 25");
+  });
+  await test("prazo: conta a partir do aceite; concluir no prazo vale; vencido sem concluir perde o pagamento e o motorista é avisado; viagem fora do prazo não conta", async () => {
+    const { campaignId } = await create({ contractId: "ct-d", startDate: undefined, endDate: undefined }), offerId = `${campaignId}_drv-1`, other = `${campaignId}_drv-2`;
+    assert.equal((await get(`rewardOffers/${offerId}`)).get("deadlineDays"), 3); const before = Date.now(); await respond(offerId, "accept", "drv-1"); await respond(other, "accept", "drv-2");
+    let row = (await get(`rewardOffers/${offerId}`)).data(); assert.ok(row.deadlineMs >= before + 3 * 86_400_000 && row.deadlineMs === row.openDeadlineMs, "prazo = aceite + dias da operação");
+    await trip("d1", "drv-1", "a", 1000, { contractId: "ct-d" }); await fire("d1"); await trip("d2", "drv-2", "a", 1100, { contractId: "ct-d" }); await trip("d3", "drv-2", "a", 1200, { contractId: "ct-d" }); await fire("d3");
+    row = (await get(`rewardOffers/${other}`)).data(); assert.deepEqual([row.trips, row.totalCents, row.expired === true, row.openDeadlineMs], [2, 5000, false, undefined], "concluiu no prazo: vale e o prazo aberto some");
+    // o prazo do drv-1 vence sem concluir (1 de 2 viagens)
+    const limit = Date.now() + 1500; await db.doc(`rewardOffers/${offerId}`).update({ deadlineMs: limit, openDeadlineMs: limit }); await new Promise(resolve => setTimeout(resolve, 1700)); // as viagens já feitas estão dentro do prazo; depois dele, nada conta
+    await rewards.rewardDeadlineTick.run({}); row = (await get(`rewardOffers/${offerId}`)).data();
+    assert.deepEqual([row.expired, row.trips, row.totalCents, row.tripCents, row.lostCents, row.openDeadlineMs], [true, 1, 0, 0, 2500, undefined], "perdeu o pagamento (R$ 25 ganhos ficam como perdidos)"); assert.ok(row.expiredAtMs > 0);
+    const note = await db.collection("notifications").where("type", "==", "REWARD_EXPIRED").get(); assert.equal(note.size, 1); assert.equal(note.docs[0].get("userId"), "drv-1"); assert.match(note.docs[0].get("message"), /perdeu o pagamento de R\$ 25,00/);
+    await rewards.rewardDeadlineTick.run({}); assert.equal((await db.collection("notifications").where("type", "==", "REWARD_EXPIRED").get()).size, 1, "repetir a varredura não avisa de novo");
+    // depois do prazo, concluir não adianta: viagem fora do prazo não conta e nada é pago
+    await trip("d4", "drv-1", "a", 3000, { contractId: "ct-d" }); await fire("d4"); row = (await get(`rewardOffers/${offerId}`)).data(); assert.deepEqual([row.expired, row.trips, row.totalCents], [true, 1, 0], "viagem depois do prazo não conta");
+    const campaign = (await get(`rewardCampaigns/${campaignId}`)).data(); assert.equal(campaign.accruedCents, 5000, "o que foi perdido não entra no total da campanha");
+  });
+  await test("aviso de prazo perto de vencer: avisa quem está a menos de 36 h, uma vez", async () => {
+    const { campaignId } = await create({ contractId: "ct-d" }), offerId = `${campaignId}_drv-1`; await respond(offerId, "accept", "drv-1");
+    await db.doc(`rewardOffers/${offerId}`).update({ deadlineMs: Date.now() + 20 * 3_600_000, openDeadlineMs: Date.now() + 20 * 3_600_000 });
+    await rewards.rewardDeadlineTick.run({}); await rewards.rewardDeadlineTick.run({}); const soon = await db.collection("notifications").where("type", "==", "REWARD_DEADLINE_SOON").get();
+    assert.equal(soon.size, 1); assert.equal(soon.docs[0].get("userId"), "drv-1"); assert.equal((await get(`rewardOffers/${offerId}`)).get("expired") === true, false);
   });
   await test("campanha sem datas: vale o prazo da operação (aberta a partir de agora); com datas continua valendo o período", async () => {
     const { campaignId } = await create({ startDate: undefined, endDate: undefined }), c = (await get(`rewardCampaigns/${campaignId}`)).data();

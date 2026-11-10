@@ -1,6 +1,14 @@
-# NVU PRO 1.0.575 (Android) / Web 2.3.232 / Windows 0.2.2
+# NVU PRO 1.0.576 (Android) / Web 2.3.233 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 575 — instala como atualização da 574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 576 — instala como atualização da 575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.576 — Pagamentos: prazo, perda do pagamento e página do motorista
+- **Só recebe depois de concluir a operação** (todas as viagens dela). Quem não concluiu não entra na folha.
+- **Prazo da operação:** conta a partir do **aceite**. Viagens feitas depois do prazo não contam. **Prazo vencido sem concluir = o motorista perde o pagamento**; o que já tinha ganho aparece como “perdido” e não entra no total da campanha.
+- **O motorista é informado:** antes de aceitar (“Sem concluir no prazo, você perde o pagamento”), durante o trabalho (prazo restante), **aviso quando faltam menos de 36 h** e **aviso quando o prazo vence** (“Prazo encerrado… perdeu o pagamento de R$ X”). Uma rotina diária (7h30, Brasília) fecha os prazos vencidos.
+- **Empresa:** na campanha, o motorista com prazo perdido aparece como “Prazo perdido”; os que concluíram, como “Concluiu”.
+- **Nova página do motorista no menu flutuante** (menu do painel → **Pagamentos**), com abas: **Ativos** (ofertas para responder e trabalhos em andamento, com prazo, progresso e ganho ao concluir), **Recebimentos** (pagamentos e chave Pix), **Histórico** (conclusões, prazos perdidos, recusadas e total recebido) e **Info** (ganhos, trabalho, dia de pagamento e como funciona).
+- **Servidor:** novo agendamento `rewardDeadlineTick`; `respondRewardOffer`, `syncRewardTrips`, `generateRewardPayroll` e `rewardPayDayTick` atualizados. **Exige publicar as funções.**
 
 ## 1.0.575 — Novo visual da Nova campanha (Pagamentos)
 - **Campos empilhados**, um por linha, com a dica na **mesma linha do título** (sem quebra de texto).
