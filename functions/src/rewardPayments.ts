@@ -70,7 +70,7 @@ export async function generatePayroll(db: DB, companyId: string, payrollId: stri
     const offers = await tx.get(db.collection(REWARD_OFFERS).where("companyId", "==", companyId).where("status", "==", "accepted"));
     const lines = buildPayroll(offers.docs.map(row => ({ id: row.id, campaignId: text(row.get("campaignId")), campaignName: text(row.get("name")), driverId: text(row.get("driverId")),
       totalCents: Number(row.get("totalCents")) || 0, settledCents: Number(row.get("settledCents")) || 0,
-      completed: offerCompleted({ totalCents: Number(row.get("totalCents")) || 0, goalCents: Number(row.get("goalCents")) || 0, perTripCents: Number(row.get("perTripCents")) || 0, maxTripsPerDriver: Number(row.get("maxTripsPerDriver")) || 0 }) })));
+      completed: offerCompleted({ totalCents: Number(row.get("totalCents")) || 0, trips: Number(row.get("trips")) || 0, maxTripsPerDriver: Number(row.get("maxTripsPerDriver")) || 0 }) })));
     const names = new Map(offers.docs.map(row => [text(row.get("driverId")), text(row.get("driverName")) || "Motorista"]));
     const chosen: typeof lines = []; let writes = 0;
     for (const line of lines) { const cost = 1 + line.items.length; if (chosen.length >= MAX_PAYROLL_DRIVERS || writes + cost > WRITE_LIMIT) break; chosen.push(line); writes += cost; }

@@ -1,6 +1,15 @@
-# NVU PRO 1.0.570 (Android) / Web 2.3.227 / Windows 0.2.2
+# NVU PRO 1.0.571 (Android) / Web 2.3.228 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 570 — instala como atualização da 569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 571 — instala como atualização da 570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.571 — Salário: meta de ganhos no simulador separada do salário por viagem
+- **Duas coisas diferentes, sem ligação entre si:**
+  - **Salário por viagem** = o que a empresa paga ao motorista por viagem feita na operação (é isso que entra na folha e no Pix).
+  - **Meta de ganhos no simulador** = uma meta para o motorista atingir em ganhos realizando as viagens no jogo. Não altera o salário nem o teto. O app soma o ganho das viagens da operação (o valor registrado em cada viagem) e mostra o progresso ao motorista e à empresa.
+- **Formulário:** 1. Operação → 2. Salário por viagem → 3. Meta de ganhos no simulador (opcional) → Motoristas → 4. Nome. Os dois campos de valor não se recalculam mais.
+- **Resumo no final:** **Total de viagens** (1 operação de N viagens × motoristas), **Estimativa da meta** (soma da meta de cada motorista selecionado, ex.: R$ 600 × 2 = R$ 1.200) e **Salário total a pagar** (total de viagens × salário por viagem).
+- **Folha:** o salário entra quando o motorista conclui a operação (faz todas as viagens dela); quem não concluir na semana recebe na semana seguinte.
+- Oferta do motorista: salário por viagem, viagens (x de N), salário acumulado, ganhos no simulador (x de meta) e barra de progresso.
 
 ## 1.0.570 — “Recompensas” passa a se chamar **Salário** e seletor de motoristas igual ao Encaminhar trabalho
 - **Nome:** a área (antes “Recompensas”) agora é **Salário**: é onde a empresa paga o motorista pelos serviços prestados. Mudou na Central de gestão, no painel do motorista, nos títulos das telas, nos avisos (“Nova oferta de salário”, “Salário a receber”) e no comprovante (“COMPROVANTE DE PAGAMENTO”). Os endereços internos e o servidor não mudaram.

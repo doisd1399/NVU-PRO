@@ -76,13 +76,15 @@ try {
     assert.deepEqual([row.trips, row.totalCents], [2, 5000], "viagem de outra operação ou sem operação não conta; a terceira passa do limite de 2");
     assert.equal((await get(`rewardCampaigns/${campaignId}`)).get("capped"), false, "o limite por motorista não é o teto");
   });
-  await test("meta de ganhos: não passa do que a operação permite; o ganho do motorista para na meta; teto = motoristas × meta", async () => {
-    await failsWith(() => create({ goalCents: 2500 * 10 + 1, budgetCents: undefined }), "invalid-argument"); await failsWith(() => create({ goalCents: 100, budgetCents: undefined }), "invalid-argument");
-    const { campaignId } = await create({ goalCents: 6000, budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), campaign = (await get(`rewardCampaigns/${campaignId}`)).data();
-    assert.deepEqual([campaign.goalCents, campaign.maxTripsPerDriver, campaign.budgetCents], [6000, 10, 2 * 6000], "viagens vêm da operação (10); teto = 2 motoristas × meta");
-    assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("goalCents"), 6000); await respond(`${campaignId}_drv-1`, "accept", "drv-1");
-    for (const id of ["g1", "g2", "g3", "g4"]) { await trip(id, "drv-1", "a", 1000 + Number(id.slice(1))); await fire(id); }
-    const row = (await get(`rewardOffers/${campaignId}_drv-1`)).data(); assert.deepEqual([row.trips, row.tripCents, row.totalCents], [3, 6000, 6000], "2500 + 2500 + 1000 = meta; a quarta viagem não soma");
+  await test("meta de ganhos no simulador: separada do salário; soma o que as viagens renderam no jogo; não limita o pagamento nem o teto", async () => {
+    await failsWith(() => create({ goalCents: -1, budgetCents: undefined }), "invalid-argument"); await failsWith(() => create({ goalCents: 1.5, budgetCents: undefined }), "invalid-argument");
+    const { campaignId } = await create({ goalCents: 1_000_000, budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), campaign = (await get(`rewardCampaigns/${campaignId}`)).data();
+    assert.deepEqual([campaign.goalCents, campaign.maxTripsPerDriver, campaign.budgetCents], [1_000_000, 10, 2 * 10 * 2500], "viagens vêm da operação (10); teto do salário = 2 motoristas × 10 × R$ 25, a meta não entra");
+    assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("goalCents"), 1_000_000); await respond(`${campaignId}_drv-1`, "accept", "drv-1");
+    await trip("g1", "drv-1", "a", 1001, { valorCents: 400000 }); await fire("g1"); let row = (await get(`rewardOffers/${campaignId}_drv-1`)).data();
+    assert.deepEqual([row.trips, row.totalCents, row.simCents, row.goalReached], [1, 2500, 400000, false], "salário R$ 25 por viagem; no jogo ganhou R$ 4.000, ainda abaixo da meta de R$ 10.000");
+    for (const id of ["g2", "g3"]) { await trip(id, "drv-1", "a", 1000 + Number(id.slice(1)), { valorCents: 400000 }); await fire(id); }
+    row = (await get(`rewardOffers/${campaignId}_drv-1`)).data(); assert.deepEqual([row.trips, row.totalCents, row.simCents, row.goalReached], [3, 7500, 1_200_000, true], "meta no simulador alcançada (R$ 12.000 ≥ R$ 10.000); o salário continua sendo só viagens × R$ 25");
   });
   await test("campanha sem datas: vale o prazo da operação (aberta a partir de agora); com datas continua valendo o período", async () => {
     const { campaignId } = await create({ startDate: undefined, endDate: undefined }), c = (await get(`rewardCampaigns/${campaignId}`)).data();

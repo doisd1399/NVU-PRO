@@ -8,7 +8,7 @@ export type RewardOfferStatus = "pending" | "accepted" | "declined" | "cancelled
 export type RewardOffer = {
   id: string; campaignId: string; companyId: string; companyName: string; driverId: string; driverName: string; status: RewardOfferStatus; name: string;
   startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number;
-  trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; settledCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
+  trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; settledCents: number; simCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
 };
 const ms = (value: any): number => (value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")))) || 0;
 const text = (value: unknown) => String(value ?? "").trim();
@@ -23,7 +23,7 @@ export function normalizeOffer(id: string, raw: Record<string, any>): RewardOffe
   const status = (["pending", "accepted", "declined", "cancelled"] as const).find(item => item === raw.status) || "pending";
   return { id, campaignId: text(raw.campaignId), companyId: text(raw.companyId), companyName: text(raw.companyName) || "Empresa", driverId: text(raw.driverId), driverName: text(raw.driverName) || "Motorista", status, name: text(raw.name) || "Campanha",
     startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents), bonusGoalTrips: num(raw.bonusGoalTrips), contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver), goalCents: num(raw.goalCents), openEnded: raw.openEnded === true, deadlineDays: num(raw.deadlineDays),
-    trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt) };
+    trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), simCents: num(raw.simCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt) };
 }
 
 export type CampaignState = "active" | "scheduled" | "ended" | "cancelled" | "capped";
@@ -39,19 +39,18 @@ export function estimateMaxCost(terms: { perTripCents: number; bonusCents: numbe
   const bonusTotal = terms.bonusCents > 0 && trips >= terms.bonusGoalTrips ? drivers * terms.bonusCents : 0;
   return { tripsCents, bonusCents: bonusTotal, totalCents: tripsCents + bonusTotal };
 }
-/** Máximo que um motorista pode ganhar (igual ao do servidor): viagens da operação × valor por viagem, limitado pela meta de ganhos (se houver). */
-export const driverMaxCents = (terms: { perTripCents: number; maxTripsPerDriver: number; goalCents?: number }) => {
-  const byTrips = terms.maxTripsPerDriver * terms.perTripCents;
-  return terms.goalCents && terms.goalCents < byTrips ? terms.goalCents : byTrips;
-};
-/** Teto da campanha (igual ao do servidor): motoristas × o máximo de cada um (+ bônus, só em campanhas antigas). */
-export const campaignBudget = (terms: { perTripCents: number; bonusCents: number; maxTripsPerDriver: number; goalCents?: number }, drivers: number) => drivers * (driverMaxCents(terms) + terms.bonusCents);
-/** Meta de ganhos do motorista numa campanha (campanhas sem meta usam viagens × valor). */
-export const goalOf = (c: { perTripCents: number; maxTripsPerDriver: number; goalCents: number }) => c.goalCents || c.perTripCents * c.maxTripsPerDriver;
-/** O motorista concluiu a operação (alcançou a meta de ganhos). Igual ao servidor; campanhas antigas contam o que foi ganho. */
-export const offerCompleted = (offer: { totalCents: number; goalCents?: number; perTripCents?: number; maxTripsPerDriver?: number }) => {
-  const goal = Number(offer.goalCents) || (Number(offer.perTripCents) || 0) * (Number(offer.maxTripsPerDriver) || 0);
-  return goal > 0 ? (Number(offer.totalCents) || 0) >= goal : (Number(offer.totalCents) || 0) > 0;
+/** Máximo de salário de um motorista (igual ao do servidor): viagens da operação × salário por viagem. */
+export const driverMaxCents = (terms: { perTripCents: number; maxTripsPerDriver: number }) => terms.maxTripsPerDriver * terms.perTripCents;
+/** Teto da campanha em salário (igual ao do servidor): motoristas × o máximo de cada um (+ bônus, só em campanhas antigas). */
+export const campaignBudget = (terms: { perTripCents: number; bonusCents: number; maxTripsPerDriver: number }, drivers: number) => drivers * (driverMaxCents(terms) + terms.bonusCents);
+/** Estimativa da meta: soma da meta de ganhos no simulador de todos os motoristas selecionados. */
+export const goalEstimate = (goalCents: number, drivers: number) => Math.max(0, goalCents) * Math.max(0, drivers);
+/** Meta de ganhos no simulador do motorista (0 = campanha sem meta). Não tem relação com o salário por viagem. */
+export const goalOf = (c: { goalCents: number }) => c.goalCents || 0;
+/** O motorista concluiu a operação (fez todas as viagens dela): só então o salário entra na folha. Igual ao servidor; campanhas antigas contam o que foi ganho. */
+export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number }) => {
+  const max = Number(offer.maxTripsPerDriver) || 0;
+  return max > 0 ? (Number(offer.trips) || 0) >= max : (Number(offer.totalCents) || 0) > 0;
 };
 const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const dayMonth = (ms: number) => { const [, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms)).split("-"); return { day, month: MONTHS[Number(month) - 1] }; };

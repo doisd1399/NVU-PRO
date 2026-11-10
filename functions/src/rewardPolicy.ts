@@ -47,20 +47,19 @@ export function normalizeCampaign(raw: Record<string, any>, now: number): Reward
   const driverIds = [...new Set((Array.isArray(raw.driverIds) ? raw.driverIds : []).map(text).filter(Boolean))];
   if (audience === "selected" && !driverIds.length) fail("invalid-argument", "Escolha ao menos um motorista.");
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("invalid-argument", `Escolha no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
-  // Meta de ganhos por motorista (R$): opcional; sem ela vale viagens da operação × valor por viagem.
-  const goalCents = raw.goalCents === undefined || raw.goalCents === null || raw.goalCents === 0 ? 0 : cents(raw.goalCents, "A meta de ganhos", perTripCents, 100_000_000);
+  // Meta de ganhos NO SIMULADOR por motorista (opcional). Não tem relação com o salário por viagem: é só a meta que o motorista deve atingir em ganhos do jogo.
+  const goalCents = raw.goalCents === undefined || raw.goalCents === null || raw.goalCents === 0 ? 0 : cents(raw.goalCents, "A meta de ganhos", 1, 100_000_000_000);
   return { name, startMs, endMs, perTripCents, bonusCents: bonusGoalTrips ? bonusCents : 0, bonusGoalTrips: bonusCents ? bonusGoalTrips : 0, budgetCents, audience, driverIds, contractId, maxTripsPerDriver, goalCents, openEnded };
 }
 
-/** Máximo que um motorista pode ganhar: viagens da operação × valor por viagem, limitado pela meta de ganhos (se houver). Igual no app. */
-export const driverMaxCents = (terms: Pick<RewardTerms, "perTripCents"> & { maxTripsPerDriver: number; goalCents?: number }): number => {
-  const byTrips = terms.maxTripsPerDriver * terms.perTripCents;
-  return terms.goalCents && terms.goalCents < byTrips ? terms.goalCents : byTrips;
-};
-/** Teto da campanha: motoristas × o máximo de cada um (+ bônus, só em campanhas antigas). Igual no app. */
-export function campaignBudget(terms: Pick<RewardTerms, "perTripCents" | "bonusCents"> & { maxTripsPerDriver: number; goalCents?: number }, drivers: number): number {
+/** Máximo de salário de um motorista: viagens da operação × salário por viagem. Igual no app. */
+export const driverMaxCents = (terms: Pick<RewardTerms, "perTripCents"> & { maxTripsPerDriver: number }): number => terms.maxTripsPerDriver * terms.perTripCents;
+/** Teto da campanha (salário): motoristas × o máximo de cada um (+ bônus, só em campanhas antigas). Igual no app. */
+export function campaignBudget(terms: Pick<RewardTerms, "perTripCents" | "bonusCents"> & { maxTripsPerDriver: number }, drivers: number): number {
   return drivers * (driverMaxCents(terms) + terms.bonusCents);
 }
+/** Meta de ganhos no simulador de todos os motoristas somada (estimativa da meta). */
+export const goalEstimate = (goalCents: number, drivers: number): number => Math.max(0, goalCents) * Math.max(0, drivers);
 
 /** Custo máximo estimado: cada motorista faz `tripsPerDriver` viagens e (se houver bônus) bate a meta. Igual no app (simulador). */
 export function estimateMaxCost(terms: Pick<RewardTerms, "perTripCents" | "bonusCents" | "bonusGoalTrips">, drivers: number, tripsPerDriver: number) {
@@ -69,9 +68,9 @@ export function estimateMaxCost(terms: Pick<RewardTerms, "perTripCents" | "bonus
   return { tripsCents, bonusCents: bonusTotal, totalCents: tripsCents + bonusTotal };
 }
 
-export type AccrualTrip = { id: string; driverId: string; at: number; contractId?: string };
+export type AccrualTrip = { id: string; driverId: string; at: number; contractId?: string; valueCents?: number };
 export type AccrualOffer = { driverId: string; acceptedAtMs: number };
-export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean };
+export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean; simCents: number };
 /**
  * Ganho por viagem confirmada dentro do período e depois do aceite de cada motorista (cada viagem conta uma vez, em ordem de conclusão).
  * O bônus entra quando o motorista completa a meta. Ao chegar no teto a campanha para: nada além do teto é creditado.
@@ -85,23 +84,22 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
     const from = accepted.get(trip.driverId);
     return from !== undefined && trip.at > 0 && trip.at >= Math.max(terms.startMs, from) && trip.at <= terms.endMs;
   }).sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
-  const drivers = new Map<string, DriverAccrual>(offers.map(offer => [offer.driverId, { trips: 0, tripCents: 0, bonusCents: 0, totalCents: 0, goalReached: false }]));
+  const drivers = new Map<string, DriverAccrual>(offers.map(offer => [offer.driverId, { trips: 0, tripCents: 0, bonusCents: 0, totalCents: 0, goalReached: false, simCents: 0 }]));
   let accruedCents = 0, tripsCount = 0, capped = false;
   for (const trip of eligible) {
     const row = drivers.get(trip.driverId)!;
     if (terms.maxTripsPerDriver && row.trips >= terms.maxTripsPerDriver) continue; // limite de viagens pagas por motorista
-    // Meta de ganhos: o motorista nunca passa dela (a última viagem credita só o que falta).
-    const credit = terms.goalCents ? Math.min(terms.perTripCents, terms.goalCents - row.tripCents) : terms.perTripCents;
-    if (credit <= 0) continue;
+    // Salário: valor fixo por viagem. A meta de ganhos no simulador é outra coisa: só soma o que a viagem rendeu no jogo.
+    const credit = terms.perTripCents;
     if (accruedCents + credit > terms.budgetCents) { capped = true; break; }
-    row.trips++; row.tripCents += credit; accruedCents += credit; tripsCount++;
+    row.trips++; row.tripCents += credit; accruedCents += credit; tripsCount++; row.simCents += Math.max(0, Math.round(Number(trip.valueCents) || 0));
     if (terms.bonusCents > 0 && terms.bonusGoalTrips > 0 && row.trips === terms.bonusGoalTrips) {
       if (accruedCents + terms.bonusCents > terms.budgetCents) { capped = true; row.totalCents = row.tripCents; break; }
       row.bonusCents = terms.bonusCents; accruedCents += terms.bonusCents; row.goalReached = true;
     }
     row.totalCents = row.tripCents + row.bonusCents;
   }
-  drivers.forEach(row => { row.totalCents = row.tripCents + row.bonusCents; });
+  drivers.forEach(row => { row.totalCents = row.tripCents + row.bonusCents; if (terms.goalCents && row.simCents >= terms.goalCents) row.goalReached = true; });
   return { drivers, accruedCents, tripsCount, capped };
 }
 
@@ -126,12 +124,12 @@ export const normalizePayDay = (value: unknown): number => {
 };
 
 /**
- * O motorista concluiu a operação: ganhou a meta de ganhos (viagens da operação × valor por viagem, ou a meta definida).
- * Campanhas antigas (sem operação nem meta) contam o que foi ganho, como antes.
+ * O motorista concluiu a operação: fez todas as viagens dela. Só então o salário entra na folha.
+ * Campanhas antigas (sem operação) contam o que foi ganho, como antes.
  */
-export const offerCompleted = (offer: { totalCents: number; goalCents?: number; perTripCents?: number; maxTripsPerDriver?: number }): boolean => {
-  const goal = Number(offer.goalCents) || (Number(offer.perTripCents) || 0) * (Number(offer.maxTripsPerDriver) || 0);
-  return goal > 0 ? (Number(offer.totalCents) || 0) >= goal : (Number(offer.totalCents) || 0) > 0;
+export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number }): boolean => {
+  const max = Number(offer.maxTripsPerDriver) || 0;
+  return max > 0 ? (Number(offer.trips) || 0) >= max : (Number(offer.totalCents) || 0) > 0;
 };
 /**
  * O que cada motorista ainda tem a receber: ganho calculado (campanhas aceitas) menos o que já entrou em uma folha.

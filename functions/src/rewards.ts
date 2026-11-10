@@ -12,6 +12,8 @@ type Data = FirebaseFirestore.DocumentData;
 type DB = FirebaseFirestore.Firestore;
 const digest = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const companyLabel = (company: Data): string => text(company.companyName) || text(company.name) || text(company.nome) || "Empresa";
+/** Ganho da viagem no simulador, em centavos (campo do histórico: valorCents ou valor). */
+const tripValueCents = (data: Data): number => { const cents = Number(data.valorCents); if (Number.isFinite(cents)) return Math.max(0, Math.round(cents)); const value = Number(data.valor); return Number.isFinite(value) ? Math.max(0, Math.round(value * 100)) : 0; };
 const ms = (value: any): number => (value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")))) || 0;
 const money = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -48,7 +50,6 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
   if (input.audience === "selected" && driverIds.some(driver => !members.includes(driver))) fail("failed-precondition", "Um dos motoristas escolhidos não faz parte da equipe ativa da empresa.");
   if (!driverIds.length) fail("failed-precondition", "A empresa não tem motoristas ativos para receber a campanha.");
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("resource-exhausted", `A campanha pode ter no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
-  if (input.goalCents && input.goalCents > input.maxTripsPerDriver * input.perTripCents) fail("invalid-argument", "A meta de ganhos não pode passar do que o motorista consegue ganhar na operação (viagens × valor por viagem).");
   const budgetCents = input.budgetCents || campaignBudget(input, driverIds.length);
   if (budgetCents < input.perTripCents) fail("invalid-argument", "O teto de investimento precisa cobrir ao menos uma viagem.");
   const users = await db.getAll(...driverIds.map(driver => db.collection("users").doc(driver)));
@@ -65,11 +66,11 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
     for (const driverId of driverIds) tx.create(db.collection(REWARD_OFFERS).doc(`${campaignId}_${driverId}`), {
       schemaVersion: 1, campaignId, companyId, companyName: companyLabel(manager.company), driverId, driverName: names.get(driverId) || "Motorista", status: "pending",
       name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents, openEnded: input.openEnded, deadlineDays: Math.max(0, Math.floor(Number(contract.deadlineDays) || 0)),
-      trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
+      trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, simCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
     return { replayed: false, company: manager.company, contractName };
   });
   if (!outcome.replayed) await notifyUsers(db, driverIds, { type: "REWARD_OFFER", refId: campaignId, companyId, title: "Nova oferta de salário",
-    message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, meta de ${money(input.goalCents || input.perTripCents * input.maxTripsPerDriver)} ao concluir as ${input.maxTripsPerDriver} viagens${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
+    message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, no total de ${input.maxTripsPerDriver} viagens${input.goalCents ? `; meta de ganhos no simulador: ${money(input.goalCents)}` : ""}${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
   return { success: true, campaignId, drivers: driverIds.length, replayed: outcome.replayed };
 });
 
@@ -84,7 +85,7 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
     for (const row of rows.docs) {
       const data = row.data();
       if (!isTrustedServerConfirmedTrip(data)) continue;
-      trips.push({ id: row.id, driverId: text(offer.get("driverId")), contractId: canonicalTripField(data, "contractId", "contratoId"), at: ms(data.completedAt) || ms(data.createdAt) || ms(data.dataLancamento) });
+      trips.push({ id: row.id, driverId: text(offer.get("driverId")), contractId: canonicalTripField(data, "contractId", "contratoId"), valueCents: tripValueCents(data), at: ms(data.completedAt) || ms(data.createdAt) || ms(data.dataLancamento) });
     }
   }
   const result = accrueRewards({ startMs: campaign.startMs, endMs: campaign.endMs, perTripCents: campaign.perTripCents, bonusCents: campaign.bonusCents, bonusGoalTrips: campaign.bonusGoalTrips, budgetCents: campaign.budgetCents, contractId: text(campaign.contractId), maxTripsPerDriver: Number(campaign.maxTripsPerDriver) || 0, goalCents: Number(campaign.goalCents) || 0 },
@@ -92,8 +93,8 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
   const batch = db.batch(); let writes = 0;
   for (const offer of offers.docs) {
     const row = result.drivers.get(text(offer.get("driverId")));
-    if (!row || (offer.get("trips") === row.trips && offer.get("totalCents") === row.totalCents && offer.get("goalReached") === row.goalReached)) continue;
-    batch.update(offer.ref, { trips: row.trips, tripCents: row.tripCents, bonusEarnedCents: row.bonusCents, totalCents: row.totalCents, goalReached: row.goalReached, updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
+    if (!row || (offer.get("trips") === row.trips && offer.get("totalCents") === row.totalCents && offer.get("goalReached") === row.goalReached && (Number(offer.get("simCents")) || 0) === row.simCents)) continue;
+    batch.update(offer.ref, { trips: row.trips, tripCents: row.tripCents, bonusEarnedCents: row.bonusCents, totalCents: row.totalCents, goalReached: row.goalReached, simCents: row.simCents, updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
   }
   if (campaign.accruedCents !== result.accruedCents || campaign.tripsCount !== result.tripsCount || campaign.capped !== result.capped) {
     batch.update(campaignSnap.ref, { accruedCents: result.accruedCents, tripsCount: result.tripsCount, capped: result.capped, updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;

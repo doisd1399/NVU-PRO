@@ -7,7 +7,7 @@ import { useCompanyPayments, useCompanyRewards } from "../../hooks/useRewards";
 import { rewardService } from "../../services/rewardService";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { formatMoney, maskMoney, parseMoneyToCents } from "../../lib/partnerships";
-import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, goalOf, rewardErrorMessage, termText, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
+import { CAMPAIGN_STATE_LABEL, OFFER_STATE_LABEL, campaignBudget, campaignState, goalEstimate, goalOf, rewardErrorMessage, termText, type CampaignState, type RewardCampaign, type RewardOffer } from "../../lib/rewards";
 import { BackLink, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
 import { PayrollTab, PaymentDetail, TransfersTab } from "./RewardPayroll";
 import { DriverMultiSelect, type DriverChoice } from "../../components/rewards/DriverMultiSelect";
@@ -97,8 +97,8 @@ const Field = ({ label, children, hint }: { label: string; children: React.React
 type ContractChoice = { id: string; name: string; deadlineDays?: number; totalDeliveries?: number; mode?: string; trailerId?: string | null; sequenceId?: string | null; sequenceOrder?: number | null };
 
 /**
- * Nova campanha: 1) operação (seletor "Escolher operação"), 2) valor por viagem, 3) meta de ganhos, 4) quem participa, 5) nome.
- * As viagens e o prazo vêm da operação. Valor por viagem e meta andam juntos: meta = valor por viagem × viagens da operação (o total que o motorista alcança ao concluir).
+ * Nova campanha: 1) operação (seletor "Escolher operação"), 2) salário por viagem (o que a empresa paga), 3) meta de ganhos no simulador (só uma meta do motorista, sem ligação com o salário),
+ * motoristas e nome. As viagens e o prazo vêm da operação.
  */
 function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, busy, onBack, onSend }: { me: string; drivers: DriverChoice[]; contracts: ContractChoice[]; sequences: any[]; trailers: any[]; ready: boolean; busy: boolean; onBack: () => void; onSend: (payload: Parameters<typeof rewardService.create>[0]) => Promise<void> }) {
   const [contractId, setContractId] = useState(""), [pickerOpen, setPickerOpen] = useState(false), [perTrip, setPerTrip] = useState(""), [goalText, setGoalText] = useState("");
@@ -108,18 +108,13 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, busy,
   const contract = contracts.find(item => item.id === contractId), trips = Math.max(0, Math.floor(Number(contract?.totalDeliveries) || 0));
   const trailer = trailers.find(item => item.id === contract?.trailerId);
   const suggestion = contract ? `Campanha ${contract.name}`.slice(0, 60) : "", finalName = name.trim() || suggestion; // nome em branco usa a sugestão (sem texto pré-preenchido atrapalhando a digitação)
-  const perTripCents = parseMoneyToCents(perTrip) || 0, people = picked.length;
-  const goalCents = perTripCents * trips; // total que o motorista alcança ao concluir a operação
-  const totalTrips = people * trips, budget = totalTrips * perTripCents; // investimento = total de viagens (bruto) × valor por viagem = o que o empresário paga aos motoristas
-  const money = (cents: number) => cents ? maskMoney(String(cents)) : "";
-  // Os dois campos andam juntos: mexer em um recalcula o outro (a meta é sempre valor por viagem × viagens da operação).
-  const changePerTrip = (value: string) => { const text = maskMoney(value); setPerTrip(text); setGoalText(trips ? money((parseMoneyToCents(text) || 0) * trips) : ""); };
-  const changeGoal = (value: string) => { const text = maskMoney(value), each = trips ? Math.floor((parseMoneyToCents(text) || 0) / trips) : 0; setGoalText(text); setPerTrip(each ? money(each) : ""); };
-  const snapGoal = () => setGoalText(goalCents ? money(goalCents) : ""); // ao sair do campo, mostra a meta exata (valor por viagem × viagens)
+  const perTripCents = parseMoneyToCents(perTrip) || 0, goalCents = parseMoneyToCents(goalText) || 0, people = picked.length;
+  // Resumo: total de viagens (motoristas × viagens da operação), estimativa da meta (soma da meta de cada motorista) e o salário total a pagar (viagens × salário por viagem).
+  const totalTrips = people * trips, goalTotal = goalEstimate(goalCents, people), payroll = totalTrips * perTripCents;
   const send = async () => {
     if (!contractId) return setError("Escolha a operação da campanha.");
     if (!trips) return setError("Essa operação não tem viagens. Escolha outra operação.");
-    if (!perTripCents) return setError("Informe o valor por viagem ou a meta de ganhos.");
+    if (!perTripCents) return setError("Informe o salário por viagem.");
     if (!people) return setError(drivers.length ? "Escolha ao menos um motorista." : "A empresa não tem motoristas ativos.");
     if (finalName.length < 3) return setError("Dê um nome à campanha (ao menos 3 letras).");
     setError(""); await onSend({ companyId: me, contractId, name: finalName, perTripCents, goalCents, audience: "selected", driverIds: picked, requestId });
@@ -135,19 +130,20 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, busy,
           <ChevronRight size={18} aria-hidden="true" style={{ alignSelf: "center", justifySelf: "center" }} /></button></div>
         {!contracts.length ? <span className="b2p-note-box" data-tone="warn" role="note">Nenhuma operação ativa. Cadastre uma em Central de gestão → Operações e volte aqui.</span> : null}
       </Field>
-      <Field label="2. Valor por viagem"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} placeholder="25,00" onChange={event => changePerTrip(event.target.value)} /></div></Field>
-      <Field label="3. Meta de ganhos" hint="Total que o motorista alcança ao concluir a operação."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} placeholder="300,00" onChange={event => changeGoal(event.target.value)} onBlur={snapGoal} /></div></Field>
+      <Field label="2. Salário por viagem" hint="O que a empresa paga ao motorista por cada viagem feita na operação."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} placeholder="25,00" onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
+      <Field label="3. Meta de ganhos no simulador" hint="Meta para o motorista atingir em ganhos realizando as viagens no simulador. Não tem relação com o salário."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} placeholder="300,00" onChange={event => setGoalText(maskMoney(event.target.value))} /></div></Field>
       <DriverMultiSelect drivers={drivers} selected={picked} onChange={setPicked} disabled={busy} ready={ready} />
       <Field label="4. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
       <div className="b2p-settle">
-        <Row label={`Viagens no total (1 operação de ${trips} ${trips === 1 ? "viagem" : "viagens"} × ${people} ${people === 1 ? "motorista" : "motoristas"})`} value={totalTrips} strong />
-        <Row label={`Investimento total a pagar aos motoristas (${totalTrips} ${totalTrips === 1 ? "viagem" : "viagens"} × ${formatMoney(perTripCents)})`} value={formatMoney(budget)} strong />
+        <Row label={`Total de viagens (1 operação de ${trips} ${trips === 1 ? "viagem" : "viagens"} × ${people} ${people === 1 ? "motorista" : "motoristas"})`} value={totalTrips} strong />
+        <Row label={goalCents ? `Estimativa da meta (soma da meta de cada motorista: ${people} × ${formatMoney(goalCents)})` : "Estimativa da meta (sem meta definida)"} value={goalCents ? formatMoney(goalTotal) : "—"} strong />
+        <Row label={`Salário total a pagar (${totalTrips} ${totalTrips === 1 ? "viagem" : "viagens"} × ${formatMoney(perTripCents)})`} value={formatMoney(payroll)} />
       </div>
-      <p className="b2p-hint">{goalCents ? `Se todos os motoristas atingirem a meta de ${formatMoney(goalCents)} cada, o investimento é de ${formatMoney(budget)}. ` : ""}Cada motorista recebe a oferta e aceita ou recusa. Só contam viagens da operação confirmadas depois do aceite. O pagamento sai na folha do dia de pagamento, depois que o motorista conclui a operação; se não concluir na semana, recebe na semana seguinte.</p>
+      <p className="b2p-hint">Cada motorista recebe a oferta e aceita ou recusa. Só contam viagens da operação confirmadas depois do aceite. O salário (viagens × salário por viagem) sai na folha do dia de pagamento, depois que o motorista conclui a operação; se não concluir na semana, recebe na semana seguinte. A meta de ganhos no simulador é só uma meta e não muda o salário.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>
-    <AssignJobAssetPicker kind="contract" open={pickerOpen} selectedId={contractId} contracts={contracts} sequences={sequences} trailers={trailers} onClose={() => setPickerOpen(false)} onSelect={id => { setContractId(id); const next = contracts.find(item => item.id === id), n = Math.max(0, Math.floor(Number(next?.totalDeliveries) || 0)); setGoalText(n && perTripCents ? money(perTripCents * n) : ""); }} />
+    <AssignJobAssetPicker kind="contract" open={pickerOpen} selectedId={contractId} contracts={contracts} sequences={sequences} trailers={trailers} onClose={() => setPickerOpen(false)} onSelect={setContractId} />
   </>;
 }
 
@@ -160,8 +156,8 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
       <div className="b2p-sum"><div><small>Ganhos acumulados</small><b>{formatMoney(campaign.accruedCents)}</b><em>{campaign.tripsCount} {campaign.tripsCount === 1 ? "viagem" : "viagens"}</em></div><div><small>Teto</small><b>{formatMoney(campaign.budgetCents)}</b><em>restam {formatMoney(Math.max(0, campaign.budgetCents - campaign.accruedCents))}</em></div></div>
       <Bar pct={campaign.budgetCents ? campaign.accruedCents / campaign.budgetCents * 100 : 0} warn={campaign.capped} />
       <div className="b2p-settle">
-        {campaign.contractName ? <Row label="Operação" value={campaign.contractName} /> : null}<Row label="Prazo" value={termText(campaign)} /><Row label="Ganho por viagem" value={formatMoney(campaign.perTripCents)} />
-        {campaign.maxTripsPerDriver ? <><Row label="Viagens da operação" value={campaign.maxTripsPerDriver} /><Row label="Meta de ganhos por motorista" value={formatMoney(goalOf(campaign))} /></> : null}
+        {campaign.contractName ? <Row label="Operação" value={campaign.contractName} /> : null}<Row label="Prazo" value={termText(campaign)} /><Row label="Salário por viagem" value={formatMoney(campaign.perTripCents)} />
+        {campaign.maxTripsPerDriver ? <><Row label="Viagens da operação" value={campaign.maxTripsPerDriver} />{goalOf(campaign) ? <Row label="Meta de ganhos no simulador (por motorista)" value={formatMoney(goalOf(campaign))} /> : null}</> : null}
         {campaign.bonusCents ? <Row label="Bônus da meta" value={`${formatMoney(campaign.bonusCents)} em ${campaign.bonusGoalTrips} viagens`} /> : null}
         <Row label="Aceitaram" value={`${campaign.acceptedCount} de ${campaign.driversCount}`} />
       </div>
@@ -170,7 +166,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onCancel }: { cam
     <Section title="Motoristas" count={offers.length}>
       {offers.length ? [...offers].sort((a, b) => b.totalCents - a.totalCents || a.driverName.localeCompare(b.driverName)).map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
         <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(offer.driverName)}</span>
-        <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${offer.goalReached ? " · bônus de meta" : ""}` : OFFER_STATE_LABEL[offer.status]}</small></div>
+        <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${goalOf(campaign) ? ` · simulador ${formatMoney(offer.simCents)} de ${formatMoney(goalOf(campaign))}${offer.simCents >= goalOf(campaign) ? " ✓" : ""}` : ""}` : OFFER_STATE_LABEL[offer.status]}</small></div>
         <span className="b2p-amt"><strong data-k="x">{offer.status === "accepted" ? formatMoney(offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{OFFER_STATE_LABEL[offer.status]}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}
       <p className="b2p-hint">Contam só as viagens confirmadas pelo servidor, da operação da campanha, depois do aceite do motorista.</p>
