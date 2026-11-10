@@ -42,6 +42,8 @@ export default function Partnerships() {
   const [offerTab, setOfferTab] = useState<OfferTab>("recebidas");
   const [busy, setBusy] = useState(false);
   const [infoId, setInfoId] = useState("");
+  // Aceite recusado porque a empresa ainda não usa a confirmação operacional: o app oferece preparar e aceitar.
+  const [notReady, setNotReady] = useState("");
   // Mesmo relógio da Central: o "Tempo restante" dos cards anda de minuto em minuto.
   const [tick, setTick] = useState(0);
   useEffect(() => { const timer = window.setInterval(() => setTick(value => value + 1), 60_000); return () => window.clearInterval(timer); }, []);
@@ -81,11 +83,14 @@ export default function Partnerships() {
     setBusy(true);
     try { await task(); } catch (reason) { toast.error(partnershipErrorMessage(reason, failure)); } finally { setBusy(false); }
   };
-  const respond = (p: Partnership, decision: "accept" | "decline") => run(async () => {
-    await partnershipService.respond(p.id, decision);
+  const respond = (p: Partnership, decision: "accept" | "decline", prepare = false) => run(async () => {
+    if (prepare) await partnershipService.prepareCompany(me);
+    try { await partnershipService.respond(p.id, decision); }
+    catch (reason) { if (decision === "accept" && /confirmação operacional/i.test(String((reason as { message?: string })?.message || ""))) { setNotReady(p.id); return; } throw reason; }
+    setNotReady("");
     if (decision === "accept") { toast.success("Oferta aceita. Agora designe o motorista e escolha o veículo."); setView({ name: "designate", id: p.id }); }
     else { toast.message("Oferta recusada."); setView({ name: "list" }); }
-  }, "Não foi possível responder a oferta.");
+  }, prepare ? "Não foi possível preparar a empresa." : "Não foi possível responder a oferta.");
   const cancel = (p: Partnership) => run(async () => { await partnershipService.cancel(p.id); toast.message("Oferta cancelada."); setView({ name: "list" }); }, "Não foi possível cancelar a oferta.");
   const pay = (partnershipId: string, action: "paid" | "received") => run(async () => {
     await partnershipService.settle(partnershipId, action);
@@ -118,7 +123,7 @@ export default function Partnerships() {
       setTab("ofertas"); setOfferTab("enviadas"); goList();
     }} />);
   if ("id" in view && !current) return shell(<><button type="button" className="b2p-back" onClick={goList}>Voltar</button>{ready ? <p className="b2p-empty">Esta parceria não está mais disponível.</p> : <p className="b2p-empty">Carregando…</p>}</>);
-  if (view.name === "offer" && current) return shell(<OfferDetail p={current} busy={busy} onBack={goList} onAccept={() => respond(current, "accept")} onDecline={() => respond(current, "decline")} />);
+  if (view.name === "offer" && current) return shell(<OfferDetail p={current} busy={busy} notReady={notReady === current.id} onBack={goList} onAccept={() => respond(current, "accept")} onPrepare={() => respond(current, "accept", true)} onDecline={() => respond(current, "decline")} />);
   if (view.name === "designate" && current) return shell(<DesignateScreen p={current} me={me} ownCompany={ownCompany} users={users as any[]} members={allCompanyMembers as any[]} membersReady={Boolean(allCompanyMembersReady)}
     vehicles={vehicles as any[]} sequences={sequences as any[]} jobs={jobs as any[]} contracts={contracts as any[]}
     onBack={goList} onDone={() => { toast.success("Motorista designado. A operação já aparece para ele."); setView({ name: "detail", id: current.id }); }} />);

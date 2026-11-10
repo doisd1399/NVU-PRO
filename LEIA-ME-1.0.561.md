@@ -1,6 +1,6 @@
-# NVU PRO 1.0.560 (Android) / Web 2.3.217 / Windows 0.2.2
+# NVU PRO 1.0.561 (Android) / Web 2.3.218 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 560 — instala como atualização da 559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 561 — instala como atualização da 560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -30,6 +30,10 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Reboque** (Nova oferta e Designar trabalho): agora usa a lista de seleção no mesmo estilo da lista de veículos (busca, cartões com rádio, "Cancelar / Usar reboque"; na designação, os que não atendem à exigência aparecem bloqueados com o motivo).
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
+
+### 6a00000. Ajuste da 1.0.561 — aceitar parceria e logo da empresa
+- **Erro ao aceitar** ("a sua empresa precisa estar preparada para a confirmação operacional… [400]"): a empresa executora (ex.: MATECOM) não tinha a confirmação operacional ligada (`operationalCommandVersion` 1), que o servidor exige para aceitar. Agora, nesse caso, a oferta mostra o aviso e o botão **Preparar e aceitar**: liga o recurso pelo mesmo comando da fila automática (o servidor só liga se não houver trabalhos simultâneos em conflito; se houver, mostra o motivo) e aceita a oferta em seguida. Só cliente; **nada a publicar** no servidor.
+- **Logo da empresa** nas telas de Parcerias: aparecia cortada (preenchimento); agora aparece inteira dentro do quadrado arredondado. Foto de motorista continua preenchendo o círculo.
 
 ### 6a0000. Ajuste da 1.0.560 — card das parcerias igual ao de Trabalhos ativos e foto do veículo
 **Card da operação (Parcerias B2P e Trabalhos ativos)**

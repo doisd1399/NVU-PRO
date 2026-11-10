@@ -469,3 +469,11 @@ test("Fotos do veículo: leitura segura, até 20 MB, e a mesma preparação na f
   assert.match(readFileSync("src/hooks/useVehiclePhoto.ts", "utf8"), /file\.size <= 3 \* 1024 \* 1024/, "foto grande não vira prévia crua");
   assert.match(readFileSync("qa/config.json", "utf8"), /test-vehicle-photo-prepare\.mjs/, "o teste no Chromium está no QA");
 });
+
+test("Aceitar sem a confirmação operacional: o app oferece 'Preparar e aceitar' (não só o erro 400); logos da empresa inteiras", () => {
+  const page = readFileSync("src/pages/admin/Partnerships.tsx", "utf8"), svc = readFileSync("src/services/partnershipService.ts", "utf8"), detail = readFileSync("src/components/partnerships/DetailScreens.tsx", "utf8");
+  assert.match(page, /confirmação operacional/); assert.match(page, /setNotReady\(p\.id\)/); assert.match(page, /if \(prepare\) await partnershipService\.prepareCompany\(me\)/);
+  assert.match(svc, /"prepareCompanyOperationalCommands", \{ companyId, enable: true \}/);
+  assert.match(detail, /Preparar e aceitar/); assert.match(readFileSync("src/lib/callableRegions.ts", "utf8"), /"prepareCompanyOperationalCommands"/);
+  assert.match(readFileSync("src/components/partnerships/shared.tsx", "utf8"), /className=\{companyId \? "object-contain" : "object-cover"\}/, "logo da empresa não é cortada; foto do motorista continua preenchendo");
+});

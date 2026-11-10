@@ -19,6 +19,8 @@ export const partnershipService = {
   respond: (partnershipId: string, decision: "accept" | "decline") =>
     call<{ success: true; status: string }>("respondPartnershipOffer", { partnershipId, decision }),
   settle: (partnershipId: string, action: "paid" | "received") => call<{ success: true; status: string }>("settlePartnershipPayment", { partnershipId, action }),
+  /** Liga a confirmação operacional da empresa (exigida para aceitar). O servidor só liga se não houver trabalhos simultâneos em conflito. */
+  prepareCompany: (companyId: string) => call<{ success: boolean; enabled: boolean; ready: boolean }>("prepareCompanyOperationalCommands", { companyId, enable: true }, 60_000),
   cancel: (partnershipId: string) => call<{ success: true }>("cancelPartnershipOffer", { partnershipId }),
   designateDriver: (input: { partnershipId: string; driverId: string; vehicleId: string; cancelRunning?: boolean }) =>
     call<{ success: true; partnershipId: string; jobId: string }>("designatePartnershipDriver", input, 30_000),

@@ -8,7 +8,7 @@ const Row = ({ label, value, strong, neg }: { label: string; value: React.ReactN
   <div data-total={strong ? "1" : undefined} data-neg={neg ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
 
 /** Oferta recebida (executora): detalhes do que foi pedido e, abaixo, Aceitar / Recusar. Sem veículo: a escolha é dela. */
-export function OfferDetail({ p, busy, onBack, onAccept, onDecline }: { p: Partnership; busy: boolean; onBack: () => void; onAccept: () => void; onDecline: () => void }) {
+export function OfferDetail({ p, busy, notReady, onBack, onAccept, onDecline, onPrepare }: { p: Partnership; busy: boolean; notReady?: boolean; onBack: () => void; onAccept: () => void; onDecline: () => void; onPrepare?: () => void }) {
   const open = p.status === "pending";
   return <>
     <BackLink label="Parcerias" onClick={onBack} />
@@ -25,8 +25,11 @@ export function OfferDetail({ p, busy, onBack, onAccept, onDecline }: { p: Partn
       {p.agreedAmountCents ? <p className="b2p-note-box" data-tone="warn">Concluindo fora do prazo, o valor final é <b>{formatMoney(Math.round(p.agreedAmountCents * (100 - LATE_PENALTY_PERCENT) / 100), p.currency)}</b> (−{LATE_PENALTY_PERCENT}%), calculado pelo app.</p> : null}
       {p.conditions ? <div className="b2p-field"><span className="b2p-label">Condições do acordo</span><p className="b2p-note-box">{p.conditions}</p></div> : null}
       <p className="b2p-note-box">Após aceitar, você escolhe o <b>motorista</b> da sua equipe e o <b>veículo</b> da sua frota. A pontuação do ranking vai para {shortName(p.contractorName)}, e o motorista mantém o histórico dele.</p>
+      {open && notReady ? <div className="b2p-note-box" data-tone="warn" role="alert">
+        <b>Falta um passo para aceitar.</b> Sua empresa ainda não usa a confirmação operacional, que as parcerias exigem. Toque em <b>Preparar e aceitar</b>: o app liga esse recurso (se não houver trabalhos simultâneos em conflito) e aceita a oferta em seguida.</div> : null}
       {open ? <div className="b2p-actions">
-        <button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={onAccept}>{busy ? "Aguarde…" : "Aceitar"}</button>
+        {notReady && onPrepare ? <button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={onPrepare}>{busy ? "Aguarde…" : "Preparar e aceitar"}</button>
+          : <button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={onAccept}>{busy ? "Aguarde…" : "Aceitar"}</button>}
         <button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={onDecline}>Recusar</button>
       </div> : <p className="b2p-hint">Esta oferta já foi respondida.</p>}
     </div></section>
