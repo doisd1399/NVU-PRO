@@ -416,3 +416,10 @@ test("Contratante vê a foto cadastrada do veículo da executora mesmo antes do 
   assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /vehicleId: row\.vehicleId \|\| ""/);
   assert.equal(normalizePartnership("po_x", { vehicleId: "veh-1", status: "accepted" }).vehicleId, "veh-1");
 });
+
+test("Card da parceria: sem 'Você contratou/Você executa'; rodapé 'Contratado por <empresa>' no lugar de 'Pontuação para'", () => {
+  const parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8");
+  assert.doesNotMatch(parts, /Você contratou|Você executa|Pontuação para|Pontua para/, "textos antigos não podem voltar");
+  assert.match(parts, /Contratado por <b>\{shortName\(p\.contractorName\)\}<\/b>/);
+  assert.match(parts, /<span className="b2p-sub">\{other\.name\}<\/span>/, "a linha de baixo do nome mostra só a empresa");
+});

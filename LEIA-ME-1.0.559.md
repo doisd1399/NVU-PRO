@@ -1,6 +1,6 @@
-# NVU PRO 1.0.558 (Android) / Web 2.3.215 / Windows 0.2.2
+# NVU PRO 1.0.559 (Android) / Web 2.3.216 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 558 — instala como atualização da 557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 559 — instala como atualização da 558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -30,6 +30,12 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Reboque** (Nova oferta e Designar trabalho): agora usa a lista de seleção no mesmo estilo da lista de veículos (busca, cartões com rádio, "Cancelar / Usar reboque"; na designação, os que não atendem à exigência aparecem bloqueados com o motivo).
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
+
+### 6a000. Ajuste da 1.0.559 — textos do card da parceria
+- O card da operação nas telas de Parcerias (Painel e Detalhe) **não mostra mais "Você contratou" / "Você executa"**: embaixo do nome do motorista aparece só o nome da empresa.
+- O rodapé do card passou de "Pontuação para (empresa)" para **"Contratado por (empresa)"** (nome curto da contratante).
+- A linha do **Histórico** também deixou de mostrar "Você contratou/executa" (fica o nome da empresa e a data).
+- As frases explicativas da regra de ranking (tela de oferta recebida e de designar trabalho) não foram alteradas.
 
 ### 6a00. Ajuste da 1.0.558
 - **A contratante vê o veículo da operação executada por outra empresa antes do início:** ao expandir o card (ex.: operação do Dudu Tv "Não iniciado"), aparece a **foto cadastrada do veículo** do motorista (a mesma projeção pública que o Ranking usa). A foto tirada ao iniciar continua como reserva. Se o veículo não tiver foto cadastrada, o card avisa "Este veículo ainda não tem foto cadastrada".

@@ -5,7 +5,6 @@ import {
 import { Avatar, fmtDay, fmtDayTime } from "./shared";
 
 const otherOf = (p: Partnership, me: string) => roleIn(p, me) === "contractor" ? { name: shortName(p.executorName), id: p.executorCompanyId } : { name: shortName(p.contractorName), id: p.contractorCompanyId };
-const roleText = (p: Partnership, me: string) => roleIn(p, me) === "contractor" ? "Você contratou" : "Você executa";
 
 /** Resumo das parcerias: a receber e a pagar (valores calculados pelo app) e a contagem do que está em andamento. */
 export function SummaryBody({ totals, active, toAnswer, done }: { totals: WalletTotals; active: number; toAnswer: number; done: number }) {
@@ -26,7 +25,7 @@ export function OperationCard({ p, me, now, onOpen, onInfo }: { p: Partnership; 
     <div className="nvu-central-driver-row">
       <button type="button" className="nvu-central-driver" onClick={onOpen} disabled={!onOpen} aria-label={`Abrir ${p.operationName}`}>
         <Avatar name={p.driverName || other.name} companyId={p.driverName ? undefined : other.id} driverId={p.driverName ? p.driverId || undefined : undefined} />
-        <strong>{p.driverName || other.name}<span className="b2p-sub">{other.name} · {roleText(p, me)}</span></strong>
+        <strong>{p.driverName || other.name}<span className="b2p-sub">{other.name}</span></strong>
       </button>
       <span className="nvu-central-job-status" data-state={late ? "overdue" : p.status === "accepted" || p.status === "pending" ? "pending" : "active"}><i aria-hidden="true" />{late ? "Atrasada" : p.status === "completed" ? "Concluída" : p.status === "accepted" ? "Aguardando início" : p.status === "pending" ? "Aguardando resposta" : "Em andamento"}</span>
       {onOpen ? <button type="button" className="nvu-central-operation-toggle" onClick={onOpen} aria-label="Abrir detalhes"><ChevronRight size={20} aria-hidden="true" /></button> : null}
@@ -46,7 +45,7 @@ export function OperationCard({ p, me, now, onOpen, onInfo }: { p: Partnership; 
       <div className="nvu-central-progress" role="progressbar" aria-label={`Progresso de ${p.operationName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: `${pct}%` }} /></div>
     </div>
     {remaining ? <p className="nvu-central-operation-timing"><Clock size={16} strokeWidth={1.8} aria-hidden="true" /><span>Prazo restante:</span><strong data-warning={late || undefined}>{remaining}</strong></p> : null}
-    <p className="b2p-foot">Pontuação para <b>{shortName(p.contractorName)}</b></p>
+    <p className="b2p-foot">Contratado por <b>{shortName(p.contractorName)}</b></p>
   </article>;
 }
 
@@ -81,7 +80,7 @@ export function HistoryRow({ p, me, onOpen }: { p: Partnership; me: string; onOp
   const label = p.status === "completed" ? "Concluída" : p.status === "declined" ? "Recusada" : "Cancelada";
   return <button type="button" className="b2p-wrow" onClick={onOpen} aria-label={`Abrir ${p.operationName}`}>
     <span className="b2p-wico" data-k={p.status === "completed" ? "ganho" : "investimento"} style={p.status === "completed" ? undefined : { background: "var(--central-soft)", color: "var(--central-muted)" }}>{p.status === "completed" ? <Check size={17} aria-hidden="true" /> : <FileText size={17} aria-hidden="true" />}</span>
-    <div><b>{p.operationName}</b><small>{other.name} · {roleText(p, me)} · {fmtDay(p.updatedAtMs)}</small></div>
+    <div><b>{p.operationName}</b><small>{other.name} · {fmtDay(p.updatedAtMs)}</small></div>
     <span className="b2p-amt"><strong data-k="x">{p.status === "completed" ? `${p.progress}/${p.totalTrips}` : label}</strong><span>{p.status === "completed" ? (p.settlement ? formatMoney(p.settlement.finalCents, p.currency) : formatMoney(results.earningsCents, p.currency)) : "—"}</span></span>
   </button>;
 }
