@@ -1,6 +1,10 @@
-# NVU PRO 1.0.572 (Android) / Web 2.3.229 / Windows 0.2.2
+# NVU PRO 1.0.573 (Android) / Web 2.3.230 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 572 — instala como atualização da 571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 573 — instala como atualização da 572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.573 — Meta de ganhos da operação
+- A meta agora se chama **Meta de ganhos da operação**: é o **total de ganhos gerados em todas as viagens da operação** (a soma do valor de cada viagem da operação, depois do aceite do motorista). Continua separada do pagamento por viagem e não altera o valor pago.
+- Ajustado o nome em todo o app: formulário (“3. Meta de ganhos da operação”), detalhe da campanha, oferta do motorista (“Meta da operação”, “Ganhos na operação”, barra de progresso) e aviso de nova oferta.
 
 ## 1.0.572 — “Salário” vira **Pagamentos** e telas mais enxutas
 - **Nome da área:** agora é **Pagamentos** (Central de gestão, painel do motorista, títulos e avisos: “Nova oferta de pagamento”, “Pagamento a receber”). O campo de valor passou a se chamar “Valor por viagem”.

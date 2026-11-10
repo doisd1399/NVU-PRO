@@ -12,7 +12,7 @@ type Data = FirebaseFirestore.DocumentData;
 type DB = FirebaseFirestore.Firestore;
 const digest = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const companyLabel = (company: Data): string => text(company.companyName) || text(company.name) || text(company.nome) || "Empresa";
-/** Ganho da viagem no simulador, em centavos (campo do histórico: valorCents ou valor). */
+/** Ganho gerado pela viagem, em centavos (campo do histórico: valorCents ou valor). */
 const tripValueCents = (data: Data): number => { const cents = Number(data.valorCents); if (Number.isFinite(cents)) return Math.max(0, Math.round(cents)); const value = Number(data.valor); return Number.isFinite(value) ? Math.max(0, Math.round(value * 100)) : 0; };
 const ms = (value: any): number => (value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")))) || 0;
 const money = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -70,7 +70,7 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
     return { replayed: false, company: manager.company, contractName };
   });
   if (!outcome.replayed) await notifyUsers(db, driverIds, { type: "REWARD_OFFER", refId: campaignId, companyId, title: "Nova oferta de pagamento",
-    message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, no total de ${input.maxTripsPerDriver} viagens${input.goalCents ? `; meta de ganhos no simulador: ${money(input.goalCents)}` : ""}${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
+    message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, no total de ${input.maxTripsPerDriver} viagens${input.goalCents ? `; meta de ganhos da operação: ${money(input.goalCents)}` : ""}${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
   return { success: true, campaignId, drivers: driverIds.length, replayed: outcome.replayed };
 });
 

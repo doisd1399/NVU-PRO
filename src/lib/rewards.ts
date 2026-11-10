@@ -43,9 +43,9 @@ export function estimateMaxCost(terms: { perTripCents: number; bonusCents: numbe
 export const driverMaxCents = (terms: { perTripCents: number; maxTripsPerDriver: number }) => terms.maxTripsPerDriver * terms.perTripCents;
 /** Teto da campanha em salário (igual ao do servidor): motoristas × o máximo de cada um (+ bônus, só em campanhas antigas). */
 export const campaignBudget = (terms: { perTripCents: number; bonusCents: number; maxTripsPerDriver: number }, drivers: number) => drivers * (driverMaxCents(terms) + terms.bonusCents);
-/** Estimativa da meta: soma da meta de ganhos no simulador de todos os motoristas selecionados. */
+/** Estimativa da meta: soma da meta de ganhos da operação de todos os motoristas selecionados. */
 export const goalEstimate = (goalCents: number, drivers: number) => Math.max(0, goalCents) * Math.max(0, drivers);
-/** Meta de ganhos no simulador do motorista (0 = campanha sem meta). Não tem relação com o salário por viagem. */
+/** Meta de ganhos da operação do motorista (total dos ganhos de todas as viagens da operação) (0 = campanha sem meta). Não tem relação com o salário por viagem. */
 export const goalOf = (c: { goalCents: number }) => c.goalCents || 0;
 /** O motorista concluiu a operação (fez todas as viagens dela): só então o salário entra na folha. Igual ao servidor; campanhas antigas contam o que foi ganho. */
 export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number }) => {

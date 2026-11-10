@@ -47,7 +47,7 @@ export function normalizeCampaign(raw: Record<string, any>, now: number): Reward
   const driverIds = [...new Set((Array.isArray(raw.driverIds) ? raw.driverIds : []).map(text).filter(Boolean))];
   if (audience === "selected" && !driverIds.length) fail("invalid-argument", "Escolha ao menos um motorista.");
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("invalid-argument", `Escolha no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
-  // Meta de ganhos NO SIMULADOR por motorista (opcional). Não tem relação com o salário por viagem: é só a meta que o motorista deve atingir em ganhos do jogo.
+  // Meta de ganhos DA OPERAÇÃO por motorista (opcional): total dos ganhos gerados em todas as viagens da operação. Não tem relação com o salário por viagem.
   const goalCents = raw.goalCents === undefined || raw.goalCents === null || raw.goalCents === 0 ? 0 : cents(raw.goalCents, "A meta de ganhos", 1, 100_000_000_000);
   return { name, startMs, endMs, perTripCents, bonusCents: bonusGoalTrips ? bonusCents : 0, bonusGoalTrips: bonusCents ? bonusGoalTrips : 0, budgetCents, audience, driverIds, contractId, maxTripsPerDriver, goalCents, openEnded };
 }
@@ -58,7 +58,7 @@ export const driverMaxCents = (terms: Pick<RewardTerms, "perTripCents"> & { maxT
 export function campaignBudget(terms: Pick<RewardTerms, "perTripCents" | "bonusCents"> & { maxTripsPerDriver: number }, drivers: number): number {
   return drivers * (driverMaxCents(terms) + terms.bonusCents);
 }
-/** Meta de ganhos no simulador de todos os motoristas somada (estimativa da meta). */
+/** Meta de ganhos da operação de todos os motoristas somada (estimativa da meta). */
 export const goalEstimate = (goalCents: number, drivers: number): number => Math.max(0, goalCents) * Math.max(0, drivers);
 
 /** Custo máximo estimado: cada motorista faz `tripsPerDriver` viagens e (se houver bônus) bate a meta. Igual no app (simulador). */
@@ -89,7 +89,7 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
   for (const trip of eligible) {
     const row = drivers.get(trip.driverId)!;
     if (terms.maxTripsPerDriver && row.trips >= terms.maxTripsPerDriver) continue; // limite de viagens pagas por motorista
-    // Salário: valor fixo por viagem. A meta de ganhos no simulador é outra coisa: só soma o que a viagem rendeu no jogo.
+    // Salário: valor fixo por viagem. A meta de ganhos da operação é outra coisa: só soma o que cada viagem da operação rendeu.
     const credit = terms.perTripCents;
     if (accruedCents + credit > terms.budgetCents) { capped = true; break; }
     row.trips++; row.tripCents += credit; accruedCents += credit; tripsCount++; row.simCents += Math.max(0, Math.round(Number(trip.valueCents) || 0));
