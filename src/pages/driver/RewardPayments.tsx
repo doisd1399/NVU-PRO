@@ -20,7 +20,7 @@ export function ReceiptsTab({ payments, pix, ready, onOpen }: { payments: Reward
     <DriverPixCard pix={pix} busy={busy} onSave={async (type, key) => { setBusy(true); try { await rewardService.setPix(type, key); toast.success("Chave Pix salva."); } catch (reason) { toast.error(rewardErrorMessage(reason, "Não foi possível salvar a chave Pix.")); throw reason; } finally { setBusy(false); } }} />
     <Section title="Recebimentos" count={list.length}>
       {list.length ? list.map((payment, index) => <button type="button" className="b2p-wrow" key={payment.id} onClick={() => onOpen(payment.id)} style={{ width: "100%", textAlign: "left", ...(index ? {} : { borderTop: 0 }) }} aria-label={`${payment.companyName}, ${formatMoney(payment.amountCents)}, ${DRIVER_PAYMENT_LABEL[payment.status]}`}>
-        <div><b>{payment.companyName}</b><small>{payment.items.map(item => item.campaignName).join(", ") || "Recompensa"} · {dateTimeText(payment.paidAtMs || payment.payrollAtMs)}</small></div>
+        <div><b>{payment.companyName}</b><small>{payment.items.map(item => item.campaignName).join(", ") || "Salário"} · {dateTimeText(payment.paidAtMs || payment.payrollAtMs)}</small></div>
         <span className="b2p-amt"><strong data-k="ganho">{formatMoney(payment.amountCents)}</strong><Pill status={payment.status} /></span><ChevronRight className="b2p-row-chev" size={16} aria-hidden="true" /></button>)
         : <p className="b2p-empty">{ready ? "Nenhum pagamento ainda. Quando a empresa montar a folha, o valor aparece aqui." : "Carregando…"}</p>}
       <p className="b2p-hint">A empresa paga por Pix na sua chave. Quando o dinheiro chegar, confirme o recebimento; se não chegar ou não conferir, conteste.</p>

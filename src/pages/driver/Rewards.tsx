@@ -13,7 +13,7 @@ import "../../components/partnerships/Partnerships.css";
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
 const TONE: Record<string, string> = { pending: "warn", accepted: "good", declined: "muted", cancelled: "muted" };
 
-/** Recompensas do motorista: ofertas das empresas (aceitar ou recusar) e o ganho acumulado em cada campanha. */
+/** Salário do motorista: ofertas das empresas (aceitar ou recusar) e o ganho acumulado em cada campanha. */
 export default function DriverRewards() {
   const { currentUser } = useSessionStore();
   const { offers, ready, error } = useDriverRewards(currentUser?.id);
@@ -29,8 +29,8 @@ export default function DriverRewards() {
   const pending = offers.filter(offer => offer.status === "pending" && offer.endMs >= now), mine = offers.filter(offer => offer.status === "accepted"), total = mine.reduce((sum, offer) => sum + offer.totalCents, 0);
   const shell = (title: string, description: string, children: React.ReactNode) => <div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack"><header className="nvu-central-intro nvu-workspace-page-heading"><div className="nvu-workspace-page-title"><h1>{title}</h1><p>{description}</p></div></header>{children}</div></div>;
   if (paymentId) return shell("Recebimento", "Confira o pagamento e o comprovante.", <ReceiptDetail payment={payments.find(item => item.id === paymentId)} pix={pix} onBack={() => setPaymentId("")} />);
-  if (open) return shell("Oferta de recompensa", "Analise as condições e responda.", <>
-    <BackLink label="Recompensas" onClick={() => setOpenId("")} />
+  if (open) return shell("Oferta de salário", "Analise as condições e responda.", <>
+    <BackLink label="Salário" onClick={() => setOpenId("")} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
       <div className="b2p-op-row"><span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={22} aria-hidden="true" /></span><div><b>{open.name}</b><small>{open.companyName} · {termText(open)}</small></div></div>
       <div className="b2p-settle">
@@ -48,11 +48,11 @@ export default function DriverRewards() {
         : <p className="b2p-hint">{OFFER_STATE_LABEL[open.status]}.</p>}
     </div></section></>);
   const toConfirm = payments.filter(item => item.status === "paid").length;
-  const tabs = <Tabs<"offers" | "receipts"> label="Seções de recompensas" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }]} />;
-  if (tab === "receipts") return shell("Recompensas", "Campanhas, pagamentos e comprovantes.", <>{tabs}<ReceiptsTab payments={payments} pix={pix} ready={paymentsReady} onOpen={setPaymentId} /></>);
-  return shell("Recompensas", "Campanhas das empresas para você.", <>
+  const tabs = <Tabs<"offers" | "receipts"> label="Seções de salário" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }]} />;
+  if (tab === "receipts") return shell("Salário", "Ofertas, pagamentos e comprovantes.", <>{tabs}<ReceiptsTab payments={payments} pix={pix} ready={paymentsReady} onOpen={setPaymentId} /></>);
+  return shell("Salário", "Ofertas das empresas para você.", <>
     {tabs}
-    {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar as recompensas agora.</p> : null}
+    {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar o salário agora.</p> : null}
     <section className="nvu-central-section b2p-sec"><div className="b2p-sum"><div><small>Ganho acumulado</small><b data-tone={total ? "pos" : undefined}>{formatMoney(total)}</b><em>{mine.length} {mine.length === 1 ? "campanha aceita" : "campanhas aceitas"}</em></div><div><small>Ofertas novas</small><b data-tone={pending.length ? "warn" : undefined}>{pending.length}</b><em>aguardando resposta</em></div></div></section>
     <Section title="Campanhas" count={offers.length}>
       {offers.length ? offers.map((offer, index) => <button type="button" className="b2p-wrow" key={offer.id} onClick={() => setOpenId(offer.id)} style={index ? undefined : { borderTop: 0 }}>

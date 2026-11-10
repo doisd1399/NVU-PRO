@@ -42,7 +42,7 @@ export function PixPayPanel({ payment }: { payment: RewardPayment }) {
 export const receiptText = (payment: RewardPayment): string => {
   const r = payment.receipt;
   if (!r) return "";
-  return [`COMPROVANTE DE RECOMPENSA ${r.number}`, `Pago em: ${dateTimeText(r.paidAtMs)}`, `Valor: ${formatMoney(r.amountCents)}`, `Pagador: ${r.payerName}`, `Recebedor: ${r.payeeName}`,
+  return [`COMPROVANTE DE PAGAMENTO ${r.number}`, `Pago em: ${dateTimeText(r.paidAtMs)}`, `Valor: ${formatMoney(r.amountCents)}`, `Pagador: ${r.payerName}`, `Recebedor: ${r.payeeName}`,
     r.pixKeyMasked ? `Chave Pix: ${r.pixKeyMasked}` : "", r.e2eId ? `Código da transação Pix: ${r.e2eId}` : "", r.campaigns.length ? `Campanhas: ${r.campaigns.join(", ")}` : "",
     "Registro feito no NVU a partir da informação da empresa. O NVU não processa nem confirma o pagamento no banco."].filter(Boolean).join("\n");
 };

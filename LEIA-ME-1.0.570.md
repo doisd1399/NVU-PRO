@@ -1,6 +1,10 @@
-# NVU PRO 1.0.569 (Android) / Web 2.3.226 / Windows 0.2.2
+# NVU PRO 1.0.570 (Android) / Web 2.3.227 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 569 — instala como atualização da 568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 570 — instala como atualização da 569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.570 — “Recompensas” passa a se chamar **Salário** e seletor de motoristas igual ao Encaminhar trabalho
+- **Nome:** a área (antes “Recompensas”) agora é **Salário**: é onde a empresa paga o motorista pelos serviços prestados. Mudou na Central de gestão, no painel do motorista, nos títulos das telas, nos avisos (“Nova oferta de salário”, “Salário a receber”) e no comprovante (“COMPROVANTE DE PAGAMENTO”). Os endereços internos e o servidor não mudaram.
+- **Motoristas da campanha:** mesmo seletor do “Encaminhar trabalho” — título **Motoristas**, contagem de selecionados, **Selecionar todos**, e cartões com caixa de seleção, foto e nome. Começa sem ninguém marcado; a oferta vai só para quem estiver marcado.
 
 ## 1.0.569 — Recompensas: investimento total = o que o empresário paga aos motoristas
 - **Investimento total a pagar aos motoristas** = **total de viagens (bruto) × valor por viagem**, em centavos, sem arredondar. Ex.: viagem de R$ 0,10 com 36 viagens no total = R$ 3,60.

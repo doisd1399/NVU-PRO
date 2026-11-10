@@ -89,10 +89,10 @@ export async function generatePayroll(db: DB, companyId: string, payrollId: stri
   }).then(async result => {
     if (!result.replayed && result.payments) {
       const rows = await db.collection(REWARD_PAYMENTS).where("payrollId", "==", payrollId).get();
-      await Promise.all(rows.docs.map(row => push(db, [text(row.get("driverId"))], "driver", { type: "REWARD_PAYROLL", refId: row.id, companyId, title: "Recompensa a receber",
-        message: `${text(row.get("companyName"))} gerou seu pagamento de ${money(Number(row.get("amountCents")) || 0)}. ${text(row.get("pixKey")) ? "O pagamento será feito por Pix na sua chave cadastrada." : "Cadastre sua chave Pix em Recompensas → Recebimentos para receber."}` })));
+      await Promise.all(rows.docs.map(row => push(db, [text(row.get("driverId"))], "driver", { type: "REWARD_PAYROLL", refId: row.id, companyId, title: "Salário a receber",
+        message: `${text(row.get("companyName"))} gerou seu pagamento de ${money(Number(row.get("amountCents")) || 0)}. ${text(row.get("pixKey")) ? "O pagamento será feito por Pix na sua chave cadastrada." : "Cadastre sua chave Pix em Salário → Recebimentos para receber."}` })));
       if (source === "auto") await push(db, await managerIds(db, companyId), "admin", { type: "REWARD_PAYROLL_READY", refId: payrollId, companyId, title: "Folha de pagamento pronta",
-        message: `A folha de hoje está pronta: ${money(result.totalCents)} para ${result.payments} ${result.payments === 1 ? "motorista" : "motoristas"}. Abra Recompensas → Folha para pagar por Pix.` });
+        message: `A folha de hoje está pronta: ${money(result.totalCents)} para ${result.payments} ${result.payments === 1 ? "motorista" : "motoristas"}. Abra Salário → Folha para pagar por Pix.` });
     }
     return result;
   });
@@ -149,7 +149,7 @@ export const markRewardPaid = functions.region(...CALLABLE_REGIONS).https.onCall
     return { replayed: false, payment: p, receipt };
   });
   if (!outcome.replayed) await push(db, [text(outcome.payment.driverId)], "driver", { type: "REWARD_PAID", refId: `${paymentId}_${(outcome as any).receipt.paidAtMs}`, companyId: text(outcome.payment.companyId), title: "Pagamento enviado",
-    message: `${text(outcome.payment.companyName)} marcou como pago ${money(Number(outcome.payment.amountCents) || 0)}. Confira na sua conta e confirme o recebimento em Recompensas → Recebimentos.` });
+    message: `${text(outcome.payment.companyName)} marcou como pago ${money(Number(outcome.payment.amountCents) || 0)}. Confira na sua conta e confirme o recebimento em Salário → Recebimentos.` });
   return { success: true, paymentId, status: "paid", replayed: outcome.replayed };
 });
 
