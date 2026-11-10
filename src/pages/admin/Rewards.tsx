@@ -108,7 +108,7 @@ function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack
   const suggestion = contract ? `Campanha ${contract.name}`.slice(0, 60) : "", finalName = name.trim() || suggestion; // nome em branco usa a sugestão (sem texto pré-preenchido atrapalhando a digitação)
   const perTripCents = parseMoneyToCents(perTrip) || 0, people = audience === "all" ? drivers.length : picked.length;
   const goalCents = perTripCents * trips; // total que o motorista alcança ao concluir a operação
-  const totalTrips = people * trips, budget = people * goalCents;
+  const totalTrips = people * trips, budget = totalTrips * perTripCents; // investimento = total de viagens (bruto) × valor por viagem = o que o empresário paga aos motoristas
   const money = (cents: number) => cents ? maskMoney(String(cents)) : "";
   // Os dois campos andam juntos: mexer em um recalcula o outro (a meta é sempre valor por viagem × viagens da operação).
   const changePerTrip = (value: string) => { const text = maskMoney(value); setPerTrip(text); setGoalText(trips ? money((parseMoneyToCents(text) || 0) * trips) : ""); };
@@ -141,9 +141,9 @@ function NewCampaign({ me, drivers, contracts, sequences, trailers, busy, onBack
       <Field label="5. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
       <div className="b2p-settle">
         <Row label={`Viagens no total (1 operação de ${trips} ${trips === 1 ? "viagem" : "viagens"} × ${people} ${people === 1 ? "motorista" : "motoristas"})`} value={totalTrips} strong />
-        <Row label={`Investimento total se todos atingirem a meta (${people} ${people === 1 ? "motorista" : "motoristas"} × ${formatMoney(goalCents)})`} value={formatMoney(budget)} strong />
+        <Row label={`Investimento total a pagar aos motoristas (${totalTrips} ${totalTrips === 1 ? "viagem" : "viagens"} × ${formatMoney(perTripCents)})`} value={formatMoney(budget)} strong />
       </div>
-      <p className="b2p-hint">Cada motorista recebe a oferta e aceita ou recusa. Só contam viagens da operação confirmadas depois do aceite. O pagamento sai na folha do dia de pagamento, depois que o motorista conclui a operação; se não concluir na semana, recebe na semana seguinte.</p>
+      <p className="b2p-hint">{goalCents ? `Se todos os motoristas atingirem a meta de ${formatMoney(goalCents)} cada, o investimento é de ${formatMoney(budget)}. ` : ""}Cada motorista recebe a oferta e aceita ou recusa. Só contam viagens da operação confirmadas depois do aceite. O pagamento sai na folha do dia de pagamento, depois que o motorista conclui a operação; se não concluir na semana, recebe na semana seguinte.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>
