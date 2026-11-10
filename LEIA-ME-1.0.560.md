@@ -1,6 +1,6 @@
-# NVU PRO 1.0.559 (Android) / Web 2.3.216 / Windows 0.2.2
+# NVU PRO 1.0.560 (Android) / Web 2.3.217 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 559 — instala como atualização da 558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 560 — instala como atualização da 559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -30,6 +30,20 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Reboque** (Nova oferta e Designar trabalho): agora usa a lista de seleção no mesmo estilo da lista de veículos (busca, cartões com rádio, "Cancelar / Usar reboque"; na designação, os que não atendem à exigência aparecem bloqueados com o motivo).
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
+
+### 6a0000. Ajuste da 1.0.560 — card das parcerias igual ao de Trabalhos ativos e foto do veículo
+**Card da operação (Parcerias B2P e Trabalhos ativos)**
+- Em **Parcerias B2P** (Painel → Parcerias ativas e a tela de Detalhe) a operação agora é o **mesmo card de "Trabalhos ativos"** da Central: **recolhe e expande pela seta**; ao expandir mostra a **foto do veículo** (a cadastrada; a contratante vê mesmo antes de o motorista iniciar), botão de pinturas, ⓘ, entregas/restantes/concluído e "Tempo restante" no mesmo formato (`3d · 22h · 4min`). A faixa "Parceria · Executada por / Contratada por (empresa)" é a da Central; o rodapé "Contratado por" deixou de existir porque o card é o mesmo.
+- Em **Trabalhos ativos**, o **ⓘ** de uma operação executada por outra empresa **abre o card "Informações da operação" no próprio lugar** — não leva mais à página de Parcerias. Só o botão **Resultados** do card leva à página de Parcerias (tela de resultados). Sem os dados da parceria no aparelho (offline), abre o card comum só para informar.
+- O "tempo restante" da página de Parcerias anda de minuto em minuto, como na Central. O nome da empresa mostra só o primeiro e o segundo nome.
+
+**Foto do veículo — "VEHICLE_PHOTO_DECODE_INVALID" (para alguns motoristas funciona, para outros não)**
+- **Causa:** ao escolher a foto, o app a abria **inteira** num `<img>` só para validá-la e recusava mais de 40 MP; depois a decodificava de novo para reduzir. No Android o WebView só decodifica imagens até um tamanho que depende da memória do aparelho; fotos de câmeras de 48/50/64/108 MP (ou HEIC) caíam nessa recusa — por isso variava de motorista para motorista. Medido no Chromium: uma foto de 50 MP decodificada inteira ocupa ~200–260 MB e uma de 108 MP ~555 MB.
+- **Correção (`src/lib/vehiclePhotoPrepare.ts`):** a foto nunca é decodificada no tamanho original. Lê só o cabeçalho (tipo real, dimensões, rotação EXIF — não confia no `file.type`); JPEG é decodificado **já em escala reduzida (n/8)** com `ImageDecoder` (~25× menos memória: 50 MP ≈ 8–40 MB; 108 MP também entra); demais formatos / WebView antigo usam `createImageBitmap` com redução e limite pela memória do aparelho; último recurso `<img>`. Sai em WebP (ou JPEG se o WebView não gravar WebP) até 1280 px / 800 KB, com a miniatura de antes.
+- **Limite do arquivo escolhido: 20 MB** (antes 10 MB). É seguro porque a foto é lida em fluxo e reduzida; o que sobe ao Storage continua pequeno (< 2 MB) e o armazenamento local guarda só a versão reduzida.
+- **Mensagens claras** no lugar do código: arquivo vazio/não lido (foto só na nuvem), maior que 20 MB, não é imagem, HEIC/HEIF (explica como trocar para JPG), resolução alta demais para o aparelho, arquivo corrompido, demorou demais. O código técnico continua em `error.code` e o que foi tentado fica no console.
+- A **foto de início da parceria** (galeria → inicia a operação) usa a mesma preparação antes de enviar (até 1600 px / 1,2 MB). A prévia da foto original só aparece quando ela é pequena (≤ 3 MB); nas grandes aparece "Salvando…" e depois a foto pronta.
+- **Não alterado:** capa e foto do perfil e logotipo continuam com a checagem e o limite de 10 MB anteriores (mesma causa, fora deste pedido).
 
 ### 6a000. Ajuste da 1.0.559 — textos do card da parceria
 - O card da operação nas telas de Parcerias (Painel e Detalhe) **não mostra mais "Você contratou" / "Você executa"**: embaixo do nome do motorista aparece só o nome da empresa.
@@ -77,9 +91,9 @@ A lista vem do **catálogo público** de empresas (antes lia só as empresas do 
 Funções novas/alteradas das Parcerias: `createPartnershipOffer`, `respondPartnershipOffer`, `cancelPartnershipOffer`, `designatePartnershipDriver`, **`settlePartnershipPayment` (nova)** e gatilhos `syncPartnershipFromJob`, `syncPartnershipTrips`; regras de Firestore e Storage. Também foram alteradas funções **já existentes em produção** (`operationalCommand`, `registerCanonicalSimpleTrip`, `registerGtoProReceipt`, funções de ranking, filas operacionais): a publicação delas é **uma decisão à parte**.
 
 ## Verificação (o que foi e o que NÃO foi provado)
-- `npm run qa` (gate completo). Passo `partnerships`: 47 verificações (oferta com prazo em dias e valor, paridade da liquidação servidor × app, passos de pagamento, carteira, lista de parceiras, guardas de "sem veículo na oferta").
+- `npm run qa` (gate completo). Novo passo `vehicle-photo-prepare` (Chromium real): cabeçalhos JPEG/PNG/WEBP/GIF/AVIF/HEIC, fotos de 12/50/108 MP, rotação EXIF 1/3/6/8, PNG/WEBP/AVIF, 20 MB exatos × 20 MB + 1 byte, falhas com mensagem, WebView sem `ImageDecoder` e com limite de memória. Passo `partnerships`: 47 verificações (oferta com prazo em dias e valor, paridade da liquidação servidor × app, passos de pagamento, carteira, lista de parceiras, guardas de "sem veículo na oferta").
 - Emulador, 13 cenários, incluindo liquidação pelo gatilho `syncPartnershipFromJob`.
-- Telas conferidas no navegador (claro e escuro) com dados de exemplo e fluxos executados (enviar oferta com valor, aceitar, designar, marcar como pago) com o payload dos serviços verificado. **Não** vistas com dados reais num aparelho.
+- A leitura de fotos grandes foi provada no **Chromium (desktop)**; o limite de decodificação por memória do **WebView do Android não foi reproduzido neste ambiente** e a correção **não foi testada em aparelho**. Telas conferidas no navegador (claro e escuro) com dados de exemplo e fluxos executados (enviar oferta com valor, aceitar, designar, marcar como pago) com o payload dos serviços verificado. **Não** vistas com dados reais num aparelho.
 - **Regras de Storage da foto:** compilam, mas o emulador de Storage deste ambiente não alcança o Firestore; o teste declara SKIP.
 
 ## Limitações conhecidas

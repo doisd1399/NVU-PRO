@@ -15,6 +15,7 @@ import {
   clampDays, clampTrips, computeSettlement, emptyDraft, maskMoney, shortName, centsToMasked, walletEntries, walletTotals, formatDays, formatMoney, initialsOf, isPartnershipContract, lastVehicleOf, matchesRequirement, normalizePartnership,
   offerHint, offerSummary, paceOf, parseMoneyToCents, partnershipAlerts, perTripCents, pipsFor, remainingText, resultsOf, roleIn, sectionFor, statusText, suggestOperationName, validateDraft,
 } from "../src/lib/partnerships.ts";
+import { operationClock, partnershipOperation } from "../src/lib/partnershipOperation.ts";
 
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
@@ -376,13 +377,13 @@ test("Nova oferta: seletor de empresas em lista (sem simulador), valor por viage
 
 test("Detalhe da parceria: card da operação + resumo curto; o resto fica em 'Informações da operação' (ⓘ)", () => {
   const detail = readFileSync("src/components/partnerships/DetailScreens.tsx", "utf8");
-  assert.match(detail, /<OperationCard[^>]*onInfo/); assert.match(detail, /b2p-summary/); assert.match(detail, /Mais informações da operação/);
+  assert.match(detail, /<PartnershipOperationCard[^>]*onInfo/); assert.match(detail, /b2p-summary/); assert.match(detail, /Mais informações da operação/);
   const detailBody = detail.slice(detail.indexOf("export function Detail("), detail.indexOf("export function Results"));
   assert.doesNotMatch(detailBody, /Condições do acordo|startPhotoUrl|b2p-settle/, "condições, foto e tabela de pagamento ficam na folha de informações");
   const sheet = readFileSync("src/components/partnerships/PartnershipInfoSheet.tsx", "utf8");
   for (const topic of ["Veículo", "Reboque", "Entregas", "Prazo", "Valor do acordo"]) assert.match(sheet, new RegExp(`<dt>${topic}</dt>`));
   assert.match(sheet, /nvu-op-sheet-list/, "mesmo desenho da folha do motorista e da Central"); assert.doesNotMatch(sheet, /Contratante|Aceita em/, "sem repetir o que o cabeçalho e o card já mostram");
-  assert.match(readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), /Informações da operação/);
+  assert.match(readFileSync("src/components/admin/management/ManagementOperationCard.tsx", "utf8"), /Ver informações de/, "o ⓘ do card é o do Trabalhos ativos");
 });
 
 test("Foto de início da parceria: escolhida na galeria (sem `capture` da câmera)", () => {
@@ -403,8 +404,8 @@ test("Reboque é da contratante; designar oferece cancelar a operação em andam
 });
 
 test("Ícone de informações padrão (sem círculo extra) e foto do motorista da parceria vem do perfil público", () => {
-  const parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8");
-  assert.match(parts, /className="nvu-central-operation-info"[^>]*><Info size=\{18\} strokeWidth=\{1\.8\}/); assert.doesNotMatch(parts, /b2p-info-btn/);
+  const parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), card = readFileSync("src/components/admin/management/ManagementOperationCard.tsx", "utf8");
+  assert.match(card, /className="nvu-central-operation-info"[^>]*><Info size=\{18\} strokeWidth=\{1\.8\}/); assert.doesNotMatch(parts, /b2p-info-btn|nvu-central-operation-info/, "a página de Parcerias não desenha o próprio ⓘ");
   assert.match(readFileSync("src/pages/admin/Partnerships.tsx", "utf8"), /useVisibleDriverIdentity/);
   assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /driverPhoto: partnershipDrivers/);
   assert.match(readFileSync("src/components/partnerships/shared.tsx", "utf8"), /driverPhoto: \(driverId: string\) => string/);
@@ -413,13 +414,58 @@ test("Ícone de informações padrão (sem círculo extra) e foto do motorista d
 test("Contratante vê a foto cadastrada do veículo da executora mesmo antes do início", () => {
   const card = readFileSync("src/components/admin/management/ManagementOperationCard.tsx", "utf8");
   assert.doesNotMatch(card, /expanded && !asContractor/, "o veículo da parceria também carrega foto cadastrada"); assert.match(card, /photo\.src \|\| operation\.partnership\?\.photoUrl/);
-  assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /vehicleId: row\.vehicleId \|\| ""/);
+  assert.match(readFileSync("src/lib/partnershipOperation.ts", "utf8"), /vehicleId: p\.vehicleId \|\| ""/, "o mapeamento comum leva o veículo, para a foto cadastrada abrir");
   assert.equal(normalizePartnership("po_x", { vehicleId: "veh-1", status: "accepted" }).vehicleId, "veh-1");
 });
 
-test("Card da parceria: sem 'Você contratou/Você executa'; rodapé 'Contratado por <empresa>' no lugar de 'Pontuação para'", () => {
-  const parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8");
-  assert.doesNotMatch(parts, /Você contratou|Você executa|Pontuação para|Pontua para/, "textos antigos não podem voltar");
-  assert.match(parts, /Contratado por <b>\{shortName\(p\.contractorName\)\}<\/b>/);
-  assert.match(parts, /<span className="b2p-sub">\{other\.name\}<\/span>/, "a linha de baixo do nome mostra só a empresa");
+test("Parcerias B2P usa o MESMO card de Trabalhos ativos: recolhível, com foto do veículo, sem desenho próprio", () => {
+  const parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), page = readFileSync("src/pages/admin/Partnerships.tsx", "utf8");
+  assert.match(parts, /<ManagementOperationCard operation=\{operation\}/); assert.doesNotMatch(parts, /<article|nvu-central-operation-toggle|b2p-foot|b2p-ico/, "nada de card próprio");
+  assert.doesNotMatch(parts, /Você contratou|Você executa|Pontuação para|Pontua para|Contratado por/, "textos antigos do card não voltam");
+  assert.match(page, /<div className="nvu-central-job-list b2p-oplist">\{groups\.running\.map\(p => <PartnershipOperationCard/, "lista de parcerias ativas no desenho da lista de Trabalhos ativos");
+  assert.doesNotMatch(page, /onOpen=\{\(\) => open\(p\.id\)\} onInfo/, "o toque no card não navega: o chevron recolhe e expande");
+  const css = readFileSync("src/components/partnerships/Partnerships.css", "utf8");
+  assert.doesNotMatch(css, /\.nvu-b2p \.nvu-central-operation\s*\{/, "sem tamanho/espaçamento próprio do card"); assert.doesNotMatch(css, /\.nvu-b2p \.nvu-central-driver strong\s*\{/, "o nome do motorista tem o tamanho da Central");
+  const mgmt = readFileSync("src/components/admin/management/ManagementOperationCard.tsx", "utf8");
+  assert.match(mgmt, /useVehiclePhoto\(expanded && operation\.driverId/, "a foto do veículo só carrega ao abrir"); assert.match(mgmt, /shortName\(operation\.partnership\.executorName\)/, "empresas só com primeiro e segundo nome");
+});
+test("Trabalhos ativos: o ⓘ da operação em parceria abre o card de informações no lugar (não leva à página de Parcerias)", () => {
+  const tab = readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8");
+  assert.match(tab, /onInfo=\{operation => setInfoId\(operation\.id\)\}/); assert.doesNotMatch(tab, /onInfo=\{operation => operation\.partnership/, "o ⓘ não decide navegar");
+  assert.doesNotMatch(tab, /navigate\("\/admin\/parcerias", \{ state: \{ openId: operation/, "nenhuma navegação a partir do card");
+  assert.match(tab, /<PartnershipInfoSheet p=\{infoPartnership\}/); assert.match(tab, /<OperationInfoSheet[^>]*readOnly=\{info\.partnership\?\.role === "contractor"\}/, "sem a linha da parceria (offline), a folha comum abre só para informar");
+  assert.match(tab, /view: "results"/, "só o botão Resultados da folha leva à página de Parcerias");
+  assert.match(readFileSync("src/pages/admin/Partnerships.tsx", "utf8"), /state\?\.view === "results" \? "results" : "detail"/);
+  assert.match(readFileSync("src/components/admin/management/OperationInfoSheet.tsx", "utf8"), /\{!readOnly && <div className="nvu-op-sheet-actions">/);
+});
+test("Mapeamento parceria → card: a mesma conta na Central e na página de Parcerias", () => {
+  const base = normalizePartnership("po_a1", { status: "active", contractorCompanyId: "dc", executorCompanyId: "cts", contractorName: "DC Transportes", executorName: "Cooper log Transporte e Logística", simulatorId: "gto",
+    operationName: "BSX-002", totalTrips: 20, progress: 5, durationDays: 4, deadlineMs: NOW + 3 * DAY + 22 * 3_600_000 + 4 * 60_000, jobId: "j1", driverId: "dudu", driverName: "DUDU tv ribeiro", vehicleId: "veh-1", vehicleName: "Scania G R 540", trailerName: "Rodotrem Graneleiro 6 eixos", startPhotoUrl: "https://x/p.webp" });
+  const ctx = { me: "dc", companyName: "DC Transportes", simulatorLabel: "GTO", now: NOW, driverPhoto: "https://x/dudu.jpg", companyLogo: "https://x/logo.png" };
+  const op = partnershipOperation(base, ctx);
+  assert.deepEqual([op.id, op.driverName, op.driverId, op.driverPhoto, op.name, op.vehicleName, op.trailerName, op.showTrailer], ["pn_po_a1", "Dudu Ribeiro", "dudu", "https://x/dudu.jpg", "BSX-002", "Scania G R 540", "Rodotrem Graneleiro 6 eixos", true]);
+  assert.deepEqual([op.completed, op.required, op.remaining, op.progress, op.state, op.statusLabel, op.timeLabel], [5, 20, 15, 25, "active", undefined, undefined]);
+  assert.equal(op.timeRemaining, "3d · 22h · 4min", "o mesmo formato do tempo restante de Trabalhos ativos"); assert.equal(operationClock(NOW + 3 * DAY + 22 * 3_600_000 + 4 * 60_000, NOW), op.timeRemaining);
+  assert.deepEqual(op.partnership, { id: "po_a1", role: "contractor", contractorName: "DC Transportes", executorName: "Cooper log Transporte e Logística", photoUrl: "https://x/p.webp" });
+  assert.equal(partnershipOperation(base, { ...ctx, me: "cts" }).partnership!.role, "executor", "quem executa vê o papel de executora");
+  assert.equal(partnershipOperation({ ...base, deadlineMs: NOW - 1000 }, ctx).state, "overdue"); assert.equal(partnershipOperation({ ...base, deadlineMs: NOW - 1000 }, ctx).timeRemaining, "Prazo vencido");
+  assert.equal(partnershipOperation({ ...base, status: "accepted" }, ctx).state, "pending"); assert.equal(partnershipOperation({ ...base, status: "accepted" }, ctx).jobStatus, "pending");
+  const waiting = partnershipOperation({ ...base, status: "accepted", jobId: null, driverId: null, driverName: undefined, vehicleId: undefined, vehicleName: undefined }, ctx);
+  assert.deepEqual([waiting.driverName, waiting.driverId, waiting.driverPhoto, waiting.vehicleName, waiting.statusLabel], ["Cooper log", "", "https://x/logo.png", "Veículo a definir", "Aguardando motorista"], "sem motorista: mostra a outra empresa e o logo");
+  const offerOnly = partnershipOperation({ ...base, status: "pending", jobId: null, driverId: null, driverName: undefined, deadlineMs: 0 }, ctx);
+  assert.deepEqual([offerOnly.statusLabel, offerOnly.timeLabel, offerOnly.timeRemaining, offerOnly.state], ["Aguardando resposta", "Prazo:", "4 dias após o aceite", "pending"]);
+  const done = partnershipOperation({ ...base, status: "completed", progress: 20, settlement: { agreedCents: 100, late: true, penaltyPercent: 25, discountCents: 25, finalCents: 75, deadlineMs: NOW, completedAtMs: NOW + 1 } }, ctx);
+  assert.deepEqual([done.state, done.statusLabel, done.timeRemaining, done.jobStatus, done.progress], ["done", "Concluída", "Concluída fora do prazo", "completed", 100]);
+  assert.equal(partnershipOperation({ ...base, status: "declined" }, ctx).state, "closed"); assert.equal(partnershipOperation({ ...base, status: "cancelled" }, ctx).jobStatus, "cancelled");
+  assert.equal(partnershipOperation({ ...base, trailerName: undefined, trailerRequirement: null }, ctx).showTrailer, false, "sem reboque definido pela contratante, o card não mostra reboque");
+  assert.equal(partnershipOperation({ ...base, totalTrips: 0, progress: 0 }, ctx).progress, 0);
+});
+test("Fotos do veículo: leitura segura, até 20 MB, e a mesma preparação na foto do Painel e na foto de início da parceria", () => {
+  const service = readFileSync("src/services/vehiclePhotoService.ts", "utf8"), prep = readFileSync("src/lib/vehiclePhotoPrepare.ts", "utf8");
+  assert.match(service, /preparePhoto\(file, \{/); assert.doesNotMatch(service, /assertDecodable|browser-image-compression|10 \* 1024 \* 1024|até 10 MB/, "o <img> inteiro e o limite de 10 MB saíram");
+  assert.match(prep, /PHOTO_MAX_SOURCE_BYTES = 20 \* 1024 \* 1024/); assert.match(prep, /ImageDecoder/); assert.match(prep, /fullDecodePixelCap/);
+  const sheet = readFileSync("src/components/driver/PartnershipStartSheet.tsx", "utf8");
+  assert.match(sheet, /preparePhoto\(chosen, \{ maxSide: 1600/); assert.ok(sheet.indexOf("preparePhoto(chosen") < sheet.indexOf("uploadService.uploadImage"), "prepara antes de enviar");
+  assert.match(readFileSync("src/hooks/useVehiclePhoto.ts", "utf8"), /file\.size <= 3 \* 1024 \* 1024/, "foto grande não vira prévia crua");
+  assert.match(readFileSync("qa/config.json", "utf8"), /test-vehicle-photo-prepare\.mjs/, "o teste no Chromium está no QA");
 });

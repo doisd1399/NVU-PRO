@@ -25,6 +25,7 @@
       "ghost-jobs",
       "callable-regions",
       "partnerships",
+      "vehicle-photo-prepare",
       "durable-outbox"
     ],
     "web": [
@@ -53,6 +54,7 @@
       "ghost-jobs",
       "callable-regions",
       "partnerships",
+      "vehicle-photo-prepare",
       "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
@@ -85,6 +87,7 @@
       "ghost-jobs",
       "callable-regions",
       "partnerships",
+      "vehicle-photo-prepare",
       "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
@@ -386,6 +389,14 @@
         "scripts/test-partnerships.mts"
       ],
       "timeoutMs": 60000
+    },
+    "vehicle-photo-prepare": {
+      "label": "Foto do veículo: fotos de 50/108 MP, até 20 MB, rotação EXIF, HEIC e falhas com mensagem clara (Chromium)",
+      "kind": "controlled",
+      "args": [
+        "scripts/test-vehicle-photo-prepare.mjs"
+      ],
+      "timeoutMs": 240000
     }
   },
   "auditBlockersFile": "qa/audit-blockers.json"

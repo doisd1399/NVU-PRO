@@ -111,3 +111,5 @@
 .nvu-op-sheet-action { gap: 10px; min-height: 46px; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.2; }
 .nvu-op-sheet-action-icon { width: 20px; height: 20px; }
 .nvu-central-dialog.nvu-central-sheet:focus, .nvu-central-dialog.nvu-central-sheet:focus-visible { outline: none; }
+/* condições do acordo (parcerias B2P): nota neutra, não o aviso de atenção. Fica aqui porque a folha também abre na Central, sem o CSS da página de Parcerias. */
+.nvu-op-sheet-note.b2p-cond { border-color: var(--central-line); background: var(--central-soft); color: var(--central-text); font-size: 13px; line-height: 1.5; }

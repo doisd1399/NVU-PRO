@@ -3,6 +3,7 @@ import React, { useEffect, useId, useState } from "react";
 import { ChevronDown, Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
 import { StableImage } from "../../common/StableImage";
 import { useVehiclePhoto } from "../../../hooks/useVehiclePhoto";
+import { shortName } from "../../../lib/partnerships";
 import { ManagementDialog } from "./ManagementDialog";
 
 export type ManagementOperation = {
@@ -13,7 +14,12 @@ export type ManagementOperation = {
   simulatorId: string; simulatorLabel: string; contractId: string;
   completed: number; required: number; progress: number; remaining: number;
   deadline: string; deadlineTimestamp?: number; timeRemaining: string; nearDeadline: boolean;
-  state: "active" | "pending" | "overdue" | "ready";
+  /** `done` e `closed` (encerrada/recusada/cancelada) só aparecem nas parcerias B2P já finalizadas. */
+  state: "active" | "pending" | "overdue" | "ready" | "done" | "closed";
+  /** Texto da etiqueta de situação quando não é o padrão do estado (parcerias: "Aguardando resposta", "Recusada"…). */
+  statusLabel?: string;
+  /** Rótulo da linha de tempo (padrão "Tempo restante:"). */
+  timeLabel?: string;
   /** Raw job status; lets the information card tell a finished or cancelled job from an open one. */
   jobStatus?: string;
   /** The driver is no longer an active member of the company: the job was left open when he was removed. */
@@ -21,7 +27,7 @@ export type ManagementOperation = {
   /** Parceria B2P. Contratante: operação lida do documento da parceria (somente leitura). Executora: trabalho próprio com selo. */
   partnership?: { id: string; role: "contractor" | "executor"; contractorName: string; executorName: string; photoUrl?: string };
 };
-const statusLabels = { active: "Em andamento", pending: "Não iniciado", overdue: "Atrasado", ready: "Aguardando conclusão" };
+const statusLabels = { active: "Em andamento", pending: "Não iniciado", overdue: "Atrasado", ready: "Aguardando conclusão", done: "Concluída", closed: "Encerrada" };
 
 function PaintsDialog({ operation, onClose }: { operation: ManagementOperation; onClose: () => void }) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -64,8 +70,10 @@ function PaintsDialog({ operation, onClose }: { operation: ManagementOperation; 
  * and time line from the same markup and the same styles; the only differences are the vehicle photo block (not rendered
  * at all when minimized) and the direction of the arrow. Each card keeps its own state.
  */
-export function ManagementOperationCard({ operation, onInfo, onDriver, active = true }: {
+export function ManagementOperationCard({ operation, onInfo, onDriver, active = true, avatar }: {
   operation: ManagementOperation; onInfo: () => void; onDriver: () => void; active?: boolean;
+  /** Imagem no lugar da foto do motorista (parceria ainda sem motorista: logo da empresa). */
+  avatar?: React.ReactNode;
 }) {
   const [paintsOpen, setPaintsOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -80,18 +88,18 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
     : null, operation.companyId);
   return <article className="nvu-central-operation" data-operation-id={operation.id} data-expanded={expanded}>
     <div className="nvu-central-driver-row">
-      <button type="button" className="nvu-central-driver" onClick={asContractor ? undefined : onDriver} disabled={asContractor} aria-label={`Ver perfil de ${operation.driverName}`}>
-        <StableImage src={operation.driverPhoto} persistentViewerId={currentUser?.id} persistentAssetId={`management-avatar:${operation.companyId}:${operation.driverId}`} alt="" wrapperClassName="nvu-central-avatar" className="object-cover" loading="lazy"
-          referrerPolicy="no-referrer" fallback={<span>{operation.driverName.slice(0, 2).toUpperCase()}</span>} />
+      <button type="button" className="nvu-central-driver" onClick={asContractor || !operation.driverId ? undefined : onDriver} disabled={asContractor || !operation.driverId} aria-label={`Ver perfil de ${operation.driverName}`}>
+        {avatar ?? <StableImage src={operation.driverPhoto} persistentViewerId={currentUser?.id} persistentAssetId={`management-avatar:${operation.companyId}:${operation.driverId}`} alt="" wrapperClassName="nvu-central-avatar" className="object-cover" loading="lazy"
+          referrerPolicy="no-referrer" fallback={<span>{operation.driverName.slice(0, 2).toUpperCase()}</span>} />}
         <strong>{operation.driverName}</strong>
       </button>
       {operation.driverOutsideCompany && <span className="nvu-central-job-status" data-state="overdue" data-orphan="true"><i aria-hidden="true" />Fora da empresa</span>}
-      <span className="nvu-central-job-status" data-state={operation.state}><i aria-hidden="true" />{statusLabels[operation.state]}</span>
+      <span className="nvu-central-job-status" data-state={operation.state}><i aria-hidden="true" />{operation.statusLabel || statusLabels[operation.state]}</span>
       <button type="button" className="nvu-central-operation-toggle" aria-expanded={expanded} aria-controls={photoId} onClick={() => setExpanded(value => !value)}
         aria-label={`${expanded ? "Minimizar" : "Expandir"} operação de ${operation.driverName}`}><ChevronDown size={20} strokeWidth={2.2} aria-hidden="true" /></button>
     </div>
     {operation.partnership && <p className="nvu-central-partnership-strip"><span className="nvu-partnership-tag">Parceria</span>
-      <span>{asContractor ? <>Executada por <strong>{operation.partnership.executorName}</strong></> : <>Contratada por <strong>{operation.partnership.contractorName}</strong></>}</span></p>}
+      <span>{asContractor ? <>Executada por <strong>{shortName(operation.partnership.executorName)}</strong></> : <>Contratada por <strong>{shortName(operation.partnership.contractorName)}</strong></>}</span></p>}
     {expanded && <div id={photoId} className="nvu-central-vehicle-photo">
       <StableImage src={asContractor ? photo.src || operation.partnership?.photoUrl : photo.src} onLoad={asContractor && !photo.src ? undefined : photo.onImageLoad} onError={asContractor && !photo.src ? undefined : photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
         loading="lazy" fallback={<div className="nvu-central-photo-empty"><Truck size={30} /><span>{photo.remoteStatus === "loading" && !photo.src ? "Carregando foto do veículo…" : asContractor ? "Este veículo ainda não tem foto cadastrada" : "Foto do veículo indisponível"}</span></div>} />
@@ -112,7 +120,7 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
         <span style={{ width: `${operation.progress}%` }} />
       </div>
     </div>
-    <p className="nvu-central-operation-timing"><Clock3 size={16} strokeWidth={1.8} aria-hidden="true" /><span>Tempo restante:</span><strong data-warning={operation.timeRemaining !== "Não definido" || undefined}>{operation.timeRemaining}</strong></p>
+    <p className="nvu-central-operation-timing"><Clock3 size={16} strokeWidth={1.8} aria-hidden="true" /><span>{operation.timeLabel || "Tempo restante:"}</span><strong data-warning={(operation.timeRemaining !== "Não definido" && !operation.timeLabel) || undefined}>{operation.timeRemaining}</strong></p>
     {paintsOpen && <PaintsDialog operation={operation} onClose={() => setPaintsOpen(false)} />}
   </article>;
 }

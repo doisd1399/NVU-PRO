@@ -14,7 +14,7 @@ import { partnershipErrorMessage, roleIn, sectionFor, walletEntries, walletTotal
 import { NewOfferScreen } from "../../components/partnerships/NewOfferScreen";
 import { DesignateScreen } from "../../components/partnerships/DesignateScreen";
 import { Detail, OfferDetail, Results } from "../../components/partnerships/DetailScreens";
-import { HistoryRow, OfferRow, OperationCard, SummaryBody } from "../../components/partnerships/PanelParts";
+import { HistoryRow, OfferRow, PartnershipOperationCard, SummaryBody } from "../../components/partnerships/PanelParts";
 import { PartnershipInfoSheet } from "../../components/partnerships/PartnershipInfoSheet";
 import { WalletView } from "../../components/partnerships/WalletScreen";
 import { LogoContext, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
@@ -42,15 +42,19 @@ export default function Partnerships() {
   const [offerTab, setOfferTab] = useState<OfferTab>("recebidas");
   const [busy, setBusy] = useState(false);
   const [infoId, setInfoId] = useState("");
-  const now = useMemo(() => Date.now(), [rows, view]);
+  // Mesmo relógio da Central: o "Tempo restante" dos cards anda de minuto em minuto.
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const timer = window.setInterval(() => setTick(value => value + 1), 60_000); return () => window.clearInterval(timer); }, []);
+  const now = useMemo(() => Date.now(), [rows, view, tick]);
   const openedFromState = useRef(false);
   useEffect(() => { void loadCompanyCatalog().catch(() => []); }, [loadCompanyCatalog]);
   useEffect(() => { window.scrollTo?.({ top: 0 }); }, [view.name]);
   // Abrir a lista zera o indicador de novidades da Central (ofertas para responder continuam aparecendo até serem respondidas).
   useEffect(() => { if (view.name === "list" && ready && me && viewerId) markPartnershipsSeen(viewerId, me); }, [view.name, ready, rows, me, viewerId]);
   useEffect(() => {
-    const id = (location.state as { openId?: string } | null)?.openId;
-    if (id && !openedFromState.current && rows.some(row => row.id === id)) { openedFromState.current = true; setView({ name: "detail", id }); }
+    const state = location.state as { openId?: string; view?: "detail" | "results" } | null;
+    const id = state?.openId;
+    if (id && !openedFromState.current && rows.some(row => row.id === id)) { openedFromState.current = true; setView({ name: state?.view === "results" ? "results" : "detail", id }); }
   }, [location.state, rows]);
 
   const byId = useMemo(() => new Map(rows.map(row => [row.id, row])), [rows]);
@@ -92,6 +96,10 @@ export default function Partnerships() {
   const simulatorLabel = ownCompany ? resolveSimulatorDisplayLabel(ownCompany, simulators as any[], allCompanies) : "";
   const infoRow = infoId ? byId.get(infoId) : undefined;
   const companyName = String(ownCompany?.companyName || ownCompany?.fleetName || "");
+  const company = { name: companyName, simulator: simulatorLabel };
+  // Motorista da própria empresa: abre o perfil, como no card de Trabalhos ativos (o motorista de outra empresa não abre).
+  const openDriver = (p: Partnership) => p.driverId && roleIn(p, me) === "executor"
+    ? () => navigate(`/admin/driver/${p.driverId}/perfil`, { state: { returnUrl: "/admin/parcerias", companyId: me } }) : undefined;
   const TITLES: Record<string, [string, string]> = {
     list: ["Parcerias B2P", "Ofertas, operações e pagamentos entre empresas."], new: ["Nova oferta", "Proponha uma operação a uma empresa parceira."],
     offer: ["Oferta recebida", "Analise as condições e responda."], designate: ["Designar trabalho", "Escolha o motorista e o veículo da sua empresa."],
@@ -116,7 +124,8 @@ export default function Partnerships() {
     onBack={goList} onDone={() => { toast.success("Motorista designado. A operação já aparece para ele."); setView({ name: "detail", id: current.id }); }} />);
   if (view.name === "results" && current) return shell(<Results p={current} me={me} onBack={() => setView({ name: "detail", id: current.id })} />);
   if (view.name === "detail" && current) return shell(<Detail p={current} me={me} now={now} busy={busy} onBack={goList}
-    onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)} onPay={action => void pay(current.id, action)} onInfo={() => setInfoId(current.id)} />);
+    onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)} onPay={action => void pay(current.id, action)} onInfo={() => setInfoId(current.id)}
+    company={company} onDriver={openDriver(current)} />);
 
   const open = (id: string, name: "offer" | "detail" | "designate" = "detail") => setView({ name, id });
   const openOffer = (p: Partnership) => open(p.id, p.status === "pending" && roleIn(p, me) === "executor" ? "offer" : p.status === "accepted" && !p.jobId && roleIn(p, me) === "executor" ? "designate" : "detail");
@@ -132,7 +141,7 @@ export default function Partnerships() {
     {tab === "painel" ? <>
       <section className="nvu-central-section b2p-sec"><SummaryBody totals={totals} active={groups.running.length} toAnswer={toAnswer} done={groups.done.length} /></section>
       <Section title="Parcerias ativas" count={groups.running.length} action={newButton}>
-        {groups.running.length ? groups.running.map(p => <OperationCard key={p.id} p={p} me={me} now={now} onOpen={() => open(p.id)} onInfo={() => setInfoId(p.id)} />)
+        {groups.running.length ? <div className="nvu-central-job-list b2p-oplist">{groups.running.map(p => <PartnershipOperationCard key={p.id} p={p} me={me} now={now} company={company} onInfo={() => setInfoId(p.id)} onDriver={openDriver(p)} />)}</div>
           : <p className="b2p-empty">{ready ? "Nenhuma parceria ativa no momento." : "Carregando parcerias…"}</p>}
         <div className="b2p-linkrow"><button type="button" className="b2p-link" onClick={() => setTab("ofertas")}>Ver ofertas<ChevronRight size={18} aria-hidden="true" /></button></div>
       </Section>

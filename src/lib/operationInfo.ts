@@ -1,7 +1,7 @@
 /** Presentation rules of the "Informações da operação" card. Pure, so every state can be tested without the screen. */
 export type OperationInfoSource = {
   jobStatus?: string;
-  state: "active" | "pending" | "overdue" | "ready";
+  state: "active" | "pending" | "overdue" | "ready" | "done" | "closed";
   completed: number;
   required: number;
   deadlineTimestamp?: number;
@@ -39,11 +39,12 @@ export function formatTimeRemaining(deadline: number | undefined, now: number): 
 export function describeOperationInfo(operation: OperationInfoSource, now: number = Date.now()): OperationInfoView {
   const required = Math.max(0, Math.floor(Number(operation.required) || 0));
   const completed = Math.max(0, Math.floor(Number(operation.completed) || 0));
-  const cancelled = operation.jobStatus === "cancelled";
-  const done = operation.jobStatus === "completed";
+  const cancelled = operation.jobStatus === "cancelled" || operation.state === "closed";
+  const done = operation.jobStatus === "completed" || operation.state === "done";
   const due = Number(operation.deadlineTimestamp) || 0;
   const overdue = !cancelled && !done && operation.state !== "pending" && operation.state !== "ready" && (operation.state === "overdue" || (due > 0 && due <= now));
-  const tone: OperationInfoTone = cancelled ? "cancelled" : done ? "done" : overdue ? "overdue" : operation.state;
+  const open = operation.state === "closed" ? "cancelled" : operation.state;
+  const tone: OperationInfoTone = cancelled ? "cancelled" : done ? "done" : overdue ? "overdue" : open;
   const percent = done ? 100 : required ? Math.min(100, Math.max(0, Math.round(completed / required * 100))) : 0;
   const timeText = cancelled ? "Trabalho cancelado" : done ? "Operação encerrada" : formatTimeRemaining(due, now);
   return {

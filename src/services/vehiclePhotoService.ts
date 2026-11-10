@@ -1,8 +1,6 @@
-import imageCompression from "browser-image-compression";
-import { localImageCompressionWorkerUrl } from "../lib/localImageCompressionWorker";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "../lib/firebase";
-import { compressImage, convertFileToBase64 } from "../lib/utils";
+import { convertFileToBase64 } from "../lib/utils";
 import { isAuthTeardownActive } from "../lib/authLifecycle";
 import { vehiclePhotoKey, type VehiclePhotoIdentity } from "../lib/vehiclePhotoIdentity";
 import { uploadService } from "./uploadService";
@@ -11,7 +9,7 @@ import { vehiclePhotoFailure } from "./vehiclePhotoErrors";
 import { getVehiclePhotoRecord, listPendingVehiclePhotos, putVehiclePhotoRecord, updateVehiclePhotoRecord, VEHICLE_PHOTO_CHANGED, type VehiclePhotoRecord } from "./vehiclePhotoStore";
 import { createVehiclePhotoSync } from "./vehiclePhotoSync";
 import { downloadPhotoBlob } from "./photoDownload";
-import { assertDecodable } from "./photoDecode";
+import { preparePhoto } from "../lib/vehiclePhotoPrepare";
 
 const sync = createVehiclePhotoSync({
   currentUserId: () => isAuthTeardownActive() ? undefined : auth.currentUser?.uid,
@@ -27,15 +25,16 @@ const sync = createVehiclePhotoSync({
   writeMetadata: (record, url) => writeRemoteVehiclePhoto(db, record, url, record.revision),
 });
 
+/**
+ * Foto final (até 1280 px, WebP) e miniatura, a partir da foto escolhida (até 20 MB) ou baixada do Storage. A leitura é segura para fotos
+ * grandes e para o WebView do Android (veja `lib/vehiclePhotoPrepare.ts`); falhas voltam como `PhotoPrepareError` com mensagem clara.
+ */
 async function imageBytes(file: File, preserveOptimized = false): Promise<{ imageDataUrl: string; posterDataUrl: string; contentType: string }> {
-  const dimensions = await assertDecodable(file);
-  const compressed = preserveOptimized && file.size <= 850_000 && Math.max(dimensions.width, dimensions.height) <= 1280 ? file : await imageCompression(file, {
-    maxSizeMB: 0.8, maxWidthOrHeight: 1280, useWebWorker: true, fileType: "image/webp",
-    libURL: localImageCompressionWorkerUrl(),
+  const prepared = await preparePhoto(file, {
+    maxSide: 1280, targetBytes: 800_000, poster: { maxWidth: 480, maxHeight: 320, quality: 0.65 },
+    keepOriginal: preserveOptimized ? probe => file.size <= 850_000 && Math.max(probe.width, probe.height) <= 1280 : undefined,
   });
-  const imageDataUrl = await convertFileToBase64(compressed);
-  const posterDataUrl = await compressImage(imageDataUrl, 480, 320, 0.65);
-  return { imageDataUrl, posterDataUrl, contentType: compressed.type || "image/webp" };
+  return { imageDataUrl: await convertFileToBase64(prepared.blob), posterDataUrl: prepared.posterDataUrl, contentType: prepared.blob.type || "image/webp" };
 }
 
 
@@ -157,7 +156,7 @@ export const vehiclePhotoService = {
   },
   async save(identity: VehiclePhotoIdentity, companyId: string, file: File): Promise<VehiclePhotoRecord> {
     if (auth.currentUser?.uid !== identity.userId || isAuthTeardownActive()) throw new Error("VEHICLE_PHOTO_SESSION_CHANGED");
-    if (!file.type.startsWith("image/") || file.size > 10 * 1024 * 1024) throw new Error("Escolha uma imagem JPG, PNG ou WEBP de até 10 MB.");
+    // Tipo, tamanho (até 20 MB) e leitura são conferidos pelo preparo, que olha os bytes e não o `file.type` informado pelo seletor.
     const record = makeRecord(identity, companyId, await imageBytes(file));
     if (auth.currentUser?.uid !== identity.userId || isAuthTeardownActive()) throw new Error("VEHICLE_PHOTO_SESSION_CHANGED");
     await putVehiclePhotoRecord(record); // Persist actual bytes BEFORE the network request.

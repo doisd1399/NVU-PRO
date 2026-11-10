@@ -13,7 +13,7 @@ const LABEL: Record<string, string> = { active: "Em andamento", pending: "Não i
  * "Informações da operação" da parceria: o MESMO desenho da folha da Central e do painel do motorista (motorista, operação e situação,
  * lista compacta e ações). O acordo (valor e pagamento) entra como linhas extras da própria lista.
  */
-export function PartnershipInfoSheet({ p, me, driverPhoto, onResults, onRepeat, onClose }: { p: Partnership; me: string; driverPhoto?: string; onResults: () => void; onRepeat: () => void; onClose: () => void }) {
+export function PartnershipInfoSheet({ p, me, driverPhoto, onResults, onRepeat, onClose }: { p: Partnership; me: string; driverPhoto?: string; onResults: () => void; onRepeat?: () => void; onClose: () => void }) {
   const { currentUser } = useSessionStore();
   const now = Date.now(), contractor = roleIn(p, me) === "contractor", s = p.settlement, pay = p.payment;
   const late = !["completed", "cancelled", "declined"].includes(p.status) && Boolean(p.deadlineMs) && p.deadlineMs <= now;
@@ -45,7 +45,7 @@ export function PartnershipInfoSheet({ p, me, driverPhoto, onResults, onRepeat, 
       {p.conditions ? <p className="nvu-op-sheet-note b2p-cond" role="note">{p.conditions}</p> : null}
       <div className="nvu-op-sheet-actions">
         {p.progress > 0 || p.status === "completed" ? <button type="button" className="nvu-op-sheet-action" data-action="results" onClick={() => { onClose(); onResults(); }}><BarChart3 className="nvu-op-sheet-action-icon" size={20} strokeWidth={1.7} aria-hidden="true" /><span>Resultados</span></button> : null}
-        {contractor && ["completed", "declined", "cancelled"].includes(p.status) ? <button type="button" className="nvu-op-sheet-action" data-action="repeat" onClick={() => { onClose(); onRepeat(); }}><Repeat className="nvu-op-sheet-action-icon" size={20} strokeWidth={1.7} aria-hidden="true" /><span>Repetir oferta</span></button> : null}
+        {onRepeat && contractor && ["completed", "declined", "cancelled"].includes(p.status) ? <button type="button" className="nvu-op-sheet-action" data-action="repeat" onClick={() => { onClose(); onRepeat(); }}><Repeat className="nvu-op-sheet-action-icon" size={20} strokeWidth={1.7} aria-hidden="true" /><span>Repetir oferta</span></button> : null}
       </div>
     </div>
   </ManagementDialog>;

@@ -2,7 +2,7 @@ import React from "react";
 import { ArrowRight } from "lucide-react";
 import { formatDays, formatMoney, LATE_PENALTY_PERCENT, remainingText, resultsOf, roleIn, type Partnership, shortName } from "../../lib/partnerships";
 import { Avatar, BackLink, fmtDateTime } from "./shared";
-import { OperationCard } from "./PanelParts";
+import { PartnershipOperationCard } from "./PanelParts";
 
 const Row = ({ label, value, strong, neg }: { label: string; value: React.ReactNode; strong?: boolean; neg?: boolean }) =>
   <div data-total={strong ? "1" : undefined} data-neg={neg ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
@@ -34,8 +34,9 @@ export function OfferDetail({ p, busy, onBack, onAccept, onDecline }: { p: Partn
 }
 
 /** Detalhe da parceria: o card da operação e, abaixo, um resumo curto em lista (ganhos, duração, valor, pagamento). O resto fica em "Informações da operação" (ⓘ). */
-export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay, onInfo }: {
+export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay, onInfo, company, onDriver }: {
   p: Partnership; me: string; now: number; busy: boolean; onBack: () => void; onDesignate: () => void; onCancel: () => void; onPay: (action: "paid" | "received") => void; onInfo: () => void;
+  company: { name: string; simulator: string }; onDriver?: () => void;
 }) {
   const role = roleIn(p, me), s = p.settlement, pay = p.payment, r = resultsOf(p);
   const needsDriver = role === "executor" && p.status === "accepted" && !p.jobId;
@@ -50,7 +51,7 @@ export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay,
   if (s) rows.push([role === "contractor" ? "A pagar" : "A receber", <>{money(s.finalCents)}{s.late ? <small> −{s.penaltyPercent}%</small> : null}</>], ["Pagamento", payment]);
   return <>
     <BackLink label="Parcerias" onClick={onBack} />
-    <OperationCard p={p} me={me} now={now} onInfo={onInfo} />
+    <PartnershipOperationCard p={p} me={me} now={now} company={company} onInfo={onInfo} onDriver={onDriver} />
     <section className="b2p-summary" aria-label="Resumo da operação">
       {rows.map(([label, value]) => <div key={label}><span>{label}</span><b>{value}</b></div>)}
       <button type="button" className="b2p-summary-more" onClick={onInfo}>Mais informações da operação<ArrowRight size={18} aria-hidden="true" /></button>

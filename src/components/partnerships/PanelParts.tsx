@@ -1,8 +1,10 @@
-import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, Clock, Container, FileText, Info, Truck } from "lucide-react";
+import React, { useContext, useMemo } from "react";
+import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, FileText } from "lucide-react";
 import {
-  formatDays, formatMoney, paceOf, remainingText, resultsOf, roleIn, WALLET_STATUS_LABEL, type Partnership, type WalletEntry, type WalletTotals, shortName } from "../../lib/partnerships";
-import { Avatar, fmtDay, fmtDayTime } from "./shared";
+  formatDays, formatMoney, resultsOf, roleIn, WALLET_STATUS_LABEL, type Partnership, type WalletEntry, type WalletTotals, shortName } from "../../lib/partnerships";
+import { partnershipOperation } from "../../lib/partnershipOperation";
+import { ManagementOperationCard } from "../admin/management/ManagementOperationCard";
+import { Avatar, fmtDay, LogoContext } from "./shared";
 
 const otherOf = (p: Partnership, me: string) => roleIn(p, me) === "contractor" ? { name: shortName(p.executorName), id: p.executorCompanyId } : { name: shortName(p.contractorName), id: p.contractorCompanyId };
 
@@ -17,37 +19,21 @@ export function SummaryBody({ totals, active, toAnswer, done }: { totals: Wallet
   </>;
 }
 
-/** Operação em andamento (mesmo desenho de "Trabalhos ativos" da Central). */
-export function OperationCard({ p, me, now, onOpen, onInfo }: { p: Partnership; me: string; now: number; onOpen?: () => void; onInfo?: () => void }) {
-  const other = otherOf(p, me), pace = paceOf(p, now), pct = p.totalTrips ? Math.min(100, Math.round(p.progress / p.totalTrips * 100)) : 0;
-  const remaining = remainingText(p.deadlineMs, now), late = pace.tone === "late" && pace.label === "Prazo vencido";
-  return <article className="nvu-central-operation">
-    <div className="nvu-central-driver-row">
-      <button type="button" className="nvu-central-driver" onClick={onOpen} disabled={!onOpen} aria-label={`Abrir ${p.operationName}`}>
-        <Avatar name={p.driverName || other.name} companyId={p.driverName ? undefined : other.id} driverId={p.driverName ? p.driverId || undefined : undefined} />
-        <strong>{p.driverName || other.name}<span className="b2p-sub">{other.name}</span></strong>
-      </button>
-      <span className="nvu-central-job-status" data-state={late ? "overdue" : p.status === "accepted" || p.status === "pending" ? "pending" : "active"}><i aria-hidden="true" />{late ? "Atrasada" : p.status === "completed" ? "Concluída" : p.status === "accepted" ? "Aguardando início" : p.status === "pending" ? "Aguardando resposta" : "Em andamento"}</span>
-      {onOpen ? <button type="button" className="nvu-central-operation-toggle" onClick={onOpen} aria-label="Abrir detalhes"><ChevronRight size={20} aria-hidden="true" /></button> : null}
-    </div>
-    <div className="nvu-central-vehicle-line">
-      <span className="b2p-ico"><Truck size={20} aria-hidden="true" /></span>
-      <div className="nvu-central-vehicle-name"><strong>{p.vehicleName || "Veículo a definir"}</strong>{p.trailerName || p.trailerRequirement ? <small>{p.trailerName || p.trailerRequirement}</small> : null}</div>
-      {onInfo ? <button type="button" className="nvu-central-operation-info" onClick={onInfo} aria-label="Informações da operação"><Info size={18} strokeWidth={1.8} aria-hidden="true" /></button> : null}
-      <span className="nvu-central-operation-name" title={p.operationName}>{p.operationName}</span>
-    </div>
-    <div className="nvu-central-operation-stats">
-      <div className="nvu-central-operation-metrics">
-        <div><strong>{p.progress}/{p.totalTrips}</strong><span>Viagens</span></div>
-        <div><strong>{Math.max(0, p.totalTrips - p.progress)}</strong><span>Restantes</span></div>
-        <div><strong>{pct}%</strong><span>Concluído</span></div>
-      </div>
-      <div className="nvu-central-progress" role="progressbar" aria-label={`Progresso de ${p.operationName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: `${pct}%` }} /></div>
-    </div>
-    {remaining ? <p className="nvu-central-operation-timing"><Clock size={16} strokeWidth={1.8} aria-hidden="true" /><span>Prazo restante:</span><strong data-warning={late || undefined}>{remaining}</strong></p> : null}
-    <p className="b2p-foot">Contratado por <b>{shortName(p.contractorName)}</b></p>
-  </article>;
+/**
+ * Operação da parceria: o MESMO card de "Trabalhos ativos" da Central (`ManagementOperationCard`): abre e recolhe, mostra a foto do veículo ao abrir,
+ * pinturas, ⓘ e o rodapé de tempo. Parceria sem motorista ainda mostra o logo da outra empresa no lugar da foto.
+ */
+export function PartnershipOperationCard({ p, me, now, company, onInfo, onDriver }: {
+  p: Partnership; me: string; now: number; company: { name: string; simulator: string }; onInfo?: () => void; onDriver?: () => void;
+}) {
+  const { logo, driverPhoto } = useContext(LogoContext);
+  const other = otherOf(p, me);
+  const operation = useMemo(() => partnershipOperation(p, { me, now, companyName: company.name, simulatorLabel: company.simulator,
+    driverPhoto: p.driverId ? driverPhoto(p.driverId) : undefined, companyLogo: logo(other.id) }), [p, me, now, company.name, company.simulator, driverPhoto, logo, other.id]);
+  return <ManagementOperationCard operation={operation} onInfo={onInfo || noop} onDriver={onDriver || noop}
+    avatar={p.driverId ? undefined : <Avatar name={other.name} companyId={other.id} />} />;
 }
+const noop = () => undefined;
 
 /** "há 5 min", "há 3 h", "ontem", "há 4 dias" (mais antigo: dia/mês). */
 export function agoText(ms: number, now: number): string {

@@ -143,8 +143,8 @@ export function useVehiclePhoto(identity: VehiclePhotoIdentity | null, companyId
     setError(null);
     let preview = "";
     try {
-      preview = URL.createObjectURL(file);
-      setState({ key, src: preview, pending: true });
+      // Prévia imediata só de foto pequena: abrir de uma vez uma foto de 15 MB / 50 MP num <img> pode falhar no Android. Nas grandes o "Salvando…" cobre o preparo.
+      if (file.size <= 3 * 1024 * 1024) { preview = URL.createObjectURL(file); setState({ key, src: preview, pending: true }); }
       const record = await vehiclePhotoService.save(identity, companyId, file);
       setState({ key, src: record.imageDataUrl, pending: record.status === "pending" || Boolean(record.needsPublication) });
       setCacheStatus({ key, value: "ready" });
