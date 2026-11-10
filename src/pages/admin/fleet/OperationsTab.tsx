@@ -199,7 +199,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
       return {
         id: `pn_${row.id}`, companyId: row.contractorCompanyId, companyName: activeCompany?.companyName || "Empresa",
         driverId: row.driverId || "", driverName: formatDriverName(row.driverName || "Motorista"), driverPhoto: partnershipDrivers[row.driverId || ""]?.profilePhotoURL || undefined,
-        contractId: "", name: row.operationName, vehicleId: "", vehicleName: row.vehicleName || "Veículo a definir",
+        contractId: "", name: row.operationName, vehicleId: row.vehicleId || "", vehicleName: row.vehicleName || "Veículo a definir",
         trailerName: row.trailerName || row.trailerRequirement || undefined, showTrailer: Boolean(row.trailerRequirement || row.trailerName),
         simulatorId: row.simulatorId, simulatorLabel: resolveSimulatorDisplayLabel(simulator || { id: row.simulatorId }),
         completed: row.progress, required, remaining: Math.max(0, required - row.progress), progress: required ? Math.min(100, Math.round(row.progress / required * 100)) : 0,

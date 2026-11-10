@@ -409,3 +409,10 @@ test("Ícone de informações padrão (sem círculo extra) e foto do motorista d
   assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /driverPhoto: partnershipDrivers/);
   assert.match(readFileSync("src/components/partnerships/shared.tsx", "utf8"), /driverPhoto: \(driverId: string\) => string/);
 });
+
+test("Contratante vê a foto cadastrada do veículo da executora mesmo antes do início", () => {
+  const card = readFileSync("src/components/admin/management/ManagementOperationCard.tsx", "utf8");
+  assert.doesNotMatch(card, /expanded && !asContractor/, "o veículo da parceria também carrega foto cadastrada"); assert.match(card, /photo\.src \|\| operation\.partnership\?\.photoUrl/);
+  assert.match(readFileSync("src/pages/admin/fleet/OperationsTab.tsx", "utf8"), /vehicleId: row\.vehicleId \|\| ""/);
+  assert.equal(normalizePartnership("po_x", { vehicleId: "veh-1", status: "accepted" }).vehicleId, "veh-1");
+});

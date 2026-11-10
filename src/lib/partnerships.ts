@@ -20,7 +20,7 @@ export type Partnership = {
   /** Valor do acordo (negociado entre as empresas, fora do NVU). `settlement`/`payment` só existem depois da conclusão. */
   agreedAmountCents: number | null; settlement: Settlement | null; payment: { status: PaymentStatus; paidAtMs: number; settledAtMs: number } | null; completedAtMs: number;
   progress: number; earningsCents: number; bestCents: number; averageCents: number; ledger: PartnershipLedgerEntry[];
-  jobId: string | null; driverId: string | null; driverName?: string; vehicleName?: string; vehiclePlate?: string; trailerName?: string;
+  jobId: string | null; driverId: string | null; driverName?: string; vehicleId?: string; vehicleName?: string; vehiclePlate?: string; trailerName?: string;
   startPhotoUrl?: string;
   createdAtMs: number; updatedAtMs: number;
 };
@@ -57,7 +57,7 @@ export function normalizePartnership(id: string, raw: Record<string, any>): Part
     bestCents: Math.max(0, num(raw.bestCents)), averageCents: Math.max(0, num(raw.averageCents)),
     ledger: Array.isArray(raw.ledger) ? raw.ledger.filter((e: any) => e && typeof e === "object").map((e: any) => ({ n: num(e.n), at: num(e.at), cents: num(e.cents), tripId: text(e.tripId) })) : [],
     jobId: text(raw.jobId) || null, driverId: text(raw.driverId) || null, driverName: text(raw.driverName) || undefined,
-    vehicleName: text(raw.vehicleName) || undefined, vehiclePlate: text(raw.vehiclePlate) || undefined, trailerName: text(raw.trailerName) || undefined,
+    vehicleId: text(raw.vehicleId) || undefined, vehicleName: text(raw.vehicleName) || undefined, vehiclePlate: text(raw.vehiclePlate) || undefined, trailerName: text(raw.trailerName) || undefined,
     startPhotoUrl: text(raw.startPhotoUrl) || undefined,
     createdAtMs: ms(raw.createdAt), updatedAtMs: ms(raw.updatedAt),
   };
