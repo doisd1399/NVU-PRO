@@ -89,7 +89,7 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
         aria-label={`${expanded ? "Minimizar" : "Expandir"} operação de ${operation.driverName}`}><ChevronDown size={20} strokeWidth={2.2} aria-hidden="true" /></button>
     </div>
     {operation.partnership && <p className="nvu-central-partnership-strip"><span className="nvu-partnership-tag">Parceria</span>
-      <span><strong>{operation.partnership.contractorName}</strong> contratou · <strong>{operation.partnership.executorName}</strong> executa</span></p>}
+      <span>{asContractor ? <>Executada por <strong>{operation.partnership.executorName}</strong></> : <>Contratada por <strong>{operation.partnership.contractorName}</strong></>}</span></p>}
     {expanded && <div id={photoId} className="nvu-central-vehicle-photo">
       <StableImage src={asContractor ? operation.partnership?.photoUrl : photo.src} onLoad={asContractor ? undefined : photo.onImageLoad} onError={asContractor ? undefined : photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
         loading="lazy" fallback={<div className="nvu-central-photo-empty"><Truck size={30} /><span>{!asContractor && photo.remoteStatus === "loading" && !photo.src ? "Carregando foto do veículo…" : asContractor ? "A foto aparece quando o motorista inicia" : "Foto do veículo indisponível"}</span></div>} />

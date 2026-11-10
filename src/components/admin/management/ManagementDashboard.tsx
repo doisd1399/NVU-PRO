@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
+import { ArrowRight, BellRing, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
 import { ManagementOperationCard, type ManagementOperation } from "./ManagementOperationCard";
 import "./ManagementDashboard.css";
 
@@ -38,7 +38,7 @@ function FittedAmount({ children }: { children: string }) {
 }
 
 export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, earnings, tripCount,
-  goal, onGoal, operations, totalOperations, onAction, onInfo, onDriver, loading, refreshing, active = true, partnershipBadge,
+  goal, onGoal, operations, totalOperations, onAction, onInfo, onDriver, loading, refreshing, active = true, partnershipAlert,
 }: {
   periodLabel: string; periodDescription: string; onPeriod: () => void;
   earnings: string[]; tripCount: number;
@@ -46,8 +46,8 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
   onGoal: () => void; operations: ManagementOperation[]; totalOperations: number;
   onAction: (value: ManagementAction) => void; onInfo: (value: ManagementOperation) => void;
   onDriver: (value: ManagementOperation) => void; loading: boolean; refreshing: boolean; active?: boolean;
-  /** Parcerias B2P: resumo curto ao lado do botão (ex.: "1 em andamento"). Vazio = sem selo. */
-  partnershipBadge?: { text: string; attention: boolean };
+  /** Parcerias B2P: indicador do botão (oferta para responder, aceite, recusa, conclusão). Sem itens = sem indicador. */
+  partnershipAlert?: { toAnswer: number; news: number; total: number; label: string };
 }) {
   const id = useId();
   const [jobsOpen, setJobsOpen] = useState(true);
@@ -89,7 +89,8 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
       <div className="nvu-central-section-heading"><h2 id={`${id}-actions`}>Gerenciar empresa</h2></div>
       <div id={`${id}-actions-body`} className="nvu-central-action-list">
         {actions.map(({ id: actionId, label, icon: Icon }) => <button type="button" key={actionId} className="nvu-central-action" onClick={() => onAction(actionId)}>
-          <Icon className="nvu-central-action-icon" size={24} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>{actionId === "partnerships" && partnershipBadge?.text ? <span className="nvu-central-action-badge" data-attention={partnershipBadge.attention ? "true" : "false"}>{partnershipBadge.text}</span> : null}<span className="nvu-central-action-arrow"><ArrowRight size={20} strokeWidth={1.8} /></span>
+          <Icon className="nvu-central-action-icon" size={24} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>{actionId === "partnerships" && partnershipAlert?.total ? <span className="nvu-central-action-alert" data-tone={partnershipAlert.toAnswer ? "warn" : "info"} role="status" title={partnershipAlert.label}
+            aria-label={`Parcerias B2P: ${partnershipAlert.label}`}><BellRing size={13} strokeWidth={2.2} aria-hidden="true" /><b>{partnershipAlert.total > 9 ? "9+" : partnershipAlert.total}</b></span> : null}<span className="nvu-central-action-arrow"><ArrowRight size={20} strokeWidth={1.8} /></span>
         </button>)}
       </div>
     </section>

@@ -23,7 +23,7 @@ const failsWith = async (fn, code) => assert.rejects(fn, error => { assert.ok(St
 const DAY = 86_400_000;
 let seq = 0;
 const offerData = (extra = {}) => ({ contractorCompanyId: "a", executorCompanyId: "b", operationName: "Operação 031", totalTrips: 5,
-  trailerRequirement: "Frigorífico", deadlineAt: new Date(Date.now() + 4 * DAY).toISOString(), conditions: "Veículo limpo.", goalAmountCents: 4_000_000, requestId: `req-${++seq}-${Date.now()}`, ...extra });
+  trailerRequirement: "Frigorífico", durationDays: 5, conditions: "Veículo limpo.", goalAmountCents: 4_000_000, requestId: `req-${++seq}-${Date.now()}`, ...extra });
 const createOffer = (uid = "owner-a", extra = {}) => partnerships.createPartnershipOffer.run(offerData(extra), ctx(uid));
 const respond = (id, decision, uid = "owner-b") => partnerships.respondPartnershipOffer.run({ partnershipId: id, decision }, ctx(uid));
 const designate = (id, extra = {}, uid = "owner-b") => partnerships.designatePartnershipDriver.run({ partnershipId: id, driverId: "drv-b", vehicleId: "veh-b", trailerId: "trl-b", ...extra }, ctx(uid));
@@ -66,11 +66,20 @@ try {
     const row = (await get(`partnerships/${first.partnershipId}`)).data();
     assert.equal(row.status, "pending"); assert.equal(row.contractorName, "DC Transportes"); assert.equal(row.executorName, "CTS"); assert.equal(row.currency, "BRL");
     assert.equal(row.totalTrips, 5); assert.equal(row.goalAmountCents, 4_000_000); assert.equal(row.jobId, null);
+    assert.equal(row.durationDays, 5); assert.equal(row.deadlineMs, null, "o prazo só começa a contar no aceite"); assert.equal(row.deadlineAt, null);
     const again = await partnerships.createPartnershipOffer.run(data, ctx("owner-a"));
     assert.equal(again.partnershipId, first.partnershipId); assert.equal(again.replayed, true);
     assert.equal((await db.collection("partnerships").get()).size, 1);
     await failsWith(() => partnerships.createPartnershipOffer.run({ ...data, operationName: "Outro nome" }, ctx("owner-a")), "failed-precondition");
     assert.ok((await db.collection("notifications").where("companyId", "==", "b").get()).size >= 1, "a executora é avisada");
+  });
+
+  await test("prazo em dias: 1 a 120; app antigo com data final é convertido; recusar não inicia relógio", async () => {
+    for (const durationDays of [0, 121, 2.5]) await failsWith(() => createOffer("owner-a", { durationDays }), "invalid-argument");
+    const legacy = await partnerships.createPartnershipOffer.run({ ...offerData({ durationDays: undefined }), deadlineAt: new Date(Date.now() + 3.5 * DAY).toISOString() }, ctx("owner-a"));
+    assert.equal((await get(`partnerships/${legacy.partnershipId}`)).get("durationDays"), 4);
+    await respond(legacy.partnershipId, "decline");
+    assert.equal((await get(`partnerships/${legacy.partnershipId}`)).get("deadlineMs"), null);
   });
 
   await test("oferta: só gestor da contratante, outra empresa, mesmo simulador e empresa existente", async () => {
@@ -109,7 +118,11 @@ try {
   await test("designar: a EXECUTORA escolhe motorista e veículo da própria frota (qualquer um); reboque só conferido quando a oferta exige", async () => {
     const { partnershipId } = await createOffer();
     await failsWith(() => designate(partnershipId), "failed-precondition");
+    const before = Date.now();
     await respond(partnershipId, "accept");
+    const accepted = (await get(`partnerships/${partnershipId}`)).data();
+    assert.ok(accepted.deadlineMs >= before + 5 * DAY && accepted.deadlineMs <= Date.now() + 5 * DAY, "5 dias contados a partir do aceite");
+    assert.equal(accepted.deadlineAt, new Date(accepted.deadlineMs).toISOString()); assert.ok(accepted.acceptedAt, "guarda o instante do aceite");
     await failsWith(() => designate(partnershipId, {}, "owner-a"), "permission-denied");
     await failsWith(() => designate(partnershipId, { vehicleId: "veh-a" }), "failed-precondition"); // veículo de outra empresa
     await failsWith(() => designate(partnershipId, { trailerId: null }), "failed-precondition"); // a oferta exige reboque
@@ -126,6 +139,7 @@ try {
     assert.equal(job.companyId, "b", "o trabalho é da executora"); assert.equal(job.driverId, "drv-b"); assert.equal(job.status, "pending"); assert.equal(job.vehicleId, "veh-b2");
     assert.equal(job.partnershipId, partnershipId); assert.equal(job.scoreCompanyId, "a"); assert.equal(job.contractorCompanyId, "a");
     const contract = (await get(`contratos/pc_${partnershipId}`)).data();
+    assert.equal(contract.partnershipDeadlineAt, accepted.deadlineAt, "a operação termina no prazo contado do aceite");
     assert.equal(contract.companyId, "b"); assert.equal(contract.partnership, true); assert.equal(contract.totalDeliveries, 5); assert.equal(contract.name, "Operação 031"); assert.equal(contract.trailerId, "trl-b");
     assert.equal((await designate(partnershipId, { vehicleId: "veh-b2" })).replayed, true, "designar o mesmo motorista de novo é idempotente");
     await failsWith(() => designate(partnershipId, { driverId: "drv-a" }), "failed-precondition");
@@ -200,6 +214,44 @@ try {
     assert.equal(scoreCompanyIdOf({ companyId: "b" }), "b", "viagem comum: a própria empresa, como antes");
     assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId }), "b", "sem marca de pontuação não desvia nada");
     assert.equal((await get("historico_viagens/t1")).get("driverId"), "drv-b", "o histórico do motorista continua dele");
+  });
+
+  await test("liquidação: valor combinado, −25% fora do prazo, a pagar/a receber, pago → recebido e permissões", async () => {
+    const complete = async (partnershipId, jobId, completedAt) => {
+      await db.doc(`trabalhos/${jobId}`).update({ status: "completed", completedAt });
+      const job = (await get(`trabalhos/${jobId}`)).data();
+      await partnerships.syncPartnershipFromJob.run({ before: { exists: true, data: () => ({}) }, after: { exists: true, data: () => job } }, { params: { jobId } });
+      return (await get(`partnerships/${partnershipId}`)).data();
+    };
+    const open = async extra => { const { partnershipId } = await createOffer("owner-a", extra); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId); return { partnershipId, jobId }; };
+    // atrasada: 5 dias de prazo, concluída no 6º
+    const late = await open({ agreedAmountCents: 1_000_000 });
+    assert.equal((await get(`partnerships/${late.partnershipId}`)).get("agreedAmountCents"), 1_000_000);
+    const row = await complete(late.partnershipId, late.jobId, new Date(Date.now() + 6 * DAY).toISOString());
+    assert.equal(row.status, "completed"); assert.equal(row.settlement.late, true); assert.equal(row.settlement.penaltyPercent, 25);
+    assert.equal(row.settlement.finalCents, 750_000); assert.equal(row.settlement.discountCents, 250_000); assert.equal(row.payment.status, "pending");
+    const settle = (id, action, uid) => partnerships.settlePartnershipPayment.run({ partnershipId: id, action }, ctx(uid));
+    await failsWith(() => settle(late.partnershipId, "paid", "owner-b"), "permission-denied"); // a executora não marca pago
+    await failsWith(() => settle(late.partnershipId, "received", "owner-a"), "permission-denied"); // a contratante não confirma recebimento
+    await failsWith(() => settle(late.partnershipId, "foi", "owner-a"), "invalid-argument");
+    assert.equal((await settle(late.partnershipId, "paid", "owner-a")).status, "paid");
+    assert.equal((await settle(late.partnershipId, "paid", "owner-a")).replayed, true, "repetir é idempotente");
+    assert.ok((await get(`partnerships/${late.partnershipId}`)).get("payment.paidAt"));
+    assert.equal((await settle(late.partnershipId, "received", "owner-b")).status, "settled");
+    assert.equal((await settle(late.partnershipId, "received", "owner-b")).replayed, true);
+    await failsWith(() => settle(late.partnershipId, "paid", "owner-a"), "failed-precondition".replace("failed-precondition", "failed-precondition")).catch(async () => assert.equal((await settle(late.partnershipId, "paid", "owner-a")).replayed, true));
+    // no prazo: valor cheio; sem valor combinado: nada a liquidar
+    const ontime = await open({ agreedAmountCents: 400_000 });
+    const okRow = await complete(ontime.partnershipId, ontime.jobId, new Date().toISOString());
+    assert.equal(okRow.settlement.late, false); assert.equal(okRow.settlement.finalCents, 400_000); assert.equal(okRow.settlement.discountCents, 0);
+    assert.equal((await settle(ontime.partnershipId, "received", "owner-b")).status, "settled", "a executora pode confirmar sem esperar o 'pago'");
+    const free = await open({ operationName: "Sem valor" });
+    const freeRow = await complete(free.partnershipId, free.jobId, new Date().toISOString());
+    assert.equal(freeRow.settlement, null); assert.equal(freeRow.payment, null);
+    await failsWith(() => settle(free.partnershipId, "paid", "owner-a"), "failed-precondition");
+    await failsWith(() => settle(late.partnershipId + "x", "paid", "owner-a"), "not-found");
+    const running = await open({ agreedAmountCents: 100_000, operationName: "Em andamento" });
+    await failsWith(() => settle(running.partnershipId, "paid", "owner-a"), "failed-precondition");
   });
 
   await test("regras do Firestore: contratante, executora e motorista leem; estranhos e outras empresas não; ninguém escreve do cliente", async () => {

@@ -5,7 +5,7 @@ import { normalizePartnership, type Partnership } from "../lib/partnerships";
 
 export type OfferPayload = {
   contractorCompanyId: string; executorCompanyId: string; operationName: string; totalTrips: number;
-  trailerRequirement: string | null; deadlineAt: string; conditions: string; goalAmountCents: number | null; requestId: string;
+  trailerRequirement: string | null; durationDays: number; conditions: string; goalAmountCents: number | null; agreedAmountCents: number | null; requestId: string;
 };
 
 const call = async <T,>(name: string, data: Record<string, unknown>, timeout = 20_000): Promise<T> => {
@@ -18,6 +18,7 @@ export const partnershipService = {
   createOffer: (payload: OfferPayload) => call<{ success: true; partnershipId: string; replayed: boolean; executorReady?: boolean }>("createPartnershipOffer", payload),
   respond: (partnershipId: string, decision: "accept" | "decline") =>
     call<{ success: true; status: string }>("respondPartnershipOffer", { partnershipId, decision }),
+  settle: (partnershipId: string, action: "paid" | "received") => call<{ success: true; status: string }>("settlePartnershipPayment", { partnershipId, action }),
   cancel: (partnershipId: string) => call<{ success: true }>("cancelPartnershipOffer", { partnershipId }),
   designateDriver: (input: { partnershipId: string; driverId: string; vehicleId: string; trailerId?: string | null }) =>
     call<{ success: true; partnershipId: string; jobId: string }>("designatePartnershipDriver", input, 30_000),

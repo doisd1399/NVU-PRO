@@ -190,7 +190,7 @@ try {
     await page.evaluate(()=>window.__scenario({late:false}));
   });
   await check("Summary and management stay expanded; old filter and cyan action removed",async()=>{
-    assert.equal(await page.locator(".nvu-central-action").count(),6);
+    assert.equal(await page.locator(".nvu-central-action").count(),7);
     assert.equal(await page.getByRole("button",{name:/Resumo operacional|Gerenciar empresa/}).count(),0);
     assert.equal(await page.getByRole("button",{name:"Filtrar trabalhos ativos"}).count(),0);
     assert.equal(await page.getByText("Ganhos, viagens e metas",{exact:true}).count(),0);

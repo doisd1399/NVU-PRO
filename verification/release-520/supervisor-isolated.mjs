@@ -45,7 +45,8 @@ var DUAL_REGION_CALLABLES = [
   "createPartnershipOffer",
   "respondPartnershipOffer",
   "cancelPartnershipOffer",
-  "designatePartnershipDriver"
+  "designatePartnershipDriver",
+  "settlePartnershipPayment"
 ];
 var WARMABLE_CALLABLES = [
   "operationalCommand",

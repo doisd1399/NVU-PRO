@@ -34,7 +34,7 @@ import { commitNavigation } from "../../../lib/navigationTransition";
 import { canManageCompanyOperations, isDriverOutsideCompany } from "../../../lib/seniorOperationSupport";
 import { isRunningJobStatus } from "../../../lib/jobStatus";
 import { usePartnerships } from "../../../hooks/usePartnerships";
-import { roleIn } from "../../../lib/partnerships";
+import { usePartnershipAlerts } from "../../../hooks/usePartnershipAlerts";
 
 type SummaryPeriod = "semana" | "mensal" | "personalizado";
 const dateFormat = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" });
@@ -221,14 +221,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     if (writeManagementCache("summary", cacheScope, value)) setLastSnapshot({ key: summaryKey, value, savedAt: Date.now() });
   }, [summaryKey, snapshotSignature, online, operationalDataReady, operationalDataRefreshing, historyLoading, historyRefreshing, historyError]);
   const useSaved = Boolean(validCached && (!online || !operationalDataReady || historyLoading || historyRefreshing || historyError));
-  const partnershipBadge = useMemo(() => {
-    const mine = partnershipState.rows.filter(row => roleIn(row, activeCompanyId || "") !== null);
-    const toAnswer = mine.filter(row => row.executorCompanyId === activeCompanyId && (row.status === "pending" || row.status === "accepted" && !row.jobId)).length;
-    const running = mine.filter(row => row.status === "active" || row.status === "accepted" && row.jobId).length;
-    if (toAnswer) return { text: toAnswer === 1 ? "1 para responder" : `${toAnswer} para responder`, attention: true };
-    if (running) return { text: running === 1 ? "1 em andamento" : `${running} em andamento`, attention: false };
-    return { text: "", attention: false };
-  }, [activeCompanyId, partnershipState.rows]);
+  const partnershipAlert = usePartnershipAlerts(partnershipState.rows, activeCompanyId, currentUser?.id);
   const visibleOperations = useMemo(() => useSaved ? validCached!.value.operations.map(operation => {
     const due = operation.deadlineTimestamp || 0, diff = due - now.getTime();
     return { ...operation, nearDeadline: Boolean(due && diff <= 2 * 86400000),
@@ -313,7 +306,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
     <ManagementDashboard active={active} periodLabel={periodLabel} periodDescription={`${dateFormat.format(range.start)} – ${dateFormat.format(range.end)}`} onPeriod={() => setPeriodOpen(true)} earnings={visibleEarnings} tripCount={visibleTripCount}
       goal={{ amount: goalTarget ? formatHistoryMoney(goalTarget, goalCurrency, "known") : goalError ? "Consulta pendente" : "Não configurada", progress: goalTarget ? visibleGoalRevenue / goalTarget * 100 : null, error: goalError || (goal.pending ? "Salva neste aparelho · aguardando sincronização" : !online && goal.cached ? "Offline · última meta salva" : ""), loading: goalLoading, canEdit: canManageGoal, onRetry: canManageGoal ? () => void goal.retry() : undefined }}
       onGoal={() => { setGoalDraft(goalTarget ? formatGoalAmount(goalTarget) : ""); setGoalSaveError(""); setGoalOpen(true); }}
-      operations={visibleOperations} totalOperations={visibleOperations.length} partnershipBadge={partnershipBadge} onAction={onAction} onInfo={operation => operation.partnership?.role === "contractor" ? commitNavigation(() => navigate("/admin/parcerias", { state: { openId: operation.partnership!.id } })) : setInfoId(operation.id)} onDriver={onDriver} loading={!operationalDataReady && !validCached} refreshing={online && operationalDataRefreshing} />
+      operations={visibleOperations} totalOperations={visibleOperations.length} partnershipAlert={partnershipAlert} onAction={onAction} onInfo={operation => operation.partnership?.role === "contractor" ? commitNavigation(() => navigate("/admin/parcerias", { state: { openId: operation.partnership!.id } })) : setInfoId(operation.id)} onDriver={onDriver} loading={!operationalDataReady && !validCached} refreshing={online && operationalDataRefreshing} />
     {pendingDemands.length > 0 && <section className="nvu-central-section" style={{ marginTop: 10 }}><button type="button" className="nvu-central-section-toggle" onClick={() => setRequestsOpen(true)}>Solicitações de trabalho <span className="nvu-central-count">{pendingDemands.length}</span></button></section>}
     {periodOpen && <RankingPeriodModal preset={resumoPeriod === "mensal" ? "mes" : resumoPeriod === "semana" ? "semana" : "custom"} startDate={resumoStartDate} endDate={resumoEndDate} referenceDate={now} onApply={onPeriodApply} onClose={() => setPeriodOpen(false)} />}
     {goalOpen && <ManagementDialog title="Ajustar meta financeira" onClose={() => { if (!goalSaving) setGoalOpen(false); }}>

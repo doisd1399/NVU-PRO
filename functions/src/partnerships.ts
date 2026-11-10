@@ -8,7 +8,7 @@ import { CALLABLE_REGIONS } from "./callableRegions";
 import { executeOperationalCommand } from "./operationalCommands";
 import { assertCompany, companySimulatorKey, fail, id, text } from "./operationalCommandPolicy";
 import {
-  MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, isPartnerAvailable, matchesRequirement, mayTransition, normalizeOffer, partnershipContractId,
+  MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, computeSettlement, isPartnerAvailable, nextPayment, toMillis, type PaymentStatus, matchesRequirement, mayTransition, normalizeOffer, partnershipContractId,
   statusFromJob, type PartnershipStatus,
 } from "./partnershipPolicy";
 
@@ -50,7 +50,7 @@ export const createPartnershipOffer = functions.region(...CALLABLE_REGIONS).http
     ]);
     const key = await companySimulatorKey(tx, db, contractor.company);
     const offer = normalizeOffer(probe, Date.now(), TRAILERLESS.includes(key));
-    const fingerprint = digest([contractorId, executorId, offer.operationName, offer.totalTrips, offer.trailerRequirement, offer.deadlineAt, offer.conditions, offer.goalAmountCents]);
+    const fingerprint = digest([contractorId, executorId, offer.operationName, offer.totalTrips, offer.trailerRequirement, offer.durationDays, offer.conditions, offer.goalAmountCents, offer.agreedAmountCents]);
     if (existing.exists) {
       if (existing.get("createdBy") !== uid || existing.get("fingerprint") !== fingerprint) fail("failed-precondition", "Este pedido já foi utilizado com outros dados.");
       return { partnershipId, replayed: true };
@@ -68,8 +68,8 @@ export const createPartnershipOffer = functions.region(...CALLABLE_REGIONS).http
       schemaVersion: 1, status: "pending", revision: 1, fingerprint, contractorCompanyId: contractorId, executorCompanyId: executorId,
       contractorName: companyLabel(contractor.company), executorName: companyLabel(executor), simulatorId: key, currency,
       operationName: offer.operationName, totalTrips: offer.totalTrips,
-      trailerRequirement: offer.trailerRequirement, deadlineAt: offer.deadlineAt, deadlineMs: Date.parse(offer.deadlineAt),
-      conditions: offer.conditions, goalAmountCents: offer.goalAmountCents, createdBy: uid,
+      trailerRequirement: offer.trailerRequirement, durationDays: offer.durationDays, deadlineAt: null, deadlineMs: null, acceptedAt: null,
+      conditions: offer.conditions, goalAmountCents: offer.goalAmountCents, agreedAmountCents: offer.agreedAmountCents, settlement: null, payment: null, createdBy: uid,
       progress: 0, earningsCents: 0, bestCents: 0, averageCents: 0, ledger: [], jobId: null, driverId: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -99,13 +99,15 @@ export const respondPartnershipOffer = functions.region(...CALLABLE_REGIONS).htt
     if (p.status === target) return { replayed: true, p };
     if (p.status !== "pending") fail("failed-precondition", "Esta oferta não está mais aguardando resposta.");
     if (decision === "accept") {
-      if (Number(p.deadlineMs) <= Date.now()) fail("failed-precondition", "O prazo desta oferta já passou.");
       if (!isPartnerAvailable(state.company)) fail("failed-precondition", "Sua empresa não está ativa para novos trabalhos.");
       assertCompany(state.company, false);
       if (state.company.operationalCommandVersion !== 1)
         fail("failed-precondition", "Para aceitar parcerias, a sua empresa precisa estar preparada para a confirmação operacional. Prepare-a em Operações (fila automática) e tente de novo.");
     }
-    tx.update(ref, { status: target, respondedAt: admin.firestore.FieldValue.serverTimestamp(), respondedBy: uid,
+    // O prazo da operação só começa a contar agora, no aceite: duração em dias a partir deste instante.
+    const startsNow = decision === "accept" ? Date.now() : 0, days = Number(p.durationDays) || 0;
+    const clock = decision === "accept" && days > 0 ? { deadlineMs: startsNow + days * 86_400_000, deadlineAt: new Date(startsNow + days * 86_400_000).toISOString(), acceptedAt: admin.firestore.FieldValue.serverTimestamp() } : {};
+    tx.update(ref, { ...clock, status: target, respondedAt: admin.firestore.FieldValue.serverTimestamp(), respondedBy: uid,
       revision: Number(p.revision || 1) + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
     return { replayed: false, p };
   });
@@ -228,6 +230,12 @@ async function projectJob(db: DB, partnershipId: string, jobId: string, job: Dat
     if (job.startedAt) patch.startedAt = job.startedAt;
     if (job.completedAt) patch.completedAt = job.completedAt;
     if (next && mayTransition(p.status as PartnershipStatus, next)) patch.status = next;
+    // Ao concluir, o app calcula o valor final (−25% fora do prazo) e abre a liquidação: a pagar (contratante) e a receber (executora).
+    if (next === "completed" && p.status !== "completed" && !p.settlement) {
+      const completedAtMs = toMillis(job.completedAt) || Date.now(), settlement = computeSettlement(p.agreedAmountCents, Number(p.deadlineMs) || 0, completedAtMs);
+      patch.completedAtMs = completedAtMs;
+      if (settlement) { patch.settlement = settlement; patch.payment = { status: "pending" as PaymentStatus }; }
+    }
     patch.updatedAt = admin.firestore.FieldValue.serverTimestamp();
     tx.update(ref, patch);
   });
@@ -262,3 +270,37 @@ export const syncPartnershipTrips = functions.region("us-central1").runWith({ fa
     const ids = new Set([text(change.before.data()?.partnershipId), text(change.after.data()?.partnershipId)].filter(Boolean));
     for (const partnershipId of ids) await projectTrips(admin.firestore(), partnershipId);
   });
+
+/**
+ * Liquidação do acordo (registro, sem mover dinheiro): a contratante marca "pago" e a executora confirma "recebido".
+ * O valor vem do cálculo feito na conclusão; o NVU só acompanha e mostra a carteira das duas empresas.
+ */
+export const settlePartnershipPayment = functions.region(...CALLABLE_REGIONS).https.onCall(async (raw, context) => {
+  const uid = context.auth?.uid;
+  if (!uid) fail("unauthenticated", "Faça login para continuar.");
+  const db = admin.firestore();
+  const data = raw && typeof raw === "object" ? raw as Data : {};
+  const partnershipId = id(data.partnershipId, "Parceria"), action = text(data.action);
+  if (!["paid", "received"].includes(action)) fail("invalid-argument", "Ação inválida.");
+  const outcome = await db.runTransaction(async tx => {
+    const ref = db.collection(PARTNERSHIPS).doc(partnershipId);
+    const snap = await tx.get(ref);
+    if (!snap.exists) fail("not-found", "A parceria não foi encontrada.");
+    const p = snap.data() || {};
+    if (p.status !== "completed" || !p.settlement || !p.payment) fail("failed-precondition", "Esta parceria não tem valor a liquidar.");
+    const contractorSide = action === "paid";
+    await requireCompanyManager(db, tx, context, text(contractorSide ? p.contractorCompanyId : p.executorCompanyId));
+    const current = text(p.payment.status) as PaymentStatus, target = nextPayment(current, action as "paid" | "received");
+    if (!target) {
+      if ((action === "paid" && current !== "pending") || (action === "received" && current === "settled")) return { replayed: true, p };
+      fail("failed-precondition", "Este pagamento não pode mais ser alterado.");
+    }
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    tx.update(ref, { payment: { ...p.payment, status: target, ...(action === "paid" ? { paidAt: now, paidBy: uid } : { settledAt: now, settledBy: uid }) }, revision: Number(p.revision || 1) + 1, updatedAt: now });
+    return { replayed: false, p, target };
+  });
+  if (!outcome.replayed) await notifyCompany(db, text(action === "paid" ? outcome.p.executorCompanyId : outcome.p.contractorCompanyId), { type: action === "paid" ? "PARTNERSHIP_PAID" : "PARTNERSHIP_SETTLED", partnershipId,
+    title: action === "paid" ? "Pagamento informado" : "Recebimento confirmado",
+    message: action === "paid" ? `${text(outcome.p.contractorName)} informou o pagamento da ${text(outcome.p.operationName)}. Confirme o recebimento.` : `${text(outcome.p.executorName)} confirmou o recebimento da ${text(outcome.p.operationName)}.` });
+  return { success: true, partnershipId, status: (outcome as Data).target || text(outcome.p.payment?.status), replayed: outcome.replayed };
+});

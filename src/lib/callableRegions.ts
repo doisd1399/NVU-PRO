@@ -43,6 +43,7 @@ export const DUAL_REGION_CALLABLES: readonly string[] = [
   "respondPartnershipOffer",
   "cancelPartnershipOffer",
   "designatePartnershipDriver",
+  "settlePartnershipPayment",
 ];
 
 /** Callables that answer a `{ __warm: true }` ping before any authorization or database work. */

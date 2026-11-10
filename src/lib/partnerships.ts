@@ -5,6 +5,8 @@
  */
 export type PartnershipStatus = "pending" | "declined" | "cancelled" | "accepted" | "active" | "completed";
 export type PartnershipRole = "contractor" | "executor";
+export type PaymentStatus = "pending" | "paid" | "settled";
+export type Settlement = { agreedCents: number; late: boolean; penaltyPercent: number; discountCents: number; finalCents: number; deadlineMs: number; completedAtMs: number };
 export type PartnershipLedgerEntry = { n: number; at: number; cents: number; tripId: string };
 
 export type Partnership = {
@@ -13,7 +15,10 @@ export type Partnership = {
   contractorCompanyId: string; executorCompanyId: string; contractorName: string; executorName: string;
   simulatorId: string; currency: string;
   operationName: string; totalTrips: number; trailerRequirement: string | null;
-  deadlineAt: string; deadlineMs: number; conditions: string; goalAmountCents: number | null;
+  /** Prazo combinado em dias; só começa a contar quando a executora aceita (`acceptedAtMs`). `deadlineMs` = 0 até lá. */
+  durationDays: number; acceptedAtMs: number; deadlineAt: string; deadlineMs: number; conditions: string; goalAmountCents: number | null;
+  /** Valor do acordo (negociado entre as empresas, fora do NVU). `settlement`/`payment` só existem depois da conclusão. */
+  agreedAmountCents: number | null; settlement: Settlement | null; payment: { status: PaymentStatus; paidAtMs: number; settledAtMs: number } | null; completedAtMs: number;
   progress: number; earningsCents: number; bestCents: number; averageCents: number; ledger: PartnershipLedgerEntry[];
   jobId: string | null; driverId: string | null; driverName?: string; vehicleName?: string; vehiclePlate?: string; trailerName?: string;
   startPhotoUrl?: string;
@@ -42,7 +47,11 @@ export function normalizePartnership(id: string, raw: Record<string, any>): Part
     simulatorId: text(raw.simulatorId), currency: text(raw.currency) || "BRL",
     operationName: text(raw.operationName) || "Operação", totalTrips: Math.max(0, num(raw.totalTrips)),
     trailerRequirement: text(raw.trailerRequirement) || null,
-    deadlineAt: text(raw.deadlineAt), deadlineMs: num(raw.deadlineMs) || ms(raw.deadlineAt),
+    durationDays: Math.max(0, Math.round(num(raw.durationDays))) || (num(raw.deadlineMs) && ms(raw.createdAt) ? Math.max(1, Math.round((num(raw.deadlineMs) - ms(raw.createdAt)) / 86_400_000)) : 0),
+    agreedAmountCents: Number.isSafeInteger(raw.agreedAmountCents) && raw.agreedAmountCents > 0 ? raw.agreedAmountCents : null, completedAtMs: num(raw.completedAtMs),
+    settlement: raw.settlement && Number.isSafeInteger(raw.settlement.finalCents) ? { agreedCents: num(raw.settlement.agreedCents), late: Boolean(raw.settlement.late), penaltyPercent: num(raw.settlement.penaltyPercent), discountCents: num(raw.settlement.discountCents), finalCents: num(raw.settlement.finalCents), deadlineMs: num(raw.settlement.deadlineMs), completedAtMs: num(raw.settlement.completedAtMs) } : null,
+    payment: raw.payment && ["pending", "paid", "settled"].includes(raw.payment.status) ? { status: raw.payment.status, paidAtMs: ms(raw.payment.paidAt), settledAtMs: ms(raw.payment.settledAt) } : null,
+    acceptedAtMs: ms(raw.acceptedAt), deadlineAt: text(raw.deadlineAt), deadlineMs: num(raw.deadlineMs) || ms(raw.deadlineAt),
     conditions: text(raw.conditions), goalAmountCents: Number.isSafeInteger(raw.goalAmountCents) && raw.goalAmountCents > 0 ? raw.goalAmountCents : null,
     progress: Math.max(0, num(raw.progress)), earningsCents: Math.max(0, num(raw.earningsCents)),
     bestCents: Math.max(0, num(raw.bestCents)), averageCents: Math.max(0, num(raw.averageCents)),
@@ -80,12 +89,12 @@ export function statusText(p: Pick<Partnership, "status" | "jobId" | "contractor
 
 export type Pace = { tone: "good" | "warn" | "late" | "idle"; label: string };
 /** "No ritmo do prazo": compara o avanço de viagens com o tempo decorrido entre a designação e o prazo final. */
-export function paceOf(p: Pick<Partnership, "status" | "progress" | "totalTrips" | "deadlineMs" | "createdAtMs">, now: number): Pace {
+export function paceOf(p: Pick<Partnership, "status" | "progress" | "totalTrips" | "deadlineMs" | "createdAtMs"> & { acceptedAtMs?: number }, now: number): Pace {
   if (p.status === "completed") return { tone: "good", label: "Concluída" };
   if (p.status !== "active" && p.status !== "accepted") return { tone: "idle", label: "" };
   if (p.deadlineMs && now > p.deadlineMs) return { tone: "late", label: "Prazo vencido" };
   if (!p.deadlineMs || !p.totalTrips) return { tone: "idle", label: "" };
-  const start = p.createdAtMs || now, span = Math.max(1, p.deadlineMs - start);
+  const start = p.acceptedAtMs || p.createdAtMs || now, span = Math.max(1, p.deadlineMs - start);
   const elapsed = Math.min(1, Math.max(0, (now - start) / span)), done = Math.min(1, p.progress / p.totalTrips);
   if (done + 0.1 >= elapsed) return { tone: "good", label: "No ritmo do prazo" };
   if (done + 0.3 >= elapsed) return { tone: "warn", label: "Atenção ao prazo" };
@@ -124,9 +133,12 @@ export function parseMoneyToCents(input: string): number | null {
 /** A oferta define só reboque (opcional), prazo, viagens, meta e condições. O veículo é escolhido pela executora. */
 export type OfferDraft = {
   executorCompanyId: string; operationName: string; totalTrips: string; trailerRequirement: string;
-  deadlineAt: string; conditions: string; goal: string;
+  /** Prazo em dias, contado a partir do aceite da parceira. */
+  durationDays: string; conditions: string; goal: string;
+  /** Valor do acordo (R$) — negociado entre as empresas; opcional. */
+  agreed: string;
 };
-export const emptyDraft = (executorCompanyId = ""): OfferDraft => ({ executorCompanyId, operationName: "", totalTrips: "", trailerRequirement: "", deadlineAt: "", conditions: "", goal: "" });
+export const emptyDraft = (executorCompanyId = ""): OfferDraft => ({ executorCompanyId, operationName: "", totalTrips: "", trailerRequirement: "", durationDays: "", conditions: "", goal: "", agreed: "" });
 
 /** Validação do formulário antes de chamar o servidor (o servidor valida de novo). Devolve a 1ª mensagem ou "". */
 export function validateDraft(draft: OfferDraft, now: number, trailerless: boolean): string {
@@ -135,12 +147,11 @@ export function validateDraft(draft: OfferDraft, now: number, trailerless: boole
   const trips = Number(draft.totalTrips);
   if (!Number.isSafeInteger(trips) || trips < 1 || trips > 500) return "A quantidade de viagens deve ficar entre 1 e 500.";
   if (!trailerless && draft.trailerRequirement.trim().length > 0 && draft.trailerRequirement.trim().length < 2) return "Informe o reboque exigido ou deixe em branco.";
-  const deadline = Date.parse(draft.deadlineAt);
-  if (!Number.isFinite(deadline)) return "Informe o prazo final.";
-  if (deadline < now + 10 * 60_000) return "O prazo final precisa estar no futuro.";
-  if (deadline > now + 120 * 86_400_000) return "O prazo final pode ser de, no máximo, 120 dias.";
+  const days = Number(draft.durationDays);
+  if (!Number.isSafeInteger(days) || days < 1 || days > 120) return "O prazo deve ficar entre 1 e 120 dias.";
   if (draft.conditions.length > MAX_CONDITIONS) return `As condições aceitam até ${MAX_CONDITIONS} caracteres.`;
   if (draft.goal.trim() && parseMoneyToCents(draft.goal) === null) return "A meta de ganhos é inválida.";
+  if (draft.agreed.trim() && parseMoneyToCents(draft.agreed) === null) return "O valor do acordo é inválido.";
   return "";
 }
 
@@ -195,3 +206,129 @@ export const initialsOf = (name: string): string => {
   const letters = parts.length > 1 && /^[\p{Lu}\p{N}]{2,3}$/u.test(first) ? first : parts.length === 1 ? first.slice(0, 2) : parts.slice(0, 2).map(part => clean(part)[0] || "").join("");
   return (letters || "··").toUpperCase();
 };
+
+// ───────────── apoio às telas (Nova oferta e Designar trabalho) ─────────────
+
+/** Próximo nome sugerido para a oferta ("Operação 032"): maior número já usado pela empresa + 1 (sem número: contagem + 1). */
+export function suggestOperationName(rows: Pick<Partnership, "contractorCompanyId" | "operationName">[], companyId: string): string {
+  const mine = rows.filter(row => row.contractorCompanyId === companyId);
+  const numbers = mine.map(row => Number(/(\d{1,6})\s*$/.exec(row.operationName)?.[1])).filter(value => Number.isSafeInteger(value) && value > 0);
+  const next = numbers.length ? Math.max(...numbers) + 1 : mine.length + 1;
+  return `Operação ${String(next).padStart(3, "0")}`;
+}
+
+export const TRIP_PRESETS = [5, 10, 20, 50] as const;
+export const DURATION_PRESETS = [3, 5, 7, 15, 30] as const;
+export const clampTrips = (value: number): number => Math.min(500, Math.max(1, Math.round(Number.isFinite(value) ? value : 1)));
+export const clampDays = (value: number): number => Math.min(120, Math.max(1, Math.round(Number.isFinite(value) ? value : 1)));
+/** "5 dias" / "1 dia". */
+export const formatDays = (days: number): string => `${days} ${days === 1 ? "dia" : "dias"}`;
+const two = (value: number) => String(value).padStart(2, "0");
+const WEEKDAY = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"], MONTH = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+/** "qui, 13 nov · 18:00" (hora local). */
+export function formatDeadline(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "—";
+  const date = new Date(ms);
+  return `${WEEKDAY[date.getDay()]}, ${date.getDate()} ${MONTH[date.getMonth()]} · ${two(date.getHours())}:${two(date.getMinutes())}`;
+}
+/** Valor médio por viagem da meta (centavos), só com meta e viagens válidas. */
+export const perTripCents = (goalCents: number | null, trips: number): number | null =>
+  goalCents && goalCents > 0 && Number.isSafeInteger(trips) && trips > 0 ? Math.round(goalCents / trips) : null;
+
+/** Primeira pendência da oferta, em poucas palavras (aparece no rodapé do formulário). Vazio = pronta para enviar. */
+export function offerHint(draft: OfferDraft, now: number, trailerless: boolean): string {
+  if (!draft.executorCompanyId) return "Escolha a empresa parceira";
+  if (draft.operationName.trim().length < 3) return "Dê um nome à operação";
+  const trips = Number(draft.totalTrips);
+  if (!Number.isSafeInteger(trips) || trips < 1 || trips > 500) return "Informe de 1 a 500 viagens";
+  const days = Number(draft.durationDays);
+  if (!Number.isSafeInteger(days) || days < 1 || days > 120) return "Defina o prazo em dias (1 a 120)";
+  return validateDraft(draft, now, trailerless) ? "Revise os dados da oferta" : "";
+}
+
+/** Resumo de uma linha da oferta (ex.: "CTS · 12 viagens · 5 dias"). */
+export function offerSummary(draft: OfferDraft, partnerName: string): string {
+  const trips = Number(draft.totalTrips), days = Number(draft.durationDays);
+  return [partnerName || "Sem parceira", Number.isFinite(trips) && trips > 0 ? `${trips} ${trips === 1 ? "viagem" : "viagens"}` : "", Number.isSafeInteger(days) && days > 0 ? formatDays(days) : ""].filter(Boolean).join(" · ");
+}
+
+/** Último veículo da própria frota que o motorista usou (mais recente), para sugerir na designação. */
+export function lastVehicleOf(jobs: { driverId?: string; vehicleId?: string; assignedAt?: string; createdAt?: string; startedAt?: string }[], driverId: string, ownVehicleIds: ReadonlySet<string>): string | null {
+  let best: { id: string; at: number } | null = null;
+  for (const job of jobs) {
+    if (job.driverId !== driverId || !job.vehicleId || !ownVehicleIds.has(job.vehicleId)) continue;
+    const at = Date.parse(String(job.assignedAt || job.startedAt || job.createdAt || "")) || 0;
+    if (!best || at > best.at) best = { id: job.vehicleId, at };
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Indicador da linha "Parcerias B2P" da Central: o que pede ação (oferta recebida, designar motorista) e as novidades desde a
+ * última vez que a empresa abriu a página (oferta aceita/recusada/cancelada e operação concluída). Progresso de viagens não conta.
+ */
+export type PartnershipAlerts = { toAnswer: number; news: number; total: number; label: string };
+export function partnershipAlerts(rows: Pick<Partnership, "status" | "jobId" | "contractorCompanyId" | "executorCompanyId" | "updatedAtMs">[], companyId: string, seenMs: number): PartnershipAlerts {
+  let toAnswer = 0, news = 0;
+  for (const row of rows) {
+    const role = roleIn(row, companyId);
+    if (!role) continue;
+    if (sectionFor(row, companyId) === "action") { toAnswer++; continue; }
+    if (row.updatedAtMs <= seenMs) continue;
+    const relevant = role === "contractor" ? ["accepted", "declined", "cancelled", "completed"] : ["cancelled", "completed"];
+    if (relevant.includes(row.status)) news++;
+  }
+  const parts = [toAnswer ? `${toAnswer} para responder` : "", news ? `${news} ${news === 1 ? "novidade" : "novidades"}` : ""].filter(Boolean);
+  return { toAnswer, news, total: toAnswer + news, label: parts.join(" · ") };
+}
+
+// ───────────── valor do acordo, liquidação e carteira ─────────────
+/** Mesma regra do servidor: concluída depois do prazo = valor combinado menos 25%. */
+export const LATE_PENALTY_PERCENT = 25;
+export function computeSettlement(agreedCents: number | null | undefined, deadlineMs: number, completedAtMs: number): Settlement | null {
+  if (!Number.isSafeInteger(agreedCents) || (agreedCents as number) < 1) return null;
+  const agreed = agreedCents as number, late = Number.isFinite(deadlineMs) && deadlineMs > 0 && completedAtMs > deadlineMs;
+  const finalCents = late ? Math.round(agreed * (100 - LATE_PENALTY_PERCENT) / 100) : agreed;
+  return { agreedCents: agreed, late, penaltyPercent: late ? LATE_PENALTY_PERCENT : 0, discountCents: agreed - finalCents, finalCents, deadlineMs: deadlineMs || 0, completedAtMs };
+}
+
+export type WalletKind = "ganho" | "investimento";
+/** previsto = operação em andamento (valor combinado); a_pagar/a_receber = concluída, aguardando pagamento; pago = contratante informou, aguardando confirmação; liquidado = confirmado. */
+export type WalletStatus = "previsto" | "a_pagar" | "a_receber" | "pago" | "liquidado";
+export type WalletEntry = { id: string; partnershipId: string; kind: WalletKind; title: string; counterpart: string; amountCents: number; agreedCents: number; discountCents: number; late: boolean; status: WalletStatus; atMs: number; currency: string };
+export const WALLET_STATUS_LABEL: Record<WalletStatus, string> = { previsto: "Previsto", a_pagar: "A pagar", a_receber: "A receber", pago: "Pago · aguarda confirmação", liquidado: "Liquidado" };
+
+/** Movimentos da carteira da empresa: ganhos (quando executa) e investimentos (quando contrata), só de parcerias com valor combinado. */
+export function walletEntries(rows: Partnership[], companyId: string): WalletEntry[] {
+  const entries: WalletEntry[] = [];
+  for (const p of rows) {
+    const role = roleIn(p, companyId);
+    if (!role || !p.agreedAmountCents || ["pending", "declined", "cancelled"].includes(p.status)) continue;
+    const kind: WalletKind = role === "contractor" ? "investimento" : "ganho";
+    const counterpart = role === "contractor" ? p.executorName : p.contractorName;
+    const base = { id: `${p.id}:${kind}`, partnershipId: p.id, kind, title: p.operationName, counterpart, currency: p.currency };
+    if (p.status === "completed" && p.settlement && p.payment) {
+      const paid = p.payment.status;
+      const status: WalletStatus = paid === "settled" ? "liquidado" : paid === "paid" ? "pago" : role === "contractor" ? "a_pagar" : "a_receber";
+      entries.push({ ...base, amountCents: p.settlement.finalCents, agreedCents: p.settlement.agreedCents, discountCents: p.settlement.discountCents, late: p.settlement.late, status, atMs: p.payment.settledAtMs || p.payment.paidAtMs || p.settlement.completedAtMs || p.updatedAtMs });
+    } else if (p.status !== "completed") {
+      entries.push({ ...base, amountCents: p.agreedAmountCents, agreedCents: p.agreedAmountCents, discountCents: 0, late: false, status: "previsto", atMs: p.acceptedAtMs || p.createdAtMs });
+    }
+  }
+  return entries.sort((a, b) => b.atMs - a.atMs || a.id.localeCompare(b.id));
+}
+
+export type WalletTotals = {
+  /** Ganhos em parcerias */ toReceiveCents: number; receivedCents: number; forecastGainCents: number;
+  /** Investimentos em parcerias */ toPayCents: number; paidCents: number; forecastInvestCents: number;
+  /** Recebido menos pago (liquidado) */ netCents: number;
+};
+export function walletTotals(entries: WalletEntry[]): WalletTotals {
+  const t: WalletTotals = { toReceiveCents: 0, receivedCents: 0, forecastGainCents: 0, toPayCents: 0, paidCents: 0, forecastInvestCents: 0, netCents: 0 };
+  for (const e of entries) {
+    if (e.kind === "ganho") { if (e.status === "liquidado") t.receivedCents += e.amountCents; else if (e.status === "previsto") t.forecastGainCents += e.amountCents; else t.toReceiveCents += e.amountCents; }
+    else { if (e.status === "liquidado" || e.status === "pago") t.paidCents += e.amountCents; else if (e.status === "previsto") t.forecastInvestCents += e.amountCents; else t.toPayCents += e.amountCents; }
+  }
+  t.netCents = t.receivedCents - t.paidCents;
+  return t;
+}

@@ -21,14 +21,18 @@ export const partnershipContractId = (partnershipId: string): string => `${PARTN
 export const isPartnershipContractId = (value: unknown): boolean => typeof value === "string" && value.startsWith(PARTNERSHIP_CONTRACT_PREFIX);
 
 /**
- * A oferta define só o que a contratante pode exigir: reboque (opcional), prazo, quantidade de viagens, meta e as
- * condições do acordo. O VEÍCULO é escolhido pela empresa que vai operar (a executora), na designação.
+ * A oferta define só o que a contratante pode exigir: reboque (opcional), PRAZO EM DIAS (o relógio só começa quando a
+ * executora aceita), quantidade de viagens, meta e as condições do acordo. O VEÍCULO é escolhido pela empresa que vai operar (a executora), na designação.
  */
 export type OfferInput = {
   contractorCompanyId: string; executorCompanyId: string; operationName: string; totalTrips: number;
-  trailerRequirement: string | null; deadlineAt: string; conditions: string;
-  goalAmountCents: number | null; requestId: string;
+  trailerRequirement: string | null; durationDays: number; conditions: string;
+  /** Meta de ganhos (só acompanhamento). */
+  goalAmountCents: number | null;
+  /** Valor do acordo entre as empresas (negociado fora do NVU), base do cálculo a pagar/a receber. */
+  agreedAmountCents: number | null; requestId: string;
 };
+export const MAX_DURATION_DAYS = 120;
 
 const cleanText = (value: unknown, max: number): string => text(value).replace(/\s+/g, " ").slice(0, max);
 const idLike = (value: unknown, label: string): string => {
@@ -49,20 +53,25 @@ export function normalizeOffer(raw: unknown, now: number, trailerless: boolean):
   if (!Number.isSafeInteger(totalTrips) || totalTrips < 1 || totalTrips > 500) fail("invalid-argument", "A quantidade de viagens deve ficar entre 1 e 500.");
   const trailerText = cleanText(data.trailerRequirement, 80);
   const trailerRequirement = trailerless ? null : trailerText || null;
-  const deadlineMs = Date.parse(text(data.deadlineAt));
-  if (!Number.isFinite(deadlineMs)) fail("invalid-argument", "Informe o prazo final.");
-  if (deadlineMs < now + 10 * 60_000) fail("invalid-argument", "O prazo final precisa estar no futuro.");
-  if (deadlineMs > now + 120 * 86_400_000) fail("invalid-argument", "O prazo final pode ser de, no máximo, 120 dias.");
+  // Prazo em dias, contado a partir do aceite. App antigo que ainda envie uma data final é convertido em dias (arredondando para cima).
+  let durationDays = Number(data.durationDays);
+  if ((data.durationDays === undefined || data.durationDays === null || data.durationDays === "") && text(data.deadlineAt)) {
+    const legacy = Date.parse(text(data.deadlineAt));
+    if (!Number.isFinite(legacy)) fail("invalid-argument", "Informe o prazo em dias.");
+    durationDays = Math.ceil((legacy - now) / 86_400_000);
+  }
+  if (!Number.isSafeInteger(durationDays) || durationDays < 1 || durationDays > MAX_DURATION_DAYS) fail("invalid-argument", `O prazo deve ficar entre 1 e ${MAX_DURATION_DAYS} dias.`);
   const conditions = text(data.conditions).slice(0, 300);
   if (text(data.conditions).length > 300) fail("invalid-argument", "As condições do acordo aceitam até 300 caracteres.");
-  let goalAmountCents: number | null = null;
-  if (data.goalAmountCents !== undefined && data.goalAmountCents !== null && data.goalAmountCents !== "") {
-    const goal = Number(data.goalAmountCents);
-    if (!Number.isSafeInteger(goal) || goal < 1 || goal > 100_000_000_000) fail("invalid-argument", "A meta de ganhos é inválida.");
-    goalAmountCents = goal;
-  }
+  const money = (value: unknown, label: string): number | null => {
+    if (value === undefined || value === null || value === "") return null;
+    const cents = Number(value);
+    if (!Number.isSafeInteger(cents) || cents < 1 || cents > 100_000_000_000) fail("invalid-argument", `${label} é inválido.`);
+    return cents;
+  };
+  const goalAmountCents = money(data.goalAmountCents, "A meta de ganhos"), agreedAmountCents = money(data.agreedAmountCents, "O valor do acordo");
   return { contractorCompanyId, executorCompanyId, operationName, totalTrips, trailerRequirement,
-    deadlineAt: new Date(deadlineMs).toISOString(), conditions, goalAmountCents, requestId: idLike(data.requestId, "Pedido") };
+    durationDays, conditions, goalAmountCents, agreedAmountCents, requestId: idLike(data.requestId, "Pedido") };
 }
 
 /**
@@ -149,4 +158,26 @@ export function buildLedger(rows: { id: string; data: Record<string, any> }[], s
 export function partnershipTripFields(job: Record<string, any>): Record<string, string> {
   const partnershipId = text(job.partnershipId), scoreCompanyId = text(job.scoreCompanyId);
   return partnershipId && scoreCompanyId ? { partnershipId, scoreCompanyId, contractorCompanyId: text(job.contractorCompanyId) || scoreCompanyId } : {};
+}
+
+/** Atraso na entrega: o valor final do acordo cai 25% (calculado pelo app e informado às duas empresas). */
+export const LATE_PENALTY_PERCENT = 25;
+export type Settlement = { agreedCents: number; late: boolean; penaltyPercent: number; discountCents: number; finalCents: number; deadlineMs: number; completedAtMs: number };
+/** Valor final do acordo: concluída depois do prazo = valor combinado menos 25%. Sem valor combinado não há liquidação. */
+export function computeSettlement(agreedCents: number | null | undefined, deadlineMs: number, completedAtMs: number): Settlement | null {
+  if (!Number.isSafeInteger(agreedCents) || (agreedCents as number) < 1) return null;
+  const agreed = agreedCents as number, late = Number.isFinite(deadlineMs) && deadlineMs > 0 && completedAtMs > deadlineMs;
+  const finalCents = late ? Math.round(agreed * (100 - LATE_PENALTY_PERCENT) / 100) : agreed;
+  return { agreedCents: agreed, late, penaltyPercent: late ? LATE_PENALTY_PERCENT : 0, discountCents: agreed - finalCents, finalCents, deadlineMs: deadlineMs || 0, completedAtMs };
+}
+export type PaymentStatus = "pending" | "paid" | "settled";
+/** Quem pode dar o próximo passo da liquidação: a contratante marca "pago"; a executora confirma "recebido". */
+export function nextPayment(current: PaymentStatus, action: "paid" | "received"): PaymentStatus | null {
+  if (action === "paid") return current === "pending" ? "paid" : null;
+  return current === "pending" || current === "paid" ? "settled" : null;
+}
+/** Instante (ms) de timestamps do Firestore, ISO ou números; 0 se não houver. */
+export function toMillis(value: any): number {
+  const ms = value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")));
+  return Number.isFinite(ms) ? ms : 0;
 }
