@@ -50,6 +50,7 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
   if (input.audience === "selected" && driverIds.some(driver => !members.includes(driver))) fail("failed-precondition", "Um dos motoristas escolhidos não faz parte da equipe ativa da empresa.");
   if (!driverIds.length) fail("failed-precondition", "A empresa não tem motoristas ativos para receber a campanha.");
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("resource-exhausted", `A campanha pode ter no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
+  const settings = (await db.collection("rewardSettings").doc(companyId).get()).data() || {}, payDay = Number.isInteger(settings.payDay) && settings.payDay >= 0 && settings.payDay <= 6 ? settings.payDay : null; // o motorista vê o dia de pagamento da empresa na própria oferta
   const budgetCents = input.budgetCents || campaignBudget(input, driverIds.length);
   if (budgetCents < input.perTripCents) fail("invalid-argument", "O teto de investimento precisa cobrir ao menos uma viagem.");
   const users = await db.getAll(...driverIds.map(driver => db.collection("users").doc(driver)));
@@ -66,7 +67,7 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
     for (const driverId of driverIds) tx.create(db.collection(REWARD_OFFERS).doc(`${campaignId}_${driverId}`), {
       schemaVersion: 1, campaignId, companyId, companyName: companyLabel(manager.company), driverId, driverName: names.get(driverId) || "Motorista", status: "pending",
       name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents, openEnded: input.openEnded, deadlineDays: Math.max(0, Math.floor(Number(contract.deadlineDays) || 0)),
-      trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, simCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
+      payDay, trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, simCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
     return { replayed: false, company: manager.company, contractName };
   });
   if (!outcome.replayed) await notifyUsers(db, driverIds, { type: "REWARD_OFFER", refId: campaignId, companyId, title: "Nova oferta de pagamento",

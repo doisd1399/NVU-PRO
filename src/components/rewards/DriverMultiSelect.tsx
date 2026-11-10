@@ -6,7 +6,7 @@ import "../admin/AssignmentWorkspace.css";
 export type DriverChoice = { id: string; name: string; photo: string };
 
 /** Seletor de motoristas igual ao do "Encaminhar trabalho": título, contagem, "Selecionar todos" e cartões com caixa de seleção e foto. */
-export function DriverMultiSelect({ drivers, selected, onChange, disabled, ready = true, help = "Selecione quem receberá a oferta." }: {
+export function DriverMultiSelect({ drivers, selected, onChange, disabled, ready = true, help = "Quem recebe a oferta." }: {
   drivers: DriverChoice[]; selected: string[]; onChange: (ids: string[]) => void; disabled?: boolean; ready?: boolean; help?: string;
 }) {
   const allSelected = drivers.length > 0 && drivers.every(driver => selected.includes(driver.id));

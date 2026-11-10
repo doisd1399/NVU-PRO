@@ -65,7 +65,10 @@ try {
   await test("dia de pagamento e chave Pix: só o gestor define o dia; o motorista valida e salva a própria chave", async () => {
     await failsWith(() => pay.setRewardPayDay.run({ companyId: "a", payDay: 5 }, ctx("drv-1")), "permission-denied"); await failsWith(() => pay.setRewardPayDay.run({ companyId: "a", payDay: 5 }, ctx("owner-b")), "permission-denied");
     await failsWith(() => pay.setRewardPayDay.run({ companyId: "a", payDay: 9 }, ctx("owner-a")), "invalid-argument"); await failsWith(() => pay.setRewardPayDay.run({ companyId: "a", payDay: "x" }, ctx("owner-a")), "invalid-argument");
-    await pay.setRewardPayDay.run({ companyId: "a", payDay: 5 }, ctx("owner-a")); assert.equal((await get("rewardSettings/a")).get("payDay"), 5);
+    const first = await create({ contractId: "ct-2" }); assert.equal((await get(`rewardOffers/${first.campaignId}_drv-1`)).get("payDay"), null, "sem dia combinado ainda");
+    const set = await pay.setRewardPayDay.run({ companyId: "a", payDay: 5 }, ctx("owner-a")); assert.equal((await get("rewardSettings/a")).get("payDay"), 5); assert.equal(set.offers, 2);
+    assert.equal((await get(`rewardOffers/${first.campaignId}_drv-1`)).get("payDay"), 5, "o motorista vê o dia de pagamento na própria oferta");
+    const second = await create({ contractId: "ct-2" }); assert.equal((await get(`rewardOffers/${second.campaignId}_drv-2`)).get("payDay"), 5, "ofertas novas já nascem com o dia"); await pay.setRewardPayDay.run({ companyId: "a", payDay: 2 }, ctx("owner-a")); assert.equal((await get(`rewardOffers/${second.campaignId}_drv-2`)).get("payDay"), 2, "mudou o dia: ofertas abertas acompanham");
     await failsWith(() => pay.setRewardPix.run({ type: "cpf", key: "123" }, ctx("drv-1")), "invalid-argument"); await failsWith(() => pay.setRewardPix.run({ type: "cpf", key: "52998224725" }, {}), "unauthenticated");
     const saved = await pay.setRewardPix.run({ type: "phone", key: "(11) 91234-5678" }, ctx("drv-1")); assert.equal(saved.key, "+5511912345678");
     assert.deepEqual([(await get("rewardPayees/drv-1")).get("pixType"), (await get("rewardPayees/drv-1")).get("pixKey")], ["phone", "+5511912345678"]);

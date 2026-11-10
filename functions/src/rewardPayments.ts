@@ -38,7 +38,11 @@ export const setRewardPayDay = functions.region(...CALLABLE_REGIONS).https.onCal
   const companyId = id(data.companyId, "Empresa"), payDay = normalizePayDay(data.payDay);
   await manager(db, context, companyId);
   await db.collection(REWARD_SETTINGS).doc(companyId).set({ companyId, payDay, updatedBy: uid, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
-  return { success: true, payDay };
+  // Os motoristas veem o dia de pagamento na própria oferta: replica nas ofertas ainda abertas (pendentes e aceitas).
+  const offers = await db.collection(REWARD_OFFERS).where("companyId", "==", companyId).get(), batch = db.batch(); let writes = 0;
+  offers.docs.filter(row => ["pending", "accepted"].includes(text(row.get("status"))) && row.get("payDay") !== payDay).slice(0, WRITE_LIMIT).forEach(row => { batch.update(row.ref, { payDay }); writes++; });
+  if (writes) await batch.commit();
+  return { success: true, payDay, offers: writes };
 });
 
 /** O motorista informa a chave Pix em que recebe. Folhas ainda não pagas passam a usar a chave nova. */

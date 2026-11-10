@@ -8,6 +8,7 @@ import { formatMoney } from "../../lib/partnerships";
 import { OFFER_STATE_LABEL, goalOf, rewardErrorMessage, termText, type RewardOffer } from "../../lib/rewards";
 import { BackLink, Section, Tabs } from "../../components/partnerships/shared";
 import { ReceiptDetail, ReceiptsTab } from "./RewardPayments";
+import { InfoTab } from "./RewardInfo";
 import "../../components/partnerships/Partnerships.css";
 
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
@@ -18,7 +19,7 @@ export default function DriverRewards() {
   const { currentUser } = useSessionStore();
   const { offers, ready, error } = useDriverRewards(currentUser?.id);
   const { payments, pix, ready: paymentsReady } = useDriverPayments(currentUser?.id);
-  const [openId, setOpenId] = useState(""), [busy, setBusy] = useState(false), [tab, setTab] = useState<"offers" | "receipts">("offers"), [paymentId, setPaymentId] = useState("");
+  const [openId, setOpenId] = useState(""), [busy, setBusy] = useState(false), [tab, setTab] = useState<"offers" | "receipts" | "info">("offers"), [paymentId, setPaymentId] = useState("");
   const now = useMemo(() => Date.now(), [offers]);
   const open = offers.find(offer => offer.id === openId);
   const respond = async (offer: RewardOffer, decision: "accept" | "decline") => {
@@ -47,7 +48,8 @@ export default function DriverRewards() {
         : <p className="b2p-hint">{OFFER_STATE_LABEL[open.status]}.</p>}
     </div></section></>);
   const toConfirm = payments.filter(item => item.status === "paid").length;
-  const tabs = <Tabs<"offers" | "receipts"> label="Seções de pagamentos" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }]} />;
+  const tabs = <Tabs<"offers" | "receipts" | "info"> label="Seções de pagamentos" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }, { id: "info", label: "Informações" }]} />;
+  if (tab === "info") return shell("Pagamentos", "Como funciona para você.", <>{tabs}<InfoTab offers={offers} payments={payments} /></>);
   if (tab === "receipts") return shell("Pagamentos", "Ofertas e recebimentos.", <>{tabs}<ReceiptsTab payments={payments} pix={pix} ready={paymentsReady} onOpen={setPaymentId} /></>);
   return shell("Pagamentos", "Ofertas das empresas.", <>
     {tabs}

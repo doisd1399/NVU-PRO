@@ -1,6 +1,13 @@
-# NVU PRO 1.0.573 (Android) / Web 2.3.230 / Windows 0.2.2
+# NVU PRO 1.0.574 (Android) / Web 2.3.231 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 573 — instala como atualização da 572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 574 — instala como atualização da 573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.574 — Pagamentos: formulário compacto e seção de informações do motorista
+- **Sem sugestão de valores:** os campos de valor ficam vazios.
+- **Descrições curtas:** valor por viagem — “Sugerimos pagamentos em centavos.”; meta — “Total de ganhos por operação.”
+- **Nova campanha mais compacta:** valor por viagem e meta lado a lado, resumo em uma faixa (total de viagens · estimativa da meta · total a pagar) e lista de motoristas com rolagem própria, para caber melhor na área visível.
+- **Motorista — aba “Informações”** (em Pagamentos): **Ganhos** (acumulado, a receber, recebido), **Trabalho** (operação, viagens x/N, valor por viagem, meta), **Dia de pagamento** de cada empresa e **Como funciona** em 4 passos curtos.
+- **Servidor:** o dia de pagamento da empresa é copiado para as ofertas (novas e abertas), para o motorista vê-lo. **Exige publicar as funções** `createRewardCampaign` e `setRewardPayDay`.
 
 ## 1.0.573 — Meta de ganhos da operação
 - A meta agora se chama **Meta de ganhos da operação**: é o **total de ganhos gerados em todas as viagens da operação** (a soma do valor de cada viagem da operação, depois do aceite do motorista). Continua separada do pagamento por viagem e não altera o valor pago.

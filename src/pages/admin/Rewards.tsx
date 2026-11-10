@@ -120,7 +120,7 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, busy,
   };
   return <>
     <BackLink label="Pagamentos" onClick={onBack} />
-    <section className="nvu-central-section b2p-sec"><div className="b2p-form">
+    <section className="nvu-central-section b2p-sec"><div className="b2p-form b2p-compact">
       <Field label="1. Operação">
         {/* Prévia igual ao cartão da lista "Escolher operação"; tocar abre a lista para trocar */}
         <div className="nvu-assignment-theme"><button type="button" className={"nvu-assignment-choice nvu-assignment-contract-choice" + (contract ? " is-selected" : "")} onClick={() => setPickerOpen(true)} aria-haspopup="dialog" aria-label={contract ? `Alterar operação: ${contract.name}` : "Escolher operação"}>
@@ -129,16 +129,17 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, busy,
           <ChevronRight size={18} aria-hidden="true" style={{ alignSelf: "center", justifySelf: "center" }} /></button></div>
         {!contracts.length ? <span className="b2p-note-box" data-tone="warn" role="note">Nenhuma operação ativa. Cadastre uma em Operações.</span> : null}
       </Field>
-      <Field label="2. Valor por viagem"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} placeholder="25,00" onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
-      <Field label="3. Meta de ganhos da operação" hint="Total de ganhos de todas as viagens da operação. Não muda o pagamento."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} placeholder="300,00" onChange={event => setGoalText(maskMoney(event.target.value))} /></div></Field>
+      <div className="b2p-grid2">
+        <Field label="2. Valor por viagem" hint="Sugerimos pagamentos em centavos."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
+        <Field label="3. Meta de ganhos" hint="Total de ganhos por operação."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} onChange={event => setGoalText(maskMoney(event.target.value))} /></div></Field>
+      </div>
       <DriverMultiSelect drivers={drivers} selected={picked} onChange={setPicked} disabled={busy} ready={ready} />
       <Field label="4. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
-      <div className="b2p-settle">
-        <Row label="Total de viagens" value={totalTrips} strong />
-        <Row label="Estimativa da meta" value={goalCents ? formatMoney(goalTotal) : "—"} strong />
-        <Row label="Total a pagar" value={formatMoney(payroll)} />
+      <div className="b2p-facts" aria-label="Resumo">
+        <div><b>{totalTrips}</b><span>Total de viagens</span></div>
+        <div><b>{goalCents ? formatMoney(goalTotal) : "—"}</b><span>Estimativa da meta</span></div>
+        <div><b>{formatMoney(payroll)}</b><span>Total a pagar</span></div>
       </div>
-      <p className="b2p-hint">Pago na folha, depois que o motorista conclui a operação.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void send()}><Send size={16} aria-hidden="true" />{busy ? "Enviando…" : "Enviar oferta aos motoristas"}</button></div>
     </div></section>
