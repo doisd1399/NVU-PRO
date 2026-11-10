@@ -35,15 +35,15 @@ export function PayrollTab({ companyId, payments, offers, payDay, ready, now, on
         <div className="b2p-field"><span className="b2p-label">Dia do pagamento</span>
           <div className="b2p-input"><select value={payDay ?? ""} aria-label="Dia da semana do pagamento" disabled={busy} onChange={event => { const day = Number(event.target.value); void run(async () => { await rewardService.setPayDay(companyId, day); toast.success(`Pagamento toda ${WEEKDAYS[day].toLowerCase()}${day === 0 || day === 6 ? "" : "-feira"}.`); }, "Não foi possível salvar o dia."); }}>
             <option value="" disabled>Escolha o dia</option>{WEEKDAYS.map((label, index) => <option key={label} value={index}>{label}</option>)}</select></div>
-          <span className="b2p-hint">{payDay === null ? "Escolha um dia: nesse dia, às 8h, o NVU monta a folha e avisa você. Sem dia escolhido, gere a folha quando quiser." : `Próxima folha automática: ${nextPayDayText(payDay, now)}, às 8h.`}</span></div>
+          <span className="b2p-hint">{payDay === null ? "Escolha o dia da folha (8h)." : `Próxima folha: ${nextPayDayText(payDay, now)}, 8h.`}</span></div>
         <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy || !balance.totalCents} onClick={() => void generate()}>{busy ? "Gerando…" : "Gerar folha agora"}</button></div>
       </div>
     </section>
     <Section title="A pagar" count={open.length}>
       {open.length ? open.map(payment => <PaymentRow key={payment.id} payment={payment} onOpen={() => onOpen(payment.id)} />)
-        : <p className="b2p-empty">{ready ? "Nenhum pagamento na folha. Quando houver ganhos, gere a folha ou espere o dia do pagamento." : "Carregando a folha…"}</p>}
-      {balance.waiting.length ? <><p className="b2p-hint">Ainda não concluíram a operação (recebem na folha da semana em que concluírem; se não for nesta, na próxima):</p>{balance.waiting.map(row => <div className="b2p-wrow" key={row.id}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>em andamento{row.of ? ` · ${row.trips} de ${row.of} viagens` : ""}</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
-      {balance.rows.length ? <><p className="b2p-hint">Concluíram e entram na próxima folha:</p>{balance.rows.map(row => <div className="b2p-wrow" key={row.driverId}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>ganho ainda não pago</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
+        : <p className="b2p-empty">{ready ? "Nenhum pagamento na folha." : "Carregando a folha…"}</p>}
+      {balance.waiting.length ? <><p className="b2p-hint">Em andamento (recebem ao concluir):</p>{balance.waiting.map(row => <div className="b2p-wrow" key={row.id}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>em andamento{row.of ? ` · ${row.trips} de ${row.of} viagens` : ""}</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
+      {balance.rows.length ? <><p className="b2p-hint">Prontos para a próxima folha:</p>{balance.rows.map(row => <div className="b2p-wrow" key={row.driverId}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>ganho ainda não pago</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
     </Section>
   </>;
 }
@@ -58,8 +58,8 @@ export function TransfersTab({ payments, ready, onOpen }: { payments: RewardPaym
       <div className="b2p-sum"><div><small>Total pago</small><b>{formatMoney(total)}</b><em>{done.length} {done.length === 1 ? "transferência" : "transferências"}</em></div><div><small>Confirmado pelos motoristas</small><b>{formatMoney(confirmed)}</b><em>{done.filter(item => item.status === "paid").length} aguardando confirmação</em></div></div>
     </section>
     <Section title="Pagamentos feitos" count={done.length}>
-      {done.length ? done.map(payment => <PaymentRow key={payment.id} payment={payment} showDate onOpen={() => onOpen(payment.id)} />) : <p className="b2p-empty">{ready ? "Nenhuma transferência ainda. Elas aparecem aqui quando você marca um pagamento como pago." : "Carregando…"}</p>}
-      <p className="b2p-hint">O comprovante é um registro do NVU a partir do que a empresa informou; o dinheiro não passa pelo NVU.</p>
+      {done.length ? done.map(payment => <PaymentRow key={payment.id} payment={payment} showDate onOpen={() => onOpen(payment.id)} />) : <p className="b2p-empty">{ready ? "Nenhuma transferência ainda." : "Carregando…"}</p>}
+      <p className="b2p-hint">O dinheiro não passa pelo NVU.</p>
     </Section>
   </>;
 }
@@ -76,13 +76,13 @@ export function PaymentDetail({ payment, onBack, backLabel }: { payment: RewardP
       <div className="b2p-sec-head"><h2>{payment.driverName}</h2><Pill status={payment.status} /></div>
       <div className="b2p-sum"><div><small>Valor</small><b>{formatMoney(payment.amountCents)}</b><em>folha de {dateTimeText(payment.payrollAtMs)}</em></div></div>
       <div className="b2p-settle">{payment.items.map(item => <Row key={item.offerId} label={item.campaignName} value={formatMoney(item.cents)} />)}<Row label="Total" value={formatMoney(payment.amountCents)} strong /></div>
-      {payment.status === "contested" ? <p className="b2p-note-box" data-tone="warn" role="alert"><b>O motorista contestou:</b> {payment.contestReason}. Confira com ele; pague de novo e marque como pago, ou cancele o pagamento.</p> : null}
-      {payment.status === "paid" ? <p className="b2p-note-box" role="note">Aguardando o motorista confirmar que recebeu.</p> : null}
+      {payment.status === "contested" ? <p className="b2p-note-box" data-tone="warn" role="alert"><b>Contestado:</b> {payment.contestReason}</p> : null}
+      {payment.status === "paid" ? <p className="b2p-note-box" role="note">Aguardando confirmação do motorista.</p> : null}
     </section>
     {needsPayment ? <>
       <PixPayPanel payment={payment} />
       <section className="nvu-central-section b2p-sec"><div className="b2p-form">
-        <div className="b2p-field"><span className="b2p-label">Código da transação Pix (opcional)</span><div className="b2p-input"><input value={e2e} maxLength={40} autoComplete="off" placeholder="Ex.: E1234567890…" onChange={event => setE2e(event.target.value)} /></div><span className="b2p-hint">O código “E2E” que aparece no comprovante do seu banco. Ajuda o motorista a conferir.</span></div>
+        <div className="b2p-field"><span className="b2p-label">Código da transação Pix (opcional)</span><div className="b2p-input"><input value={e2e} maxLength={40} autoComplete="off" placeholder="Ex.: E1234567890…" onChange={event => setE2e(event.target.value)} /></div><span className="b2p-hint">Aparece no comprovante do banco.</span></div>
         <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void run(() => rewardService.markPaid(payment.id, e2e), "Não foi possível marcar como pago.", "Marcado como pago. O motorista foi avisado.")}>{busy ? "Salvando…" : "Marcar como pago"}</button>
           <button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={() => { if (window.confirm("Cancelar este pagamento? O valor volta para a próxima folha.")) void run(() => rewardService.cancelPayment(payment.id), "Não foi possível cancelar.", "Pagamento cancelado."); }}>Cancelar pagamento</button></div>
       </div></section>

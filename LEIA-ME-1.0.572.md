@@ -1,6 +1,11 @@
-# NVU PRO 1.0.571 (Android) / Web 2.3.228 / Windows 0.2.2
+# NVU PRO 1.0.572 (Android) / Web 2.3.229 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 571 — instala como atualização da 570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 572 — instala como atualização da 571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.572 — “Salário” vira **Pagamentos** e telas mais enxutas
+- **Nome da área:** agora é **Pagamentos** (Central de gestão, painel do motorista, títulos e avisos: “Nova oferta de pagamento”, “Pagamento a receber”). O campo de valor passou a se chamar “Valor por viagem”.
+- **Sem cálculos escritos na tela:** o resumo da Nova campanha mostra só os resultados — **Total de viagens**, **Estimativa da meta** e **Total a pagar** — sem fórmulas.
+- **Textos mais curtos** nas telas de campanha, folha, transferências, ofertas e recebimentos (descrições, dicas e avisos reduzidos ao essencial).
 
 ## 1.0.571 — Salário: meta de ganhos no simulador separada do salário por viagem
 - **Duas coisas diferentes, sem ligação entre si:**

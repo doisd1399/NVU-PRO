@@ -12,7 +12,7 @@ const actions = [
   { id: "fleet", label: "Frota", icon: Warehouse },
   { id: "trips", label: "Viagens", icon: MapPinned },
   { id: "partnerships", label: "Parcerias B2P", icon: Handshake },
-  { id: "rewards", label: "Salário", icon: Wallet },
+  { id: "rewards", label: "Pagamentos", icon: Wallet },
 ] as const;
 
 /** Keep a full currency amount on one line, also with large real totals. */

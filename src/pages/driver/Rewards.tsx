@@ -13,7 +13,7 @@ import "../../components/partnerships/Partnerships.css";
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
 const TONE: Record<string, string> = { pending: "warn", accepted: "good", declined: "muted", cancelled: "muted" };
 
-/** Salário do motorista: ofertas das empresas (aceitar ou recusar) e o ganho acumulado em cada campanha. */
+/** Pagamentos do motorista: ofertas das empresas (aceitar ou recusar) e o ganho acumulado em cada campanha. */
 export default function DriverRewards() {
   const { currentUser } = useSessionStore();
   const { offers, ready, error } = useDriverRewards(currentUser?.id);
@@ -29,36 +29,35 @@ export default function DriverRewards() {
   const pending = offers.filter(offer => offer.status === "pending" && offer.endMs >= now), mine = offers.filter(offer => offer.status === "accepted"), total = mine.reduce((sum, offer) => sum + offer.totalCents, 0);
   const shell = (title: string, description: string, children: React.ReactNode) => <div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack"><header className="nvu-central-intro nvu-workspace-page-heading"><div className="nvu-workspace-page-title"><h1>{title}</h1><p>{description}</p></div></header>{children}</div></div>;
   if (paymentId) return shell("Recebimento", "Confira o pagamento e o comprovante.", <ReceiptDetail payment={payments.find(item => item.id === paymentId)} pix={pix} onBack={() => setPaymentId("")} />);
-  if (open) return shell("Oferta de salário", "Analise as condições e responda.", <>
-    <BackLink label="Salário" onClick={() => setOpenId("")} />
+  if (open) return shell("Oferta de pagamento", "Aceite ou recuse.", <>
+    <BackLink label="Pagamentos" onClick={() => setOpenId("")} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
       <div className="b2p-op-row"><span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={22} aria-hidden="true" /></span><div><b>{open.name}</b><small>{open.companyName} · {termText(open)}</small></div></div>
       <div className="b2p-settle">
         {open.contractName ? <Row label="Operação" value={open.contractName} /> : null}
-        <Row label="Salário por viagem" value={formatMoney(open.perTripCents)} />
-        {open.maxTripsPerDriver ? <><Row label="Viagens da operação" value={open.maxTripsPerDriver} />{goalOf(open) ? <Row label="Meta de ganhos no simulador" value={formatMoney(goalOf(open))} /> : null}</> : null}
+        <Row label="Valor por viagem" value={formatMoney(open.perTripCents)} />
+        {open.maxTripsPerDriver ? <><Row label="Viagens da operação" value={open.maxTripsPerDriver} />{goalOf(open) ? <Row label="Meta no simulador" value={formatMoney(goalOf(open))} /> : null}</> : null}
         {open.bonusCents ? <><Row label="Bônus da meta" value={formatMoney(open.bonusCents)} /><Row label="Meta" value={`${open.bonusGoalTrips} viagens`} /></> : null}
-        {open.status === "accepted" ? <><Row label="Suas viagens" value={open.maxTripsPerDriver ? `${open.trips} de ${open.maxTripsPerDriver}` : String(open.trips)} /><Row label="Salário acumulado" value={formatMoney(open.totalCents)} strong />{goalOf(open) ? <Row label="Ganhos no simulador" value={`${formatMoney(open.simCents)} de ${formatMoney(goalOf(open))}`} /> : null}</> : null}
+        {open.status === "accepted" ? <><Row label="Suas viagens" value={open.maxTripsPerDriver ? `${open.trips} de ${open.maxTripsPerDriver}` : String(open.trips)} /><Row label="Você já ganhou" value={formatMoney(open.totalCents)} strong />{goalOf(open) ? <Row label="No simulador" value={`${formatMoney(open.simCents)} de ${formatMoney(goalOf(open))}`} /> : null}</> : null}
       </div>
       {open.status === "accepted" && goalOf(open) ? (() => { const goal = goalOf(open), pct = Math.min(100, open.simCents / goal * 100); return <div><div className="nvu-central-progress" role="progressbar" aria-label="Progresso até a meta de ganhos no simulador" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${pct}%` }} /></div>
-        <p className="b2p-hint">{open.simCents >= goal ? "Meta de ganhos no simulador alcançada!" : `Meta no simulador: ${formatMoney(open.simCents)} de ${formatMoney(goal)}. Faltam ${formatMoney(goal - open.simCents)}.`}</p></div>; })() : null}
-      <p className="b2p-note-box">Cada viagem confirmada{open.contractName ? <> na operação <b>{open.contractName}</b></> : null} da empresa <b>{open.companyName}</b>, depois do seu aceite{open.openEnded ? "" : " e dentro do período"}, soma ao seu salário.</p>
-      <p className="b2p-note-box" data-tone="warn">O pagamento é feito pela empresa, por Pix, na chave que você cadastrar, no dia de pagamento dela e depois que você concluir a operação. Se não concluir na semana, você recebe na semana seguinte. O NVU calcula o ganho, organiza a folha e registra o comprovante, mas não paga nem garante o pagamento.</p>
+        <p className="b2p-hint">{open.simCents >= goal ? "Meta alcançada!" : `Faltam ${formatMoney(goal - open.simCents)} para a meta.`}</p></div>; })() : null}
+      <p className="b2p-note-box" data-tone="warn">Pago pela empresa por Pix, depois que você concluir a operação. O NVU só registra: não paga nem garante.</p>
       {open.status === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void respond(open, "accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => void respond(open, "decline")}>Recusar</button></div>
         : <p className="b2p-hint">{OFFER_STATE_LABEL[open.status]}.</p>}
     </div></section></>);
   const toConfirm = payments.filter(item => item.status === "paid").length;
-  const tabs = <Tabs<"offers" | "receipts"> label="Seções de salário" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }]} />;
-  if (tab === "receipts") return shell("Salário", "Ofertas, pagamentos e comprovantes.", <>{tabs}<ReceiptsTab payments={payments} pix={pix} ready={paymentsReady} onOpen={setPaymentId} /></>);
-  return shell("Salário", "Ofertas das empresas para você.", <>
+  const tabs = <Tabs<"offers" | "receipts"> label="Seções de pagamentos" value={tab} onChange={setTab} items={[{ id: "offers", label: "Ofertas", count: pending.length, warn: true }, { id: "receipts", label: "Recebimentos", count: toConfirm, warn: true }]} />;
+  if (tab === "receipts") return shell("Pagamentos", "Ofertas e recebimentos.", <>{tabs}<ReceiptsTab payments={payments} pix={pix} ready={paymentsReady} onOpen={setPaymentId} /></>);
+  return shell("Pagamentos", "Ofertas das empresas.", <>
     {tabs}
-    {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar o salário agora.</p> : null}
+    {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar agora.</p> : null}
     <section className="nvu-central-section b2p-sec"><div className="b2p-sum"><div><small>Ganho acumulado</small><b data-tone={total ? "pos" : undefined}>{formatMoney(total)}</b><em>{mine.length} {mine.length === 1 ? "campanha aceita" : "campanhas aceitas"}</em></div><div><small>Ofertas novas</small><b data-tone={pending.length ? "warn" : undefined}>{pending.length}</b><em>aguardando resposta</em></div></div></section>
     <Section title="Campanhas" count={offers.length}>
       {offers.length ? offers.map((offer, index) => <button type="button" className="b2p-wrow" key={offer.id} onClick={() => setOpenId(offer.id)} style={index ? undefined : { borderTop: 0 }}>
         <span className="b2p-wico" data-k="ganho"><Trophy size={18} aria-hidden="true" /></span><div><b>{offer.name}</b><small>{offer.companyName} · {termText(offer)}</small></div>
         <span className="b2p-amt"><strong data-k="ganho">{offer.status === "accepted" ? formatMoney(offer.totalCents) : formatMoney(offer.perTripCents) + "/viagem"}</strong><span className="b2p-pill" data-tone={TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.status === "pending" ? "Responder" : OFFER_STATE_LABEL[offer.status]}</span></span></button>)
-        : <p className="b2p-empty">{ready ? "Nenhuma campanha por enquanto. Quando uma empresa enviar, ela aparece aqui." : "Carregando…"}</p>}
+        : <p className="b2p-empty">{ready ? "Nenhuma oferta por enquanto." : "Carregando…"}</p>}
     </Section>
   </>);
 }

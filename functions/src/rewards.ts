@@ -69,7 +69,7 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).https.
       trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, simCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
     return { replayed: false, company: manager.company, contractName };
   });
-  if (!outcome.replayed) await notifyUsers(db, driverIds, { type: "REWARD_OFFER", refId: campaignId, companyId, title: "Nova oferta de salário",
+  if (!outcome.replayed) await notifyUsers(db, driverIds, { type: "REWARD_OFFER", refId: campaignId, companyId, title: "Nova oferta de pagamento",
     message: `${companyLabel(outcome.company)} enviou a campanha ${input.name} (operação ${outcome.contractName}): ${money(input.perTripCents)} por viagem, no total de ${input.maxTripsPerDriver} viagens${input.goalCents ? `; meta de ganhos no simulador: ${money(input.goalCents)}` : ""}${input.bonusCents ? ` e bônus de ${money(input.bonusCents)} em ${input.bonusGoalTrips} viagens` : ""}. Aceite ou recuse.` });
   return { success: true, campaignId, drivers: driverIds.length, replayed: outcome.replayed };
 });
