@@ -22,30 +22,35 @@ const get = path => db.doc(path).get();
 const failsWith = async (fn, code) => assert.rejects(fn, error => { assert.ok(String(error.code).includes(code), `expected ${code}, got ${error.code}: ${error.message}`); return true; });
 const DAY = 86_400_000;
 let seq = 0;
-const offerData = (extra = {}) => ({ contractorCompanyId: "a", executorCompanyId: "b", operationName: "Operação 031", totalTrips: 5, vehicleRequirement: "Volvo FH",
+const offerData = (extra = {}) => ({ contractorCompanyId: "a", executorCompanyId: "b", operationName: "Operação 031", totalTrips: 5,
   trailerRequirement: "Frigorífico", deadlineAt: new Date(Date.now() + 4 * DAY).toISOString(), conditions: "Veículo limpo.", goalAmountCents: 4_000_000, requestId: `req-${++seq}-${Date.now()}`, ...extra });
 const createOffer = (uid = "owner-a", extra = {}) => partnerships.createPartnershipOffer.run(offerData(extra), ctx(uid));
 const respond = (id, decision, uid = "owner-b") => partnerships.respondPartnershipOffer.run({ partnershipId: id, decision }, ctx(uid));
 const designate = (id, extra = {}, uid = "owner-b") => partnerships.designatePartnershipDriver.run({ partnershipId: id, driverId: "drv-b", vehicleId: "veh-b", trailerId: "trl-b", ...extra }, ctx(uid));
 const photo = (partnershipId, uid) => `https://firebasestorage.googleapis.com/v0/b/${projectId}.appspot.com/o/${encodeURIComponent(`partnership-start-photos/${partnershipId}/${uid}/1_v.webp`)}?alt=media&token=t`;
 
-const company = (id, owner, extra = {}) => [`frotas/${id}`, { ownerId: owner, userId: owner, companyName: extra.companyName || id, simulatorId: "GTO", status: "active", operationalCommandVersion: 1, ...extra }];
+const company = (id, owner, extra = {}) => [`frotas/${id}`, Object.fromEntries(Object.entries({ ownerId: owner, userId: owner, companyName: extra.companyName || id, simulatorId: "GTO", status: "active", operationalCommandVersion: 1, ...extra }).filter(([, value]) => value !== undefined))];
 const seed = async () => {
   await environment.clearFirestore();
   const rows = [
     company("a", "owner-a", { companyName: "DC Transportes" }), company("b", "owner-b", { companyName: "CTS" }), company("e", "owner-e", { companyName: "Euro", simulatorId: "ETS2" }),
+    company("z", "owner-z", { companyName: "Arquivada", status: "archived" }), company("y", "owner-y", { companyName: "Excluída", deleted: true }), company("w", "owner-w", { companyName: "Inativa", active: false }),
+    company("s", "owner-s", { companyName: "Suspensa", status: "suspended" }), company("u", "owner-u", { companyName: "Sem preparo", operationalCommandVersion: undefined }),
+    ["frotas/g", { ownerId: "owner-g", userId: "owner-g", companyName: "Nome por extenso", simulatorName: "Global Truck Online", status: "active", operationalCommandVersion: 1 }],
     ["users/owner-a", { name: "Dono A", companyId: "a", role: "admin", status: "active" }], ["users/owner-b", { name: "Dono B", companyId: "b", role: "admin", status: "active" }],
     ["users/owner-e", { name: "Dono E", companyId: "e", role: "admin", status: "active" }],
+    ...["z", "y", "w", "s", "u", "g"].map(id => [`users/owner-${id}`, { name: `Dono ${id}`, companyId: id, role: "admin", status: "active" }]),
     ["users/drv-b", { name: "Caio Lima", email: "caio@example.com", role: "driver", roles: ["driver"], companyId: "b", status: "active", memberships: { b: { role: "driver", roles: ["driver"], status: "active" } } }],
     ["companyMembers/drv-b_b", { userId: "drv-b", companyId: "b", roles: ["driver"], status: "active" }], ["simulator_members/drv-b_b", { userId: "drv-b", companyId: "b", roles: ["driver"], status: "active" }],
     ["users/drv-a", { name: "Motorista A", role: "driver", roles: ["driver"], companyId: "a", status: "active" }], ["companyMembers/drv-a_a", { userId: "drv-a", companyId: "a", roles: ["driver"], status: "active" }],
     ["users/stranger", { name: "Estranho", role: "driver", status: "active" }],
     ["veiculos/veh-b", { companyId: "b", name: "Volvo FH 540", plate: "CTS-12", status: "available" }], ["veiculos/veh-b2", { companyId: "b", name: "Scania 113", status: "available" }],
     ["veiculos/veh-a", { companyId: "a", name: "Volvo FH", status: "available" }],
-    ["reboques/trl-b", { companyId: "b", name: "Frigorífico", status: "available" }],
+    ["reboques/trl-b", { companyId: "b", name: "Frigorífico", status: "available" }], ["reboques/trl-b2", { companyId: "b", name: "Graneleiro 3 eixos", status: "available" }],
+    ["reboques/trl-a", { companyId: "a", name: "Frigorífico", status: "available" }],
   ];
   const batch = db.batch(); rows.forEach(([ref, data]) => batch.set(db.doc(ref), data)); await batch.commit();
-  for (const [uid, companyId] of [["owner-a", "a"], ["owner-b", "b"], ["owner-e", "e"], ["drv-b", "b"], ["drv-a", "a"]]) await refreshCompanyAccess(db, uid, companyId);
+  for (const [uid, companyId] of [["owner-a", "a"], ["owner-b", "b"], ["owner-e", "e"], ["drv-b", "b"], ["drv-a", "a"], ["owner-u", "u"], ["owner-g", "g"], ["owner-z", "z"]]) await refreshCompanyAccess(db, uid, companyId);
 };
 const results = [];
 async function test(name, fn) {
@@ -101,28 +106,70 @@ try {
     await failsWith(() => partnerships.cancelPartnershipOffer.run({ partnershipId: second.partnershipId }, ctx("owner-b")), "failed-precondition");
   });
 
-  await test("designar: motorista, veículo e reboque da executora, conforme a exigência; trabalho comum da executora com marcas de parceria", async () => {
+  await test("designar: a EXECUTORA escolhe motorista e veículo da própria frota (qualquer um); reboque só conferido quando a oferta exige", async () => {
     const { partnershipId } = await createOffer();
     await failsWith(() => designate(partnershipId), "failed-precondition");
     await respond(partnershipId, "accept");
     await failsWith(() => designate(partnershipId, {}, "owner-a"), "permission-denied");
-    await failsWith(() => designate(partnershipId, { vehicleId: "veh-b2" }), "failed-precondition");
-    await failsWith(() => designate(partnershipId, { vehicleId: "veh-a" }), "failed-precondition");
-    await failsWith(() => designate(partnershipId, { trailerId: null }), "failed-precondition");
+    await failsWith(() => designate(partnershipId, { vehicleId: "veh-a" }), "failed-precondition"); // veículo de outra empresa
+    await failsWith(() => designate(partnershipId, { trailerId: null }), "failed-precondition"); // a oferta exige reboque
+    await failsWith(() => designate(partnershipId, { trailerId: "trl-b2" }), "failed-precondition"); // reboque que não atende
+    await failsWith(() => designate(partnershipId, { trailerId: "trl-a" }), "failed-precondition"); // reboque de outra empresa
     await failsWith(() => designate(partnershipId, { driverId: "drv-a" }), "permission-denied"); // motorista de outra empresa
     assert.equal((await db.collection("trabalhos").get()).size, 0, "falhas não deixam trabalho para trás");
-    const done = await designate(partnershipId);
+    const done = await designate(partnershipId, { vehicleId: "veh-b2" }); // Scania 113: nenhum veículo é exigido pela oferta
     assert.equal(done.success, true);
     const p = (await get(`partnerships/${partnershipId}`)).data();
-    assert.equal(p.driverId, "drv-b"); assert.equal(p.driverName, "Caio Lima"); assert.equal(p.jobId, done.jobId); assert.equal(p.status, "accepted");
+    assert.equal(p.driverId, "drv-b"); assert.equal(p.driverName, "Caio Lima"); assert.equal(p.jobId, done.jobId); assert.equal(p.status, "accepted"); assert.equal(p.vehicleName, "Scania 113");
+    assert.equal("vehicleRequirement" in p, false, "a oferta não guarda veículo");
     const job = (await get(`trabalhos/${done.jobId}`)).data();
-    assert.equal(job.companyId, "b", "o trabalho é da executora"); assert.equal(job.driverId, "drv-b"); assert.equal(job.status, "pending");
+    assert.equal(job.companyId, "b", "o trabalho é da executora"); assert.equal(job.driverId, "drv-b"); assert.equal(job.status, "pending"); assert.equal(job.vehicleId, "veh-b2");
     assert.equal(job.partnershipId, partnershipId); assert.equal(job.scoreCompanyId, "a"); assert.equal(job.contractorCompanyId, "a");
     const contract = (await get(`contratos/pc_${partnershipId}`)).data();
-    assert.equal(contract.companyId, "b"); assert.equal(contract.partnership, true); assert.equal(contract.totalDeliveries, 5); assert.equal(contract.name, "Operação 031");
-    assert.equal((await designate(partnershipId)).replayed, true, "designar o mesmo motorista de novo é idempotente");
+    assert.equal(contract.companyId, "b"); assert.equal(contract.partnership, true); assert.equal(contract.totalDeliveries, 5); assert.equal(contract.name, "Operação 031"); assert.equal(contract.trailerId, "trl-b");
+    assert.equal((await designate(partnershipId, { vehicleId: "veh-b2" })).replayed, true, "designar o mesmo motorista de novo é idempotente");
     await failsWith(() => designate(partnershipId, { driverId: "drv-a" }), "failed-precondition");
     assert.equal((await db.collection("trabalhos").where("partnershipId", "==", partnershipId).get()).size, 1, "um único trabalho");
+  });
+
+  await test("designar sem exigência de reboque: reboque é opcional (da própria frota) e qualquer veículo serve", async () => {
+    const none = await createOffer("owner-a", { trailerRequirement: null });
+    assert.equal((await get(`partnerships/${none.partnershipId}`)).get("trailerRequirement"), null);
+    await respond(none.partnershipId, "accept");
+    await failsWith(() => designate(none.partnershipId, { trailerId: "trl-a" }), "failed-precondition"); // reboque de outra empresa continua proibido
+    const done = await designate(none.partnershipId, { trailerId: null });
+    assert.equal(done.success, true);
+    assert.equal((await get(`contratos/pc_${none.partnershipId}`)).get("trailerId"), null);
+    const other = await createOffer("owner-a", { trailerRequirement: "", operationName: "Operação 032" });
+    await respond(other.partnershipId, "accept");
+    await executeOperationalCommand(db, { action: "cancel", companyId: "b", jobId: done.jobId, requestId: `cancel-${++seq}-${Date.now()}` }, ctx("owner-b")).catch(() => undefined);
+    const withTrailer = await designate(other.partnershipId, { vehicleId: "veh-b", trailerId: "trl-b2" }); // qualquer reboque da frota
+    assert.equal(withTrailer.success, true);
+    assert.equal((await get(`contratos/pc_${other.partnershipId}`)).get("trailerId"), "trl-b2");
+  });
+
+  await test("parceira: só empresa ATIVA do MESMO simulador recebe oferta (arquivada, excluída, inativa, suspensa e outro simulador são recusadas)", async () => {
+    for (const executorCompanyId of ["z", "y", "w", "s"]) await failsWith(() => createOffer("owner-a", { executorCompanyId }), "failed-precondition");
+    await failsWith(() => createOffer("owner-a", { executorCompanyId: "e" }), "failed-precondition"); // ETS2
+    assert.equal((await db.collection("partnerships").get()).size, 0);
+    // O mesmo simulador por outro nome (GTO × "Global Truck Online") é aceito.
+    const alias = await createOffer("owner-a", { executorCompanyId: "g" });
+    assert.equal((await get(`partnerships/${alias.partnershipId}`)).get("executorCompanyId"), "g");
+    // Uma empresa arquivada também não envia ofertas (nem o próprio dono administra mais uma empresa arquivada).
+    await failsWith(() => createOffer("owner-z", { contractorCompanyId: "z" }), "permission-denied");
+  });
+
+  await test("aceitar: a executora ainda não preparada para a confirmação operacional recebe orientação clara (a oferta continua pendente)", async () => {
+    const sent = await createOffer("owner-a", { executorCompanyId: "u" }), { partnershipId } = sent;
+    assert.equal(sent.executorReady, false, "a contratante é avisada de que a parceira precisa preparar a empresa");
+    assert.equal((await createOffer("owner-a")).executorReady, true);
+    await assert.rejects(() => respond(partnershipId, "accept", "owner-u"), error => {
+      assert.ok(String(error.code).includes("failed-precondition"), error.code);
+      assert.match(error.message, /preparada para a confirmação operacional/); assert.match(error.message, /Operações/);
+      return true;
+    });
+    assert.equal((await get(`partnerships/${partnershipId}`)).get("status"), "pending");
+    assert.equal((await respond(partnershipId, "decline", "owner-u")).status, "declined", "recusar não exige preparo");
   });
 
   await test("início: sem foto não inicia; foto de outro motorista/parceria não vale; com foto própria inicia", async () => {

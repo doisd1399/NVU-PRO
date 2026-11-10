@@ -4,7 +4,7 @@ import { httpsCallable } from "../lib/regionalCallable";
 import { normalizePartnership, type Partnership } from "../lib/partnerships";
 
 export type OfferPayload = {
-  contractorCompanyId: string; executorCompanyId: string; operationName: string; totalTrips: number; vehicleRequirement: string;
+  contractorCompanyId: string; executorCompanyId: string; operationName: string; totalTrips: number;
   trailerRequirement: string | null; deadlineAt: string; conditions: string; goalAmountCents: number | null; requestId: string;
 };
 
@@ -15,7 +15,7 @@ const call = async <T,>(name: string, data: Record<string, unknown>, timeout = 2
 
 /** Parcerias B2P: toda escrita passa pelos callables (o cliente só lê o Firestore). */
 export const partnershipService = {
-  createOffer: (payload: OfferPayload) => call<{ success: true; partnershipId: string; replayed: boolean }>("createPartnershipOffer", payload),
+  createOffer: (payload: OfferPayload) => call<{ success: true; partnershipId: string; replayed: boolean; executorReady?: boolean }>("createPartnershipOffer", payload),
   respond: (partnershipId: string, decision: "accept" | "decline") =>
     call<{ success: true; status: string }>("respondPartnershipOffer", { partnershipId, decision }),
   cancel: (partnershipId: string) => call<{ success: true }>("cancelPartnershipOffer", { partnershipId }),

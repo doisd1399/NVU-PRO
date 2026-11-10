@@ -20,9 +20,13 @@ export const MAX_LEDGER = 500;
 export const partnershipContractId = (partnershipId: string): string => `${PARTNERSHIP_CONTRACT_PREFIX}${partnershipId}`;
 export const isPartnershipContractId = (value: unknown): boolean => typeof value === "string" && value.startsWith(PARTNERSHIP_CONTRACT_PREFIX);
 
+/**
+ * A oferta define só o que a contratante pode exigir: reboque (opcional), prazo, quantidade de viagens, meta e as
+ * condições do acordo. O VEÍCULO é escolhido pela empresa que vai operar (a executora), na designação.
+ */
 export type OfferInput = {
   contractorCompanyId: string; executorCompanyId: string; operationName: string; totalTrips: number;
-  vehicleRequirement: string; trailerRequirement: string | null; deadlineAt: string; conditions: string;
+  trailerRequirement: string | null; deadlineAt: string; conditions: string;
   goalAmountCents: number | null; requestId: string;
 };
 
@@ -43,8 +47,6 @@ export function normalizeOffer(raw: unknown, now: number, trailerless: boolean):
   if (operationName.length < 3) fail("invalid-argument", "Informe o nome da operação (mínimo de 3 letras).");
   const totalTrips = Number(data.totalTrips);
   if (!Number.isSafeInteger(totalTrips) || totalTrips < 1 || totalTrips > 500) fail("invalid-argument", "A quantidade de viagens deve ficar entre 1 e 500.");
-  const vehicleRequirement = cleanText(data.vehicleRequirement, 80);
-  if (vehicleRequirement.length < 2) fail("invalid-argument", "Informe o veículo exigido.");
   const trailerText = cleanText(data.trailerRequirement, 80);
   const trailerRequirement = trailerless ? null : trailerText || null;
   const deadlineMs = Date.parse(text(data.deadlineAt));
@@ -59,12 +61,24 @@ export function normalizeOffer(raw: unknown, now: number, trailerless: boolean):
     if (!Number.isSafeInteger(goal) || goal < 1 || goal > 100_000_000_000) fail("invalid-argument", "A meta de ganhos é inválida.");
     goalAmountCents = goal;
   }
-  return { contractorCompanyId, executorCompanyId, operationName, totalTrips, vehicleRequirement, trailerRequirement,
+  return { contractorCompanyId, executorCompanyId, operationName, totalTrips, trailerRequirement,
     deadlineAt: new Date(deadlineMs).toISOString(), conditions, goalAmountCents, requestId: idLike(data.requestId, "Pedido") };
 }
 
+/**
+ * Empresa que pode participar de uma parceria: ativa, não excluída e não arquivada/suspensa (mesma regra do catálogo
+ * "Empresas" e da lista de parceiras do app). Frota de simulador desativado fica com status "archived".
+ */
+const UNAVAILABLE_STATUS = ["deleted", "archived", "disabled", "blocked", "pending", "rejected", "suspended", "inactive"];
+export function isPartnerAvailable(company: Record<string, any> | null | undefined): boolean {
+  if (!company) return false;
+  if (company.deleted === true || company.isDeleted === true || company.softDeleted === true) return false;
+  if (company.active === false || company.isActive === false) return false;
+  return !UNAVAILABLE_STATUS.includes(text(company.status || "active").toLowerCase());
+}
+
 const fold = (value: string): string => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-/** The offered vehicle/trailer must be what was asked for (accent- and case-insensitive; the requirement may be part of the name). */
+/** The offered trailer must be what was asked for (accent- and case-insensitive; the requirement may be part of the name). */
 export function matchesRequirement(requirement: string | null | undefined, assetName: string): boolean {
   const wanted = fold(requirement || "");
   if (!wanted) return true;

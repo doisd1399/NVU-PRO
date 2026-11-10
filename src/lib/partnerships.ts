@@ -12,7 +12,7 @@ export type Partnership = {
   status: PartnershipStatus;
   contractorCompanyId: string; executorCompanyId: string; contractorName: string; executorName: string;
   simulatorId: string; currency: string;
-  operationName: string; totalTrips: number; vehicleRequirement: string; trailerRequirement: string | null;
+  operationName: string; totalTrips: number; trailerRequirement: string | null;
   deadlineAt: string; deadlineMs: number; conditions: string; goalAmountCents: number | null;
   progress: number; earningsCents: number; bestCents: number; averageCents: number; ledger: PartnershipLedgerEntry[];
   jobId: string | null; driverId: string | null; driverName?: string; vehicleName?: string; vehiclePlate?: string; trailerName?: string;
@@ -41,7 +41,7 @@ export function normalizePartnership(id: string, raw: Record<string, any>): Part
     contractorName: text(raw.contractorName) || "Empresa", executorName: text(raw.executorName) || "Empresa",
     simulatorId: text(raw.simulatorId), currency: text(raw.currency) || "BRL",
     operationName: text(raw.operationName) || "Operação", totalTrips: Math.max(0, num(raw.totalTrips)),
-    vehicleRequirement: text(raw.vehicleRequirement), trailerRequirement: text(raw.trailerRequirement) || null,
+    trailerRequirement: text(raw.trailerRequirement) || null,
     deadlineAt: text(raw.deadlineAt), deadlineMs: num(raw.deadlineMs) || ms(raw.deadlineAt),
     conditions: text(raw.conditions), goalAmountCents: Number.isSafeInteger(raw.goalAmountCents) && raw.goalAmountCents > 0 ? raw.goalAmountCents : null,
     progress: Math.max(0, num(raw.progress)), earningsCents: Math.max(0, num(raw.earningsCents)),
@@ -121,11 +121,12 @@ export function parseMoneyToCents(input: string): number | null {
   return Number.isFinite(value) && value > 0 ? Math.round(value * 100) : null;
 }
 
+/** A oferta define só reboque (opcional), prazo, viagens, meta e condições. O veículo é escolhido pela executora. */
 export type OfferDraft = {
-  executorCompanyId: string; operationName: string; totalTrips: string; vehicleRequirement: string; trailerRequirement: string;
+  executorCompanyId: string; operationName: string; totalTrips: string; trailerRequirement: string;
   deadlineAt: string; conditions: string; goal: string;
 };
-export const emptyDraft = (executorCompanyId = ""): OfferDraft => ({ executorCompanyId, operationName: "", totalTrips: "", vehicleRequirement: "", trailerRequirement: "", deadlineAt: "", conditions: "", goal: "" });
+export const emptyDraft = (executorCompanyId = ""): OfferDraft => ({ executorCompanyId, operationName: "", totalTrips: "", trailerRequirement: "", deadlineAt: "", conditions: "", goal: "" });
 
 /** Validação do formulário antes de chamar o servidor (o servidor valida de novo). Devolve a 1ª mensagem ou "". */
 export function validateDraft(draft: OfferDraft, now: number, trailerless: boolean): string {
@@ -133,7 +134,6 @@ export function validateDraft(draft: OfferDraft, now: number, trailerless: boole
   if (draft.operationName.trim().length < 3) return "Informe o nome da operação (mínimo de 3 letras).";
   const trips = Number(draft.totalTrips);
   if (!Number.isSafeInteger(trips) || trips < 1 || trips > 500) return "A quantidade de viagens deve ficar entre 1 e 500.";
-  if (draft.vehicleRequirement.trim().length < 2) return "Informe o veículo exigido.";
   if (!trailerless && draft.trailerRequirement.trim().length > 0 && draft.trailerRequirement.trim().length < 2) return "Informe o reboque exigido ou deixe em branco.";
   const deadline = Date.parse(draft.deadlineAt);
   if (!Number.isFinite(deadline)) return "Informe o prazo final.";

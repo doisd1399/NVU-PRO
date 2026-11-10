@@ -8,7 +8,7 @@ import { CALLABLE_REGIONS } from "./callableRegions";
 import { executeOperationalCommand } from "./operationalCommands";
 import { assertCompany, companySimulatorKey, fail, id, text } from "./operationalCommandPolicy";
 import {
-  MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, matchesRequirement, mayTransition, normalizeOffer, partnershipContractId,
+  MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, isPartnerAvailable, matchesRequirement, mayTransition, normalizeOffer, partnershipContractId,
   statusFromJob, type PartnershipStatus,
 } from "./partnershipPolicy";
 
@@ -50,32 +50,36 @@ export const createPartnershipOffer = functions.region(...CALLABLE_REGIONS).http
     ]);
     const key = await companySimulatorKey(tx, db, contractor.company);
     const offer = normalizeOffer(probe, Date.now(), TRAILERLESS.includes(key));
-    const fingerprint = digest([contractorId, executorId, offer.operationName, offer.totalTrips, offer.vehicleRequirement, offer.trailerRequirement, offer.deadlineAt, offer.conditions, offer.goalAmountCents]);
+    const fingerprint = digest([contractorId, executorId, offer.operationName, offer.totalTrips, offer.trailerRequirement, offer.deadlineAt, offer.conditions, offer.goalAmountCents]);
     if (existing.exists) {
       if (existing.get("createdBy") !== uid || existing.get("fingerprint") !== fingerprint) fail("failed-precondition", "Este pedido já foi utilizado com outros dados.");
       return { partnershipId, replayed: true };
     }
     assertCompany(contractor.company, false);
+    if (!isPartnerAvailable(contractor.company)) fail("failed-precondition", "Sua empresa não está ativa para novas parcerias.");
     if (!executorSnap.exists) fail("not-found", "A empresa parceira não foi encontrada.");
     const executor = executorSnap.data() || {};
     assertCompany(executor, false);
+    if (!isPartnerAvailable(executor)) fail("failed-precondition", "A empresa parceira não está ativa no sistema.");
     if (await companySimulatorKey(tx, db, executor) !== key) fail("failed-precondition", "A empresa parceira precisa ser do mesmo simulador.");
     if (pending.size > MAX_PENDING_OFFERS) fail("resource-exhausted", `Você já tem ${MAX_PENDING_OFFERS} ofertas aguardando resposta.`);
     const currency = resolveSimulatorCurrency({ simulatorId: key }).currency || "BRL";
     tx.create(ref, {
       schemaVersion: 1, status: "pending", revision: 1, fingerprint, contractorCompanyId: contractorId, executorCompanyId: executorId,
       contractorName: companyLabel(contractor.company), executorName: companyLabel(executor), simulatorId: key, currency,
-      operationName: offer.operationName, totalTrips: offer.totalTrips, vehicleRequirement: offer.vehicleRequirement,
+      operationName: offer.operationName, totalTrips: offer.totalTrips,
       trailerRequirement: offer.trailerRequirement, deadlineAt: offer.deadlineAt, deadlineMs: Date.parse(offer.deadlineAt),
       conditions: offer.conditions, goalAmountCents: offer.goalAmountCents, createdBy: uid,
       progress: 0, earningsCents: 0, bestCents: 0, averageCents: 0, ledger: [], jobId: null, driverId: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    return { partnershipId, replayed: false, executorId, name: offer.operationName, contractorName: companyLabel(contractor.company) };
+    return { partnershipId, replayed: false, executorId, name: offer.operationName, contractorName: companyLabel(contractor.company), executorReady: executor.operationalCommandVersion === 1 };
   });
+  const ready = (result as Data).executorReady !== false;
   if (!result.replayed) await notifyCompany(db, (result as Data).executorId, { type: "PARTNERSHIP_OFFER", partnershipId,
-    title: "Nova oferta de parceria", message: `${(result as Data).contractorName} enviou a oferta ${(result as Data).name}.` });
-  return { success: true, partnershipId, replayed: result.replayed };
+    title: "Nova oferta de parceria", message: `${(result as Data).contractorName} enviou a oferta ${(result as Data).name}.${ready ? "" : " Para aceitar, prepare a confirmação operacional da empresa em Operações."}` });
+  // `executorReady` só avisa o app: a oferta vale mesmo que a parceira ainda precise preparar a confirmação operacional para aceitar.
+  return { success: true, partnershipId, replayed: result.replayed, executorReady: ready };
 });
 
 export const respondPartnershipOffer = functions.region(...CALLABLE_REGIONS).https.onCall(async (raw, context) => {
@@ -96,7 +100,10 @@ export const respondPartnershipOffer = functions.region(...CALLABLE_REGIONS).htt
     if (p.status !== "pending") fail("failed-precondition", "Esta oferta não está mais aguardando resposta.");
     if (decision === "accept") {
       if (Number(p.deadlineMs) <= Date.now()) fail("failed-precondition", "O prazo desta oferta já passou.");
-      assertCompany(state.company, true);
+      if (!isPartnerAvailable(state.company)) fail("failed-precondition", "Sua empresa não está ativa para novos trabalhos.");
+      assertCompany(state.company, false);
+      if (state.company.operationalCommandVersion !== 1)
+        fail("failed-precondition", "Para aceitar parcerias, a sua empresa precisa estar preparada para a confirmação operacional. Prepare-a em Operações (fila automática) e tente de novo.");
     }
     tx.update(ref, { status: target, respondedAt: admin.firestore.FieldValue.serverTimestamp(), respondedBy: uid,
       revision: Number(p.revision || 1) + 1, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -159,32 +166,35 @@ export const designatePartnershipDriver = functions.region(...CALLABLE_REGIONS).
     }
     if (p.status !== "accepted") fail("failed-precondition", "Aceite a oferta antes de designar o motorista.");
     if (Number(p.deadlineMs) <= Date.now()) fail("failed-precondition", "O prazo desta oferta já passou.");
+    // O veículo é escolha da empresa que vai operar: qualquer veículo da PRÓPRIA frota (a oferta não exige veículo).
     if (!vehicle.exists || vehicle.get("companyId") !== executorId) fail("failed-precondition", "O veículo precisa ser da sua empresa.");
-    if (!matchesRequirement(p.vehicleRequirement, text(vehicle.get("name")))) fail("failed-precondition", `A oferta exige o veículo ${text(p.vehicleRequirement)}.`);
+    // Reboque: obrigatório e conferido só quando a oferta exige; sem exigência, é opcional (sempre da própria frota).
     if (p.trailerRequirement) {
       if (!trailer || !trailer.exists || trailer.get("companyId") !== executorId) return fail("failed-precondition", "Escolha um reboque da sua empresa.");
       if (!matchesRequirement(p.trailerRequirement, text(trailer.get("name")))) fail("failed-precondition", `A oferta exige o reboque ${text(p.trailerRequirement)}.`);
-    }
+    } else if (trailer && (!trailer.exists || trailer.get("companyId") !== executorId)) return fail("failed-precondition", "O reboque precisa ser da sua empresa.");
     const key = await companySimulatorKey(tx, db, state.company);
+    // Simuladores sem reboque (ônibus) nunca carregam reboque, mesmo que o app envie um.
+    const finalTrailerId = TRAILERLESS.includes(key) ? null : trailerId;
     const contractId = partnershipContractId(partnershipId);
     const contractRef = db.collection("contratos").doc(contractId);
     const contract = await tx.get(contractRef);
-    if (contract.exists) tx.update(contractRef, { trailerId });
+    if (contract.exists) tx.update(contractRef, { trailerId: finalTrailerId });
     if (!contract.exists) {
       // Not a catalog item: hidden from every list and from the automatic queues (id prefix + `partnershipId`).
       tx.create(contractRef, {
         companyId: executorId, empresaId: executorId, name: text(p.operationName), simulator: key, simulatorId: key, mode: "simple",
-        totalDeliveries: Number(p.totalTrips), deadlineDays: 1, trailerId: trailerId, deliveries: [], status: "partnership", deleted: false,
+        totalDeliveries: Number(p.totalTrips), deadlineDays: 1, trailerId: finalTrailerId, deliveries: [], status: "partnership", deleted: false,
         partnership: true, partnershipId, contractorCompanyId: p.contractorCompanyId, scoreCompanyId: p.contractorCompanyId,
         partnershipDeadlineAt: p.deadlineAt, createdAt: admin.firestore.FieldValue.serverTimestamp(), schemaVersion: 1,
       });
     }
-    return { replayed: false, p, executorId, contractId };
+    return { replayed: false, p, executorId, contractId, trailerId: finalTrailerId };
   });
   if (prepared.replayed) return { success: true, partnershipId, jobId: prepared.p.jobId, replayed: true };
   // Standard, idempotent command: validates the driver's membership/suspension, the fleet and maintenance rules.
   const assigned = await executeOperationalCommand(db, { action: "assign", companyId: prepared.executorId, requestId: `pd_${partnershipId}`,
-    contractId: prepared.contractId, driverId, vehicleId, trailerId }, context);
+    contractId: prepared.contractId, driverId, vehicleId, trailerId: prepared.trailerId }, context);
   await db.runTransaction(async tx => {
     const ref = db.collection(PARTNERSHIPS).doc(partnershipId);
     const [snap, user] = await Promise.all([tx.get(ref), tx.get(db.collection("users").doc(driverId))]);

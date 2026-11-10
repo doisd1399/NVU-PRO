@@ -6,9 +6,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  buildLedger, matchesRequirement as serverMatches, mayTransition, normalizeOffer, partnershipContractId, partnershipTripFields,
+  buildLedger, isPartnerAvailable, matchesRequirement as serverMatches, mayTransition, normalizeOffer, partnershipContractId, partnershipTripFields,
   statusFromJob, verifyStartPhotoUrl,
 } from "../functions/src/partnershipPolicy.ts";
+import { partnerCandidates } from "../src/lib/partnerCandidates.ts";
 import {
   emptyDraft, formatMoney, initialsOf, isPartnershipContract, matchesRequirement, normalizePartnership, paceOf, parseMoneyToCents, pipsFor,
   remainingText, resultsOf, roleIn, sectionFor, statusText, validateDraft,
@@ -17,7 +18,7 @@ import {
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
 const NOW = Date.parse("2026-11-09T12:00:00Z"), DAY = 86_400_000;
-const offer = (extra: Record<string, unknown> = {}) => ({ contractorCompanyId: "dc", executorCompanyId: "cts", operationName: "Operação 031", totalTrips: 20, vehicleRequirement: "Volvo FH",
+const offer = (extra: Record<string, unknown> = {}) => ({ contractorCompanyId: "dc", executorCompanyId: "cts", operationName: "Operação 031", totalTrips: 20,
   trailerRequirement: "Frigorífico", deadlineAt: new Date(NOW + 4 * DAY).toISOString(), conditions: "Veículo limpo.", goalAmountCents: 4_000_000, requestId: "r1", ...extra });
 const rejects = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => pattern.test(String((error as Error).message)));
 
@@ -28,12 +29,20 @@ test("Oferta válida é normalizada (texto limpo, prazo em ISO, meta em centavos
   assert.equal(result.goalAmountCents, 4_000_000);
   assert.equal(result.trailerRequirement, "Frigorífico");
 });
+test("A oferta não leva veículo: quem escolhe é a executora (campo enviado por app antigo é ignorado)", () => {
+  const result = normalizeOffer(offer({ vehicleRequirement: "Volvo FH" }), NOW, false) as Record<string, unknown>;
+  assert.equal("vehicleRequirement" in result, false);
+  assert.deepEqual(Object.keys(result).sort(), ["conditions", "contractorCompanyId", "deadlineAt", "executorCompanyId", "goalAmountCents", "operationName", "requestId", "totalTrips", "trailerRequirement"]);
+});
+test("Reboque é opcional: sem exigência a oferta vale e guarda nulo", () => {
+  assert.equal(normalizeOffer(offer({ trailerRequirement: "" }), NOW, false).trailerRequirement, null);
+  assert.equal(normalizeOffer(offer({ trailerRequirement: undefined }), NOW, false).trailerRequirement, null);
+});
 test("Simulador sem reboque nunca guarda exigência de reboque", () => assert.equal(normalizeOffer(offer(), NOW, true).trailerRequirement, null));
 test("Empresa não pode propor para si mesma", () => rejects(() => normalizeOffer(offer({ executorCompanyId: "dc" }), NOW, false), /outra empresa/));
-test("Nome curto, viagens fora de 1–500, veículo vazio e prazo inválido são recusados", () => {
+test("Nome curto, viagens fora de 1–500 e prazo inválido são recusados", () => {
   rejects(() => normalizeOffer(offer({ operationName: "ab" }), NOW, false), /nome da operação/);
   for (const totalTrips of [0, 501, 1.5, "x"]) rejects(() => normalizeOffer(offer({ totalTrips }), NOW, false), /entre 1 e 500/);
-  rejects(() => normalizeOffer(offer({ vehicleRequirement: "" }), NOW, false), /veículo exigido/);
   rejects(() => normalizeOffer(offer({ deadlineAt: "amanhã" }), NOW, false), /prazo final/);
   rejects(() => normalizeOffer(offer({ deadlineAt: new Date(NOW - DAY).toISOString() }), NOW, false), /futuro/);
   rejects(() => normalizeOffer(offer({ deadlineAt: new Date(NOW + 121 * DAY).toISOString() }), NOW, false), /120 dias/);
@@ -149,9 +158,11 @@ test("Resultados: ganhos, % da meta (sem meta = nulo), média, melhor viagem e b
   assert.equal(resultsOf(doc({ ledger, goalAmountCents: null })).goalPercent, null);
 });
 test("Formulário: mesmas regras do servidor antes de enviar", () => {
-  const ok: ReturnType<typeof emptyDraft> = { ...emptyDraft("cts"), operationName: "Operação 031", totalTrips: "20", vehicleRequirement: "Volvo FH", trailerRequirement: "Frigorífico",
+  const ok: ReturnType<typeof emptyDraft> = { ...emptyDraft("cts"), operationName: "Operação 031", totalTrips: "20", trailerRequirement: "Frigorífico",
     deadlineAt: new Date(NOW + 4 * DAY).toISOString(), conditions: "", goal: "40.000" };
   assert.equal(validateDraft(ok, NOW, false), "");
+  assert.equal(validateDraft({ ...ok, trailerRequirement: "" }, NOW, false), "", "reboque é opcional");
+  assert.deepEqual(Object.keys(ok).sort(), ["conditions", "deadlineAt", "executorCompanyId", "goal", "operationName", "totalTrips", "trailerRequirement"], "o formulário não tem veículo");
   assert.match(validateDraft({ ...ok, executorCompanyId: "" }, NOW, false), /parceira/);
   assert.match(validateDraft({ ...ok, totalTrips: "0" }, NOW, false), /entre 1 e 500/);
   assert.match(validateDraft({ ...ok, deadlineAt: "" }, NOW, false), /prazo/);
@@ -165,6 +176,44 @@ test("Siglas das empresas (DC Transportes → DC, CTS → CT, Rota Sul → RS)",
 test("Contratos ocultos de parceria são reconhecidos (pc_, partnership, partnershipId)", () => {
   assert.equal(isPartnershipContract({ id: "pc_po_1" }), true); assert.equal(isPartnershipContract({ id: "x", partnership: true }), true);
   assert.equal(isPartnershipContract({ id: "x", partnershipId: "po_1" }), true); assert.equal(isPartnershipContract({ id: "c1" }), false); assert.equal(isPartnershipContract(null), false);
+});
+
+// ───────────── empresas parceiras: ativas e do mesmo simulador ─────────────
+test("Empresa parceira disponível: ativa, não excluída, não arquivada/suspensa (mesma regra do servidor e do catálogo)", () => {
+  assert.equal(isPartnerAvailable({ status: "active" }), true); assert.equal(isPartnerAvailable({}), true);
+  for (const bad of [{ deleted: true }, { isDeleted: true }, { softDeleted: true }, { active: false }, { isActive: false }, { status: "archived" }, { status: "Suspended" },
+    { status: "inactive" }, { status: "pending" }, { status: "rejected" }, { status: "blocked" }, { status: "disabled" }, { status: "deleted" }]) assert.equal(isPartnerAvailable(bad), false, JSON.stringify(bad));
+  assert.equal(isPartnerAvailable(null), false);
+});
+const sims = [{ id: "sim-gto", name: "GTO", key: "gto" }, { id: "sim-ets2", name: "Euro Truck Simulator 2", key: "ets2" }];
+const co = (id: string, extra: Record<string, unknown> = {}) => ({ id, companyName: `Empresa ${id}`, simulatorId: "gto", status: "active", ...extra });
+test("Lista de parceiras: só empresas ATIVAS do MESMO simulador, outra empresa, em ordem (já parceiras primeiro)", () => {
+  const all = [co("me"), co("a"), co("b", { companyName: "Beta" }), co("c", { simulatorId: "ets2" }), co("d", { status: "archived" }), co("e", { deleted: true }), co("f", { active: false }),
+    co("g", { status: "suspended" }), co("h", { simulatorId: undefined, simulatorName: "Global Truck Online" }), co("i", { simulatorId: "GTO", companyName: "Alfa" }), co("j", { companyName: "" })];
+  const result = partnerCandidates({ ownCompany: all[0], allCompanies: all, simulators: sims, history: [{ contractorCompanyId: "me", executorCompanyId: "b", updatedAtMs: 5 }] });
+  assert.equal(result.simulatorId.length > 0, true);
+  assert.deepEqual(result.list.map(item => item.id), ["b", "i", "a", "h"], "b já é parceira; depois Alfa(i), Empresa a, Empresa h");
+  assert.equal(result.list[0].partnered, true); assert.equal(result.list[1].partnered, false);
+  for (const hidden of ["me", "c", "d", "e", "f", "g", "j"]) assert.equal(result.list.some(item => item.id === hidden), false, `${hidden} não pode aparecer`);
+});
+test("Lista de parceiras: o simulador é comparado pela identidade canônica (GTO = Global Truck Online)", () => {
+  const own = co("me", { simulatorId: undefined, simulatorName: "Global Truck Online" });
+  const all = [own, co("x", { simulatorId: "global-truck-online" }), co("y", { simulatorId: "gto" }), co("z", { simulatorId: "ets-2", simulatorName: "ETS2" })];
+  assert.deepEqual(partnerCandidates({ ownCompany: own, allCompanies: all, simulators: sims, history: [] }).list.map(item => item.id).sort(), ["x", "y"]);
+});
+test("Lista de parceiras: sem identificar o simulador da empresa logada, não oferece ninguém (o servidor também recusaria)", () => {
+  const own = { id: "me", companyName: "Sem simulador", status: "active" };
+  assert.deepEqual(partnerCandidates({ ownCompany: own, allCompanies: [own, co("a")], simulators: sims, history: [] }), { simulatorId: "", simulatorLabel: "", list: [] });
+  assert.equal(partnerCandidates({ ownCompany: null, allCompanies: [co("a")], simulators: sims, history: [] }).list.length, 0);
+});
+test("A página lê o catálogo PÚBLICO de empresas (allCompanies) e não só as empresas do usuário", () => {
+  const page = readFileSync("src/pages/admin/Partnerships.tsx", "utf8");
+  assert.match(page, /allCompanies/); assert.match(page, /loadCompanyCatalog/); assert.match(page, /partnerCandidates\(\{[^}]*allCompanies/);
+  assert.doesNotMatch(page, /candidates\s*=\s*[^;]*\bcompanies\b(?!\.find)/, "a lista de parceiras não pode partir de `companies`");
+});
+test("Nenhuma tela, serviço ou regra do servidor trata veículo como parte da oferta", () => {
+  for (const file of ["functions/src/partnershipPolicy.ts", "functions/src/partnerships.ts", "src/lib/partnerships.ts", "src/services/partnershipService.ts", "src/pages/admin/Partnerships.tsx"])
+    assert.doesNotMatch(readFileSync(file, "utf8"), /vehicleRequirement|Veículo exigido|veículo exigido/, file);
 });
 
 // ───────────── contratos entre arquivos ─────────────
