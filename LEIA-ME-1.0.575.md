@@ -1,6 +1,11 @@
-# NVU PRO 1.0.574 (Android) / Web 2.3.231 / Windows 0.2.2
+# NVU PRO 1.0.575 (Android) / Web 2.3.232 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 574 — instala como atualização da 573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 575 — instala como atualização da 574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.575 — Novo visual da Nova campanha (Pagamentos)
+- **Campos empilhados**, um por linha, com a dica na **mesma linha do título** (sem quebra de texto).
+- **Resumo em lista compacta** (Total de viagens · Estimativa da meta · Total a pagar), com mais respiro entre as informações.
+- **Lista de motoristas enxuta:** caixa, foto e nome, com rolagem própria — aproveita melhor a área visível.
 
 ## 1.0.574 — Pagamentos: formulário compacto e seção de informações do motorista
 - **Sem sugestão de valores:** os campos de valor ficam vazios.

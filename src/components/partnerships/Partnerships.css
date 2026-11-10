@@ -204,23 +204,26 @@
 .b2p-qr svg { width: 100%; height: auto; display: block; }
 .b2p-textarea { min-height: 84px; }
 
-/* Formulário compacto (Pagamentos > Nova campanha): cabe na área visível; a lista de motoristas rola por dentro */
+/* Formulário compacto (Pagamentos > Nova campanha): lista de campos empilhados, dicas em uma linha e lista de motoristas com rolagem própria */
 .b2p-compact { gap: 8px; padding-bottom: 2px; }
 .b2p-compact .b2p-field { gap: 4px; }
-.b2p-compact .b2p-field > .b2p-label { font-size: 14px; }
+.b2p-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+.b2p-label-row .b2p-label { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.b2p-label-row .b2p-hint { font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; text-align: right; }
 .b2p-compact .b2p-input { min-height: 40px; padding: 0 12px; font-size: 15px; }
-.b2p-compact .b2p-hint { font-size: 11.5px; line-height: 1.35; }
 .b2p-compact .nvu-assignment-choice { min-height: 0; padding: 8px 10px; gap: 10px; grid-template-columns: 34px minmax(0, 1fr) 18px; }
 .b2p-compact .nvu-assignment-choice-symbol { width: 34px; height: 34px; }
-.b2p-compact .nvu-assignment-choice-meta { margin-top: 5px; }
+.b2p-compact .nvu-assignment-choice-meta { margin-top: 4px; }
 .b2p-compact .nvu-assignment-drivers { padding-top: 2px !important; }
 .b2p-compact .nvu-assignment-drivers-heading h2 { font-size: 15px; }
-.b2p-compact .nvu-assignment-help { margin: 0 0 4px; font-size: 12px; }
-.b2p-compact .nvu-assignment-driver-list { gap: 6px; max-height: 176px; overflow-y: auto; padding-right: 2px; overscroll-behavior: contain; }
+.b2p-compact .nvu-assignment-help { display: none; }
+.b2p-compact .nvu-assignment-driver-list { gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 2px; overscroll-behavior: contain; margin-top: 6px; }
 .b2p-compact .nvu-assignment-driver { padding: 6px 10px; min-height: 0; }
+.b2p-compact .nvu-assignment-driver-copy small { display: none; }
 .b2p-compact .nvu-assignment-avatar { width: 30px; height: 30px; }
-.b2p-compact .b2p-facts { padding: 7px 0 0; }
-.b2p-compact .b2p-facts b { font-size: 15px; }
+.b2p-compact .b2p-settle { padding: 2px 12px; }
+.b2p-compact .b2p-settle div { padding: 6px 0; font-size: 13.5px; }
+.b2p-compact .b2p-actions { margin-top: 2px; }
 
 /* Pagamentos (motorista): como funciona em passos curtos */
 .b2p-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
