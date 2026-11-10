@@ -1,6 +1,11 @@
-# NVU PRO 1.0.576 (Android) / Web 2.3.233 / Windows 0.2.2
+# NVU PRO 1.0.577 (Android) / Web 2.3.234 / Windows 0.2.3
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 576 — instala como atualização da 575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 577 — instala como atualização da 576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.577 — Windows 0.2.3: versão nova, foto do veículo inteira e fotos
+- **Windows 0.2.3 (era 0.2.2):** a versão do aplicativo mudou para que, ao abrir esta NVU com uma anterior ainda aberta (inclusive escondida na bandeja), o programa **pergunte se deve fechar a anterior e abrir esta**. Com a mesma versão (0.2.2), o programa só reexibia a janela antiga — por isso o desktop parecia sem os recursos novos (Pagamentos etc.). A interface web embutida é a 2.3.234 (a mesma do APK).
+- **Foto do veículo sem corte no desktop:** em janelas largas (≥ 768 px) a foto aparece **inteira** (sem cortar topo/base), nos cartões de Trabalhos ativos e no painel do motorista.
+- **Fotos:** o aplicativo Windows passou a permitir também os endereços do armazenamento do Firebase (`*.firebasestorage.app`, `firebasestorage.googleapis.com`, `storage.googleapis.com`) para baixar/guardar fotos.
 
 ## 1.0.576 — Pagamentos: prazo, perda do pagamento e página do motorista
 - **Só recebe depois de concluir a operação** (todas as viagens dela). Quem não concluiu não entra na folha.

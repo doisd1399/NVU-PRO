@@ -243,7 +243,7 @@ function startupSteps() {
       const hashes = [...index.matchAll(/<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => `'sha256-${createHash('sha256').update(m[1]).digest('base64')}'`);
       try {
         csp = `default-src 'self'; script-src 'self' 'wasm-unsafe-eval' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; worker-src 'self' blob:; `
-          + `connect-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://res.cloudinary.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com; `
+          + `connect-src 'self' data: blob: https://*.googleapis.com https://*.googleusercontent.com https://res.cloudinary.com https://*.firebasestorage.app https://firebasestorage.googleapis.com https://storage.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseapp.com; `
           + `frame-src https://*.firebaseapp.com; object-src 'none'; base-uri 'self'`;
       } catch (error) { throw new NvuError('NVU-S081', String(error.message), { cause: error }); }
       if (!versionInfo?.web?.ok) logger.warn('web.build_info_missing', versionInfo?.web || {});

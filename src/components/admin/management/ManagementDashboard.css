@@ -450,3 +450,9 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 /* Selo "Parceria" (B2P) ao lado do nome da operação. */
 .nvu-partnership-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
   background: var(--central-highlight, #e0f7fa); color: var(--central-accent, #00899a); vertical-align: 1px; }
+
+/* Desktop / janela larga (Windows): a foto do veículo aparece inteira, sem cortar. Em celular segue o enquadramento compacto de sempre. */
+@media (min-width: 768px) {
+  .nvu-central-stack .nvu-central-vehicle-photo { --central-photo-ratio: 1.9; }
+  .nvu-central-vehicle-photo img, .nvu-central-photo-frame img { object-fit: contain !important; }
+}
