@@ -1,5 +1,6 @@
 /* Complementos da lista de opções (avatar, selo, opção bloqueada) sobre o visual das listas da Central (AssignmentWorkspace.css). */
 .nvu-option-avatar { overflow: hidden; }
+.nvu-option-avatar { border-radius: 12px; }
 .nvu-option-avatar.is-round { border-radius: 50%; }
 .nvu-option-avatar-frame { display: block; width: 100%; height: 100%; overflow: hidden; background: var(--assignment-soft); }
 .nvu-option-avatar-frame > span { display: grid; place-items: center; width: 100%; height: 100%; font-size: 12px; font-weight: 700; color: var(--assignment-muted); }
@@ -17,3 +18,8 @@
 .nvu-option-none { margin-bottom: 10px; }
 .nvu-option-group { cursor: default; }
 .nvu-option-group > svg:first-child { color: var(--assignment-action); }
+
+/* Sem molduras de foco genéricas (quadrado em volta de busca, botão ou opção): o próprio campo/linha já mostra o estado. */
+.nvu-option-picker :is(button, input, [tabindex]):focus, .nvu-option-picker :is(button, input, [tabindex]):focus-visible { outline: none; box-shadow: none; }
+.nvu-option-picker .nvu-assign-picker-search input { border: 0; background: transparent; }
+body:has(.nvu-b2p) .nvu-assign-picker-dialog :is(button, input, [tabindex]):focus, body:has(.nvu-b2p) .nvu-assign-picker-dialog :is(button, input, [tabindex]):focus-visible { outline: none; box-shadow: none; }

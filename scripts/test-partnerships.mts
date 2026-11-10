@@ -12,7 +12,7 @@ import {
 import { computeSettlement as serverSettlement, nextPayment } from "../functions/src/partnershipPolicy.ts";
 import { partnerCandidates } from "../src/lib/partnerCandidates.ts";
 import {
-  clampDays, clampTrips, computeSettlement, emptyDraft, walletEntries, walletTotals, formatDays, formatMoney, initialsOf, isPartnershipContract, lastVehicleOf, matchesRequirement, normalizePartnership,
+  clampDays, clampTrips, computeSettlement, emptyDraft, maskMoney, shortName, centsToMasked, walletEntries, walletTotals, formatDays, formatMoney, initialsOf, isPartnershipContract, lastVehicleOf, matchesRequirement, normalizePartnership,
   offerHint, offerSummary, paceOf, parseMoneyToCents, partnershipAlerts, perTripCents, pipsFor, remainingText, resultsOf, roleIn, sectionFor, statusText, suggestOperationName, validateDraft,
 } from "../src/lib/partnerships.ts";
 
@@ -158,7 +158,7 @@ test("Tempo restante e pips da rota", () => {
 test("Dinheiro: entrada digitada vira centavos; exibição em R$ sem centavos desnecessários", () => {
   assert.equal(parseMoneyToCents("40.000"), 4_000_000); assert.equal(parseMoneyToCents("12.500,50"), 1_250_050); assert.equal(parseMoneyToCents("12500,5"), 1_250_050);
   assert.equal(parseMoneyToCents("40000"), 4_000_000); assert.equal(parseMoneyToCents(""), null); assert.equal(parseMoneyToCents("abc"), null); assert.equal(parseMoneyToCents("0"), null);
-  assert.match(formatMoney(4_176_000, "BRL").replace(/\s/g, " "), /^R\$ 41\.760$/);
+  assert.match(formatMoney(4_176_000, "BRL").replace(/\s/g, " "), /^R\$ 41\.760,00$/);
 });
 test("Resultados: ganhos, % da meta (sem meta = nulo), média, melhor viagem e barras", () => {
   const ledger = [{ n: 1, at: 1, cents: 100_000, tripId: "" }, { n: 2, at: 2, cents: 300_000, tripId: "" }];
@@ -346,4 +346,41 @@ test("Nova oferta abre sem nome, viagens ou prazo preenchidos e o reboque usa a 
   assert.match(readFileSync("src/components/partnerships/DesignateScreen.tsx", "utf8"), /AssignmentOptionPicker/);
   const css = readFileSync("src/components/partnerships/Partnerships.css", "utf8");
   assert.doesNotMatch(css, /\[data-on="1"\][^{]*\{[^}]*--central-accent/, "seleção sem azul (accent)");
+});
+
+// ───────────── números e nomes ─────────────
+test("Valores com ponto nos milhares e vírgula nos centavos; a máscara e a leitura se entendem", () => {
+  assert.equal(maskMoney(""), ""); assert.equal(maskMoney("0"), ""); assert.equal(maskMoney("5"), "0,05"); assert.equal(maskMoney("250"), "2,50");
+  assert.equal(maskMoney("2500000"), "25.000,00"); assert.equal(maskMoney("25.000,00x9"), "250.000,09"); assert.equal(maskMoney("123456789012345"), "123.456.789,01", "limite de 11 dígitos");
+  for (const cents of [5, 250, 2_500_000, 12_345_678]) assert.equal(parseMoneyToCents(maskMoney(String(cents))), cents, `ida e volta ${cents}`);
+  assert.equal(centsToMasked(2_500_000), "25.000,00"); assert.equal(centsToMasked(null), "");
+  assert.match(formatMoney(2_500_000).replace(/\s/g, " "), /^R\$ 25\.000,00$/);
+});
+test("Valor por viagem: o total é o valor por viagem × viagens (centavos exatos)", () => {
+  const perTrip = parseMoneyToCents("1.250,50")!; assert.equal(perTrip, 125_050);
+  assert.equal(perTrip * 12, 1_500_600);
+  const total = perTrip * 12, late = computeSettlement(total, 1, 2)!;
+  assert.equal(late.finalCents, Math.round(total * 0.75)); assert.equal(late.discountCents, total - late.finalCents);
+});
+test("Empresas aparecem só com o primeiro e o segundo nome", () => {
+  assert.equal(shortName("Cooper log Transporte e Logística"), "Cooper log"); assert.equal(shortName("Lernage Transporte & Zero Carbon"), "Lernage Transporte");
+  assert.equal(shortName("DC Transportes"), "DC Transportes"); assert.equal(shortName("MATECOM"), "MATECOM"); assert.equal(shortName("  Rota   Sul  Cargas "), "Rota Sul");
+  assert.equal(shortName("Via de Cargas Ltda"), "Via"); assert.equal(shortName(""), "");
+});
+test("Nova oferta: seletor de empresas em lista (sem simulador), valor por viagem e nada de moldura de foco", () => {
+  const screen = readFileSync("src/components/partnerships/NewOfferScreen.tsx", "utf8");
+  assert.match(screen, /title="Escolher empresa"/); assert.match(screen, /Valor por viagem/); assert.match(screen, /maskMoney/);
+  assert.doesNotMatch(screen, /simulatorLabel/, "o simulador não aparece na lista de empresas");
+  assert.doesNotMatch(readFileSync("src/components/partnerships/Partnerships.css", "utf8"), /:focus-visible\s*\{\s*outline:\s*2px/);
+});
+
+test("Detalhe da parceria: card da operação + resumo curto; o resto fica em 'Informações da operação' (ⓘ)", () => {
+  const detail = readFileSync("src/components/partnerships/DetailScreens.tsx", "utf8");
+  assert.match(detail, /<OperationCard[^>]*onInfo/); assert.match(detail, /b2p-summary/); assert.match(detail, /Mais informações da operação/);
+  const detailBody = detail.slice(detail.indexOf("export function Detail("), detail.indexOf("export function Results"));
+  assert.doesNotMatch(detailBody, /Condições do acordo|startPhotoUrl|b2p-settle/, "condições, foto e tabela de pagamento ficam na folha de informações");
+  const sheet = readFileSync("src/components/partnerships/PartnershipInfoSheet.tsx", "utf8");
+  for (const topic of ["Condições", "Pagamento"]) assert.match(sheet, new RegExp(`<h3>${topic}</h3>`));
+  assert.doesNotMatch(sheet, /Contratante|Executora|Aceita em/, "sem repetir o que o cabeçalho e o card já mostram");
+  assert.match(readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), /Informações da operação/);
 });

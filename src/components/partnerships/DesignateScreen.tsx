@@ -7,7 +7,7 @@ import { partnershipService } from "../../services/partnershipService";
 import { isTrailerlessSimulator } from "../../lib/resolveSimulator";
 import { resolveDriverPhoto } from "../../lib/resolveDriverPhoto";
 import { countFleetAssetUsage } from "../../lib/fleetUsage";
-import { formatDays, formatMoney, lastVehicleOf, matchesRequirement, partnershipErrorMessage, remainingText, type Partnership } from "../../lib/partnerships";
+import { formatDays, formatMoney, lastVehicleOf, matchesRequirement, partnershipErrorMessage, remainingText, type Partnership, shortName } from "../../lib/partnerships";
 import { BackLink, LogoContext } from "./shared";
 
 const OPEN_JOB = ["pending", "active", "delayed", "awaiting_completion"];
@@ -62,8 +62,7 @@ export function DesignateScreen({ p, me, ownCompany, users, members, membersRead
   return <>
     <BackLink label="Parcerias" onClick={onBack} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
-      <h2>Designar trabalho</h2>
-      <div className="b2p-note-box"><b>{p.operationName}</b> · para {p.contractorName}<br />{p.totalTrips} viagens · {p.durationDays ? formatDays(p.durationDays) : "—"}{p.agreedAmountCents ? ` · ${formatMoney(p.agreedAmountCents, p.currency)}` : ""}
+      <div className="b2p-note-box"><b>{p.operationName}</b> · para {shortName(p.contractorName)}<br />{p.totalTrips} viagens · {p.durationDays ? formatDays(p.durationDays) : "—"}{p.agreedAmountCents ? ` · ${formatMoney(p.agreedAmountCents, p.currency)}` : ""}
         {p.deadlineMs ? <><br />Prazo final: faltam {remainingText(p.deadlineMs, Date.now()) || "—"}</> : null}{p.conditions ? <><br />Condições: {p.conditions}</> : null}</div>
 
       <div className="b2p-field"><span className="b2p-label">Motorista da sua equipe</span>
@@ -88,7 +87,7 @@ export function DesignateScreen({ p, me, ownCompany, users, members, membersRead
           <Container size={18} aria-hidden="true" /><span style={{ flex: 1, color: trailer ? undefined : "var(--central-muted)" }}>{trailer ? trailer.name : "Escolher reboque"}</span><ChevronRight size={18} aria-hidden="true" /></button>
         {needsTrailer && !trailerChoices.length ? <span className="b2p-hint">Sua frota não tem reboque “{p.trailerRequirement}”. Cadastre em Frota para poder aceitar esta operação.</span> : null}</div> : null}
 
-      <p className="b2p-note-box"><Camera size={14} aria-hidden="true" style={{ verticalAlign: -2 }} /> Para iniciar, o motorista anexa a <b>foto do veículo</b>. Ele continua vinculado à sua empresa e a pontuação vai para {p.contractorName}.</p>
+      <p className="b2p-note-box"><Camera size={14} aria-hidden="true" style={{ verticalAlign: -2 }} /> Para iniciar, o motorista anexa a <b>foto do veículo</b>. Ele continua vinculado à sua empresa e a pontuação vai para {shortName(p.contractorName)}.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : missing ? <p className="b2p-hint">{missing}</p> : null}
       <div className="b2p-actions">
         <button type="button" className="b2p-btn" data-v="primary" disabled={!ready || busy} onClick={() => void submit()}>{busy ? "Designando…" : "Designar motorista"}</button>

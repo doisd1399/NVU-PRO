@@ -16,6 +16,8 @@ export type PickerOption = {
   title: string;
   /** Linha sob o título (ex.: simulador, status do motorista). */
   description?: string;
+  /** Termos extras para a busca (não aparecem), ex.: nome completo da empresa. */
+  keywords?: string;
   /** Detalhes pequenos, lado a lado (ex.: "3 viagens", "Reboque da frota"). */
   meta?: string[];
   avatar?: { src?: string | null; assetId?: string; initials?: string; icon?: React.ReactNode; round?: boolean };
@@ -106,7 +108,7 @@ export function AssignmentOptionPicker({
   }, [open, selectedId]);
 
   const query = fold(search.trim());
-  const visible = useMemo(() => options.filter(option => !query || fold(option.title).includes(query) || fold(option.description).includes(query)), [options, query]);
+  const visible = useMemo(() => options.filter(option => !query || fold(option.title).includes(query) || fold(option.description).includes(query) || fold(option.keywords).includes(query)), [options, query]);
   const groups = useMemo(() => {
     const order: string[] = [], map = new Map<string, PickerOption[]>();
     visible.forEach(option => {
@@ -161,7 +163,7 @@ export function AssignmentOptionPicker({
   };
 
   return createPortal(
-    <div className="nvu-assignment-theme nvu-assign-picker-overlay"
+    <div className="nvu-assignment-theme nvu-assign-picker-overlay nvu-option-picker"
       style={headerOffset == null ? undefined : { "--assignment-header-offset": headerOffset + "px" } as React.CSSProperties}
       onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <section ref={dialogRef} className="nvu-assignment-panel nvu-assign-picker-dialog" role="dialog" aria-modal="true" aria-labelledby={id + "-title"} aria-describedby={id + "-description"} tabIndex={-1}>

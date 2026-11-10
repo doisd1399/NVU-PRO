@@ -19,7 +19,7 @@ export const LogoContext = createContext<{ logo: (companyId: string) => string; 
 export function Avatar({ name, companyId, size = 38 }: { name: string; companyId?: string; size?: number }) {
   const { logo, viewerId } = useContext(LogoContext);
   const src = companyId ? logo(companyId) : "";
-  return <StableImage src={src} alt="" loading="lazy" decoding="async" wrapperClassName="nvu-central-avatar" className="object-cover" referrerPolicy="no-referrer"
+  return <StableImage src={src} alt="" loading="lazy" decoding="async" wrapperClassName={"nvu-central-avatar" + (companyId ? " b2p-logo" : "")} className="object-cover" referrerPolicy="no-referrer"
     persistentViewerId={viewerId} persistentAssetId={companyId ? `company-logo:${companyId}` : undefined} fallback={<span style={{ display: "grid", placeItems: "center", width: "100%", fontWeight: 700 }}>{initialsOf(name)}</span>}
     {...({ style: { width: size, height: size } } as object)} />;
 }

@@ -116,12 +116,35 @@ export function OperationResultModal({
                 type="button"
                 aria-label={isInProgress ? 'Fechar resumo da operação' : 'Fechar resultado da operação'}
                 onClick={onClose}
-                className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 dark:hover:text-nvu-text-soft transition-colors z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 backdrop-blur-sm"
+                className="absolute top-3 right-3 outline-none focus:outline-none focus-visible:outline-none text-gray-400 hover:text-gray-600 dark:hover:text-nvu-text-soft transition-colors z-10 w-8 h-8 flex items-center justify-center rounded-full bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 backdrop-blur-sm"
               >
                 <X size={18} />
               </button>
 
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4">
+              <div className={cn("flex-1 overflow-y-auto overflow-x-hidden", isInProgress ? "p-5" : "p-4")}>
+                {isInProgress ? <div data-testid="operation-info-compact">
+                  <h2 id={titleId} className="text-center text-[12px] font-semibold uppercase tracking-[0.08em] text-gray-500 dark:text-nvu-muted">Informações da operação</h2>
+                  <p id={descriptionId} className="sr-only">Dados da operação atual.</p>
+                  <div className="mt-5 mb-5 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-[22px] font-bold leading-tight tracking-tight text-gray-900 dark:text-nvu-text">{resultData.contractName}</h3>
+                      {resultData.companyName ? <p className="mt-1 truncate text-[13px] text-gray-500 dark:text-nvu-muted">{resultData.companyName}</p> : null}
+                    </div>
+                    <span className={cn("mt-1 inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium",
+                      resultData.isAtrasado ? "border-amber-300/50 bg-amber-500/10 text-amber-700 dark:text-amber-400" : "border-emerald-400/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400")}>
+                      <i aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />{resultData.isAtrasado ? 'Prazo excedido' : 'Em andamento'}
+                    </span>
+                  </div>
+                  <dl className="rounded-2xl bg-gray-50 px-4 dark:bg-nvu-strip [&>div]:flex [&>div]:min-h-[52px] [&>div]:items-center [&>div]:justify-between [&>div]:gap-4 [&>div+div]:border-t [&>div]:border-gray-200/70 dark:[&>div]:border-nvu-line/60">
+                    <div><dt className="text-[14px] text-gray-500 dark:text-nvu-muted">Veículo</dt><dd className="min-w-0 break-words text-right text-[15px] font-semibold text-gray-900 dark:text-nvu-text">{resultData.vehicleName || 'Nenhum'}</dd></div>
+                    {resultData.showTrailer !== false ? <div><dt className="text-[14px] text-gray-500 dark:text-nvu-muted">Reboque</dt><dd className="min-w-0 break-words text-right text-[15px] font-semibold text-gray-900 dark:text-nvu-text">{resultData.trailerName || 'Nenhum'}</dd></div> : null}
+                    <div><dt className="text-[14px] text-gray-500 dark:text-nvu-muted">Viagens</dt><dd className="text-right text-[15px] font-semibold text-gray-900 dark:text-nvu-text">{resultData.totalViagens} {resultData.totalViagens === 1 ? 'viagem' : 'viagens'}</dd></div>
+                    <div><dt className="text-[14px] text-gray-500 dark:text-nvu-muted">Ganhos</dt><dd className="min-w-0 text-right text-[15px] font-semibold text-emerald-600 dark:text-emerald-400"><HistoryMoneySummary groups={resultData.moneyGroups || []} totalEligibleTrips={resultData.totalViagens} /></dd></div>
+                    <div><dt className="text-[14px] text-gray-500 dark:text-nvu-muted">Prazo</dt><dd className="min-w-0 text-right text-[15px] font-semibold text-gray-900 dark:text-nvu-text">{resultData.prazoLimite || 'Não definido'}<span className="block text-[12px] font-normal text-gray-500 dark:text-nvu-muted">{resultData.prazoTotal}</span></dd></div>
+                    <div><dt className={cn("text-[14px]", resultData.isAtrasado ? "text-red-600 dark:text-red-400" : "text-gray-500 dark:text-nvu-muted")}>{resultData.isAtrasado ? 'Atraso' : 'Restante'}</dt>
+                      <dd className={cn("min-w-0 text-right text-[15px] font-semibold", resultData.isAtrasado ? "text-red-600 dark:text-red-400" : "text-gray-900 dark:text-nvu-text")}>{resultData.tempoRestante}<span className="block text-[12px] font-normal text-gray-500 dark:text-nvu-muted">em execução há {resultData.tempoExecucao}</span></dd></div>
+                  </dl>
+                </div> : <>
                 {/* Header */}
                 <div className="flex flex-col items-center mb-4">
                   <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-500/20 rounded-full flex items-center justify-center shadow-sm mb-2">
@@ -277,6 +300,7 @@ export function OperationResultModal({
                     </p>
                   </div>
                 </div>
+                </>}
               </div>
 
               {/* Bottom Fixed Action */}

@@ -124,12 +124,14 @@ if (!baseline) {
   await act(async () => info.click());
   await flush();
   const summary = document.querySelector('[role="dialog"][id]')!;
-  assert.ok(summary.textContent?.includes("Operação em andamento"));
+  assert.ok(summary.textContent?.includes("Informações da operação"));
+  assert.ok(summary.textContent?.includes("Em andamento"));
   assert.ok(summary.textContent?.includes("Empresa A"));
   assert.ok(summary.textContent?.includes("Scania G"));
-  assert.ok(summary.textContent?.includes("Número de viagens:"));
-  assert.ok(summary.textContent?.includes("Total de ganhos:"));
-  assert.ok(summary.textContent?.includes("Prazo limite:"));
+  assert.ok(summary.textContent?.includes("Viagens"));
+  assert.ok(summary.textContent?.includes("Ganhos"));
+  assert.ok(summary.textContent?.includes("Prazo"));
+  assert.ok(!summary.textContent?.includes("Status da operação"), "sem aviso de status repetindo o selo");
   assert.equal(uploadOpened, false, "Opening operation data must not trigger image upload");
   await act(async () => tested.handleSafeAppBack());
   await waitForSummaryExit();

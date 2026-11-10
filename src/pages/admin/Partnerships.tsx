@@ -13,7 +13,8 @@ import { partnershipErrorMessage, roleIn, sectionFor, walletEntries, walletTotal
 import { NewOfferScreen } from "../../components/partnerships/NewOfferScreen";
 import { DesignateScreen } from "../../components/partnerships/DesignateScreen";
 import { Detail, OfferDetail, Results } from "../../components/partnerships/DetailScreens";
-import { HistoryRow, OfferCard, OperationCard, SummaryBody } from "../../components/partnerships/PanelParts";
+import { HistoryRow, OfferRow, OperationCard, SummaryBody } from "../../components/partnerships/PanelParts";
+import { PartnershipInfoSheet } from "../../components/partnerships/PartnershipInfoSheet";
 import { WalletView } from "../../components/partnerships/WalletScreen";
 import { LogoContext, PageHeader, Section, Tabs } from "../../components/partnerships/shared";
 
@@ -39,6 +40,7 @@ export default function Partnerships() {
   const [tab, setTab] = useState<Tab>("painel");
   const [offerTab, setOfferTab] = useState<OfferTab>("recebidas");
   const [busy, setBusy] = useState(false);
+  const [infoId, setInfoId] = useState("");
   const now = useMemo(() => Date.now(), [rows, view]);
   const openedFromState = useRef(false);
   useEffect(() => { void loadCompanyCatalog().catch(() => []); }, [loadCompanyCatalog]);
@@ -86,9 +88,16 @@ export default function Partnerships() {
   const payEntry = (entry: WalletEntry) => void pay(entry.partnershipId, entry.kind === "investimento" ? "paid" : "received");
 
   const simulatorLabel = ownCompany ? resolveSimulatorDisplayLabel(ownCompany, simulators as any[], allCompanies) : "";
-  const header = <PageHeader title="Parcerias B2P" description="Ofertas, operações e pagamentos entre empresas." companyName={String(ownCompany?.companyName || ownCompany?.fleetName || "")} simulator={simulatorLabel} />;
-  const shell = (children: React.ReactNode) => <LogoContext.Provider value={logoValue}><div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{children}</div></div></LogoContext.Provider>;
-  if (!me) return shell(<>{header}<p className="b2p-empty">Selecione uma empresa para ver as parcerias.</p></>);
+  const infoRow = infoId ? byId.get(infoId) : undefined;
+  const companyName = String(ownCompany?.companyName || ownCompany?.fleetName || "");
+  const TITLES: Record<string, [string, string]> = {
+    list: ["Parcerias B2P", "Ofertas, operações e pagamentos entre empresas."], new: ["Nova oferta", "Proponha uma operação a uma empresa parceira."],
+    offer: ["Oferta recebida", "Analise as condições e responda."], designate: ["Designar trabalho", "Escolha o motorista e o veículo da sua empresa."],
+    detail: ["Parceria", "Acompanhe a operação e o pagamento."], results: ["Resultados", "Ganhos e ritmo da operação."],
+  };
+  const header = <PageHeader title={TITLES[view.name][0]} description={TITLES[view.name][1]} companyName={companyName} simulator={simulatorLabel} />;
+  const shell = (children: React.ReactNode) => <LogoContext.Provider value={logoValue}><div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{header}{children}</div>{infoRow ? <PartnershipInfoSheet p={infoRow} me={me} onResults={() => setView({ name: "results", id: infoRow.id })} onRepeat={() => setView({ name: "new", from: infoRow })} onClose={() => setInfoId("")} /> : null}</div></LogoContext.Provider>;
+  if (!me) return shell(<p className="b2p-empty">Selecione uma empresa para ver as parcerias.</p>);
   const current = "id" in view ? byId.get(view.id) : undefined;
   const goList = () => setView({ name: "list" });
 
@@ -98,15 +107,14 @@ export default function Partnerships() {
       if (isReady) toast.success("Oferta enviada."); else toast.message(`Oferta enviada. ${partnerName} ainda precisa preparar a confirmação operacional da empresa (Operações) para poder aceitar.`, { duration: 9000 });
       setTab("ofertas"); setOfferTab("enviadas"); goList();
     }} />);
-  if ("id" in view && !current) return shell(<>{header}<button type="button" className="b2p-back" onClick={goList}>Voltar</button>{ready ? <p className="b2p-empty">Esta parceria não está mais disponível.</p> : <p className="b2p-empty">Carregando…</p>}</>);
+  if ("id" in view && !current) return shell(<><button type="button" className="b2p-back" onClick={goList}>Voltar</button>{ready ? <p className="b2p-empty">Esta parceria não está mais disponível.</p> : <p className="b2p-empty">Carregando…</p>}</>);
   if (view.name === "offer" && current) return shell(<OfferDetail p={current} busy={busy} onBack={goList} onAccept={() => respond(current, "accept")} onDecline={() => respond(current, "decline")} />);
   if (view.name === "designate" && current) return shell(<DesignateScreen p={current} me={me} ownCompany={ownCompany} users={users as any[]} members={allCompanyMembers as any[]} membersReady={Boolean(allCompanyMembersReady)}
     vehicles={vehicles as any[]} trailers={trailers as any[]} sequences={sequences as any[]} jobs={jobs as any[]} contracts={contracts as any[]} simulators={simulators as any[]}
     onBack={goList} onDone={() => { toast.success("Motorista designado. A operação já aparece para ele."); setView({ name: "detail", id: current.id }); }} />);
   if (view.name === "results" && current) return shell(<Results p={current} me={me} onBack={() => setView({ name: "detail", id: current.id })} />);
   if (view.name === "detail" && current) return shell(<Detail p={current} me={me} now={now} busy={busy} onBack={goList}
-    onResults={() => setView({ name: "results", id: current.id })} onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)}
-    onRepeat={() => setView({ name: "new", from: current })} onPay={action => void pay(current.id, action)} />);
+    onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)} onPay={action => void pay(current.id, action)} onInfo={() => setInfoId(current.id)} />);
 
   const open = (id: string, name: "offer" | "detail" | "designate" = "detail") => setView({ name, id });
   const openOffer = (p: Partnership) => open(p.id, p.status === "pending" && roleIn(p, me) === "executor" ? "offer" : p.status === "accepted" && !p.jobId && roleIn(p, me) === "executor" ? "designate" : "detail");
@@ -115,7 +123,6 @@ export default function Partnerships() {
   const offerList = offerTab === "recebidas" ? received : sent;
 
   return shell(<>
-    {header}
     {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar as parcerias agora. Os dados podem estar desatualizados.</p> : null}
     <Tabs<Tab> label="Seções de parcerias" value={tab} onChange={setTab} items={[
       { id: "painel", label: "Painel" }, { id: "ofertas", label: "Ofertas", count: toAnswer, warn: true }, { id: "carteira", label: "Carteira" }, { id: "historico", label: "Histórico" }]} />
@@ -123,7 +130,7 @@ export default function Partnerships() {
     {tab === "painel" ? <>
       <section className="nvu-central-section b2p-sec"><SummaryBody totals={totals} active={groups.running.length} toAnswer={toAnswer} done={groups.done.length} /></section>
       <Section title="Parcerias ativas" count={groups.running.length} action={newButton}>
-        {groups.running.length ? groups.running.map(p => <OperationCard key={p.id} p={p} me={me} now={now} onOpen={() => open(p.id)} />)
+        {groups.running.length ? groups.running.map(p => <OperationCard key={p.id} p={p} me={me} now={now} onOpen={() => open(p.id)} onInfo={() => setInfoId(p.id)} />)
           : <p className="b2p-empty">{ready ? "Nenhuma parceria ativa no momento." : "Carregando parcerias…"}</p>}
         <div className="b2p-linkrow"><button type="button" className="b2p-link" onClick={() => setTab("ofertas")}>Ver ofertas<ChevronRight size={18} aria-hidden="true" /></button></div>
       </Section>
@@ -134,7 +141,11 @@ export default function Partnerships() {
         <button type="button" role="tab" aria-selected={offerTab === "recebidas"} data-on={offerTab === "recebidas" ? "1" : "0"} onClick={() => setOfferTab("recebidas")}>Recebidas ({received.length})</button>
         <button type="button" role="tab" aria-selected={offerTab === "enviadas"} data-on={offerTab === "enviadas" ? "1" : "0"} onClick={() => setOfferTab("enviadas")}>Enviadas ({sent.length})</button>
       </div>
-      {offerList.length ? offerList.map(p => <OfferCard key={p.id} p={p} me={me} busy={busy} onOpen={() => openOffer(p)} onDecline={() => respond(p, "decline")} onCancel={() => cancel(p)} />)
+      {offerList.length ? (offerTab === "recebidas"
+        ? [["Aguardando sua resposta", offerList.filter(p => p.status === "pending")], ["Aceitas — falta designar o trabalho", offerList.filter(p => p.status !== "pending")]] as [string, Partnership[]][]
+        : [["Aguardando resposta da parceira", offerList]] as [string, Partnership[]][]).filter(([, list]) => list.length).map(([label, list]) =>
+        <div key={label} className="b2p-group"><h3 className="b2p-group-h">{label}<small>{list.length}</small></h3>
+          <div className="b2p-rows">{list.map(p => <OfferRow key={p.id} p={p} me={me} now={now} onOpen={() => openOffer(p)} />)}</div></div>)
         : <p className="b2p-empty">{offerTab === "recebidas" ? "Nenhuma oferta recebida." : "Nenhuma oferta enviada aguardando resposta."}</p>}
     </Section> : null}
 

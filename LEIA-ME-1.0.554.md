@@ -1,6 +1,6 @@
-# NVU PRO 1.0.553 (Android) / Web 2.3.210 / Windows 0.2.2
+# NVU PRO 1.0.554 (Android) / Web 2.3.211 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 553 — instala como atualização da 552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 554 — instala como atualização da 553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -31,7 +31,19 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
 
-### 6. Parceiras ativas do mesmo simulador
+### 6. Ajustes da rodada seguinte (nesta versão)
+- **Nova oferta compacta:** sem rótulos repetidos (o texto do campo é o próprio rótulo; "viagens"/"dias" só aparecem depois de preencher), menos espaçamento e uma única observação sobre o prazo.
+- **Cabeçalho igual ao da Central em todas as telas de Parcerias** (título e descrição centralizados, empresa e simulador): Nova oferta, Oferta recebida, Designar trabalho, Detalhe e Resultados.
+- **Seletor de empresas** no mesmo estilo dos de reboque e veículo (tela de seleção com busca; nada de lista aberta sob a barra), **sem o nome do simulador**. A busca também encontra pelo nome completo.
+- **Logo da empresa quadrada com cantos arredondados** e **só o primeiro e o segundo nome da empresa** nas listas, cartões e carteira (o cabeçalho da sua própria empresa continua como na Central).
+- **Números com ponto nos milhares e vírgula nos centavos** (R$ 25.000,00): os campos de valor e de meta têm máscara; leitura e exibição usam o mesmo formato.
+- **Valor por viagem:** escolha entre "Valor total" e "Valor por viagem"; no segundo, o app calcula o total da operação (viagens × valor) e mostra também o valor se concluir fora do prazo (−25%). O servidor continua guardando o valor total.
+- **Lista de ofertas refeita no desenho das listas de opções da Central:** agrupada ("Aguardando sua resposta", "Aceitas — falta designar o trabalho", "Aguardando resposta da parceira"); cada oferta é uma linha com a logo quadrada da empresa à esquerda, o nome da operação e o status ("Responder", "Designar", "Aguardando"…) alinhados no topo, "Empresa · recebida/enviada há 2 h" e os dados em uma linha (viagens • prazo • valor), com seta à direita. Tocar abre os detalhes, onde ficam Aceitar/Recusar, Designar e Cancelar oferta.
+- **Mais respiro e resumo compacto:** espaçamentos maiores no Painel, Ofertas e Detalhe. O detalhe da parceria mostra o card da operação (com botão ⓘ) e, abaixo, uma lista curta (ganhos nas viagens, duração, valor do acordo e, concluída, a pagar/receber e situação do pagamento). Todo o resto — partes, prazos, condições, motorista/veículo/reboque, foto de início, detalhamento do pagamento (−25%), Resultados e Repetir oferta — fica em "Informações da operação" (ⓘ ou "Mais informações da operação").
+- **"Informações da operação" do painel do motorista (operação em andamento) refeita e enxuta:** título pequeno, nome da operação com a empresa e o selo de situação ("Em andamento" ou "Prazo excedido"), e uma lista com só o essencial — Veículo, Reboque, Viagens, Ganhos, Prazo (limite e total juntos) e Restante/Atraso (com o tempo em execução logo abaixo). Saíram as linhas repetidas (Empresa, Número de viagens, Prazo limite/Prazo total separados, Execução) e o aviso "Status da operação", que repetia o selo. O modal de operação finalizada não mudou.
+- **Sem molduras genéricas de foco** (quadrado em volta da busca, de botões e de opções) nos campos de Parcerias e nas listas de seleção abertas a partir delas.
+
+### 7. Parceiras ativas do mesmo simulador
 A lista vem do **catálogo público** de empresas (antes lia só as empresas do usuário): ativas, não arquivadas/suspensas, do mesmo simulador (identidade canônica, GTO = Global Truck Online etc.). O servidor repete as regras ao enviar.
 
 ### Publicação

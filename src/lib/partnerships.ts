@@ -82,8 +82,8 @@ export const STATUS_LABEL: Record<PartnershipStatus, string> = {
 };
 /** Texto curto de estado, pensado para quem olha (contratante ou executora). */
 export function statusText(p: Pick<Partnership, "status" | "jobId" | "contractorName" | "executorName">, role: PartnershipRole | null): string {
-  if (p.status === "pending") return role === "executor" ? "Responder oferta" : `Aguardando ${p.executorName}`;
-  if (p.status === "accepted") return p.jobId ? "Aguardando início" : role === "executor" ? "Designar motorista" : `${p.executorName} vai designar o motorista`;
+  if (p.status === "pending") return role === "executor" ? "Responder oferta" : `Aguardando ${shortName(p.executorName)}`;
+  if (p.status === "accepted") return p.jobId ? "Aguardando início" : role === "executor" ? "Designar motorista" : `${shortName(p.executorName)} vai designar o motorista`;
   return STATUS_LABEL[p.status];
 }
 
@@ -113,8 +113,23 @@ export function remainingText(deadlineMs: number, now: number): string {
 
 const CURRENCY_LOCALE: Record<string, string> = { BRL: "pt-BR", EUR: "de-DE", USD: "en-US", GBP: "en-GB" };
 export function formatMoney(cents: number, currency = "BRL"): string {
-  try { return new Intl.NumberFormat(CURRENCY_LOCALE[currency] || "pt-BR", { style: "currency", currency, maximumFractionDigits: 0 }).format(Math.round(cents) / 100); }
-  catch { return `${currency} ${Math.round(cents / 100)}`; }
+  try { return new Intl.NumberFormat(CURRENCY_LOCALE[currency] || "pt-BR", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.round(cents) / 100); }
+  catch { return `${currency} ${(Math.round(cents) / 100).toFixed(2).replace(".", ",")}`; }
+}
+/** Máscara de valor digitado: só os dígitos viram centavos ("2500000" → "25.000,00"); vazio continua vazio. */
+export function maskMoney(input: string): string {
+  const digits = String(input || "").replace(/\D/g, "").replace(/^0+/, "").slice(0, 11);
+  if (!digits) return "";
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(digits) / 100);
+}
+/** Centavos → texto da máscara ("2500000" → "25.000,00"). */
+export const centsToMasked = (cents: number | null | undefined): string => cents && cents > 0 ? maskMoney(String(Math.round(cents))) : "";
+const NAME_FILLERS = new Set(["e", "de", "do", "da", "dos", "das", "&", "-", "–", "—", "+"]);
+/** Só o primeiro e o segundo nome da empresa ("Cooper log Transporte e Logística" → "Cooper log"). */
+export function shortName(name: string): string {
+  const words = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 2) return words.join(" ");
+  return words.length > 1 && NAME_FILLERS.has(words[1].toLowerCase()) ? words[0] : words.slice(0, 2).join(" ");
 }
 /** "12500" → 1250000 centavos; aceita "12.500", "12.500,50" e "12500,5". Vazio = sem meta. */
 export function parseMoneyToCents(input: string): number | null {
@@ -305,7 +320,7 @@ export function walletEntries(rows: Partnership[], companyId: string): WalletEnt
     const role = roleIn(p, companyId);
     if (!role || !p.agreedAmountCents || ["pending", "declined", "cancelled"].includes(p.status)) continue;
     const kind: WalletKind = role === "contractor" ? "investimento" : "ganho";
-    const counterpart = role === "contractor" ? p.executorName : p.contractorName;
+    const counterpart = shortName(role === "contractor" ? p.executorName : p.contractorName);
     const base = { id: `${p.id}:${kind}`, partnershipId: p.id, kind, title: p.operationName, counterpart, currency: p.currency };
     if (p.status === "completed" && p.settlement && p.payment) {
       const paid = p.payment.status;

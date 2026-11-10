@@ -1,11 +1,10 @@
 import React from "react";
-import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, Clock, FileText, Truck } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, Clock, Container, FileText, Info, Truck } from "lucide-react";
 import {
-  formatDays, formatMoney, paceOf, remainingText, resultsOf, roleIn, WALLET_STATUS_LABEL, type Partnership, type WalletEntry, type WalletTotals,
-} from "../../lib/partnerships";
+  formatDays, formatMoney, paceOf, remainingText, resultsOf, roleIn, WALLET_STATUS_LABEL, type Partnership, type WalletEntry, type WalletTotals, shortName } from "../../lib/partnerships";
 import { Avatar, fmtDay, fmtDayTime } from "./shared";
 
-const otherOf = (p: Partnership, me: string) => roleIn(p, me) === "contractor" ? { name: p.executorName, id: p.executorCompanyId } : { name: p.contractorName, id: p.contractorCompanyId };
+const otherOf = (p: Partnership, me: string) => roleIn(p, me) === "contractor" ? { name: shortName(p.executorName), id: p.executorCompanyId } : { name: shortName(p.contractorName), id: p.contractorCompanyId };
 const roleText = (p: Partnership, me: string) => roleIn(p, me) === "contractor" ? "Você contratou" : "Você executa";
 
 /** Resumo das parcerias: a receber e a pagar (valores calculados pelo app) e a contagem do que está em andamento. */
@@ -20,21 +19,22 @@ export function SummaryBody({ totals, active, toAnswer, done }: { totals: Wallet
 }
 
 /** Operação em andamento (mesmo desenho de "Trabalhos ativos" da Central). */
-export function OperationCard({ p, me, now, onOpen }: { p: Partnership; me: string; now: number; onOpen: () => void }) {
+export function OperationCard({ p, me, now, onOpen, onInfo }: { p: Partnership; me: string; now: number; onOpen?: () => void; onInfo?: () => void }) {
   const other = otherOf(p, me), pace = paceOf(p, now), pct = p.totalTrips ? Math.min(100, Math.round(p.progress / p.totalTrips * 100)) : 0;
   const remaining = remainingText(p.deadlineMs, now), late = pace.tone === "late" && pace.label === "Prazo vencido";
   return <article className="nvu-central-operation">
     <div className="nvu-central-driver-row">
-      <button type="button" className="nvu-central-driver" onClick={onOpen} aria-label={`Abrir ${p.operationName}`}>
+      <button type="button" className="nvu-central-driver" onClick={onOpen} disabled={!onOpen} aria-label={`Abrir ${p.operationName}`}>
         <Avatar name={p.driverName || other.name} companyId={p.driverName ? undefined : other.id} />
         <strong>{p.driverName || other.name}<span className="b2p-sub">{other.name} · {roleText(p, me)}</span></strong>
       </button>
-      <span className="nvu-central-job-status" data-state={late ? "overdue" : p.status === "accepted" ? "pending" : "active"}><i aria-hidden="true" />{late ? "Atrasada" : p.status === "accepted" ? "Aguardando início" : "Em andamento"}</span>
-      <button type="button" className="nvu-central-operation-toggle" onClick={onOpen} aria-label="Abrir detalhes"><ChevronRight size={20} aria-hidden="true" /></button>
+      <span className="nvu-central-job-status" data-state={late ? "overdue" : p.status === "accepted" || p.status === "pending" ? "pending" : "active"}><i aria-hidden="true" />{late ? "Atrasada" : p.status === "completed" ? "Concluída" : p.status === "accepted" ? "Aguardando início" : p.status === "pending" ? "Aguardando resposta" : "Em andamento"}</span>
+      {onOpen ? <button type="button" className="nvu-central-operation-toggle" onClick={onOpen} aria-label="Abrir detalhes"><ChevronRight size={20} aria-hidden="true" /></button> : null}
     </div>
     <div className="nvu-central-vehicle-line">
       <span className="b2p-ico"><Truck size={20} aria-hidden="true" /></span>
       <div className="nvu-central-vehicle-name"><strong>{p.vehicleName || "Veículo a definir"}</strong>{p.trailerName || p.trailerRequirement ? <small>{p.trailerName || p.trailerRequirement}</small> : null}</div>
+      {onInfo ? <button type="button" className="b2p-info-btn" onClick={onInfo} aria-label="Informações da operação"><Info size={20} aria-hidden="true" /></button> : null}
       <span className="nvu-central-operation-name" title={p.operationName}>{p.operationName}</span>
     </div>
     <div className="nvu-central-operation-stats">
@@ -46,35 +46,33 @@ export function OperationCard({ p, me, now, onOpen }: { p: Partnership; me: stri
       <div className="nvu-central-progress" role="progressbar" aria-label={`Progresso de ${p.operationName}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: `${pct}%` }} /></div>
     </div>
     {remaining ? <p className="nvu-central-operation-timing"><Clock size={16} strokeWidth={1.8} aria-hidden="true" /><span>Prazo restante:</span><strong data-warning={late || undefined}>{remaining}</strong></p> : null}
-    <p className="b2p-foot">Pontuação para <b>{p.contractorName}</b>{p.agreedAmountCents ? <> · Valor do acordo <b>{formatMoney(p.agreedAmountCents, p.currency)}</b></> : null}</p>
+    <p className="b2p-foot">Pontuação para <b>{shortName(p.contractorName)}</b></p>
   </article>;
 }
 
-/** Oferta recebida/enviada: quem, qual operação e as condições (viagens, prazo em dias, valor). */
-export function OfferCard({ p, me, busy, onOpen, onDecline, onCancel }: { p: Partnership; me: string; busy: boolean; onOpen: () => void; onDecline?: () => void; onCancel?: () => void }) {
+/** "há 5 min", "há 3 h", "ontem", "há 4 dias" (mais antigo: dia/mês). */
+export function agoText(ms: number, now: number): string {
+  if (!ms) return "";
+  const diff = Math.max(0, now - ms), min = Math.floor(diff / 60000), hours = Math.floor(diff / 3600000), days = Math.floor(diff / 86400000);
+  if (min < 1) return "agora"; if (min < 60) return `há ${min} min`; if (hours < 24) return `há ${hours} h`; if (days === 1) return "ontem"; if (days < 7) return `há ${days} dias`;
+  return fmtDay(ms);
+}
+
+/** Oferta como linha de lista (no desenho das listas de opções da Central): logo, operação, empresa e três dados alinhados; toque abre os detalhes. */
+export function OfferRow({ p, me, now, onOpen }: { p: Partnership; me: string; now: number; onOpen: () => void }) {
   const role = roleIn(p, me), other = otherOf(p, me), received = role === "executor";
-  const status = p.status === "pending" ? { text: received ? "Aguardando você" : "Aguardando resposta", tone: "warn" } : p.status === "accepted" ? { text: "Aceita", tone: "good" } : p.status === "declined" ? { text: "Recusada", tone: "muted" } : p.status === "cancelled" ? { text: "Cancelada", tone: "muted" } : { text: "Em andamento", tone: "good" };
   const needsDriver = received && p.status === "accepted" && !p.jobId;
-  return <article className="nvu-central-operation">
-    <div className="nvu-central-driver-row">
-      <span className="nvu-central-driver"><Avatar name={other.name} companyId={other.id} /><strong>{other.name}<span className="b2p-sub">{received ? "enviou a oferta" : "recebeu a oferta"} · {fmtDayTime(p.createdAtMs)}</span></strong></span>
-      <span className="b2p-pill" data-tone={status.tone}><i aria-hidden="true" />{status.text}</span>
-    </div>
-    <div className="b2p-op-row"><span className="b2p-ico"><FileText size={20} aria-hidden="true" /></span>
-      <div><b>{p.operationName}</b><small>{p.trailerRequirement ? `Reboque ${p.trailerRequirement}` : "Sem exigência de reboque"}</small></div></div>
-    <div className="nvu-central-operation-stats"><div className="nvu-central-operation-metrics">
-      <div><strong>{p.totalTrips}</strong><span>Viagens</span></div>
-      <div><strong>{p.durationDays ? formatDays(p.durationDays) : "—"}</strong><span>Prazo</span></div>
-      <div><strong>{p.agreedAmountCents ? formatMoney(p.agreedAmountCents, p.currency) : "—"}</strong><span>Valor</span></div>
-    </div></div>
-    <p className="b2p-foot">Pontua para <b>{p.contractorName}</b>{p.status === "pending" && p.durationDays ? " · prazo conta a partir do aceite" : ""}</p>
-    <div className="b2p-actions">
-      {p.status === "pending" && received ? <><button type="button" className="b2p-btn" data-v="primary" onClick={onOpen}>Analisar</button><button type="button" className="b2p-btn" data-v="text" disabled={busy} onClick={onDecline}>Recusar</button></> : null}
-      {needsDriver ? <button type="button" className="b2p-btn" data-v="primary" onClick={onOpen}>Designar trabalho</button> : null}
-      {!received && p.status === "pending" ? <><button type="button" className="b2p-btn" data-v="ghost" onClick={onOpen}>Detalhes</button><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onCancel}>Cancelar oferta</button></> : null}
-      {!(p.status === "pending") && !needsDriver ? <button type="button" className="b2p-btn" data-v="ghost" onClick={onOpen}>Detalhes</button> : null}
-    </div>
-  </article>;
+  const status = p.status === "pending" ? { text: received ? "Responder" : "Aguardando", tone: "warn" } : needsDriver ? { text: "Designar", tone: "warn" }
+    : p.status === "accepted" ? { text: "Aceita", tone: "good" } : p.status === "declined" ? { text: "Recusada", tone: "muted" } : p.status === "cancelled" ? { text: "Cancelada", tone: "muted" } : { text: "Em andamento", tone: "good" };
+  const facts = [`${p.totalTrips} ${p.totalTrips === 1 ? "viagem" : "viagens"}`, p.durationDays ? formatDays(p.durationDays) : "", p.agreedAmountCents ? formatMoney(p.agreedAmountCents, p.currency) : ""].filter(Boolean);
+  return <button type="button" className="b2p-row" onClick={onOpen} aria-label={`${p.operationName}, ${other.name}, ${status.text}`}>
+    <Avatar name={other.name} companyId={other.id} size={44} />
+    <span className="b2p-row-head"><strong className="b2p-row-title">{p.operationName}</strong>
+      <span className="b2p-pill b2p-row-status" data-tone={status.tone}><i aria-hidden="true" />{status.text}</span></span>
+    <span className="b2p-row-sub">{other.name} · {received ? "recebida" : "enviada"} {agoText(p.createdAtMs, now)}</span>
+    <span className="b2p-row-facts">{facts.map((fact, index) => <span key={index}>{fact}</span>)}</span>
+    <ChevronRight className="b2p-row-chev" size={18} aria-hidden="true" />
+  </button>;
 }
 
 /** Linha do histórico (concluída, recusada ou cancelada). */
