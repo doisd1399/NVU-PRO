@@ -35,6 +35,7 @@ const routeLoaders: Record<string, Loader[]> = {
   "/admin/manual": [() => import("../pages/Manual")],
   "/admin/senior": [() => import("../pages/admin/SeniorPanel")],
   "/admin/assign": [() => import("../pages/admin/AssignJob")],
+  "/admin/parcerias": [() => import("../pages/admin/Partnerships")],
   "/admin/add-driver": [() => import("../pages/admin/AddDriver")],
   "/driver": [
     () => import("../layouts/DriverLayout"),

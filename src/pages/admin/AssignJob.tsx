@@ -1,3 +1,4 @@
+import { isPartnershipContract } from "../../lib/partnerships";
 import { resolveDriverPhoto } from '../../lib/resolveDriverPhoto';
 import React, { useState } from "react";
 import { useOperationalStore } from "../../context/AppContext";
@@ -48,7 +49,7 @@ export default function AssignJob() {
   const [customDeadlines, setCustomDeadlines] = useState<Record<string, number>>({});
 
   const activeContracts = [...contracts]
-    .filter((c) => c.status !== "completed")
+    .filter((c) => c.status !== "completed" && !isPartnershipContract(c as any))
     .sort((a, b) =>
       a.name.localeCompare(b.name, undefined, {
         numeric: true,

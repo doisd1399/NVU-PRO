@@ -54,3 +54,4 @@
 .nvu-driver-op-card .nvu-driver-remaining-time > strong { font-size: 12px; }
 .nvu-driver-op-card .nvu-driver-status-label { color: var(--central-text); }
 .nvu-driver-op-card .nvu-driver-status-value { color: var(--central-muted); border-left-color: var(--central-line); }
+

@@ -16,6 +16,8 @@ export type DriverOperationCardProps = {
   /** Only when every delivery is done and the operation waits for the driver to finish it. */
   finish: null | { heading: string; description?: string; label: string; disabled: boolean; onFinish: () => void };
   notice?: React.ReactNode;
+  /** Operação de parceria B2P: mostra o selo "Parceria" ao lado do nome. */
+  partnership?: boolean;
   vehicle: { name: string; trailer?: string; operationName: string; onPaints: () => void };
   progress: { done: number; total: number; remaining: number; percent: number; replayKey: string };
   sync?: React.ReactNode;
@@ -28,7 +30,7 @@ export type DriverOperationCardProps = {
  * styles) minus the driver row: the driver already is on his own page. Order: vehicle photo, vehicle line, figures and
  * progress, start button, remaining time, availability.
  */
-export function DriverOperationCard({ photo, info, finish, notice, vehicle, progress, sync, timing, status }: DriverOperationCardProps) {
+export function DriverOperationCard({ photo, info, finish, notice, partnership, vehicle, progress, sync, timing, status }: DriverOperationCardProps) {
   return <section className="order-3 nvu-driver-op-card nvu-central-palette nvu-central-operation mb-3 sm:mb-4 mt-0" aria-label="Operação atual" data-testid="driver-operation-card">
     <input ref={photo.inputRef} type="file" accept="image/*" className="hidden" onChange={photo.onFileSelected} />
     <button type="button" className="nvu-central-vehicle-photo nvu-driver-op-photo nvu-driver-vehicle-photo" disabled={photo.busy || !photo.canEdit}
@@ -49,7 +51,7 @@ export function DriverOperationCard({ photo, info, finish, notice, vehicle, prog
       <div className="nvu-central-vehicle-name"><strong>{vehicle.name}</strong>{vehicle.trailer ? <small>{vehicle.trailer}</small> : null}</div>
       <button type="button" className="nvu-central-operation-info" aria-label="Informações da operação em andamento" aria-haspopup="dialog"
         aria-expanded={info.open} aria-controls={info.id} onClick={info.onOpen}><Info size={18} strokeWidth={1.8} aria-hidden="true" /></button>
-      <span className="nvu-central-operation-name" title={vehicle.operationName}>{vehicle.operationName}</span>
+      <span className="nvu-central-operation-name" title={vehicle.operationName}>{vehicle.operationName}{partnership ? <em className="nvu-partnership-tag">Parceria</em> : null}</span>
     </div>
     <div className="nvu-central-operation-stats">
       <div className="nvu-central-operation-metrics">

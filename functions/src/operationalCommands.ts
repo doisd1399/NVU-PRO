@@ -4,6 +4,7 @@ import * as functions from "firebase-functions/v1";
 import { createHash } from "node:crypto";
 import { text, field, fail, id, millis, manager, membership, assertAccount, assertCompany, driverEligibility, simulatorKey, maintenance, snapshot, assets, readOperationalPreparation } from "./operationalCommandPolicy";
 import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
+import { verifyStartPhotoUrl } from "./partnershipPolicy";
 
 type Data = Record<string, any>;
 type Tx = FirebaseFirestore.Transaction;
@@ -62,7 +63,7 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
   const automatic = action === "startAutomatic";
   const creates = action === "assign" || automatic;
   const args: Data = automatic ? { companyId, queueId: id(data.queueId, "Fila"), contractId: id(data.contractId, "Operação"), vehicleId: id(data.vehicleId, "Veículo"), previewToken: id(data.previewToken, "Confirmação da fila"), configRevision: Number(data.configRevision) } : action === "assign" ? { companyId, contractId: id(data.contractId, "Operação"), driverId: id(data.driverId, "Motorista"), vehicleId: id(data.vehicleId, "Veículo"),
-    trailerId: text(data.trailerId) || null, deadlineDays: data.deadlineDays == null ? null : Number(data.deadlineDays) } : action === "changeVehicle" ? { companyId, jobId: id(data.jobId, "Trabalho"), vehicleId: id(data.vehicleId, "Veículo") } : { companyId, jobId: id(data.jobId, "Trabalho") };
+    trailerId: text(data.trailerId) || null, deadlineDays: data.deadlineDays == null ? null : Number(data.deadlineDays) } : action === "changeVehicle" ? { companyId, jobId: id(data.jobId, "Trabalho"), vehicleId: id(data.vehicleId, "Veículo") } : { companyId, jobId: id(data.jobId, "Trabalho"), ...(action === "start" && text(data.startPhotoUrl) ? { startPhotoUrl: text(data.startPhotoUrl).slice(0, 2500) } : {}) };
   const fingerprint = digest([action, args]);
   const requestRef = db.collection("operationalCommandRequests").doc(digest([uid, requestId]));
   // Deterministic across transport retries and processes, but bound to the actor.
@@ -121,6 +122,9 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
         job = old; // Re-entering an existing operation does not allocate another.
       } else {
         if (action === "start" && old.status !== "pending") fail("failed-precondition", "A operação não está aguardando início.");
+        // Operations that belong to a partnership cannot start without the driver's own photo of the vehicle.
+        const startPhoto = action === "start" && old.partnershipId ? verifyStartPhotoUrl(args.startPhotoUrl, text(old.partnershipId), uid!) : "";
+        if (action === "start" && old.partnershipId && !startPhoto) fail("failed-precondition", "Envie a foto do veículo para iniciar esta operação em parceria.");
         await driverEligibility(tx, db, companyId, driverId);
         const contractId = creates ? args.contractId : id(field(old, "contractId", "contratoId"), "Operação");
         const contractDoc = contractRead && contractId === contractIdEarly ? contractRead : await tx.get(db.collection("contratos").doc(contractId));
@@ -138,7 +142,8 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
         if (!Number.isSafeInteger(days) || days < 1 || !Number.isFinite(new Date(Date.now() + days * 86_400_000).getTime())) fail("invalid-argument", "Prazo inválido.");
         const oldDue = old.dueAt || old.deadlineDate;
         if (action === "start" && oldDue && !Number.isFinite(millis(oldDue))) fail("failed-precondition", "O prazo existente precisa ser conferido pela empresa.");
-        const due = action === "start" && oldDue ? new Date(millis(oldDue)).toISOString() : new Date(Date.now() + days * 86_400_000).toISOString();
+        const fixedDue = action === "assign" && catalog.partnership === true ? Date.parse(text(catalog.partnershipDeadlineAt)) : NaN;
+        const due = action === "start" && oldDue ? new Date(millis(oldDue)).toISOString() : Number.isFinite(fixedDue) ? new Date(fixedDue).toISOString() : new Date(Date.now() + days * 86_400_000).toISOString();
         const toISO = (value: any): string => Number.isFinite(millis(value)) ? new Date(millis(value)).toISOString() : now;
         job = { ...old, companyId, contractId, driverId, motoristaId: driverId, assignedDriverId: driverId, userId: old.userId || uid,
           vehicleId, vehicleName: immutable ? old.vehicleName : text(resources.vehicle.name), vehiclePlate: immutable ? old.vehiclePlate : text(resources.vehicle.plate),
@@ -149,6 +154,9 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
           operationalCommandVersion: 1, operationalRevision: Number(old.operationalRevision || 0) + 1, operationReconciliationVersion: old.operationReconciliationVersion || 4,
           operationProgressReconciled: old.operationProgressReconciled ?? true, operationProjectionSource: old.operationProjectionSource || "new-operation-v4",
           ...(action === "start" || automatic ? { startedAt: old.startedAt || now } : {}),
+          // Partnership markers: the job stays the executor's; the company ranking credits the contractor.
+          ...(action === "assign" && catalog.partnership === true ? { partnership: true, partnershipId: text(catalog.partnershipId), contractorCompanyId: text(catalog.contractorCompanyId), scoreCompanyId: text(catalog.scoreCompanyId) } : {}),
+          ...(startPhoto ? { startVehiclePhotoUrl: startPhoto, startVehiclePhotoAt: now } : {}),
           ...(automaticSource ? { queueId: automaticSource.queueId, queueRevision: automaticSource.configRevision, operationSource: "operational-queue-v1" } : {}), updatedAt: now };
         if (action === "start" || automatic) {
           const current = liveRead ?? await liveJobs(tx, db, companyId, driverId);

@@ -90,6 +90,8 @@ type SimulatorDescriptor = {
 type Contribution = {
   simulatorId: string;
   companyId: string;
+  /** Company that receives the company-ranking credit (the contractor for partnership trips). */
+  scoreCompanyId: string;
   companyName: string;
   driverId: string;
   driverName: string;
@@ -273,6 +275,15 @@ function companyIdOf(data: FirebaseFirestore.DocumentData): string {
   return firstNonEmpty(data.companyId, data.empresaId, data.company_id, data.empresa_id);
 }
 
+/**
+ * Company-ranking credit. A partnership trip belongs to the executor's job (and to the driver's own history) but only the
+ * contractor's company ranking receives it; every other trip is credited to its own company, exactly as before.
+ */
+export function scoreCompanyIdOf(data: FirebaseFirestore.DocumentData): string {
+  const scored = data.partnershipId ? firstNonEmpty(data.scoreCompanyId) : "";
+  return scored || companyIdOf(data);
+}
+
 function driverIdOf(data: FirebaseFirestore.DocumentData): string {
   return firstNonEmpty(data.driverId, data.motoristaId, data.motorista_id, data.userId, data.driver_id);
 }
@@ -418,12 +429,13 @@ async function contributionFromData(
   if (!data || !isValidCompletedTrip(data)) return null;
   const date = tripMetricDate(data);
   const companyId = companyIdOf(data);
+  const scoreCompanyId = scoreCompanyIdOf(data);
   const driverId = driverIdOf(data);
   if (!date || !companyId || !driverId) return null;
 
   const [catalog, companySnapshot] = await Promise.all([
     loadSimulatorCatalog(),
-    db.collection("frotas").doc(companyId).get(),
+    db.collection("frotas").doc(scoreCompanyId).get(),
   ]);
   const company = companySnapshot.exists ? companySnapshot.data() : undefined;
   // A currently present but explicitly ineligible company stays excluded.
@@ -439,7 +451,8 @@ async function contributionFromData(
   return {
     simulatorId,
     companyId,
-    companyName: companyNameOf(data) || firstNonEmpty(company?.companyName, company?.name),
+    scoreCompanyId,
+    companyName: (scoreCompanyId !== companyId ? "" : companyNameOf(data)) || firstNonEmpty(company?.companyName, company?.name),
     driverId,
     driverName: driverNameOf(data),
     value: Math.max(0, parseTripValueRecord(data)),
@@ -455,6 +468,7 @@ function contributionSignature(contribution: Contribution | null): string {
   return [
     contribution.simulatorId,
     contribution.companyId,
+    contribution.scoreCompanyId,
     contribution.driverId,
     contribution.value,
     contribution.currency || contribution.currencySource || "UNKNOWN",
@@ -531,7 +545,7 @@ function addContributionDelta(
 ) {
   periodsForDate(contribution.date).forEach((period) => {
     const delta = ensureDelta(deltas, contribution.simulatorId, period);
-    const company = delta.companyDeltas.get(contribution.companyId) || {
+    const company = delta.companyDeltas.get(contribution.scoreCompanyId) || {
       trips: 0,
       val: 0,
       name: contribution.companyName || undefined,
@@ -540,7 +554,7 @@ function addContributionDelta(
     company.trips += direction;
     addContributionCurrencyDelta(company, contribution, direction);
     if (!company.name && contribution.companyName) company.name = contribution.companyName;
-    delta.companyDeltas.set(contribution.companyId, company);
+    delta.companyDeltas.set(contribution.scoreCompanyId, company);
 
     const driver = delta.driverDeltas.get(contribution.driverId) || {
       trips: 0,
@@ -921,7 +935,7 @@ function addToAggregate(
   aggregate: AggregateData,
   contribution: Contribution,
 ) {
-  const company = aggregate.companies[contribution.companyId] || {
+  const company = aggregate.companies[contribution.scoreCompanyId] || {
     trips: 0,
     val: 0,
     name: contribution.companyName || undefined,
@@ -930,7 +944,7 @@ function addToAggregate(
   company.trips += 1;
   addContributionCurrencyDelta(company, contribution, 1);
   if (!company.name && contribution.companyName) company.name = contribution.companyName;
-  aggregate.companies[contribution.companyId] = company;
+  aggregate.companies[contribution.scoreCompanyId] = company;
 
   const driver = aggregate.drivers[contribution.driverId] || {
     trips: 0,
@@ -1011,15 +1025,16 @@ async function rebuildPeriod(
     const date = tripMetricDate(data);
     if (!date || date < period.start || date > period.end) return;
     const companyId = companyIdOf(data);
+    const scoreCompanyId = scoreCompanyIdOf(data);
     const driverId = driverIdOf(data);
     if (!companyId || !driverId) return;
-    const company = companiesById.get(companyId);
-    if (!company && allCompaniesById.has(companyId)) {
-      recordExcludedCompany(companyId);
+    const company = companiesById.get(scoreCompanyId);
+    if (!company && allCompaniesById.has(scoreCompanyId)) {
+      recordExcludedCompany(scoreCompanyId);
       return;
     }
     if (!company && hasUnsupportedSimulatorIdentity(data)) {
-      recordExcludedCompany(companyId);
+      recordExcludedCompany(scoreCompanyId);
       return;
     }
     const simulatorId = resolveSimulatorFromRecords(data, company, catalog);
@@ -1029,7 +1044,8 @@ async function rebuildPeriod(
     const contribution: Contribution = {
       simulatorId,
       companyId,
-      companyName: companyNameOf(data) || firstNonEmpty(company?.companyName, company?.name),
+      scoreCompanyId,
+      companyName: (scoreCompanyId !== companyId ? "" : companyNameOf(data)) || firstNonEmpty(company?.companyName, company?.name),
       driverId,
       driverName: driverNameOf(data),
       value: Math.max(0, parseTripValueRecord(data)),
@@ -1381,7 +1397,7 @@ export const getSeniorMonthlyMetrics = functions
       const data = document.data();
       if (!isValidCompletedTrip(data)) return;
       const date = tripMetricDate(data);
-      const companyId = companyIdOf(data);
+      const companyId = scoreCompanyIdOf(data);
       const driverId = driverIdOf(data);
       if (!date || date < period.start || date > period.end || !companyId || !driverId) return;
       const company = companiesById.get(companyId);
@@ -1397,7 +1413,7 @@ export const getSeniorMonthlyMetrics = functions
       total.tripCount += 1;
       const currency = resolveCurrencyForTrip(data, simulatorId, catalog);
       const contribution: Contribution = {
-        simulatorId, companyId, companyName: companyNameOf(data),
+        simulatorId, companyId, scoreCompanyId: companyId, companyName: companyNameOf(data),
         driverId, driverName: driverNameOf(data),
         value: Math.max(0, parseTripValueRecord(data)),
         currency: currency.currencyStatus === "known" ? currency.currency : undefined,

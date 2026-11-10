@@ -24,6 +24,7 @@
       "app-guides",
       "ghost-jobs",
       "callable-regions",
+      "partnerships",
       "durable-outbox"
     ],
     "web": [
@@ -51,6 +52,7 @@
       "app-guides",
       "ghost-jobs",
       "callable-regions",
+      "partnerships",
       "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
@@ -82,6 +84,7 @@
       "app-guides",
       "ghost-jobs",
       "callable-regions",
+      "partnerships",
       "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
@@ -371,6 +374,16 @@
         "--import",
         "tsx",
         "scripts/test-durable-operation-outbox.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "partnerships": {
+      "label": "Parcerias B2P: oferta, designação, foto, livro de viagens e pontuação",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-partnerships.mts"
       ],
       "timeoutMs": 60000
     }

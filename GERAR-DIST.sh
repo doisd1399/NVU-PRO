@@ -5,6 +5,6 @@ cd "$(dirname "$0")"
 npm ci
 npm run lint
 npm run build
-rm -f NVU-PRO-2.3.206-dist.zip
-(cd dist && zip -qr ../NVU-PRO-2.3.206-dist.zip .)
-echo "Pronto: NVU-PRO-2.3.206-dist.zip"
+rm -f NVU-PRO-2.3.207-dist.zip
+(cd dist && zip -qr ../NVU-PRO-2.3.207-dist.zip .)
+echo "Pronto: NVU-PRO-2.3.207-dist.zip"

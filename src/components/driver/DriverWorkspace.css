@@ -487,3 +487,7 @@ body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { p
 .nvu-company-surface { position: relative; z-index: 1; margin: calc(-1 * var(--driver-surface-radius) - 1px) calc(-1 * var(--driver-gutter)) 0 !important; padding: 18px var(--driver-gutter) 12px; border-radius: var(--driver-surface-radius) var(--driver-surface-radius) 0 0; background: var(--driver-page); display: flex; flex-direction: column; gap: 12px; min-height: 50dvh; }
 .nvu-company-surface-flat { margin-top: 0 !important; border-radius: 0; }
 @media(min-width:640px) { body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { padding-bottom: 36px !important; } }
+
+/* Selo "Parceria" (B2P) na fila de encaminhamentos. */
+.nvu-idle-partnership-tag { flex-shrink: 0; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--nvu-accent-soft, #e0f7fa); color: var(--nvu-accent, #00899a); }

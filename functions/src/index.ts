@@ -156,3 +156,5 @@ export { updateWorkModeAvailability } from "./workModeAvailability";
 export { processSeniorAccountCommand, recoverSeniorAccountCommands } from "./seniorAccountCommands";
 
 export { deleteCompanyCanonical, processCompanyDeletion, recoverCompanyDeletions } from "./companyDeletion";
+
+export { createPartnershipOffer, respondPartnershipOffer, cancelPartnershipOffer, designatePartnershipDriver, syncPartnershipFromJob, syncPartnershipTrips } from "./partnerships";

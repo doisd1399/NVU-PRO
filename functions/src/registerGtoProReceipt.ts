@@ -13,6 +13,7 @@ import { reconcileOperationTripsCore } from "./reconcileOperationTrips";
 import { isOperationallySuspended, isSupportedReceiptCurrency, proReceiptEventKey, proReceiptEventFingerprints, readSimpleReceiptCurrency } from "./tripReceiptPolicy";
 import { proSubmissionReasonCode } from "./proSubmissionFailure";
 import { CALLABLE_REGIONS } from "./callableRegions";
+import { partnershipTripFields } from "./partnershipPolicy";
 
 type Data = FirebaseFirestore.DocumentData;
 
@@ -333,6 +334,8 @@ export const registerGtoProReceipt = functions.region(...CALLABLE_REGIONS).https
       const driverName = field(userDoc.data() || {}, "displayName", "name", "nome") || "Motorista";
       const trip = {
         tripId, canonicalTripId: tripId, empresaId: companyId, companyId,
+        // Partnership trips belong to the executor's job, but the company ranking credits the contractor.
+        ...partnershipTripFields(job),
         empresaNome: field(company, "companyName", "name", "nome") || "Empresa", motoristaId: uid, driverId: uid,
         motoristaNome: driverName, contratoId: contractId, contractId,
         contratoNumero: operationContractName(job, contract), contratoDescricao: operationContractName(job, contract),

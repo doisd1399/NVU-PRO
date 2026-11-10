@@ -1,3 +1,4 @@
+import { isPartnershipContract } from "../../../lib/partnerships";
 import { ModalSelect } from "../../../components/ui/ModalSelect";
 import { OperationalQueuesManager } from "../../../components/admin/OperationalQueuesManager";
 import { OperationalQueueGuide } from "../../../components/admin/OperationalQueueGuide";
@@ -87,6 +88,7 @@ function ContractsTab({
   };
 
   const filteredContracts = contracts.filter((c) => {
+    if (isPartnershipContract(c as any)) return false;
     const matchesSearch =
       !search ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -574,10 +576,10 @@ function ContractsTab({
                       </label>
                       {automatic?.settings?.queues.some(q=>q.folderId===editSequenceId&&q.state!=="archived")&&<p className="mb-2 text-xs text-gray-500 dark:text-nvu-muted">A sequência dos trabalhos é organizada em Filas operacionais. Novas operações entram ao final da fila.</p>}
                       <div className="flex flex-col gap-2 max-h-48 overflow-y-auto bg-gray-50 dark:bg-nvu-page p-3 rounded-xl border border-gray-100 dark:border-nvu-line">
-                        {contracts.length === 0 ? (
+                        {contracts.filter(c => !isPartnershipContract(c as any)).length === 0 ? (
                            <p className="text-xs text-gray-500">Nenhuma operação criada.</p>
                         ) : (
-                          contracts.map(c => (
+                          contracts.filter(c => !isPartnershipContract(c as any)).map(c => (
                             <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-nvu-surface rounded-lg cursor-pointer transition-colors border border-transparent hover:border-gray-200 dark:hover:border-nvu-line">
                               <input 
                                 type="checkbox" 

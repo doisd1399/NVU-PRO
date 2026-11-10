@@ -18,6 +18,8 @@ export type ManagementOperation = {
   jobStatus?: string;
   /** The driver is no longer an active member of the company: the job was left open when he was removed. */
   driverOutsideCompany?: boolean;
+  /** Parceria B2P. Contratante: operação lida do documento da parceria (somente leitura). Executora: trabalho próprio com selo. */
+  partnership?: { id: string; role: "contractor" | "executor"; contractorName: string; executorName: string; photoUrl?: string };
 };
 const statusLabels = { active: "Em andamento", pending: "Não iniciado", overdue: "Atrasado", ready: "Aguardando conclusão" };
 
@@ -70,12 +72,13 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
   const photoId = useId();
   const { currentUser } = useSessionStore();
   useEffect(() => { if (!active) setPaintsOpen(false); }, [active]);
-  const photo = useVehiclePhoto(expanded && operation.driverId && operation.simulatorId && operation.vehicleId
+  const asContractor = operation.partnership?.role === "contractor";
+  const photo = useVehiclePhoto(expanded && !asContractor && operation.driverId && operation.simulatorId && operation.vehicleId
     ? { userId: operation.driverId, simulatorId: operation.simulatorId, vehicleId: operation.vehicleId, vehicleName: operation.vehicleName }
     : null, operation.companyId);
   return <article className="nvu-central-operation" data-operation-id={operation.id} data-expanded={expanded}>
     <div className="nvu-central-driver-row">
-      <button type="button" className="nvu-central-driver" onClick={onDriver} aria-label={`Ver perfil de ${operation.driverName}`}>
+      <button type="button" className="nvu-central-driver" onClick={asContractor ? undefined : onDriver} disabled={asContractor} aria-label={`Ver perfil de ${operation.driverName}`}>
         <StableImage src={operation.driverPhoto} persistentViewerId={currentUser?.id} persistentAssetId={`management-avatar:${operation.companyId}:${operation.driverId}`} alt="" wrapperClassName="nvu-central-avatar" className="object-cover" loading="lazy"
           referrerPolicy="no-referrer" fallback={<span>{operation.driverName.slice(0, 2).toUpperCase()}</span>} />
         <strong>{operation.driverName}</strong>
@@ -85,9 +88,11 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
       <button type="button" className="nvu-central-operation-toggle" aria-expanded={expanded} aria-controls={photoId} onClick={() => setExpanded(value => !value)}
         aria-label={`${expanded ? "Minimizar" : "Expandir"} operação de ${operation.driverName}`}><ChevronDown size={20} strokeWidth={2.2} aria-hidden="true" /></button>
     </div>
+    {operation.partnership && <p className="nvu-central-partnership-strip"><span className="nvu-partnership-tag">Parceria</span>
+      <span><strong>{operation.partnership.contractorName}</strong> contratou · <strong>{operation.partnership.executorName}</strong> executa</span></p>}
     {expanded && <div id={photoId} className="nvu-central-vehicle-photo">
-      <StableImage src={photo.src} onLoad={photo.onImageLoad} onError={photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
-        loading="lazy" fallback={<div className="nvu-central-photo-empty"><Truck size={30} /><span>{photo.remoteStatus === "loading" && !photo.src ? "Carregando foto do veículo…" : "Foto do veículo indisponível"}</span></div>} />
+      <StableImage src={asContractor ? operation.partnership?.photoUrl : photo.src} onLoad={asContractor ? undefined : photo.onImageLoad} onError={asContractor ? undefined : photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
+        loading="lazy" fallback={<div className="nvu-central-photo-empty"><Truck size={30} /><span>{!asContractor && photo.remoteStatus === "loading" && !photo.src ? "Carregando foto do veículo…" : asContractor ? "A foto aparece quando o motorista inicia" : "Foto do veículo indisponível"}</span></div>} />
     </div>}
     <div className="nvu-central-vehicle-line">
       <button type="button" className="nvu-central-paint-button" onClick={() => setPaintsOpen(true)} aria-label={`Ver pinturas de ${operation.vehicleName}`}><Download size={19} strokeWidth={1.7} /></button>

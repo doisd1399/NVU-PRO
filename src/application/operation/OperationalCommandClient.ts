@@ -10,6 +10,7 @@ export type OperationalCommandInput = {
   queueId?: string;
   configRevision?: number;
   previewToken?: string;
+  startPhotoUrl?: string;
 };
 export type OperationalCommandResult = {
   success: true; version: 1; action: OperationalCommandInput["action"];

@@ -1788,11 +1788,100 @@ var require_browser_image_compression = __commonJS({
 });
 
 // storage-fake:firebase/functions
+var getFunctions = () => ({});
 var httpsCallable = () => async () => {
   const s = globalThis.__upload519;
   s.ensures++;
   if (s.refuseRepair) throw Error("membership refused");
 };
+
+// src/lib/callableRegions.ts
+var CALLABLE_PRIMARY_REGION = "southamerica-east1";
+var CALLABLE_FALLBACK_REGION = "us-central1";
+var DUAL_REGION_CALLABLES = [
+  "operationalCommand",
+  "prepareCompanyOperationalCommands",
+  "getOperationalQueues",
+  "configureOperationalQueues",
+  "registerCanonicalSimpleTrip",
+  "registerGtoProReceipt",
+  "completeCanonicalOperation",
+  "reconcileOperationTrips",
+  "syncGtoTripState",
+  "ensureCompanyAccess",
+  "ensureRankingParticipantOperations",
+  "manageFleetMembership",
+  "manageCompanyGroup",
+  "manageOperationalGoal",
+  "updateWorkModeAvailability",
+  "readPrivateUserProfiles",
+  "authenticateSeniorAccess",
+  "removeDriverFromFleetSenior",
+  "suspendSeniorAccount",
+  "reactivateSeniorAccount",
+  "deleteSeniorProfile",
+  "endSeniorOperationalSuspension",
+  "reverseSeniorSuspension",
+  "listSeniorSuspendedMembers",
+  "approveDriverRequest",
+  "rejectDriverRequest",
+  "approveRecruitmentApplication",
+  "rejectRecruitmentApplication",
+  "repairApprovedMembership",
+  "createPartnershipOffer",
+  "respondPartnershipOffer",
+  "cancelPartnershipOffer",
+  "designatePartnershipDriver"
+];
+var dual = new Set(DUAL_REGION_CALLABLES);
+var isDualRegionCallable = (name) => dual.has(name);
+
+// src/lib/regionalCallable.ts
+var UNAVAILABLE_MS = 10 * 6e4;
+var spInstances = /* @__PURE__ */ new WeakMap();
+var confirmedNearby = /* @__PURE__ */ new Set();
+var unavailableUntil = /* @__PURE__ */ new Map();
+var nearbyInstance = (primary) => {
+  let found = spInstances.get(primary);
+  if (!found) {
+    found = getFunctions(primary.app, CALLABLE_PRIMARY_REGION);
+    spInstances.set(primary, found);
+  }
+  return found;
+};
+var routesNearby = (functionsInstance, name) => isDualRegionCallable(name) && functionsInstance.region === CALLABLE_FALLBACK_REGION && !functionsInstance.emulatorOrigin;
+var isMissingFunctionError = (error) => {
+  const e = error || {};
+  return e.code === "functions/not-found" && e.details === void 0 && /^not-found \[404\]$/i.test(String(e.message || "").trim());
+};
+var isNetworkLevelError = (error) => {
+  const e = error || {};
+  return e.code === "functions/internal" && e.details === void 0 && /^internal \[0\]$/i.test(String(e.message || "").trim());
+};
+var mayFallBack = (name, error) => {
+  if (isMissingFunctionError(error)) return true;
+  if (!isNetworkLevelError(error) || confirmedNearby.has(name)) return false;
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+};
+function httpsCallable2(functionsInstance, name, options) {
+  const legacy = httpsCallable(functionsInstance, name, options);
+  if (!routesNearby(functionsInstance, name)) return legacy;
+  const nearby = httpsCallable(nearbyInstance(functionsInstance), name, options);
+  const call = async (data) => {
+    if ((unavailableUntil.get(name) || 0) > Date.now()) return legacy(data);
+    try {
+      const result = await nearby(data);
+      confirmedNearby.add(name);
+      unavailableUntil.delete(name);
+      return result;
+    } catch (error) {
+      if (!mayFallBack(name, error)) throw error;
+      unavailableUntil.set(name, Date.now() + UNAVAILABLE_MS);
+      return legacy(data);
+    }
+  };
+  return Object.assign(call, { stream: legacy.stream });
+}
 
 // storage-fake:firebase/storage
 var ref = (_s, path) => ({ path });
@@ -2046,13 +2135,16 @@ var uploadService = {
     if (storageScope === "profile-cover" && (!coverTarget?.profileId || !["driver", "company"].includes(coverTarget.scope) || /[\/]/.test(coverTarget.profileId) || coverTarget.scope === "driver" && coverTarget.profileId !== auth.currentUser.uid)) {
       throw new UploadError("Perfil inv\xE1lido para salvar a capa.");
     }
+    if (storageScope === "partnership-start-photo" && !/^po_[a-f0-9]{8,64}$/.test(String(folder || ""))) {
+      throw new UploadError("Parceria inv\xE1lida para enviar a foto do ve\xEDculo.");
+    }
     if (String(userId || auth.currentUser.uid) !== auth.currentUser.uid) {
       throw new UploadError("A conta da imagem n\xE3o corresponde \xE0 sess\xE3o atual.", "storage/unauthorized");
     }
     if (storageScope === "default" || storageScope === "profile-cover" && coverTarget?.scope === "company") {
       const targetCompanyId = storageScope === "profile-cover" ? coverTarget.profileId : companyId;
       try {
-        const ensure = httpsCallable(functions, "ensureCompanyAccess", { timeout: 12e3 });
+        const ensure = httpsCallable2(functions, "ensureCompanyAccess", { timeout: 12e3 });
         await withTimeout(ensure({ companyId: targetCompanyId }), 13e3, "A verifica\xE7\xE3o do v\xEDnculo demorou demais.");
       } catch (error) {
         const code = String(error?.code || "");
@@ -2119,7 +2211,7 @@ var uploadService = {
       /[^a-zA-Z0-9.\-_]/g,
       ""
     );
-    const path = storageScope === "profile-photo" ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "company-logo-draft" ? `company-logo-drafts/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-cover" ? `profile-covers/${coverTarget.scope}/${coverTarget.profileId}/${auth.currentUser.uid}/${timestamp}_${cleanFileName}` : storageScope === "trip-receipt" ? `trip-receipts/${cleanCompanyId || "Geral"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}` : `empresas/${cleanCompanyId || "Geral"}/${cleanFolder || "uploads"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}`;
+    const path = storageScope === "partnership-start-photo" ? `partnership-start-photos/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-photo" ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "company-logo-draft" ? `company-logo-drafts/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-cover" ? `profile-covers/${coverTarget.scope}/${coverTarget.profileId}/${auth.currentUser.uid}/${timestamp}_${cleanFileName}` : storageScope === "trip-receipt" ? `trip-receipts/${cleanCompanyId || "Geral"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}` : `empresas/${cleanCompanyId || "Geral"}/${cleanFolder || "uploads"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}`;
     const storageRef = ref(storage, path);
     const performUpload = () => {
       if (storageScope === "trip-receipt") {
@@ -2209,7 +2301,7 @@ var uploadService = {
     } catch (error) {
       if (storageScope !== "trip-receipt" || error?.code !== "storage/unauthorized") throw error;
       if (auth.currentUser?.uid !== uploaderUid) throw error;
-      const ensure = httpsCallable(functions, "ensureCompanyAccess", { timeout: 12e3 });
+      const ensure = httpsCallable2(functions, "ensureCompanyAccess", { timeout: 12e3 });
       await ensure({ companyId });
       if (auth.currentUser?.uid !== uploaderUid) throw error;
       return performUpload();

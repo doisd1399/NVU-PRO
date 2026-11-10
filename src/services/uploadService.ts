@@ -24,7 +24,7 @@ export interface UploadOptions {
   compressionMaxSizeMB?: number;
   maxWidthOrHeight?: number;
   maxOutputBytes?: number;
-  storageScope?: "default" | "trip-receipt" | "profile-cover" | "profile-photo" | "company-logo-draft";
+  storageScope?: "default" | "trip-receipt" | "profile-cover" | "profile-photo" | "company-logo-draft" | "partnership-start-photo";
   coverTarget?: ProfileCoverTarget;
   authTimeoutMs?: number;
   compressionTimeoutMs?: number;
@@ -198,6 +198,10 @@ export const uploadService = {
       throw new UploadError("Perfil inválido para salvar a capa.");
     }
 
+    if (storageScope === "partnership-start-photo" && !/^po_[a-f0-9]{8,64}$/.test(String(folder || ""))) {
+      throw new UploadError("Parceria inválida para enviar a foto do veículo.");
+    }
+
     if (String(userId || auth.currentUser.uid) !== auth.currentUser.uid) {
       throw new UploadError("A conta da imagem não corresponde à sessão atual.", "storage/unauthorized");
     }
@@ -287,7 +291,9 @@ export const uploadService = {
       "",
     );
     const path =
-      storageScope === "profile-photo"
+      storageScope === "partnership-start-photo"
+        ? `partnership-start-photos/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}`
+        : storageScope === "profile-photo"
         ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}`
         : storageScope === "company-logo-draft"
         ? `company-logo-drafts/${uploaderUid}/${timestamp}_${cleanFileName}`

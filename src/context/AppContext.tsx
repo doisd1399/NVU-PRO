@@ -368,6 +368,10 @@ export interface Job {
   totalDeliveries?: number;
   operationalCommandVersion?: number;
   operationalRevision?: number;
+  /** Parcerias B2P: trabalho da executora cuja pontuação de empresa vai para a contratante. */
+  partnership?: boolean;
+  partnershipId?: string;
+  contractorCompanyId?: string;
   contractSnapshot?: Record<string, any>;
   archived?: boolean;
   operationProgressReconciled?: boolean; // Server transaction has verified this count
@@ -647,7 +651,7 @@ export interface OperationalStoreType {
     customDeadlineDays?: number,
     requestId?: string,
   ) => Promise<void>;
-  startJob: (jobId: string) => Promise<void>;
+  startJob: (jobId: string, options?: { startPhotoUrl?: string }) => Promise<void>;
   startAutomaticOperation: (next: QueueNext, vehicleId: string) => Promise<void>;
   finishJob: (jobId: string) => Promise<ConfirmedOperationCompletion>;
   cancelJob: (jobId: string) => Promise<boolean>;
@@ -4385,7 +4389,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     throw new Error(`Você já tem uma operação em andamento${name ? `: ${name}` : ""}. Finalize-a, ou peça à empresa para cancelá-la, antes de iniciar outra.`);
   };
 
-  const startJob = async (jobId: string) => {
+  const startJob = async (jobId: string, options?: { startPhotoUrl?: string }) => {
     const id = String(jobId || "").trim(), uid = getCurrentUserId(), scope = operationalCommandScopeRef.current;
     if (!id || activeRole !== "driver" || !activeCompanyId) throw new Error("Selecione seu perfil de motorista para iniciar.");
     if (startJobInFlightRef.current.has(id)) return;
@@ -4401,11 +4405,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!target || target.driverId !== uid || target.companyId !== activeCompanyId) throw new Error("Esta operação não está disponível para este motorista no aparelho.");
       if (["active", "delayed", "awaiting_completion"].includes(target.status)) return;
       if (target.status !== "pending") throw new Error("A operação não está aguardando início.");
+      const startPhotoUrl = String(options?.startPhotoUrl || "").trim();
+      if ((target as any).partnershipId && !startPhotoUrl) throw new Error("Anexe a foto do veículo para iniciar esta operação em parceria.");
       await assertNoBlockingOperation(uid, activeCompanyId, id);
       const company = companies.find(company => company.id === target!.companyId), contract = resolveOperationContract(target, contracts);
       const simulatorId = String(target.simulatorId || contract?.simulator || resolveAvailabilitySimulator(company, simulators) || "");
       assertCachedNewOperationAllowed(simulatorId);
-      const command = { action: "start" as const, companyId: target.companyId, jobId: id };
+      const command = { action: "start" as const, companyId: target.companyId, jobId: id, ...((target as any).partnershipId ? { startPhotoUrl } : {}) };
       const managed = target.operationalCommandVersion === 1 || company?.operationalCommandVersion === 1;
       const requestId = managed ? canonicalOperationCommandService.reserveManagedRequestId(command) : operationalRequestId();
       const local = { ...target, status: "active", totalDeliveries: Number(target.totalDeliveries || contract?.totalDeliveries || 0), simulatorId,

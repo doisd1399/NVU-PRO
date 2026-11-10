@@ -21,6 +21,7 @@ import { reconcileOperationTripsCore } from "./reconcileOperationTrips";
 import { normalizeSimulatorKey, normalizeWorkModeAvailability, isWorkModeAllowed } from "./operationalWorkModePolicy";
 import { assertScsTrip } from "./scsTelemetryEvidence";
 import { CALLABLE_REGIONS, isWarmPing } from "./callableRegions";
+import { partnershipTripFields } from "./partnershipPolicy";
 
 type Data = FirebaseFirestore.DocumentData;
 const text = (value: unknown, max = 220): string =>
@@ -405,6 +406,8 @@ export const registerCanonicalSimpleTrip = functions.region(...CALLABLE_REGIONS)
       const serverTrip = {
         ...payload, id: tripId, tripId, canonicalTripId: tripId, deterministicTripId: tripId,
         companyId, empresaId: companyId, driverId, motoristaId: driverId, jobId, operationId: jobId, trabalhoId: jobId,
+        // Partnership trips belong to the executor's job, but the company ranking credits the contractor.
+        ...partnershipTripFields(job),
         contractId, contratoId: contractId, origem: origin, destino: destination, valorCents: amountCents,
         valor: amountCents / 100, operationSlot, operationSlotKey: tripId, fingerprint,
         currencyEvidenceVersion: 1, currencyEvidenceStatus, currencyEvidenceSource,

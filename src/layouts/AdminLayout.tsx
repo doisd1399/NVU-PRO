@@ -106,7 +106,7 @@ export default function AdminLayout() {
   // not-yet-refreshed role metadata.
   const hasSeniorPanelAccess = true;
   const isNewsRoute = location.pathname.includes("/admin/news");
-  const isAssignmentRoute = location.pathname === "/admin/assign";
+  const isAssignmentRoute = location.pathname === "/admin/assign" || location.pathname.startsWith("/admin/parcerias");
   const isManualRoute = location.pathname.includes("/admin/manual");
   const isAdminCompanyRoute = location.pathname.startsWith("/admin/fleet");
   const fleetTab = (location.state as { activeTab?: string } | null)?.activeTab;

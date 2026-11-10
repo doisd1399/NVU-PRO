@@ -42,6 +42,23 @@ service firebase.storage {
       return isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || managesCompany(companyId));
     }
 
+    // Foto do veículo exigida para iniciar uma operação em parceria. Só o motorista designado envia (uma vez, sem sobrescrever);
+    // leem o próprio motorista e a gestão das duas empresas da parceria.
+    function partnershipDoc(partnershipId) {
+      let path = /databases/(default)/documents/partnerships/$(partnershipId);
+      return firestore.exists(path) ? firestore.get(path).data : {};
+    }
+    match /partnership-start-photos/{partnershipId}/{userId}/{fileName} {
+      allow read: if isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || isSenior() ||
+        managesCompany(partnershipDoc(partnershipId).get('contractorCompanyId', '-')) ||
+        managesCompany(partnershipDoc(partnershipId).get('executorCompanyId', '-')));
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(4000000) &&
+        partnershipDoc(partnershipId).get('driverId', '') == request.auth.uid &&
+        partnershipDoc(partnershipId).get('status', '') in ['accepted', 'active'];
+      allow update, delete: if false;
+    }
+
     // Covers are public identity media. Writing a driver's cover requires its
     // own UID; company covers require the same manager/owner boundary as frotas.
     match /profile-covers/{scope}/{profileId}/{userId}/{fileName} {

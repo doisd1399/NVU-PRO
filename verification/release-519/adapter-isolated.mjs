@@ -43,9 +43,98 @@ var uploadService = { uploadImage: () => {
 } };
 
 // fake:firebase/functions
+var getFunctions = () => ({});
 var httpsCallable = () => () => {
   throw Error("unexpected callable");
 };
+
+// src/lib/callableRegions.ts
+var CALLABLE_PRIMARY_REGION = "southamerica-east1";
+var CALLABLE_FALLBACK_REGION = "us-central1";
+var DUAL_REGION_CALLABLES = [
+  "operationalCommand",
+  "prepareCompanyOperationalCommands",
+  "getOperationalQueues",
+  "configureOperationalQueues",
+  "registerCanonicalSimpleTrip",
+  "registerGtoProReceipt",
+  "completeCanonicalOperation",
+  "reconcileOperationTrips",
+  "syncGtoTripState",
+  "ensureCompanyAccess",
+  "ensureRankingParticipantOperations",
+  "manageFleetMembership",
+  "manageCompanyGroup",
+  "manageOperationalGoal",
+  "updateWorkModeAvailability",
+  "readPrivateUserProfiles",
+  "authenticateSeniorAccess",
+  "removeDriverFromFleetSenior",
+  "suspendSeniorAccount",
+  "reactivateSeniorAccount",
+  "deleteSeniorProfile",
+  "endSeniorOperationalSuspension",
+  "reverseSeniorSuspension",
+  "listSeniorSuspendedMembers",
+  "approveDriverRequest",
+  "rejectDriverRequest",
+  "approveRecruitmentApplication",
+  "rejectRecruitmentApplication",
+  "repairApprovedMembership",
+  "createPartnershipOffer",
+  "respondPartnershipOffer",
+  "cancelPartnershipOffer",
+  "designatePartnershipDriver"
+];
+var dual = new Set(DUAL_REGION_CALLABLES);
+var isDualRegionCallable = (name) => dual.has(name);
+
+// src/lib/regionalCallable.ts
+var UNAVAILABLE_MS = 10 * 6e4;
+var spInstances = /* @__PURE__ */ new WeakMap();
+var confirmedNearby = /* @__PURE__ */ new Set();
+var unavailableUntil = /* @__PURE__ */ new Map();
+var nearbyInstance = (primary) => {
+  let found = spInstances.get(primary);
+  if (!found) {
+    found = getFunctions(primary.app, CALLABLE_PRIMARY_REGION);
+    spInstances.set(primary, found);
+  }
+  return found;
+};
+var routesNearby = (functionsInstance, name) => isDualRegionCallable(name) && functionsInstance.region === CALLABLE_FALLBACK_REGION && !functionsInstance.emulatorOrigin;
+var isMissingFunctionError = (error) => {
+  const e = error || {};
+  return e.code === "functions/not-found" && e.details === void 0 && /^not-found \[404\]$/i.test(String(e.message || "").trim());
+};
+var isNetworkLevelError = (error) => {
+  const e = error || {};
+  return e.code === "functions/internal" && e.details === void 0 && /^internal \[0\]$/i.test(String(e.message || "").trim());
+};
+var mayFallBack = (name, error) => {
+  if (isMissingFunctionError(error)) return true;
+  if (!isNetworkLevelError(error) || confirmedNearby.has(name)) return false;
+  return typeof navigator === "undefined" || navigator.onLine !== false;
+};
+function httpsCallable2(functionsInstance, name, options) {
+  const legacy = httpsCallable(functionsInstance, name, options);
+  if (!routesNearby(functionsInstance, name)) return legacy;
+  const nearby = httpsCallable(nearbyInstance(functionsInstance), name, options);
+  const call = async (data) => {
+    if ((unavailableUntil.get(name) || 0) > Date.now()) return legacy(data);
+    try {
+      const result = await nearby(data);
+      confirmedNearby.add(name);
+      unavailableUntil.delete(name);
+      return result;
+    } catch (error) {
+      if (!mayFallBack(name, error)) throw error;
+      unavailableUntil.set(name, Date.now() + UNAVAILABLE_MS);
+      return legacy(data);
+    }
+  };
+  return Object.assign(call, { stream: legacy.stream });
+}
 
 // functions/src/simulatorCurrencyRegistry.ts
 var SIMULATOR_CURRENCY_REGISTRY = [
@@ -356,7 +445,7 @@ var FirebaseTripSyncAdapter = class {
     this.firestore = dependencies.firestore || db;
     this.getCurrentUser = dependencies.getCurrentUser || (() => auth.currentUser);
     this.registerCanonicalTrip = dependencies.registerCanonicalTrip || (async (data) => {
-      const register = httpsCallable(functions, "registerCanonicalSimpleTrip", { timeout: 2e4 });
+      const register = httpsCallable2(functions, "registerCanonicalSimpleTrip", { timeout: 2e4 });
       let result;
       try {
         result = await register(data);
@@ -385,7 +474,7 @@ var FirebaseTripSyncAdapter = class {
       });
     });
     this.reconcileOperation = dependencies.reconcileOperation || (async (data) => {
-      const reconcile = httpsCallable(functions, "reconcileOperationTrips", { timeout: 2e4 });
+      const reconcile = httpsCallable2(functions, "reconcileOperationTrips", { timeout: 2e4 });
       const result = await reconcile(data);
       return result.data;
     });
@@ -394,7 +483,7 @@ var FirebaseTripSyncAdapter = class {
   async authorizeRecovery(trip) {
     const uid = this.getCurrentUser()?.uid;
     if (!uid || uid !== readText(trip.driverId) || !readText(trip.companyId)) return false;
-    const check = httpsCallable(functions, "ensureCompanyAccess", { timeout: 2e4 });
+    const check = httpsCallable2(functions, "ensureCompanyAccess", { timeout: 2e4 });
     const result = await check({ companyId: trip.companyId });
     return this.getCurrentUser()?.uid === uid && result.data?.active === true;
   }

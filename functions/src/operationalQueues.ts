@@ -34,6 +34,7 @@ import {
   type QueueSettings,
 } from "./operationalQueueModel";
 import { CALLABLE_REGIONS } from "./callableRegions";
+import { isPartnershipContractId } from "./partnershipPolicy";
 
 type Data = Record<string, any>;
 type DB = FirebaseFirestore.Firestore;
@@ -200,9 +201,10 @@ async function sources(tx: Tx, db: DB, companyId: string) {
         .select("name", "status", "deleted"),
     ),
   ]);
-  const items = contracts.docs.map(
-    (row) => ({ ...row.data(), id: row.id }) as QueueContract,
-  );
+  // Partnership operations are not catalog items: they never enter the automatic queues.
+  const items = contracts.docs
+    .filter((row) => !isPartnershipContractId(row.id))
+    .map((row) => ({ ...row.data(), id: row.id }) as QueueContract);
   const folderRows = folders.docs
     .filter(
       (row) =>

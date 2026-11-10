@@ -701,6 +701,23 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && isCompanyManager(resource.data.companyId);
     }
 
+    // Parcerias B2P: oferta entre duas empresas. Leitura pela gestão das duas empresas e pelo motorista designado;
+    // toda escrita é do servidor (callables e gatilhos), nunca do cliente.
+    match /partnerships/{partnershipId} {
+      allow get: if isAuthenticated() && (
+        isSenior() ||
+        isCompanyManager(resource.data.contractorCompanyId) ||
+        isCompanyManager(resource.data.executorCompanyId) ||
+        resource.data.get('driverId', '') == request.auth.uid);
+      // Consultas (list): uma regra por filtro, para que cada consulta prove o seu próprio acesso
+      // (por empresa contratante, por empresa executora ou pelo motorista designado).
+      allow list: if isAuthenticated() && isSenior();
+      allow list: if isAuthenticated() && isCompanyManager(resource.data.contractorCompanyId);
+      allow list: if isAuthenticated() && isCompanyManager(resource.data.executorCompanyId);
+      allow list: if isAuthenticated() && resource.data.get('driverId', '') == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
     // English aliases still used by the historical trip repository.
     match /vehicles/{id} {
       allow get: if isAuthenticated() && (resource == null || readsOwnCompanyRecord());

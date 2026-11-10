@@ -1,8 +1,10 @@
+import { isPartnershipContract } from "../../lib/partnerships";
 import { ModalPortal } from "../../components/ui/ModalPortal";
 import { useLocalOperationPending } from "../../hooks/useLocalOperationPending";
 import { toast } from "sonner";
 import { OperationSyncNotice } from "../../components/OperationSyncNotice";
 import { DriverOperationCard } from "../../components/driver/DriverOperationCard";
+import { PartnershipStartSheet } from "../../components/driver/PartnershipStartSheet";
 import { DiscreetDisclosure } from "../../components/common/DiscreetDisclosure";
 import { RetainedPanel } from "../../components/common/RetainedPanel";
 import { AutomaticDriverQueue } from "../../components/operations/AutomaticDriverQueue";
@@ -16,7 +18,7 @@ import { createPortal } from "react-dom";
 import React, { useState, useMemo, useEffect } from "react";
 import { PendingProOperationNotice } from "../../components/PendingProOperationNotice";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useActivityStore, useOperationalStore, useSessionStore } from "../../context/AppContext";
+import { useActivityStore, useOperationalStore, useSessionStore, type Job } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import {
   Card,
@@ -199,6 +201,7 @@ function DashboardComponent({
 
   const [isRequestingId, setIsRequestingId] = useState<string | null>(null);
   const [startingJobId, setStartingJobId] = useState<string | null>(null);
+  const [partnershipStartJob, setPartnershipStartJob] = useState<Job | null>(null);
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [operationInfoScope, setOperationInfoScope] = useState<string | null>(null);
   const operationInfoId = React.useId();
@@ -661,6 +664,7 @@ function DashboardComponent({
       return contracts.filter(
         (c) =>
           c.companyId === activeCompanyId &&
+          !isPartnershipContract(c as any) &&
           !assignedContractIds.has(c.id),
       );
     },
@@ -974,6 +978,7 @@ function DashboardComponent({
       key={`assigned:${resultScope}`} jobs={pendingDriverJobs} contracts={contracts} suspended={operationalSuspension.active}
       startingJobId={startingJobId} onStart={async job => {
         if (operationalSuspension.active || startingJobId) return;
+        if (job.partnershipId) { setPartnershipStartJob(job); return; }
         setStartingJobId(job.id);
         try { await startJob(job.id); }
         catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
@@ -993,6 +998,15 @@ function DashboardComponent({
         />
         {!isIntegrated && renderTopControls(true)}
         <OperationalSuspensionNotice user={currentUser as any} />
+        <PartnershipStartSheet open={Boolean(partnershipStartJob)} partnershipId={String(partnershipStartJob?.partnershipId || "")}
+          operationName={String(resolveOperationContract(partnershipStartJob as any, contracts)?.name || partnershipStartJob?.contractNameSnapshot || "")}
+          onClose={() => setPartnershipStartJob(null)}
+          onConfirm={async startPhotoUrl => {
+            const job = partnershipStartJob;
+            if (!job) return;
+            await startJob(job.id, { startPhotoUrl });
+            setPartnershipStartJob(null);
+          }} />
         {solicitarTrabalhoCard}
         {filaOperacionalSection}
         {hasAutomaticQueues && <AutomaticDriverQueue blocked={operationalSuspension.active} />}
@@ -1147,6 +1161,7 @@ function DashboardComponent({
               : myJob.operationSyncState === "finish_rejected" ? "O servidor não confirmou a finalização. Veja a mensagem abaixo." : undefined,
             label: myJob.operationSyncState === "pending_finish" ? "Finalização salva" : isFinishing ? "Salvando…" : "Finalizar Operação",
             disabled: isFinishing || myJob.operationSyncState === "pending_finish", onFinish: handleFinishJob } : null}
+          partnership={Boolean(myJob?.partnershipId)}
           notice={<PendingProOperationNotice jobId={myJob?.id} driverId={currentUser?.id}
             companyId={activeCompanyId} confirmed={currentOperationProgress}
             serverProgress={Number(myJob?.progress || 0)}

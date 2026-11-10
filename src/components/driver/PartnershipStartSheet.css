@@ -1,0 +1,21 @@
+.nvu-pss-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; background: rgb(8 14 22 / .55); }
+.nvu-pss { width: min(100%, 460px); max-height: 92dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-radius: 20px 20px 0 0; background: var(--nvu-surface, #fff); color: var(--nvu-text, #182332); box-shadow: 0 -8px 30px rgb(0 0 0 / .25); }
+@media (min-width: 640px) { .nvu-pss-backdrop { align-items: center; } .nvu-pss { border-radius: 20px; } }
+.nvu-pss header { display: flex; align-items: center; justify-content: space-between; }
+.nvu-pss header button { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--nvu-strip, #edf2f5); color: inherit; }
+.nvu-pss-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--nvu-accent-soft, #e0f7fa); color: var(--nvu-accent, #00899a); }
+.nvu-pss h2 { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.nvu-pss-partner { margin: -4px 0 0; font-size: 12px; color: var(--nvu-muted, #65758a); }
+.nvu-pss-notice { margin: 0; padding: 10px 12px; border-radius: 12px; border-left: 3px solid var(--nvu-accent, #00b9cc); background: var(--nvu-strip, #edf2f5); font-size: 13px; line-height: 1.4; }
+.nvu-pss-input { display: none; }
+.nvu-pss-photo { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 14px; border: 1.5px dashed var(--nvu-line, #c9d6df); background: var(--nvu-strip, #edf2f5); color: var(--nvu-muted, #65758a); }
+.nvu-pss-photo[data-filled="true"] { border-style: solid; }
+.nvu-pss-photo span { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.nvu-pss-photo img { width: 100%; height: 100%; object-fit: cover; }
+.nvu-pss-hint { color: var(--nvu-muted, #65758a); font-size: 11.5px; }
+.nvu-pss-error { margin: 0; color: #d63d55; font-size: 12.5px; }
+.dark .nvu-pss-error { color: #ff8fa8; }
+.nvu-pss-start { padding: 13px; border-radius: 14px; background: var(--nvu-accent, #00b9cc); color: #04222a; font-size: 14px; font-weight: 800; }
+.nvu-pss-start:disabled { opacity: .45; cursor: not-allowed; }

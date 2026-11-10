@@ -1,9 +1,9 @@
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, CalendarDays, ChevronDown, ClipboardPaste, Headset, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
+import { ArrowRight, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
 import { ManagementOperationCard, type ManagementOperation } from "./ManagementOperationCard";
 import "./ManagementDashboard.css";
 
-export type ManagementAction = "operations" | "assign" | "teams" | "hr" | "fleet" | "trips";
+export type ManagementAction = "operations" | "assign" | "teams" | "hr" | "fleet" | "trips" | "partnerships";
 const actions = [
   { id: "operations", label: "Operações", icon: List },
   { id: "assign", label: "Designar Trabalhos", icon: ClipboardPaste },
@@ -11,6 +11,7 @@ const actions = [
   { id: "hr", label: "Recursos Humanos", icon: Headset },
   { id: "fleet", label: "Frota", icon: Warehouse },
   { id: "trips", label: "Viagens", icon: MapPinned },
+  { id: "partnerships", label: "Parcerias B2P", icon: Handshake },
 ] as const;
 
 /** Keep a full currency amount on one line, also with large real totals. */
@@ -37,7 +38,7 @@ function FittedAmount({ children }: { children: string }) {
 }
 
 export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, earnings, tripCount,
-  goal, onGoal, operations, totalOperations, onAction, onInfo, onDriver, loading, refreshing, active = true,
+  goal, onGoal, operations, totalOperations, onAction, onInfo, onDriver, loading, refreshing, active = true, partnershipBadge,
 }: {
   periodLabel: string; periodDescription: string; onPeriod: () => void;
   earnings: string[]; tripCount: number;
@@ -45,6 +46,8 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
   onGoal: () => void; operations: ManagementOperation[]; totalOperations: number;
   onAction: (value: ManagementAction) => void; onInfo: (value: ManagementOperation) => void;
   onDriver: (value: ManagementOperation) => void; loading: boolean; refreshing: boolean; active?: boolean;
+  /** Parcerias B2P: resumo curto ao lado do botão (ex.: "1 em andamento"). Vazio = sem selo. */
+  partnershipBadge?: { text: string; attention: boolean };
 }) {
   const id = useId();
   const [jobsOpen, setJobsOpen] = useState(true);
@@ -86,7 +89,7 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
       <div className="nvu-central-section-heading"><h2 id={`${id}-actions`}>Gerenciar empresa</h2></div>
       <div id={`${id}-actions-body`} className="nvu-central-action-list">
         {actions.map(({ id: actionId, label, icon: Icon }) => <button type="button" key={actionId} className="nvu-central-action" onClick={() => onAction(actionId)}>
-          <Icon className="nvu-central-action-icon" size={24} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span><span className="nvu-central-action-arrow"><ArrowRight size={20} strokeWidth={1.8} /></span>
+          <Icon className="nvu-central-action-icon" size={24} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>{actionId === "partnerships" && partnershipBadge?.text ? <span className="nvu-central-action-badge" data-attention={partnershipBadge.attention ? "true" : "false"}>{partnershipBadge.text}</span> : null}<span className="nvu-central-action-arrow"><ArrowRight size={20} strokeWidth={1.8} /></span>
         </button>)}
       </div>
     </section>

@@ -90,7 +90,7 @@ export function DriverAssignedQueue({ jobs, contracts, suspended, startingJobId,
       {jobs.map((job, index) => {
         const contract = resolveOperationContract(job, contracts);
         return <details key={job.id} className="nvu-idle-assigned-row">
-          <summary><span>{index + 1}</span><strong>{contract?.name || "Operação atribuída"}</strong><small>A realizar</small><ChevronDown size={15} aria-hidden="true" /></summary>
+          <summary><span>{index + 1}</span><strong>{contract?.name || "Operação atribuída"}</strong>{job.partnershipId ? <em className="nvu-idle-partnership-tag">Parceria</em> : null}<small>A realizar</small><ChevronDown size={15} aria-hidden="true" /></summary>
           <div><p>{contract?.totalDeliveries ? `${contract.totalDeliveries} entregas` : "Entregas a definir"}{contract?.deadlineDays ? ` · ${contract.deadlineDays} dias` : ""}</p>
             <button type="button" className="nvu-idle-assigned-start" onClick={() => onStart(job)} disabled={suspended || Boolean(startingJobId)}>
               {startingJobId === job.id ? "Iniciando operação…" : "Iniciar operação"}
