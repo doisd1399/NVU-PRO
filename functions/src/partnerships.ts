@@ -8,7 +8,7 @@ import { CALLABLE_REGIONS } from "./callableRegions";
 import { executeOperationalCommand } from "./operationalCommands";
 import { assertCompany, companySimulatorKey, fail, id, text } from "./operationalCommandPolicy";
 import {
-  MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, computeSettlement, isPartnerAvailable, nextPayment, toMillis, type PaymentStatus, matchesRequirement, mayTransition, normalizeOffer, partnershipContractId,
+  MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, computeSettlement, isPartnerAvailable, nextPayment, toMillis, type PaymentStatus, mayTransition, normalizeOffer, partnershipContractId,
   statusFromJob, type PartnershipStatus,
 } from "./partnershipPolicy";
 
@@ -152,16 +152,15 @@ export const designatePartnershipDriver = functions.region(...CALLABLE_REGIONS).
   const db = admin.firestore();
   const data = raw && typeof raw === "object" ? raw as Data : {};
   const partnershipId = id(data.partnershipId, "Oferta"), driverId = id(data.driverId, "Motorista"), vehicleId = id(data.vehicleId, "Veículo");
-  const trailerId = text(data.trailerId) || null;
+  // O reboque é definido pela CONTRATANTE na oferta (`trailerRequirement`): a executora não escolhe nem precisa ter esse reboque.
+  const cancelRunning = data.cancelRunning === true;
   const prepared = await db.runTransaction(async tx => {
     const ref = db.collection(PARTNERSHIPS).doc(partnershipId);
     const snap = await tx.get(ref);
     if (!snap.exists) fail("not-found", "A oferta não foi encontrada.");
     const p = snap.data() || {};
     const executorId = text(p.executorCompanyId);
-    const [state, vehicle, trailer] = await Promise.all([
-      requireCompanyManager(db, tx, context, executorId), tx.get(db.collection("veiculos").doc(vehicleId)),
-      trailerId ? tx.get(db.collection("reboques").doc(id(trailerId, "Reboque"))) : Promise.resolve(null)]);
+    const [state, vehicle] = await Promise.all([requireCompanyManager(db, tx, context, executorId), tx.get(db.collection("veiculos").doc(vehicleId))]);
     if (p.jobId) {
       if (p.driverId !== driverId) fail("failed-precondition", "Esta oferta já tem um motorista designado.");
       return { replayed: true, p, executorId };
@@ -170,30 +169,33 @@ export const designatePartnershipDriver = functions.region(...CALLABLE_REGIONS).
     if (Number(p.deadlineMs) <= Date.now()) fail("failed-precondition", "O prazo desta oferta já passou.");
     // O veículo é escolha da empresa que vai operar: qualquer veículo da PRÓPRIA frota (a oferta não exige veículo).
     if (!vehicle.exists || vehicle.get("companyId") !== executorId) fail("failed-precondition", "O veículo precisa ser da sua empresa.");
-    // Reboque: obrigatório e conferido só quando a oferta exige; sem exigência, é opcional (sempre da própria frota).
-    if (p.trailerRequirement) {
-      if (!trailer || !trailer.exists || trailer.get("companyId") !== executorId) return fail("failed-precondition", "Escolha um reboque da sua empresa.");
-      if (!matchesRequirement(p.trailerRequirement, text(trailer.get("name")))) fail("failed-precondition", `A oferta exige o reboque ${text(p.trailerRequirement)}.`);
-    } else if (trailer && (!trailer.exists || trailer.get("companyId") !== executorId)) return fail("failed-precondition", "O reboque precisa ser da sua empresa.");
     const key = await companySimulatorKey(tx, db, state.company);
-    // Simuladores sem reboque (ônibus) nunca carregam reboque, mesmo que o app envie um.
-    const finalTrailerId = TRAILERLESS.includes(key) ? null : trailerId;
+    // Simuladores sem reboque (ônibus) não mostram reboque. O reboque da oferta vai só como NOME (é da contratante); o trabalho não referencia reboque da executora.
+    const trailerName = TRAILERLESS.includes(key) ? "" : text(p.trailerRequirement);
+    const finalTrailerId = null;
     const contractId = partnershipContractId(partnershipId);
     const contractRef = db.collection("contratos").doc(contractId);
     const contract = await tx.get(contractRef);
-    if (contract.exists) tx.update(contractRef, { trailerId: finalTrailerId });
+    if (contract.exists) tx.update(contractRef, { trailerId: finalTrailerId, trailerName });
     if (!contract.exists) {
       // Not a catalog item: hidden from every list and from the automatic queues (id prefix + `partnershipId`).
       tx.create(contractRef, {
         companyId: executorId, empresaId: executorId, name: text(p.operationName), simulator: key, simulatorId: key, mode: "simple",
-        totalDeliveries: Number(p.totalTrips), deadlineDays: 1, trailerId: finalTrailerId, deliveries: [], status: "partnership", deleted: false,
+        totalDeliveries: Number(p.totalTrips), deadlineDays: 1, trailerId: finalTrailerId, trailerName, deliveries: [], status: "partnership", deleted: false,
         partnership: true, partnershipId, contractorCompanyId: p.contractorCompanyId, scoreCompanyId: p.contractorCompanyId,
         partnershipDeadlineAt: p.deadlineAt, createdAt: admin.firestore.FieldValue.serverTimestamp(), schemaVersion: 1,
       });
     }
-    return { replayed: false, p, executorId, contractId, trailerId: finalTrailerId };
+    return { replayed: false, p, executorId, contractId, trailerId: finalTrailerId, trailerName };
   });
   if (prepared.replayed) return { success: true, partnershipId, jobId: prepared.p.jobId, replayed: true };
+  // Opção da executora: encerrar a operação em andamento do motorista (viagens preservadas) para a da parceria poder entrar.
+  if (cancelRunning) {
+    const running = await db.collection("trabalhos").where("companyId", "==", prepared.executorId).where("driverId", "==", driverId).where("status", "in", ["active", "delayed", "awaiting_completion"]).get();
+    for (const row of running.docs) {
+      await executeOperationalCommand(db, { action: "cancel", companyId: prepared.executorId, requestId: `pdc_${partnershipId}_${row.id}`.slice(0, 120), jobId: row.id }, context);
+    }
+  }
   // Standard, idempotent command: validates the driver's membership/suspension, the fleet and maintenance rules.
   const assigned = await executeOperationalCommand(db, { action: "assign", companyId: prepared.executorId, requestId: `pd_${partnershipId}`,
     contractId: prepared.contractId, driverId, vehicleId, trailerId: prepared.trailerId }, context);
@@ -203,8 +205,10 @@ export const designatePartnershipDriver = functions.region(...CALLABLE_REGIONS).
     const p = snap.data() || {};
     if (p.jobId && p.jobId !== assigned.jobId) return;
     const job = assigned.job || {};
+    // O trabalho mostra o reboque da oferta (nome), igual a uma operação comum.
+    if (prepared.trailerName) tx.update(db.collection("trabalhos").doc(assigned.jobId), { trailerName: prepared.trailerName });
     tx.update(ref, { jobId: assigned.jobId, jobContractId: prepared.contractId, driverId, driverName: driverDisplayIdentity(user.data() || {}).name,
-      vehicleId, vehicleName: text(job.vehicleName), vehiclePlate: text(job.vehiclePlate), trailerName: text(job.trailerName),
+      vehicleId, vehicleName: text(job.vehicleName), vehiclePlate: text(job.vehiclePlate), trailerName: prepared.trailerName || text(job.trailerName),
       designatedAt: admin.firestore.FieldValue.serverTimestamp(), designatedBy: uid, revision: Number(p.revision || 1) + 1,
       updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   });

@@ -48,7 +48,7 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, t
     .sort((a, b) => a.localeCompare(b, "pt-BR", { numeric: true })), [trailers, me]);
   const trailerOptions = useMemo<PickerOption[]>(() => {
     const names = draft.trailerRequirement && !trailerNames.some(name => name.toLowerCase() === draft.trailerRequirement.toLowerCase()) ? [draft.trailerRequirement, ...trailerNames] : trailerNames;
-    return names.map(name => ({ id: name, title: name, description: "Reboque exigido na oferta", avatar: { icon: <Container size={22} strokeWidth={1.65} /> } }));
+    return names.map(name => ({ id: name, title: name, description: "Da sua frota", avatar: { icon: <Container size={22} strokeWidth={1.65} /> } }));
   }, [trailerNames, draft.trailerRequirement]);
   const partnerOptions = useMemo<PickerOption[]>(() => candidates.list.map(item => ({
     id: item.id, title: shortName(item.name), keywords: item.name, description: item.partnered ? "Já parceira" : undefined,
@@ -89,7 +89,7 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, t
       <span className="b2p-hint">O prazo só começa a contar quando a parceira aceitar.</span>
 
       {!trailerless ? <button type="button" className="b2p-input" onClick={() => setTrailerOpen(true)} aria-haspopup="dialog" aria-label="Escolher reboque">
-        <Container size={18} aria-hidden="true" /><span style={{ flex: 1, color: draft.trailerRequirement ? undefined : "var(--central-muted)" }}>{draft.trailerRequirement || "Reboque (opcional)"}</span><ChevronRight size={18} aria-hidden="true" /></button> : null}
+        <Container size={18} aria-hidden="true" /><span style={{ flex: 1, color: draft.trailerRequirement ? undefined : "var(--central-muted)" }}>{draft.trailerRequirement || "Reboque da operação (opcional)"}</span><ChevronRight size={18} aria-hidden="true" /></button> : null}
 
       <div className="b2p-input" data-area="1"><textarea aria-label="Condições do acordo" value={draft.conditions} maxLength={MAX_CONDITIONS} rows={2} onChange={event => set({ conditions: event.target.value })} placeholder="Condições do acordo (opcional)" /></div>
       {draft.conditions ? <span className="b2p-count">{draft.conditions.length}/{MAX_CONDITIONS}</span> : null}
@@ -116,9 +116,9 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, t
     <AssignmentOptionPicker open={partnerOpen} title="Escolher empresa" subtitle="Empresas ativas do seu simulador." icon={<Handshake size={26} strokeWidth={1.65} />}
       searchPlaceholder="Buscar empresa..." options={partnerOptions} selectedId={draft.executorCompanyId} counter={{ one: "1 empresa selecionada", none: "Nenhuma empresa selecionada" }} confirmLabel="Usar empresa"
       emptyText="Nenhuma outra empresa ativa neste simulador." viewerId={viewerId} onClose={() => setPartnerOpen(false)} onSelect={choice => set({ executorCompanyId: choice.id })} />
-    <AssignmentOptionPicker open={trailerOpen} title="Escolher reboque" subtitle="Reboque que a parceira deve usar na operação." icon={<Container size={26} strokeWidth={1.65} />}
-      searchPlaceholder="Buscar ou digitar o reboque..." options={trailerOptions} selectedId={draft.trailerRequirement} counter={{ one: "1 reboque selecionado", none: "Nenhum reboque selecionado" }} confirmLabel="Usar reboque"
-      emptyText="Sua frota não tem reboques cadastrados. Digite o nome do reboque exigido." noneOption={{ title: "Sem exigência de reboque", description: "A parceira usa qualquer reboque (ou nenhum)." }}
-      custom={{ label: text => `Exigir “${text}”` }} viewerId={viewerId} onClose={() => setTrailerOpen(false)} onSelect={choice => set({ trailerRequirement: choice.id })} />
+    <AssignmentOptionPicker open={trailerOpen} title="Escolher reboque" subtitle="Reboque da sua frota que será usado na operação." icon={<Container size={26} strokeWidth={1.65} />}
+      searchPlaceholder="Buscar reboque..." options={trailerOptions} selectedId={draft.trailerRequirement} counter={{ one: "1 reboque selecionado", none: "Nenhum reboque selecionado" }} confirmLabel="Usar reboque"
+      emptyText="Sua frota não tem reboques cadastrados. Cadastre em Frota." noneOption={{ title: "Sem reboque", description: "A operação segue sem reboque." }}
+      viewerId={viewerId} onClose={() => setTrailerOpen(false)} onSelect={choice => set({ trailerRequirement: choice.id })} />
   </>;
 }

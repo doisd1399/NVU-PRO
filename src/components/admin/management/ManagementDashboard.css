@@ -441,6 +441,10 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 @keyframes nvu-b2p-ring { 0%, 84%, 100% { transform: rotate(0); } 88% { transform: rotate(14deg); } 92% { transform: rotate(-12deg); } 96% { transform: rotate(8deg); } }
 @media (prefers-reduced-motion: reduce) { .nvu-central-action-alert[data-tone="warn"] svg { animation: none; } }
 
+/* Linha "Parceria · Executada/Contratada por …" no card da operação: pequena, com respiro acima e abaixo. */
+.nvu-central-partnership-strip { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; padding: 0 2px; font-size: 12.5px; line-height: 1.4; color: var(--central-muted); }
+.nvu-central-partnership-strip .nvu-partnership-tag { margin-left: 0; flex: none; }
+.nvu-central-partnership-strip strong { font-weight: 650; color: var(--central-text); }
 /* Selo "Parceria" (B2P) ao lado do nome da operação. */
 .nvu-partnership-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
   background: var(--central-highlight, #e0f7fa); color: var(--central-accent, #00899a); vertical-align: 1px; }

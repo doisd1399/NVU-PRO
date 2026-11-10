@@ -110,7 +110,7 @@ export default function Partnerships() {
   if ("id" in view && !current) return shell(<><button type="button" className="b2p-back" onClick={goList}>Voltar</button>{ready ? <p className="b2p-empty">Esta parceria não está mais disponível.</p> : <p className="b2p-empty">Carregando…</p>}</>);
   if (view.name === "offer" && current) return shell(<OfferDetail p={current} busy={busy} onBack={goList} onAccept={() => respond(current, "accept")} onDecline={() => respond(current, "decline")} />);
   if (view.name === "designate" && current) return shell(<DesignateScreen p={current} me={me} ownCompany={ownCompany} users={users as any[]} members={allCompanyMembers as any[]} membersReady={Boolean(allCompanyMembersReady)}
-    vehicles={vehicles as any[]} trailers={trailers as any[]} sequences={sequences as any[]} jobs={jobs as any[]} contracts={contracts as any[]} simulators={simulators as any[]}
+    vehicles={vehicles as any[]} sequences={sequences as any[]} jobs={jobs as any[]} contracts={contracts as any[]}
     onBack={goList} onDone={() => { toast.success("Motorista designado. A operação já aparece para ele."); setView({ name: "detail", id: current.id }); }} />);
   if (view.name === "results" && current) return shell(<Results p={current} me={me} onBack={() => setView({ name: "detail", id: current.id })} />);
   if (view.name === "detail" && current) return shell(<Detail p={current} me={me} now={now} busy={busy} onBack={goList}

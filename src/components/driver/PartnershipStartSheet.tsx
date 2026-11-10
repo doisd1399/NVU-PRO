@@ -27,13 +27,14 @@ export function PartnershipStartSheet({ open, partnershipId, operationName, part
   }, [file]);
   useEffect(() => { if (!open) { setFile(null); setError(""); setBusy(false); } }, [open]);
   if (!open) return null;
-  const confirm = async () => {
-    if (!file || busy) return;
+  // A operação inicia sozinha assim que a foto é escolhida; o botão só reaparece para tentar de novo se algo falhar.
+  const confirm = async (chosen: File | null = file) => {
+    if (!chosen || busy) return;
     if (navigator.onLine === false) { setError("Conecte-se à internet para enviar a foto e iniciar esta operação."); return; }
     setBusy(true); setError("");
     try {
       const uid = auth.currentUser?.uid || "";
-      const url = await uploadService.uploadImage({ file, companyId: "", userId: uid, folder: partnershipId, storageScope: "partnership-start-photo" });
+      const url = await uploadService.uploadImage({ file: chosen, companyId: "", userId: uid, folder: partnershipId, storageScope: "partnership-start-photo" });
       await onConfirm(url);
     } catch (reason: any) {
       setError(reason?.message || "Não foi possível iniciar a operação. Tente novamente.");
@@ -49,13 +50,13 @@ export function PartnershipStartSheet({ open, partnershipId, operationName, part
       <p className="nvu-pss-notice" role="note">{PARTNERSHIP_START_NOTICE}</p>
       {/* Sem `capture`: o Android abre a galeria/seletor de imagens (o motorista escolhe a foto já tirada), não a câmera. */}
       <input ref={input} type="file" accept="image/*" className="nvu-pss-input"
-        onChange={event => { setFile(event.target.files?.[0] || null); setError(""); event.target.value = ""; }} />
+        onChange={event => { const chosen = event.target.files?.[0] || null; setFile(chosen); setError(""); event.target.value = ""; if (chosen) void confirm(chosen); }} />
       <button type="button" className="nvu-pss-photo" onClick={() => input.current?.click()} disabled={busy} data-filled={preview ? "true" : "false"}>
         {preview ? <img src={preview} alt="Foto do veículo selecionada" /> : <span><ImagePlus size={22} aria-hidden="true" />Escolher foto do veículo</span>}
       </button>
-      <small className="nvu-pss-hint">{file ? "Toque na foto para trocar." : "Obrigatória para iniciar. Escolha, na galeria, a foto do veículo da operação."}</small>
+      <small className="nvu-pss-hint">{busy ? "Enviando a foto e iniciando a operação…" : error ? "Toque na foto para escolher outra, ou tente novamente." : "Obrigatória para iniciar. Escolha, na galeria, a foto do veículo: a operação inicia assim que você escolher."}</small>
       {error ? <p className="nvu-pss-error" role="alert">{error}</p> : null}
-      <button type="button" className="nvu-pss-start" disabled={!file || busy} onClick={() => void confirm()}>{busy ? "Enviando foto e iniciando…" : "Iniciar operação"}</button>
+      {error ? <button type="button" className="nvu-pss-start" disabled={!file || busy} onClick={() => void confirm()}>{busy ? "Enviando foto e iniciando…" : "Tentar novamente"}</button> : null}
     </section>
   </div>;
 }

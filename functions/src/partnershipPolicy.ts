@@ -53,6 +53,7 @@ export function normalizeOffer(raw: unknown, now: number, trailerless: boolean):
   if (!Number.isSafeInteger(totalTrips) || totalTrips < 1 || totalTrips > 500) fail("invalid-argument", "A quantidade de viagens deve ficar entre 1 e 500.");
   const trailerText = cleanText(data.trailerRequirement, 80);
   const trailerRequirement = trailerless ? null : trailerText || null;
+  if (trailerRequirement && operationName.toLowerCase() === trailerRequirement.toLowerCase()) fail("invalid-argument", "O nome da operação não pode ser igual ao nome do reboque.");
   // Prazo em dias, contado a partir do aceite. App antigo que ainda envie uma data final é convertido em dias (arredondando para cima).
   let durationDays = Number(data.durationDays);
   if ((data.durationDays === undefined || data.durationDays === null || data.durationDays === "") && text(data.deadlineAt)) {

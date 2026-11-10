@@ -162,6 +162,7 @@ export function validateDraft(draft: OfferDraft, now: number, trailerless: boole
   const trips = Number(draft.totalTrips);
   if (!Number.isSafeInteger(trips) || trips < 1 || trips > 500) return "A quantidade de viagens deve ficar entre 1 e 500.";
   if (!trailerless && draft.trailerRequirement.trim().length > 0 && draft.trailerRequirement.trim().length < 2) return "Informe o reboque exigido ou deixe em branco.";
+  if (!trailerless && draft.trailerRequirement.trim() && draft.operationName.trim().toLowerCase() === draft.trailerRequirement.trim().toLowerCase()) return "O nome da operação não pode ser igual ao nome do reboque.";
   const days = Number(draft.durationDays);
   if (!Number.isSafeInteger(days) || days < 1 || days > 120) return "O prazo deve ficar entre 1 e 120 dias.";
   if (draft.conditions.length > MAX_CONDITIONS) return `As condições aceitam até ${MAX_CONDITIONS} caracteres.`;

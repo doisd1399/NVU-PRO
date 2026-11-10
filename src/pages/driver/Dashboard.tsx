@@ -325,9 +325,10 @@ function DashboardComponent({
     if (trailerlessSimulator) return null;
     const tId = myJob?.trailerId || contract?.trailerId;
     const foundTrailer = tId ? trailers.find((t) => t.id === tId) : null;
+    // Operação em parceria: o reboque é o da CONTRATANTE (só o nome no trabalho), sem registro na frota desta empresa.
     return foundTrailer
-      || (tId && (myJob as any)?.trailerName
-        ? ({ id: tId, name: (myJob as any).trailerName, companyId: myJob?.companyId } as any)
+      || ((myJob as any)?.trailerName
+        ? ({ id: tId || "partnership-trailer", name: (myJob as any).trailerName, companyId: myJob?.companyId } as any)
         : null);
   }, [myJob, contract, trailers, trailerlessSimulator]);
 
@@ -1004,8 +1005,12 @@ function DashboardComponent({
           onConfirm={async startPhotoUrl => {
             const job = partnershipStartJob;
             if (!job) return;
-            await startJob(job.id, { startPhotoUrl });
+            // A foto já foi enviada: fecha a janela e inicia na hora (a tela da operação aparece sem precisar fechar nada).
             setPartnershipStartJob(null);
+            setStartingJobId(job.id);
+            try { await startJob(job.id, { startPhotoUrl }); }
+            catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
+            finally { setStartingJobId(current => current === job.id ? null : current); }
           }} />
         {solicitarTrabalhoCard}
         {filaOperacionalSection}

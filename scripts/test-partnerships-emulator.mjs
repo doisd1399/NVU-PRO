@@ -26,7 +26,7 @@ const offerData = (extra = {}) => ({ contractorCompanyId: "a", executorCompanyId
   trailerRequirement: "Frigorífico", durationDays: 5, conditions: "Veículo limpo.", goalAmountCents: 4_000_000, requestId: `req-${++seq}-${Date.now()}`, ...extra });
 const createOffer = (uid = "owner-a", extra = {}) => partnerships.createPartnershipOffer.run(offerData(extra), ctx(uid));
 const respond = (id, decision, uid = "owner-b") => partnerships.respondPartnershipOffer.run({ partnershipId: id, decision }, ctx(uid));
-const designate = (id, extra = {}, uid = "owner-b") => partnerships.designatePartnershipDriver.run({ partnershipId: id, driverId: "drv-b", vehicleId: "veh-b", trailerId: "trl-b", ...extra }, ctx(uid));
+const designate = (id, extra = {}, uid = "owner-b") => partnerships.designatePartnershipDriver.run({ partnershipId: id, driverId: "drv-b", vehicleId: "veh-b", ...extra }, ctx(uid));
 const photo = (partnershipId, uid) => `https://firebasestorage.googleapis.com/v0/b/${projectId}.appspot.com/o/${encodeURIComponent(`partnership-start-photos/${partnershipId}/${uid}/1_v.webp`)}?alt=media&token=t`;
 
 const company = (id, owner, extra = {}) => [`frotas/${id}`, Object.fromEntries(Object.entries({ ownerId: owner, userId: owner, companyName: extra.companyName || id, simulatorId: "GTO", status: "active", operationalCommandVersion: 1, ...extra }).filter(([, value]) => value !== undefined))];
@@ -125,9 +125,6 @@ try {
     assert.equal(accepted.deadlineAt, new Date(accepted.deadlineMs).toISOString()); assert.ok(accepted.acceptedAt, "guarda o instante do aceite");
     await failsWith(() => designate(partnershipId, {}, "owner-a"), "permission-denied");
     await failsWith(() => designate(partnershipId, { vehicleId: "veh-a" }), "failed-precondition"); // veículo de outra empresa
-    await failsWith(() => designate(partnershipId, { trailerId: null }), "failed-precondition"); // a oferta exige reboque
-    await failsWith(() => designate(partnershipId, { trailerId: "trl-b2" }), "failed-precondition"); // reboque que não atende
-    await failsWith(() => designate(partnershipId, { trailerId: "trl-a" }), "failed-precondition"); // reboque de outra empresa
     await failsWith(() => designate(partnershipId, { driverId: "drv-a" }), "permission-denied"); // motorista de outra empresa
     assert.equal((await db.collection("trabalhos").get()).size, 0, "falhas não deixam trabalho para trás");
     const done = await designate(partnershipId, { vehicleId: "veh-b2" }); // Scania 113: nenhum veículo é exigido pela oferta
@@ -140,26 +137,37 @@ try {
     assert.equal(job.partnershipId, partnershipId); assert.equal(job.scoreCompanyId, "a"); assert.equal(job.contractorCompanyId, "a");
     const contract = (await get(`contratos/pc_${partnershipId}`)).data();
     assert.equal(contract.partnershipDeadlineAt, accepted.deadlineAt, "a operação termina no prazo contado do aceite");
-    assert.equal(contract.companyId, "b"); assert.equal(contract.partnership, true); assert.equal(contract.totalDeliveries, 5); assert.equal(contract.name, "Operação 031"); assert.equal(contract.trailerId, "trl-b");
+    assert.equal(contract.companyId, "b"); assert.equal(contract.partnership, true); assert.equal(contract.totalDeliveries, 5); assert.equal(contract.name, "Operação 031"); assert.equal(contract.trailerId, null); assert.equal(contract.trailerName, "Frigorífico", "o reboque é o da oferta (da contratante)");
+    assert.equal(job.trailerName, "Frigorífico", "o trabalho mostra o reboque da oferta, como uma operação comum"); assert.equal(job.trailerId ?? null, null); assert.equal(p.trailerName, "Frigorífico");
     assert.equal((await designate(partnershipId, { vehicleId: "veh-b2" })).replayed, true, "designar o mesmo motorista de novo é idempotente");
     await failsWith(() => designate(partnershipId, { driverId: "drv-a" }), "failed-precondition");
     assert.equal((await db.collection("trabalhos").where("partnershipId", "==", partnershipId).get()).size, 1, "um único trabalho");
   });
 
-  await test("designar sem exigência de reboque: reboque é opcional (da própria frota) e qualquer veículo serve", async () => {
+  await test("reboque é definido pela CONTRATANTE: a executora não escolhe, não precisa tê-lo; sem reboque na oferta, o trabalho fica sem reboque; o nome da operação não pode ser o do reboque", async () => {
     const none = await createOffer("owner-a", { trailerRequirement: null });
     assert.equal((await get(`partnerships/${none.partnershipId}`)).get("trailerRequirement"), null);
     await respond(none.partnershipId, "accept");
-    await failsWith(() => designate(none.partnershipId, { trailerId: "trl-a" }), "failed-precondition"); // reboque de outra empresa continua proibido
-    const done = await designate(none.partnershipId, { trailerId: null });
+    const done = await designate(none.partnershipId, { trailerId: "trl-a" }); // qualquer reboque enviado pelo app é ignorado
     assert.equal(done.success, true);
     assert.equal((await get(`contratos/pc_${none.partnershipId}`)).get("trailerId"), null);
-    const other = await createOffer("owner-a", { trailerRequirement: "", operationName: "Operação 032" });
-    await respond(other.partnershipId, "accept");
-    await executeOperationalCommand(db, { action: "cancel", companyId: "b", jobId: done.jobId, requestId: `cancel-${++seq}-${Date.now()}` }, ctx("owner-b")).catch(() => undefined);
-    const withTrailer = await designate(other.partnershipId, { vehicleId: "veh-b", trailerId: "trl-b2" }); // qualquer reboque da frota
-    assert.equal(withTrailer.success, true);
-    assert.equal((await get(`contratos/pc_${other.partnershipId}`)).get("trailerId"), "trl-b2");
+    assert.equal(((await get(`trabalhos/${done.jobId}`)).get("trailerName") || ""), "");
+    await failsWith(() => createOffer("owner-a", { operationName: "Frigorífico" }), "invalid-argument");
+  });
+
+  await test("designar com operação em andamento: opção de cancelar a atual (viagens preservadas) para a da parceria entrar", async () => {
+    const first = await createOffer("owner-a", { operationName: "Operação 040" }); await respond(first.partnershipId, "accept");
+    const one = await designate(first.partnershipId, { vehicleId: "veh-b" });
+    await db.collection("trabalhos").doc(one.jobId).update({ status: "active", progress: 2 }); // em andamento, 2 viagens feitas
+    const second = await createOffer("owner-a", { operationName: "Operação 041" }); await respond(second.partnershipId, "accept");
+    const kept = await designate(second.partnershipId, { vehicleId: "veh-b2" }); // sem cancelRunning: a atual continua; a nova entra na fila
+    assert.equal((await get(`trabalhos/${one.jobId}`)).get("status"), "active"); assert.equal((await get(`trabalhos/${kept.jobId}`)).get("status"), "pending");
+    const third = await createOffer("owner-a", { operationName: "Operação 042" }); await respond(third.partnershipId, "accept");
+    const swapped = await designate(third.partnershipId, { vehicleId: "veh-b2", cancelRunning: true });
+    assert.equal(swapped.success, true);
+    const old = (await get(`trabalhos/${one.jobId}`)).data();
+    assert.equal(old.status, "cancelled", "a operação em andamento foi cancelada"); assert.equal(old.progress, 2, "as viagens já feitas ficam preservadas");
+    assert.equal((await get(`trabalhos/${swapped.jobId}`)).get("status"), "pending");
   });
 
   await test("parceira: só empresa ATIVA do MESMO simulador recebe oferta (arquivada, excluída, inativa, suspensa e outro simulador são recusadas)", async () => {

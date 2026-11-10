@@ -20,7 +20,7 @@ export const partnershipService = {
     call<{ success: true; status: string }>("respondPartnershipOffer", { partnershipId, decision }),
   settle: (partnershipId: string, action: "paid" | "received") => call<{ success: true; status: string }>("settlePartnershipPayment", { partnershipId, action }),
   cancel: (partnershipId: string) => call<{ success: true }>("cancelPartnershipOffer", { partnershipId }),
-  designateDriver: (input: { partnershipId: string; driverId: string; vehicleId: string; trailerId?: string | null }) =>
+  designateDriver: (input: { partnershipId: string; driverId: string; vehicleId: string; cancelRunning?: boolean }) =>
     call<{ success: true; partnershipId: string; jobId: string }>("designatePartnershipDriver", input, 30_000),
 
   /** Parcerias em que a empresa é contratante OU executora (duas consultas simples, sem índice composto). */

@@ -343,7 +343,7 @@ test("Nova oferta abre sem nome, viagens ou prazo preenchidos e o reboque usa a 
   assert.doesNotMatch(screen, /suggestOperationName/, "o nome da operação não é preenchido sozinho");
   assert.doesNotMatch(screen, /\?\s*String\(from\.totalTrips\)\s*:\s*"10"/); assert.doesNotMatch(screen, /\|\|\s*5\)/);
   assert.match(screen, /AssignmentOptionPicker/); assert.doesNotMatch(screen, /<datalist/);
-  assert.match(readFileSync("src/components/partnerships/DesignateScreen.tsx", "utf8"), /AssignmentOptionPicker/);
+  assert.doesNotMatch(readFileSync("src/components/partnerships/DesignateScreen.tsx", "utf8"), /AssignmentOptionPicker/, "a executora não escolhe reboque");
   const css = readFileSync("src/components/partnerships/Partnerships.css", "utf8");
   assert.doesNotMatch(css, /\[data-on="1"\][^{]*\{[^}]*--central-accent/, "seleção sem azul (accent)");
 });
@@ -389,4 +389,15 @@ test("Foto de início da parceria: escolhida na galeria (sem `capture` da câmer
   const sheet = readFileSync("src/components/driver/PartnershipStartSheet.tsx", "utf8");
   assert.doesNotMatch(sheet.replace(/\{\/\*[^]*?\*\/\}/g, ""), /capture=/, "o input não pode forçar a câmera");
   assert.match(sheet, /type="file" accept="image\/\*"/); assert.match(sheet, /galeria/);
+});
+
+test("Reboque é da contratante; designar oferece cancelar a operação em andamento; a foto inicia sozinha", () => {
+  const designate = readFileSync("src/components/partnerships/DesignateScreen.tsx", "utf8");
+  assert.doesNotMatch(designate, /trailerId/); assert.match(designate, /cancelRunning/); assert.match(designate, /viagens já registradas são preservadas/);
+  assert.match(readFileSync("src/services/partnershipService.ts", "utf8"), /cancelRunning\?: boolean/);
+  const sheet = readFileSync("src/components/driver/PartnershipStartSheet.tsx", "utf8");
+  assert.match(sheet, /if \(chosen\) void confirm\(chosen\)/, "inicia assim que a foto é escolhida");
+  const server = readFileSync("functions/src/partnerships.ts", "utf8");
+  assert.doesNotMatch(server, /Escolha um reboque da sua empresa/); assert.match(server, /cancelRunning/);
+  assert.equal(validateDraft({ ...emptyDraft("cts"), operationName: "Frigorífico", totalTrips: "5", durationDays: "5", trailerRequirement: "Frigorífico" }, NOW, false), "O nome da operação não pode ser igual ao nome do reboque.");
 });

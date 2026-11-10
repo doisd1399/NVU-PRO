@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowLeftRight, ArrowRight, Clock3, MapPinned, Trash2, User } from "lucide-react";
+import { ArrowLeftRight, MapPinned, Trash2, User } from "lucide-react";
 import { useSessionStore } from "../../../context/AppContext";
 import { StableImage } from "../../common/StableImage";
 import { describeOperationInfo } from "../../../lib/operationInfo";
@@ -31,36 +31,30 @@ export function OperationInfoSheet({ operation, now, canManage, onAction, onClos
   ];
   return <ManagementDialog title="Informações da operação" variant="sheet" onClose={onClose}>
     <div className="nvu-op-sheet-body" data-testid="operation-info-sheet">
-      <div className="nvu-op-sheet-summary">
-        <div className="nvu-op-sheet-driver">
-          <StableImage src={operation.driverPhoto} persistentViewerId={currentUser?.id} persistentAssetId={`management-avatar:${operation.companyId}:${operation.driverId}`} alt={`Foto de ${operation.driverName}`}
-            wrapperClassName="nvu-op-sheet-photo" className="object-cover" referrerPolicy="no-referrer" fallback={<span>{operation.driverName.slice(0, 2).toUpperCase()}</span>} />
-          <div><strong>{operation.driverName}</strong><span>{operation.companyName} · {operation.simulatorLabel}</span></div>
-        </div>
-        <div className="nvu-op-sheet-operation">
-          <div><small>Operação</small><strong>{operation.name}</strong></div>
-          <span className="nvu-op-sheet-status" data-tone={view.tone}><i aria-hidden="true" />{view.statusLabel}</span>
-        </div>
-        <div className="nvu-op-sheet-progress">
-          <div className="nvu-op-sheet-time">
-            <span aria-hidden="true"><Clock3 size={28} strokeWidth={1.7} /></span>
-            <div><small>{view.timeLabel}</small><strong data-warning={view.timeWarning || undefined}>{view.timeText}</strong></div>
-          </div>
-          <div className="nvu-op-sheet-percent"><small>Progresso</small><strong>{view.percent}%</strong></div>
-          <div className="nvu-central-progress" role="progressbar" aria-label="Progresso da operação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={view.percent}><span style={{ width: `${view.percent}%` }} /></div>
-          <div className="nvu-op-sheet-counts">
-            <span>{view.required ? `${view.completed} de ${view.required} entregas` : `${view.completed} ${view.completed === 1 ? "entrega" : "entregas"}`}</span>
-            {view.required > 0 && <span>{view.remaining} {view.remaining === 1 ? "restante" : "restantes"}</span>}
-          </div>
-        </div>
+      <div className="nvu-op-sheet-driver">
+        <StableImage src={operation.driverPhoto} persistentViewerId={currentUser?.id} persistentAssetId={`management-avatar:${operation.companyId}:${operation.driverId}`} alt={`Foto de ${operation.driverName}`}
+          wrapperClassName="nvu-op-sheet-photo" className="object-cover" referrerPolicy="no-referrer" fallback={<span>{operation.driverName.slice(0, 2).toUpperCase()}</span>} />
+        <div><strong>{operation.driverName}</strong><span>{operation.companyName} · {operation.simulatorLabel}</span></div>
       </div>
+      <div className="nvu-op-sheet-operation">
+        <strong>{operation.name}</strong>
+        <span className="nvu-op-sheet-status" data-tone={view.tone}><i aria-hidden="true" />{view.statusLabel}</span>
+      </div>
+      <dl className="nvu-op-sheet-list">
+        <div><dt>Veículo</dt><dd>{operation.vehicleName}</dd></div>
+        {operation.showTrailer ? <div><dt>Reboque</dt><dd className="nvu-op-sheet-trailer">{operation.trailerName || "Nenhum"}</dd></div> : null}
+        <div><dt>Entregas</dt><dd>{view.required ? `${view.completed} de ${view.required} entregas` : `${view.completed} ${view.completed === 1 ? "entrega" : "entregas"}`}
+          <small>{view.required ? `${view.remaining} ${view.remaining === 1 ? "restante" : "restantes"} · ` : ""}{view.percent}%</small></dd></div>
+        <div><dt>Prazo</dt><dd>{operation.deadline || "Não definido"}</dd></div>
+        <div><dt>{view.tone === "cancelled" || view.tone === "done" ? "Situação" : "Restante"}</dt><dd data-warning={view.timeWarning || undefined}>{view.timeText}</dd></div>
+      </dl>
+      <div className="nvu-central-progress nvu-op-sheet-bar" role="progressbar" aria-label="Progresso da operação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={view.percent}><span style={{ width: `${view.percent}%` }} /></div>
       {operation.driverOutsideCompany && <p className="nvu-op-sheet-note" role="note" data-testid="operation-orphan-note">
         Este motorista não faz mais parte da empresa, mas o trabalho ficou aberto e mantém o veículo em uso. Cancele-o para encerrar. As viagens já registradas são preservadas.</p>}
       <div className="nvu-op-sheet-actions">
         {actions.map(({ id, label, icon: Icon, enabled, hint }) => <button type="button" key={id} className="nvu-op-sheet-action" data-action={id} data-danger={id === "cancel" || undefined}
           disabled={!enabled} title={hint} onClick={() => onAction(id)}>
-          <Icon className="nvu-op-sheet-action-icon" size={26} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>
-          <span className="nvu-op-sheet-arrow"><ArrowRight size={22} strokeWidth={1.8} /></span>
+          <Icon className="nvu-op-sheet-action-icon" size={20} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>
         </button>)}
       </div>
     </div>

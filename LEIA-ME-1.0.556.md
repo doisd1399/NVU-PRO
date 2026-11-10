@@ -1,6 +1,6 @@
-# NVU PRO 1.0.555 (Android) / Web 2.3.212 / Windows 0.2.2
+# NVU PRO 1.0.556 (Android) / Web 2.3.213 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 555 — instala como atualização da 554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 556 — instala como atualização da 555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
 
 ## O que mudou desde a 550 — Parcerias B2P
 
@@ -31,7 +31,16 @@ Motorista da própria equipe (lista), **veículo da própria frota** (a janela "
 - **Nada vem preenchido**: nome da operação, viagens e prazo abrem vazios (só "Repetir oferta" copia viagens, prazo, reboque e valores da oferta anterior — o nome fica em branco).
 - **Sem azul nos itens selecionados**: abas, filtros, linhas selecionadas, botões de rádio e o foco dos campos usam tons neutros do próprio tema.
 
-### 6. Correção da 1.0.555 — foto de início da parceria pela galeria
+### 6a. Ajustes da 1.0.556
+- **O reboque é da CONTRATANTE.** Quem monta a oferta escolhe o reboque (lista da frota da contratante, sem digitar nome livre); a executora **não escolhe nem precisa ter** esse reboque. O trabalho do motorista mostra o nome do reboque da oferta, como numa operação comum. O nome da operação não pode ser igual ao nome do reboque (app e servidor recusam).
+- **A foto de início inicia a operação sozinha**: ao escolher a foto na galeria, ela é enviada e a operação começa; a janela fecha na hora e a tela da operação aparece (o botão só reaparece como "Tentar novamente" se algo falhar).
+- **Operação de parceria em andamento aparece como operação comum** (nome da operação no selo, reboque uma única vez).
+- **Designar com operação em andamento:** se o motorista escolhido já está com uma operação em andamento, a executora decide: **cancelar a atual e iniciar a da parceria** (as viagens já registradas ficam preservadas) ou **manter a atual** (a parceria entra na fila e inicia depois que ele finalizar).
+- **"Informações da operação"** do painel do motorista: o reboque aparece menor, em uma linha. No **painel da empresa**, a folha ganhou o mesmo desenho compacto (motorista, operação e situação, lista Veículo/Reboque/Entregas/Prazo/Restante e as quatro ações em grade 2×2).
+- **Linha "Parceria · Executada/Contratada por …"** dos cards da Central: texto menor, com respiro acima e abaixo.
+- **Servidor:** `designatePartnershipDriver` (reboque definido pela oferta; opção `cancelRunning`) e `createPartnershipOffer` (nome ≠ reboque) mudaram e precisam ser **republicadas** para o app novo funcionar por completo.
+
+### 6b. Correção da 1.0.555 — foto de início da parceria pela galeria
 O motorista agora **escolhe a foto do veículo na galeria** ao iniciar uma operação em parceria (antes o campo forçava a câmera). O botão passou a "Escolher foto do veículo" e o texto orienta a usar a galeria. A foto continua obrigatória e o servidor continua exigindo a URL da foto para iniciar.
 
 ### 6b. Ajustes da rodada anterior (1.0.554)

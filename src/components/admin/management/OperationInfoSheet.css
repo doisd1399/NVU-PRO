@@ -89,3 +89,25 @@
 .nvu-central-dialog-actions > button[data-orange="true"] { background: #ff8800; border-color: transparent; color: #1c1200; font-weight: 600; }
 .nvu-central-dialog-actions > button[data-orange="true"]:disabled { opacity: .6; }
 .nvu-op-sheet-note { margin: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--central-warning) 45%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--central-warning) 10%, transparent); color: var(--central-text); font-size: 13px; line-height: 1.45; }
+
+
+/* v50 — "Informações da operação" da empresa no mesmo desenho compacto do painel do motorista */
+.nvu-op-sheet-body { gap: 14px; }
+.nvu-op-sheet-driver { gap: 12px; padding-bottom: 12px; }
+.nvu-op-sheet-photo { width: 52px; height: 52px; border-radius: 12px; font-size: 16px; }
+.nvu-op-sheet-driver strong { font-size: 17px; }
+.nvu-op-sheet-operation { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nvu-op-sheet-operation > strong { min-width: 0; font-size: 21px; line-height: 1.2; letter-spacing: -.03em; overflow-wrap: anywhere; }
+.nvu-op-sheet-list { margin: 0; padding: 2px 16px; border-radius: 16px; background: var(--central-soft); }
+.nvu-op-sheet-list > div { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 50px; border-top: 1px solid var(--central-line); }
+.nvu-op-sheet-list > div:first-child { border-top: 0; }
+.nvu-op-sheet-list dt { flex: none; margin: 0; font-size: 14px; color: var(--central-muted); }
+.nvu-op-sheet-list dd { min-width: 0; margin: 0; text-align: right; font-size: 15px; font-weight: 650; overflow-wrap: anywhere; }
+.nvu-op-sheet-list dd small { display: block; margin-top: 1px; font-size: 12px; font-weight: 400; color: var(--central-muted); }
+.nvu-op-sheet-list dd[data-warning="true"] { color: var(--central-warning); }
+.nvu-op-sheet-list .nvu-op-sheet-trailer { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nvu-op-sheet-bar { height: 6px; margin-top: -4px; }
+.nvu-op-sheet-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nvu-op-sheet-action { gap: 10px; min-height: 46px; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.2; }
+.nvu-op-sheet-action-icon { width: 20px; height: 20px; }
+.nvu-central-dialog.nvu-central-sheet:focus, .nvu-central-dialog.nvu-central-sheet:focus-visible { outline: none; }
