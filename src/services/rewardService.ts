@@ -6,7 +6,7 @@ import { normalizeCampaign, normalizeOffer, type RewardCampaign, type RewardOffe
 import { normalizePayment, type RewardPayment } from "../lib/rewardPayments";
 
 const call = async <T,>(name: string, data: Record<string, unknown>, timeout = 30_000): Promise<T> => (await httpsCallable<Record<string, unknown>, T>(functions, name, { timeout })(data)).data;
-export type CampaignPayload = { companyId: string; name: string; startDate: string; endDate: string; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number; audience: "all" | "selected"; driverIds: string[]; requestId: string };
+export type CampaignPayload = { companyId: string; contractId: string; name: string; startDate: string; endDate: string; perTripCents: number; maxTripsPerDriver: number; audience: "all" | "selected"; driverIds: string[]; requestId: string };
 
 /** Recompensas: toda escrita passa pelos callables (o cliente só lê o Firestore). */
 export const rewardService = {

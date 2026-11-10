@@ -1,6 +1,14 @@
-# NVU PRO 1.0.564 (Android) / Web 2.3.221 / Windows 0.2.2
+# NVU PRO 1.0.565 (Android) / Web 2.3.222 / Windows 0.2.2
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 564 — instala como atualização da 563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 565 — instala como atualização da 564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.565 — Recompensas: formulário simples por operação e correções
+- **Teclado fechando a cada letra (corrigido):** os campos da “Nova campanha” eram recriados a cada letra digitada; agora ficam fixos e o teclado não fecha.
+- **Nova campanha mais simples e inteligente**, na ordem: **1. Operação** (usa o mesmo seletor “Escolher operação” do Designar trabalho: busca, pastas e rolagem própria) → **2. Valor por viagem** → **3. Viagens da operação** (já vem com o total de entregas da operação) → **4. Quem participa** → **5. Início e fim** → **6. Nome** (em branco usa “Campanha + nome da operação”).
+- **Meta de valor ao concluir a operação** = valor por viagem × total de viagens (ex.: R$ 25 × 12 = R$ 300 por motorista). **Teto automático** = motoristas × meta. Não há mais bônus por meta no formulário (campanhas antigas continuam funcionando).
+- **Regra no servidor:** só contam viagens **da operação escolhida**, e cada motorista recebe por **até** o limite de viagens definido. O servidor confere que a operação é da empresa.
+- A oferta do motorista mostra a **operação** e o **limite de viagens**.
+- **Dia do pagamento / erros:** mensagens como “internal [0]” agora aparecem como texto claro. (Esse erro ocorria porque as funções da fase 2 ainda não estavam publicadas no servidor.)
 
 ## 1.0.564 — Recompensas (fase 2: folha, Pix, comprovante, Recebimentos e Transferências)
 - **Empresário → Recompensas** agora tem 3 abas: **Campanhas**, **Folha** e **Transferências**.

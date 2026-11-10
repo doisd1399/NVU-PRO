@@ -2,12 +2,12 @@
 export type RewardCampaignStatus = "active" | "cancelled";
 export type RewardCampaign = {
   id: string; companyId: string; name: string; startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number;
-  audience: "all" | "selected"; status: RewardCampaignStatus; accruedCents: number; tripsCount: number; capped: boolean; driversCount: number; acceptedCount: number; createdAtMs: number;
+  audience: "all" | "selected"; contractId: string; contractName: string; maxTripsPerDriver: number; status: RewardCampaignStatus; accruedCents: number; tripsCount: number; capped: boolean; driversCount: number; acceptedCount: number; createdAtMs: number;
 };
 export type RewardOfferStatus = "pending" | "accepted" | "declined" | "cancelled";
 export type RewardOffer = {
   id: string; campaignId: string; companyId: string; companyName: string; driverId: string; driverName: string; status: RewardOfferStatus; name: string;
-  startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number;
+  startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; contractId: string; contractName: string; maxTripsPerDriver: number;
   trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; settledCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
 };
 const ms = (value: any): number => (value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")))) || 0;
@@ -16,13 +16,13 @@ const num = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) :
 
 export function normalizeCampaign(id: string, raw: Record<string, any>): RewardCampaign {
   return { id, companyId: text(raw.companyId), name: text(raw.name) || "Campanha", startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents),
-    bonusGoalTrips: num(raw.bonusGoalTrips), budgetCents: num(raw.budgetCents), audience: raw.audience === "selected" ? "selected" : "all", status: raw.status === "cancelled" ? "cancelled" : "active",
+    bonusGoalTrips: num(raw.bonusGoalTrips), budgetCents: num(raw.budgetCents), audience: raw.audience === "selected" ? "selected" : "all", contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver), status: raw.status === "cancelled" ? "cancelled" : "active",
     accruedCents: num(raw.accruedCents), tripsCount: num(raw.tripsCount), capped: raw.capped === true, driversCount: num(raw.driversCount), acceptedCount: num(raw.acceptedCount), createdAtMs: ms(raw.createdAt) };
 }
 export function normalizeOffer(id: string, raw: Record<string, any>): RewardOffer {
   const status = (["pending", "accepted", "declined", "cancelled"] as const).find(item => item === raw.status) || "pending";
   return { id, campaignId: text(raw.campaignId), companyId: text(raw.companyId), companyName: text(raw.companyName) || "Empresa", driverId: text(raw.driverId), driverName: text(raw.driverName) || "Motorista", status, name: text(raw.name) || "Campanha",
-    startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents), bonusGoalTrips: num(raw.bonusGoalTrips),
+    startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents), bonusGoalTrips: num(raw.bonusGoalTrips), contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver),
     trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt) };
 }
 
@@ -39,6 +39,8 @@ export function estimateMaxCost(terms: { perTripCents: number; bonusCents: numbe
   const bonusTotal = terms.bonusCents > 0 && trips >= terms.bonusGoalTrips ? drivers * terms.bonusCents : 0;
   return { tripsCents, bonusCents: bonusTotal, totalCents: tripsCents + bonusTotal };
 }
+/** Teto da campanha (igual ao do servidor): motoristas × viagens por motorista × valor por viagem (+ bônus, se houver). */
+export const campaignBudget = (terms: { perTripCents: number; bonusCents: number; maxTripsPerDriver: number }, drivers: number) => drivers * (terms.maxTripsPerDriver * terms.perTripCents + terms.bonusCents);
 const MONTHS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const dayMonth = (ms: number) => { const [, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ms)).split("-"); return { day, month: MONTHS[Number(month) - 1] }; };
 /** "10 a 16 nov" (mesmo mês) ou "28 out a 03 nov"; igual em qualquer aparelho (sem depender do ICU). */
@@ -46,4 +48,9 @@ export const periodText = (startMs: number, endMs: number) => {
   const a = dayMonth(startMs), b = dayMonth(endMs);
   return a.day === b.day && a.month === b.month ? `${a.day} ${a.month}` : a.month === b.month ? `${a.day} a ${b.day} ${b.month}` : `${a.day} ${a.month} a ${b.day} ${b.month}`;
 };
-export const rewardErrorMessage = (error: unknown, fallback: string) => String((error as { message?: string })?.message || "").replace(/^(functions|firebase)[^:]*:\s*/i, "").trim() || fallback;
+export const rewardErrorMessage = (error: unknown, fallback: string) => {
+  const raw = String((error as { message?: string })?.message || "").replace(/^(functions|firebase)[^:]*:\s*/i, "").trim();
+  // "internal", "not-found" etc. sem texto: a função ainda não está publicada ou o servidor falhou; não mostrar o código cru.
+  if (!raw || /^(internal|not-found|unavailable|unknown|deadline-exceeded)(\s*\[\d+\])?$/i.test(raw)) return `${fallback} O servidor não respondeu; tente de novo em instantes.`;
+  return raw;
+};

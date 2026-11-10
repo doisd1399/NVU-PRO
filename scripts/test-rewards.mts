@@ -1,11 +1,11 @@
 /** Recompensas (fase 1): regras puras do servidor, paridade com o app e ligações entre arquivos. O fluxo com banco roda em scripts/test-rewards-emulator.mjs. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { accrueRewards, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
+import { accrueRewards, campaignBudget as serverBudget, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
 import { buildPayroll, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
-import { campaignState, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, periodText } from "../src/lib/rewards.ts";
+import { campaignBudget, campaignState, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, periodText, rewardErrorMessage } from "../src/lib/rewards.ts";
 
 let checks = 0;
 const test = (name: string, run: () => void) => { run(); checks++; console.log("PASS", name); };
@@ -120,5 +120,31 @@ test("Ligações da fase 2: funções exportadas e nas regiões, regras, telas, 
   assert.match(readFileSync("src/components/rewards/PaymentParts.tsx", "utf8"), /qrcode-generator/); assert.match(readFileSync("package.json", "utf8"), /"qrcode-generator": "2\.0\.4"/);
   assert.match(readFileSync("src/pages/admin/Rewards.tsx", "utf8"), /PayrollTab[\s\S]*TransfersTab/); assert.match(readFileSync("src/pages/driver/Rewards.tsx", "utf8"), /ReceiptsTab/);
   assert.match(readFileSync("scripts/qa/integration.mts", "utf8"), /test-reward-payments-emulator\.mjs/);
+});
+test("Campanha por operação: operação e viagens por motorista; teto sai da conta; só conta viagem da operação e até o limite de cada motorista", () => {
+  const c = normalizeCampaign(input({ contractId: " ct-1 ", maxTripsPerDriver: 20, budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), NOW);
+  assert.deepEqual([c.contractId, c.maxTripsPerDriver, c.budgetCents], ["ct-1", 20, 0], "sem teto informado, o servidor calcula");
+  assert.equal(normalizeCampaign(input({ budgetCents: null }), NOW).budgetCents, 0); rejects(() => normalizeCampaign(input({ maxTripsPerDriver: 0 }), NOW), /viagens por motorista/); rejects(() => normalizeCampaign(input({ maxTripsPerDriver: 1001 }), NOW), /viagens por motorista/);
+  assert.equal(serverBudget({ perTripCents: 2500, bonusCents: 0, maxTripsPerDriver: 20 }, 3), 150000); assert.equal(campaignBudget({ perTripCents: 2500, bonusCents: 0, maxTripsPerDriver: 20 }, 3), 150000, "servidor e app calculam igual");
+  assert.equal(campaignBudget({ perTripCents: 2500, bonusCents: 20000, maxTripsPerDriver: 20 }, 2), 2 * (50000 + 20000));
+  const terms = { startMs: 0, endMs: Number.MAX_SAFE_INTEGER, perTripCents: 2500, bonusCents: 0, bonusGoalTrips: 0, budgetCents: 1_000_000, contractId: "ct-1", maxTripsPerDriver: 2 };
+  const trips = [{ id: "a", at: 10, contractId: "ct-1" }, { id: "b", at: 11, contractId: "ct-2" }, { id: "c", at: 12, contractId: "ct-1" }, { id: "d", at: 13, contractId: "ct-1" }, { id: "e", at: 14 }, { id: "f", at: 15, contractId: "ct-1" }].map(t => ({ driverId: "d1", ...t }));
+  const result = accrueRewards(terms, [{ driverId: "d1", acceptedAtMs: 1 }, { driverId: "d2", acceptedAtMs: 1 }], [...trips, { id: "x", at: 20, driverId: "d2", contractId: "ct-1" }]);
+  assert.deepEqual([result.drivers.get("d1")!.trips, result.drivers.get("d1")!.totalCents, result.drivers.get("d2")!.trips, result.tripsCount, result.accruedCents], [2, 5000, 1, 3, 7500], "outra operação e viagem sem operação não contam; limite por motorista; o outro motorista segue");
+  assert.equal(accrueRewards({ ...terms, contractId: "", maxTripsPerDriver: 0 }, [{ driverId: "d1", acceptedAtMs: 1 }], trips).tripsCount, 6, "campanhas antigas (sem operação nem limite) continuam valendo");
+  const offer = normalizeOffer("o", { contractId: "ct-1", contractName: "Cargas SP", maxTripsPerDriver: 20 }); assert.deepEqual([offer.contractName, offer.maxTripsPerDriver, normalizeOffer("o", {}).maxTripsPerDriver], ["Cargas SP", 20, 0]);
+});
+test("Mensagem de erro do servidor: sem código cru (\"internal [0]\"), texto útil do servidor preservado", () => {
+  assert.match(rewardErrorMessage({ message: "internal [0]" }, "Não foi possível salvar o dia."), /^Não foi possível salvar o dia\. O servidor não respondeu/);
+  assert.match(rewardErrorMessage({ message: "functions/internal: internal" }, "X."), /O servidor não respondeu/); assert.match(rewardErrorMessage({}, "Falhou."), /^Falhou\./);
+  assert.equal(rewardErrorMessage({ message: "Escolha a operação da campanha." }, "X."), "Escolha a operação da campanha.");
+});
+test("Formulário da campanha: campos fora do componente (o teclado não fecha a cada letra), passos pedidos e sem bônus/teto digitados", () => {
+  const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), form = page.slice(page.indexOf("function NewCampaign("), page.indexOf("function CampaignDetail("));
+  assert.doesNotMatch(form, /\bconst Field\s*=/, "componente declarado dentro de outro remonta os campos a cada letra e fecha o teclado");
+  assert.match(page, /^const Field = /m);
+  assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Viagens da operação", "4. Quem participa", "5. Início", "6. Nome da campanha"].filter(label => !form.includes(label)), []);
+  assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /Meta de valor por motorista/); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
+  assert.match(page, /item\.status === "active" && item\.deleted !== true/, "só operações ativas");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

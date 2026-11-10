@@ -34,11 +34,13 @@ export default function DriverRewards() {
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
       <div className="b2p-op-row"><span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={22} aria-hidden="true" /></span><div><b>{open.name}</b><small>{open.companyName} · {periodText(open.startMs, open.endMs)}</small></div></div>
       <div className="b2p-settle">
+        {open.contractName ? <Row label="Operação" value={open.contractName} /> : null}
         <Row label="Ganho por viagem" value={formatMoney(open.perTripCents)} />
+        {open.maxTripsPerDriver ? <><Row label="Viagens pagas" value={`até ${open.maxTripsPerDriver}`} /><Row label="Meta de valor ao concluir" value={formatMoney(open.perTripCents * open.maxTripsPerDriver)} /></> : null}
         {open.bonusCents ? <><Row label="Bônus da meta" value={formatMoney(open.bonusCents)} /><Row label="Meta" value={`${open.bonusGoalTrips} viagens`} /></> : null}
         {open.status === "accepted" ? <><Row label="Suas viagens" value={`${open.trips}${open.goalReached ? " · meta atingida" : ""}`} /><Row label="Você já ganhou" value={formatMoney(open.totalCents)} strong /></> : null}
       </div>
-      <p className="b2p-note-box">Cada viagem confirmada na empresa <b>{open.companyName}</b>, depois do seu aceite e dentro do período, soma ao seu ganho.</p>
+      <p className="b2p-note-box">Cada viagem confirmada{open.contractName ? <> na operação <b>{open.contractName}</b></> : null} da empresa <b>{open.companyName}</b>, depois do seu aceite e dentro do período, soma ao seu ganho.</p>
       <p className="b2p-note-box" data-tone="warn">O pagamento é feito pela empresa, por Pix, na chave que você cadastrar. O NVU calcula o ganho, organiza a folha e registra o comprovante, mas não paga nem garante o pagamento.</p>
       {open.status === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void respond(open, "accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => void respond(open, "decline")}>Recusar</button></div>
         : <p className="b2p-hint">{OFFER_STATE_LABEL[open.status]}.</p>}

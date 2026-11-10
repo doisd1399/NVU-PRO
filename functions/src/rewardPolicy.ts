@@ -9,8 +9,8 @@ export const REWARD_OFFERS = "rewardOffers";
 export const MAX_REWARD_DRIVERS = 100;
 export const MAX_CAMPAIGN_DAYS = 92;
 export type RewardAudience = "all" | "selected";
-export type RewardTerms = { startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number };
-export type RewardCampaignInput = RewardTerms & { name: string; audience: RewardAudience; driverIds: string[] };
+export type RewardTerms = { startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number; contractId?: string; maxTripsPerDriver?: number };
+export type RewardCampaignInput = RewardTerms & { name: string; audience: RewardAudience; driverIds: string[]; contractId: string; maxTripsPerDriver: number };
 
 const DAY = 86_400_000, BRT = "-03:00";
 const dateKey = (value: unknown): string => { const raw = text(value); if (!/^\d{4}-\d{2}-\d{2}$/.test(raw) || Number.isNaN(Date.parse(`${raw}T00:00:00${BRT}`))) fail("invalid-argument", "Informe as datas da campanha."); return raw; };
@@ -33,12 +33,20 @@ export function normalizeCampaign(raw: Record<string, any>, now: number): Reward
   const bonusCents = cents(raw.bonusCents ?? 0, "O bônus", 0, 10_000_000);
   const bonusGoalTrips = cents(raw.bonusGoalTrips ?? 0, "A meta do bônus", 0, 1000);
   if (bonusCents > 0 && bonusGoalTrips < 1) fail("invalid-argument", "Informe a meta de viagens para o bônus.");
-  const budgetCents = cents(raw.budgetCents, "O teto de investimento", perTripCents, 100_000_000);
+  // Teto informado é opcional: sem ele o servidor calcula (motoristas × viagens × valor), ver `campaignBudget`.
+  const budgetCents = raw.budgetCents === undefined || raw.budgetCents === null ? 0 : cents(raw.budgetCents, "O teto de investimento", perTripCents, 100_000_000);
+  const contractId = text(raw.contractId);
+  const maxTripsPerDriver = raw.maxTripsPerDriver === undefined || raw.maxTripsPerDriver === null ? 0 : cents(raw.maxTripsPerDriver, "A quantidade de viagens por motorista", 1, 1000);
   const audience: RewardAudience = raw.audience === "selected" ? "selected" : "all";
   const driverIds = [...new Set((Array.isArray(raw.driverIds) ? raw.driverIds : []).map(text).filter(Boolean))];
   if (audience === "selected" && !driverIds.length) fail("invalid-argument", "Escolha ao menos um motorista.");
   if (driverIds.length > MAX_REWARD_DRIVERS) fail("invalid-argument", `Escolha no máximo ${MAX_REWARD_DRIVERS} motoristas.`);
-  return { name, startMs, endMs, perTripCents, bonusCents: bonusGoalTrips ? bonusCents : 0, bonusGoalTrips: bonusCents ? bonusGoalTrips : 0, budgetCents, audience, driverIds };
+  return { name, startMs, endMs, perTripCents, bonusCents: bonusGoalTrips ? bonusCents : 0, bonusGoalTrips: bonusCents ? bonusGoalTrips : 0, budgetCents, audience, driverIds, contractId, maxTripsPerDriver };
+}
+
+/** Teto da campanha: cada motorista pode receber até `maxTripsPerDriver` viagens (e o bônus, se houver). Igual no app. */
+export function campaignBudget(terms: Pick<RewardTerms, "perTripCents" | "bonusCents"> & { maxTripsPerDriver: number }, drivers: number): number {
+  return drivers * (terms.maxTripsPerDriver * terms.perTripCents + terms.bonusCents);
 }
 
 /** Custo máximo estimado: cada motorista faz `tripsPerDriver` viagens e (se houver bônus) bate a meta. Igual no app (simulador). */
@@ -48,7 +56,7 @@ export function estimateMaxCost(terms: Pick<RewardTerms, "perTripCents" | "bonus
   return { tripsCents, bonusCents: bonusTotal, totalCents: tripsCents + bonusTotal };
 }
 
-export type AccrualTrip = { id: string; driverId: string; at: number };
+export type AccrualTrip = { id: string; driverId: string; at: number; contractId?: string };
 export type AccrualOffer = { driverId: string; acceptedAtMs: number };
 export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean };
 /**
@@ -60,6 +68,7 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
   const seen = new Set<string>();
   const eligible = trips.filter(trip => {
     if (seen.has(trip.id)) return false; seen.add(trip.id);
+    if (terms.contractId && trip.contractId !== terms.contractId) return false; // só viagens da operação da campanha
     const from = accepted.get(trip.driverId);
     return from !== undefined && trip.at > 0 && trip.at >= Math.max(terms.startMs, from) && trip.at <= terms.endMs;
   }).sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
@@ -68,6 +77,7 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
   for (const trip of eligible) {
     if (accruedCents + terms.perTripCents > terms.budgetCents) { capped = true; break; }
     const row = drivers.get(trip.driverId)!;
+    if (terms.maxTripsPerDriver && row.trips >= terms.maxTripsPerDriver) continue; // limite de viagens pagas por motorista
     row.trips++; row.tripCents += terms.perTripCents; accruedCents += terms.perTripCents; tripsCount++;
     if (terms.bonusCents > 0 && terms.bonusGoalTrips > 0 && row.trips === terms.bonusGoalTrips) {
       if (accruedCents + terms.bonusCents > terms.budgetCents) { capped = true; row.totalCents = row.tripCents; break; }

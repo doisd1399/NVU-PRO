@@ -20,7 +20,7 @@ const get = path => db.doc(path).get();
 const failsWith = async (fn, code) => assert.rejects(fn, error => { assert.ok(String(error.code).includes(code), `expected ${code}, got ${error.code}: ${error.message}`); return true; });
 const day = offset => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + offset * 86_400_000));
 let seq = 0;
-const campaignData = (extra = {}) => ({ companyId: "a", name: "Semana de Ouro", startDate: day(-1), endDate: day(5), perTripCents: 2500, bonusCents: 20000, bonusGoalTrips: 3, budgetCents: 600000, audience: "all", driverIds: [], requestId: `req-${++seq}-${Date.now()}`, ...extra });
+const campaignData = (extra = {}) => ({ companyId: "a", contractId: "ct-1", maxTripsPerDriver: 50, name: "Semana de Ouro", startDate: day(-1), endDate: day(5), perTripCents: 2500, bonusCents: 20000, bonusGoalTrips: 3, budgetCents: 600000, audience: "all", driverIds: [], requestId: `req-${++seq}-${Date.now()}`, ...extra });
 const create = (extra = {}, uid = "owner-a") => rewards.createRewardCampaign.run(campaignData(extra), ctx(uid));
 const respond = (offerId, decision, uid) => rewards.respondRewardOffer.run({ offerId, decision }, ctx(uid));
 const member = (uid, companyId) => [`companyMembers/${uid}_${companyId}`, { userId: uid, companyId, roles: ["driver"], status: "active" }];
@@ -32,12 +32,13 @@ const seed = async () => {
     ["users/owner-a", { name: "Dono A", companyId: "a", role: "admin", status: "active" }], ["users/owner-b", { name: "Dono B", companyId: "b", role: "admin", status: "active" }],
     ["users/drv-1", { name: "Naylson Silva", role: "driver", roles: ["driver"], companyId: "a", status: "active" }], ["users/drv-2", { name: "Dudu Tv", role: "driver", roles: ["driver"], companyId: "a", status: "active" }],
     ["users/drv-b", { name: "Caio Lima", role: "driver", roles: ["driver"], companyId: "b", status: "active" }],
+    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, simulator: "GTO" }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
     member("drv-1", "a"), member("drv-2", "a"), member("drv-b", "b"),
   ];
   const batch = db.batch(); rows.forEach(([ref, data]) => batch.set(db.doc(ref), data)); await batch.commit();
   for (const [uid, companyId] of [["owner-a", "a"], ["owner-b", "b"], ["drv-1", "a"], ["drv-2", "a"], ["drv-b", "b"]]) await refreshCompanyAccess(db, uid, companyId).catch(() => undefined);
 };
-const trip = async (id, driverId, companyId, offsetMs, extra = {}) => db.doc(`historico_viagens/${id}`).set({ driverId, companyId, status: "completed", serverValidatedAt: admin.firestore.Timestamp.now(), completedAt: admin.firestore.Timestamp.fromMillis(Date.now() + offsetMs), valorCents: 999999, ...extra });
+const trip = async (id, driverId, companyId, offsetMs, extra = {}) => db.doc(`historico_viagens/${id}`).set({ driverId, companyId, status: "completed", contractId: "ct-1", serverValidatedAt: admin.firestore.Timestamp.now(), completedAt: admin.firestore.Timestamp.fromMillis(Date.now() + offsetMs), valorCents: 999999, ...extra });
 const fire = async tripId => { const after = (await get(`historico_viagens/${tripId}`)).data(); return rewards.syncRewardTrips.run({ before: { exists: false, data: () => undefined }, after: { exists: true, data: () => after } }, { params: { tripId } }); };
 const results = [];
 async function test(name, fn) {
@@ -59,6 +60,21 @@ try {
     assert.equal((await get(`rewardCampaigns/${first.campaignId}`)).get("driversCount"), 2);
     const notes = await db.collection("notifications").where("type", "==", "REWARD_OFFER").get(); assert.equal(notes.size, 2);
     const selected = await create({ audience: "selected", driverIds: ["drv-1"] }); assert.equal(selected.drivers, 1);
+  });
+  await test("operação e limite: exige operação da própria empresa e viagens por motorista; teto sai da conta; só conta viagem da operação e até o limite", async () => {
+    await failsWith(() => create({ contractId: "" }), "invalid-argument"); await failsWith(() => create({ maxTripsPerDriver: -1 }), "invalid-argument");
+    await failsWith(() => create({ contractId: "ct-b" }), "failed-precondition"); await failsWith(() => create({ contractId: "ct-x" }), "failed-precondition"); await failsWith(() => create({ contractId: "nao-existe" }), "failed-precondition");
+    await failsWith(() => create({ contractId: "ct-b" }, "drv-1"), "permission-denied"); await failsWith(() => create({ contractId: "ct-b" }, "owner-b"), "permission-denied"); // gestor de outra empresa não descobre nada
+    const { campaignId } = await create({ budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0, maxTripsPerDriver: 2 }), campaign = (await get(`rewardCampaigns/${campaignId}`)).data();
+    assert.deepEqual([campaign.contractId, campaign.contractName, campaign.maxTripsPerDriver, campaign.budgetCents], ["ct-1", "Cargas SP", 2, 2 * 2 * 2500], "teto = motoristas × viagens × valor");
+    const offer = (await get(`rewardOffers/${campaignId}_drv-1`)).data(); assert.deepEqual([offer.contractName, offer.maxTripsPerDriver], ["Cargas SP", 2]);
+    const whole = await create({ budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0, maxTripsPerDriver: undefined }), derived = (await get(`rewardCampaigns/${whole.campaignId}`)).data();
+    assert.deepEqual([derived.maxTripsPerDriver, derived.budgetCents], [10, 2 * 10 * 2500], "sem limite informado vale o total de viagens da operação (10): meta de valor = R$ 25 × 10 por motorista");
+    await respond(`${campaignId}_drv-1`, "accept", "drv-1");
+    await trip("o1", "drv-1", "a", 1000); await trip("o-outra", "drv-1", "a", 1500, { contractId: "ct-2" }); await trip("o-sem", "drv-1", "a", 1600, { contractId: null }); await trip("o2", "drv-1", "a", 2000); await trip("o3", "drv-1", "a", 3000);
+    await fire("o3"); const row = (await get(`rewardOffers/${campaignId}_drv-1`)).data();
+    assert.deepEqual([row.trips, row.totalCents], [2, 5000], "viagem de outra operação ou sem operação não conta; a terceira passa do limite de 2");
+    assert.equal((await get(`rewardCampaigns/${campaignId}`)).get("capped"), false, "o limite por motorista não é o teto");
   });
   await test("responder: só o motorista dono; aceitar/recusar; repetir é idempotente; mudar de ideia depois não vale", async () => {
     const { campaignId } = await create(), offer = `${campaignId}_drv-1`;
