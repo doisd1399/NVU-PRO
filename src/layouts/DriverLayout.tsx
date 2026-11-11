@@ -47,6 +47,8 @@ import { NotificationCenter } from "../components/NotificationCenter";
 import { DRIVER_MENU_ITEMS } from "../components/workspaceMenuItems";
 import { GlobalMenu } from "../components/GlobalMenu";
 import { WorkspaceDock } from "../components/WorkspaceDock";
+import { WindowsBackButton } from "../components/WindowsBackButton";
+import { useWindowsBack } from "../hooks/useWindowsBack";
 import { preloadRoute } from "../lib/routePreload";
 import {
   commitRoleVisualTransition,
@@ -71,6 +73,7 @@ export default function DriverLayout() {
   const driverTripState = useDriverTrips(currentUser?.id ?? null);
   const navigate = useNavigate();
   const location = useLocation();
+  const windowsBack = useWindowsBack("/driver/profile", { profileTab: "dashboard" });
   const isNewsRoute = location.pathname.includes("/driver/news");
   const landscapeWorkspace = useLandscapeWorkspace();
   const isCoverTabRoute = isProfileCoverPage(location.pathname, location.state);
@@ -456,6 +459,7 @@ export default function DriverLayout() {
             data-nvu-hero-chrome={isDriverHeroRoute ? (heroChromeActive ? "active" : "settled") : undefined}
           >
             <div className="flex items-center gap-3 md:gap-4">
+              {windowsBack.canGoBack ? <WindowsBackButton onClick={windowsBack.goBack} className={isDriverHeroRoute ? "-ml-1.5 !text-white hover:!bg-white/10" : "-ml-1.5"} /> : null}
               <button
                 type="button"
                 onClick={() => setIsMobileMenuOpen((open) => !open)}

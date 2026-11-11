@@ -50,6 +50,8 @@ import { NotificationCenter } from "../components/NotificationCenter";
 import { COMPANY_MENU_GROUPS } from "../components/workspaceMenuItems";
 import { GlobalMenu } from "../components/GlobalMenu";
 import { WorkspaceDock } from "../components/WorkspaceDock";
+import { WindowsBackButton } from "../components/WindowsBackButton";
+import { useWindowsBack } from "../hooks/useWindowsBack";
 import { preloadRoute } from "../lib/routePreload";
 import {
   commitRoleVisualTransition,
@@ -105,6 +107,7 @@ export default function AdminLayout() {
   // protected actions. This avoids hiding the only entry point because of stale or
   // not-yet-refreshed role metadata.
   const hasSeniorPanelAccess = true;
+  const windowsBack = useWindowsBack("/admin/fleet", { activeTab: "operations" });
   const isNewsRoute = location.pathname.includes("/admin/news");
   const isAssignmentRoute = location.pathname === "/admin/assign" || location.pathname.startsWith("/admin/parcerias") || location.pathname.startsWith("/admin/recompensas");
   const isManualRoute = location.pathname.includes("/admin/manual");
@@ -449,6 +452,7 @@ export default function AdminLayout() {
         data-nvu-hero-chrome={isCompanyProfileRoute ? (heroChromeActive ? "active" : "settled") : undefined}
       >
         <div className="flex items-center gap-3 md:gap-4">
+          {windowsBack.canGoBack ? <WindowsBackButton onClick={windowsBack.goBack} className="-ml-1.5" /> : null}
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen((open) => !open)}

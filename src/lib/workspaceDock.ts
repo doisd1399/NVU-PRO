@@ -14,12 +14,20 @@ export function workspaceDockRole(pathname: string, state: unknown, activeRole: 
   return requested === "admin" || requested === "driver" ? requested : activeRole === "admin" ? "admin" : "driver";
 }
 
+/** Páginas filhas de um item da dock (não são a raiz dele): tocar no item ativo volta para a raiz. */
+export function isWorkspaceSubpage(pathname: string, role: WorkspaceDockRole): boolean {
+  const prefix = role === "admin" ? "/admin" : "/driver";
+  return pathname === `${prefix}/recompensas` || (role === "admin" && (pathname === "/admin/parcerias" || pathname.startsWith("/admin/parcerias/")));
+}
+
 export function workspaceDockActive(pathname: string, state: unknown, role: WorkspaceDockRole): WorkspaceDockId | null {
   if (pathname === "/ranking") return "ranking";
   const prefix = role === "admin" ? "/admin" : "/driver";
   if (pathname === `${prefix}/news`) return "news";
   if (pathname === `${prefix}/history`) return "activity";
   if (pathname === `${prefix}/reports`) return "results";
+  // Subpáginas da Central/painel (Parcerias, Pagamentos): a dock continua visível e destaca "Trabalho/Gestão".
+  if (isWorkspaceSubpage(pathname, role)) return "dashboard";
   const routeState = stateRecord(state);
   if (role === "admin" && pathname === "/admin/fleet") {
     if (routeState.activeTab === "company") return "profile";

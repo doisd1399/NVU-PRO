@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { accrueRewards, campaignBudget as serverBudget, driverMaxCents as serverDriverMax, goalEstimate as serverGoalEstimate, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
 import { buildPayroll, offerCompleted as serverCompleted, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
+import { isWorkspaceSubpage, workspaceDockActive } from "../src/lib/workspaceDock.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
 import { PHASE_LABEL, offerPhase, timeLeftText, campaignBudget, campaignState, driverMaxCents, goalEstimate, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, offerCompleted, periodText, rewardErrorMessage, termText } from "../src/lib/rewards.ts";
@@ -206,5 +207,13 @@ test("Motorista: página Pagamentos no menu do painel, com Ativos, Recebimentos,
   assert.match(det, /Sem concluir no prazo, você perde o pagamento/); assert.match(det, /Prazo encerrado\. Você não concluiu a operação e perdeu o pagamento/); assert.match(det, /Pago por Pix só depois da operação concluída/);
   assert.match(work, /Prazo perdido/); assert.match(work, /Concluídas/); assert.match(work, /Recebido/);
   const server = readFileSync("functions/src/rewards.ts", "utf8"); assert.match(server, /rewardDeadlineTick = functions[\s\S]*schedule\("30 7 \* \* \*"\)\.timeZone\("America\/Sao_Paulo"\)/); assert.match(server, /REWARD_EXPIRED/); assert.match(server, /REWARD_DEADLINE_SOON/); assert.match(readFileSync("functions/src/index.ts", "utf8"), /rewardDeadlineTick/);
+});
+test("Dock e Voltar no desktop: dock visível em Parcerias e Pagamentos (item ativo volta à raiz) e botão Voltar no Windows", () => {
+  assert.deepEqual([workspaceDockActive("/admin/parcerias", null, "admin"), workspaceDockActive("/admin/parcerias/x", null, "admin"), workspaceDockActive("/admin/recompensas", null, "admin"), workspaceDockActive("/driver/recompensas", null, "driver")], ["dashboard", "dashboard", "dashboard", "dashboard"], "a dock aparece nessas páginas");
+  assert.deepEqual([isWorkspaceSubpage("/admin/parcerias", "admin"), isWorkspaceSubpage("/driver/recompensas", "driver"), isWorkspaceSubpage("/admin/fleet", "admin"), isWorkspaceSubpage("/driver/profile", "driver"), isWorkspaceSubpage("/admin/parcerias", "driver")], [true, true, false, false, false]);
+  assert.equal(workspaceDockActive("/admin/fleet", { activeTab: "company" }, "admin"), "profile"); assert.equal(workspaceDockActive("/driver/news", null, "driver"), "news", "demais páginas não mudam");
+  const nav = readFileSync("src/hooks/useWorkspaceNavigation.ts", "utf8"); assert.match(nav, /id === active && !subpage/, "numa subpágina, tocar no item ativo navega para a raiz");
+  const back = readFileSync("src/hooks/useWindowsBack.ts", "utf8"); assert.match(back, /isWindowsDesktop\(\)/); assert.match(back, /event\.altKey && event\.key === "ArrowLeft"/, "Alt + ←"); assert.match(back, /event\.button === 3/, "botão voltar do mouse"); assert.match(back, /dismissTopOptionModal\(\)/, "fecha a janela aberta antes de voltar");
+  for (const file of ["src/layouts/AdminLayout.tsx", "src/layouts/DriverLayout.tsx"]) { const layout = readFileSync(file, "utf8"); assert.match(layout, /useWindowsBack\(/, file); assert.match(layout, /<WindowsBackButton onClick=\{windowsBack\.goBack\}/, file); }
 });
 console.log(`${checks} verificações de Recompensas passaram.`);
