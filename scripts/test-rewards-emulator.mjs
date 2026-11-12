@@ -172,6 +172,14 @@ try {
     await rewards.cancelRewardCampaign.run({ campaignId }, ctx("owner-a"));
     const statuses = await Promise.all(jobs.map(async id => (await get(`trabalhos/${id}`)).get("status"))); assert.deepEqual(statuses.sort(), ["cancelled", "pending"], "a oferta aceita segue; a sem resposta saiu da fila");
   });
+  await test("excluir do histórico: só campanha cancelada e só o gestor; some das listas mas os dados ficam; repetir é inofensivo", async () => {
+    const { campaignId } = await create({ contractId: "ct-2", budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), hide = (uid = "owner-a") => rewards.hideRewardCampaign.run({ campaignId }, ctx(uid));
+    await failsWith(() => hide("drv-1"), "permission-denied"); await failsWith(() => hide("owner-b"), "permission-denied"); await failsWith(() => rewards.hideRewardCampaign.run({ campaignId: "rc_nada" }, ctx("owner-a")), "not-found");
+    await failsWith(() => hide(), "failed-precondition"); // em andamento: primeiro se encerra
+    await rewards.cancelRewardCampaign.run({ campaignId }, ctx("owner-a")); await hide(); await hide();
+    const row = (await get(`rewardCampaigns/${campaignId}`)).data(); assert.deepEqual([row.hidden, row.status, row.hiddenBy], [true, "cancelled", "owner-a"]);
+    assert.equal((await db.collection("rewardOffers").where("campaignId", "==", campaignId).get()).size, 2, "as ofertas e os ganhos continuam guardados");
+  });
   await test("responder: só o motorista dono; aceitar/recusar; repetir é idempotente; mudar de ideia depois não vale", async () => {
     const { campaignId } = await create(), offer = `${campaignId}_drv-1`;
     await failsWith(() => respond(offer, "accept", "drv-2"), "permission-denied"); await failsWith(() => respond(offer, "talvez", "drv-1"), "invalid-argument"); await failsWith(() => respond("rc_x_nada", "accept", "drv-1"), "not-found");

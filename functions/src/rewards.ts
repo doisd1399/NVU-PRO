@@ -217,6 +217,26 @@ export const cancelRewardCampaign = functions.region(...CALLABLE_REGIONS).runWit
 });
 
 /**
+ * Exclui uma campanha CANCELADA do histórico da empresa (some das listas; os dados, os ganhos e os pagamentos já feitos ficam guardados).
+ * Campanha em andamento não pode ser excluída: primeiro se encerra.
+ */
+export const hideRewardCampaign = functions.region(...CALLABLE_REGIONS).https.onCall(async (raw, context) => {
+  const uid = context.auth?.uid;
+  if (!uid) fail("unauthenticated", "Faça login para continuar.");
+  const db = admin.firestore(), campaignId = id((raw as Data | null)?.campaignId, "Campanha");
+  await db.runTransaction(async tx => {
+    const ref = db.collection(REWARD_CAMPAIGNS).doc(campaignId), snap = await tx.get(ref);
+    if (!snap.exists) fail("not-found", "A campanha não foi encontrada.");
+    await requireCompanyManager(db, tx, context, text(snap.get("companyId")));
+    if (snap.get("hidden") === true) return;
+    if (snap.get("status") !== "cancelled") fail("failed-precondition", "Só campanhas canceladas podem ser excluídas do histórico. Encerre a campanha primeiro.");
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    tx.update(ref, { hidden: true, hiddenAt: now, hiddenBy: uid, updatedAt: now });
+  });
+  return { success: true, campaignId };
+});
+
+/**
  * Edita uma campanha em andamento (nome, valor por viagem e meta de ganhos). Vale para todos os motoristas que ainda podem receber e cada um é avisado do que mudou.
  * O valor por viagem não muda depois que já existe pagamento gerado (folha): o que foi pago não pode ser reescrito.
  */

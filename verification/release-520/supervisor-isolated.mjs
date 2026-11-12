@@ -53,6 +53,7 @@ var DUAL_REGION_CALLABLES = [
   "respondRewardOffer",
   "cancelRewardCampaign",
   "updateRewardCampaign",
+  "hideRewardCampaign",
   "setRewardPayDay",
   "setRewardPix",
   "generateRewardPayroll",

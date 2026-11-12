@@ -12,6 +12,7 @@ export type CampaignPayload = { companyId: string; contractId: string; vehicleId
 export const rewardService = {
   create: (payload: CampaignPayload) => call<{ success: true; campaignId: string; drivers: number; failed: { driverId: string; driverName: string; message: string }[] }>("createRewardCampaign", payload, 180_000),
   update: (campaignId: string, patch: { name?: string; perTripCents?: number; goalCents?: number; expectedRevision?: number }) => call<{ success: true; revision: number; notified: number }>("updateRewardCampaign", { campaignId, ...patch }, 60_000),
+  hide: (campaignId: string) => call<{ success: true }>("hideRewardCampaign", { campaignId }),
   prepareCompany: (companyId: string) => call<{ success: boolean; enabled: boolean; ready: boolean }>("prepareCompanyOperationalCommands", { companyId, enable: true }, 60_000),
   respond: (offerId: string, decision: "accept" | "decline") => call<{ success: true; status: string }>("respondRewardOffer", { offerId, decision }),
   cancel: (campaignId: string) => call<{ success: true }>("cancelRewardCampaign", { campaignId }, 120_000),

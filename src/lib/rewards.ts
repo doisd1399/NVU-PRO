@@ -2,7 +2,7 @@
 export type RewardCampaignStatus = "active" | "cancelled";
 export type RewardCampaign = {
   id: string; companyId: string; name: string; startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number;
-  audience: "all" | "selected"; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; status: RewardCampaignStatus; accruedCents: number; tripsCount: number; capped: boolean; driversCount: number; acceptedCount: number; createdAtMs: number; vehicleId: string; vehicleName: string; revision: number;
+  audience: "all" | "selected"; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; status: RewardCampaignStatus; accruedCents: number; tripsCount: number; capped: boolean; driversCount: number; acceptedCount: number; createdAtMs: number; vehicleId: string; vehicleName: string; revision: number; hidden: boolean;
 };
 export type RewardOfferStatus = "pending" | "accepted" | "declined" | "cancelled";
 export type RewardOffer = {
@@ -18,7 +18,7 @@ const num = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) :
 export function normalizeCampaign(id: string, raw: Record<string, any>): RewardCampaign {
   return { id, companyId: text(raw.companyId), name: text(raw.name) || "Campanha", startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents),
     bonusGoalTrips: num(raw.bonusGoalTrips), budgetCents: num(raw.budgetCents), audience: raw.audience === "selected" ? "selected" : "all", contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver), goalCents: num(raw.goalCents), openEnded: raw.openEnded === true, deadlineDays: num(raw.deadlineDays), status: raw.status === "cancelled" ? "cancelled" : "active",
-    accruedCents: num(raw.accruedCents), tripsCount: num(raw.tripsCount), capped: raw.capped === true, driversCount: num(raw.driversCount), acceptedCount: num(raw.acceptedCount), createdAtMs: ms(raw.createdAt), vehicleId: text(raw.vehicleId), vehicleName: text(raw.vehicleName), revision: num(raw.revision) || 1 };
+    accruedCents: num(raw.accruedCents), tripsCount: num(raw.tripsCount), capped: raw.capped === true, driversCount: num(raw.driversCount), acceptedCount: num(raw.acceptedCount), createdAtMs: ms(raw.createdAt), vehicleId: text(raw.vehicleId), vehicleName: text(raw.vehicleName), revision: num(raw.revision) || 1, hidden: raw.hidden === true };
 }
 export function normalizeOffer(id: string, raw: Record<string, any>): RewardOffer {
   const status = (["pending", "accepted", "declined", "cancelled"] as const).find(item => item === raw.status) || "pending";

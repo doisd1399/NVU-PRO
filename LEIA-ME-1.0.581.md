@@ -1,6 +1,10 @@
-# NVU PRO 1.0.580 (Android) / Web 2.3.237 / Windows 0.2.6
+# NVU PRO 1.0.581 (Android) / Web 2.3.238 / Windows 0.2.7
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 580 — instala como atualização da 579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.6, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 581 — instala como atualização da 580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.7, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.581 — Pagamentos: excluir campanha cancelada do histórico
+- Na **campanha cancelada** há o botão **“Excluir do histórico”** (com confirmação). Ela some das listas; os dados, os ganhos e os pagamentos já feitos continuam guardados. Campanha em andamento não pode ser excluída: primeiro se encerra.
+- **Servidor:** nova função `hideRewardCampaign`. **Exige publicar a função.**
 
 ## 1.0.580 — Pagamentos: texto curto, foto do motorista e desempenho
 - **Campanha com descrição curta:** a linha da lista mostra “R$ 0,25/viagem · 4 dias” (o nome da operação só aparece quando é diferente do nome da campanha, e o prazo não repete a palavra “prazo”). No detalhe, “Operação” some quando repete o título e “Prazo” mostra só “4 dias”.

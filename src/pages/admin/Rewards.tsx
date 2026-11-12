@@ -31,7 +31,8 @@ export default function Rewards() {
   const { activeCompanyId, companies, allCompanies, allCompanyMembers, allCompanyMembersReady } = useCompanyStore();
   const { users, simulators, contracts, sequences, trailers, vehicles, jobs } = useOperationalStore();
   const me = activeCompanyId || "";
-  const { campaigns, offers, ready, error } = useCompanyRewards(me);
+  const { campaigns: allCampaigns, offers, ready, error } = useCompanyRewards(me);
+  const campaigns = useMemo(() => allCampaigns.filter(item => !item.hidden), [allCampaigns]); // excluídas do histórico não aparecem
   const ownCompany = companies.find(item => item.id === me) || allCompanies.find(item => item.id === me);
   const { payments, payDay, ready: paymentsReady } = useCompanyPayments(me);
   const [view, setView] = useState<View>({ name: "list" });
@@ -80,6 +81,8 @@ export default function Rewards() {
     const campaign = campaigns.find(item => item.id === view.id);
     if (!campaign) return shell("Campanha", "Acompanhe os motoristas.", <><BackLink label="Pagamentos" onClick={goList} /><p className="b2p-empty">{ready ? "Esta campanha não está mais disponível." : "Carregando…"}</p></>);
     return shell("Campanha", "Acompanhe os motoristas.", <CampaignDetail campaign={campaign} offers={offers.filter(offer => offer.campaignId === campaign.id)} now={now} busy={busy} onBack={goList} onEdit={() => setView({ name: "edit", id: campaign.id })}
+      onHide={async () => { if (!window.confirm("Excluir esta campanha do histórico? Os pagamentos já feitos continuam registrados.")) return; setBusy(true);
+        try { await rewardService.hide(campaign.id); toast.message("Campanha excluída do histórico."); goList(); } catch (reason) { toast.error(rewardErrorMessage(reason, "Não foi possível excluir a campanha.")); } finally { setBusy(false); } }}
       onCancel={async () => { if (!window.confirm("Encerrar esta campanha? Ofertas sem resposta serão canceladas e novas viagens deixam de ser creditadas. O que já foi ganho continua registrado.")) return; setBusy(true);
         try { await rewardService.cancel(campaign.id); toast.message("Campanha encerrada."); } catch (reason) { toast.error(rewardErrorMessage(reason, "Não foi possível encerrar a campanha.")); } finally { setBusy(false); } }} />);
   }
@@ -178,7 +181,7 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, vehic
   </>;
 }
 
-function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onCancel }: { campaign: RewardCampaign; offers: RewardOffer[]; now: number; busy: boolean; onBack: () => void; onEdit: () => void; onCancel: () => void }) {
+function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onHide, onCancel }: { campaign: RewardCampaign; offers: RewardOffer[]; now: number; busy: boolean; onBack: () => void; onEdit: () => void; onHide: () => void; onCancel: () => void }) {
   const state = campaignState(campaign, now), open = campaign.status === "active" && now <= campaign.endMs && !campaign.capped;
   return <>
     <BackLink label="Pagamentos" onClick={onBack} />
@@ -201,6 +204,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onCancel 
         <span className="b2p-amt"><strong data-k="x" style={offer.expired ? { textDecoration: "line-through", opacity: 0.7 } : undefined}>{offer.status === "accepted" ? formatMoney(offer.expired ? offer.lostCents : offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={offer.expired ? "late" : offerCompleted(offer) && offer.status === "accepted" ? "good" : OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.expired ? "Prazo perdido" : offerCompleted(offer) && offer.status === "accepted" ? "Concluiu" : offerLabel(offer)}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}
     </Section>
+    {campaign.status === "cancelled" ? <div className="b2p-actions b2p-detail-actions"><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onHide}>Excluir do histórico</button></div> : null}
     {open || campaign.status === "active" && campaign.endMs >= now ? <div className="b2p-actions b2p-detail-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={onEdit}><Pencil size={15} aria-hidden="true" />Editar campanha</button><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onCancel}>Encerrar campanha</button></div> : null}
   </>;
 }

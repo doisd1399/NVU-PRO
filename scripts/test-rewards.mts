@@ -292,4 +292,10 @@ test("Desempenho: escutas do motorista compartilhadas (uma por motorista), paine
   assert.match(hooks, /driverStores = new Map/); assert.match(hooks, /useSyncExternalStore\(subscribe/); assert.equal((hooks.match(/rewardService\.subscribeDriver\(/g) || []).length, 1, "uma única escuta de ofertas por motorista");
   assert.match(portal, /window\.setTimeout\(\(\) => \{[\s\S]*requestIdleCallback[\s\S]*\}, 2500\)/, "Central/perfil só no ocioso, depois de 2,5 s"); assert.match(portal, /void preloadRoute\("\/select-profile"\)/, "o seletor continua aquecido na hora");
 });
+test("Excluir campanha cancelada do histórico: função no servidor, serviço, regiões e botão só para canceladas", () => {
+  const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8");
+  assert.match(readFileSync("functions/src/rewards.ts", "utf8"), /hideRewardCampaign = functions/); assert.match(readFileSync("functions/src/index.ts", "utf8"), /hideRewardCampaign/); assert.match(readFileSync("src/lib/callableRegions.ts", "utf8"), /"hideRewardCampaign"/); assert.match(readFileSync("src/services/rewardService.ts", "utf8"), /"hideRewardCampaign"/);
+  assert.match(page, /campaign\.status === "cancelled" \? <div className="b2p-actions b2p-detail-actions">[\s\S]*Excluir do histórico/); assert.match(page, /allCampaigns\.filter\(item => !item\.hidden\)/);
+  assert.equal(clientCampaign("c1", { status: "cancelled", hidden: true }).hidden, true); assert.equal(clientCampaign("c2", { status: "active" }).hidden, false);
+});
 console.log(`${checks} verificações de Recompensas passaram.`);

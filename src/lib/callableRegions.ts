@@ -50,6 +50,7 @@ export const DUAL_REGION_CALLABLES: readonly string[] = [
   "respondRewardOffer",
   "cancelRewardCampaign",
   "updateRewardCampaign",
+  "hideRewardCampaign",
   "setRewardPayDay",
   "setRewardPix",
   "generateRewardPayroll",
