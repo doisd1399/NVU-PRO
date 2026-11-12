@@ -1,6 +1,10 @@
-# NVU PRO 1.0.590 (Android) / Web 2.3.247 / Windows 0.2.16
+# NVU PRO 1.0.591 (Android) / Web 2.3.248 / Windows 0.2.17
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 590 — instala como atualização da 589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 591 — instala como atualização da 590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.591 — Título do Painel do motorista duplicado
+- **Corrigido:** com um trabalho em andamento, o Painel do motorista mostrava **dois títulos** (“Painel do motorista · Acompanhe suas entregas e o prazo.” da página e “Painel do motorista · Suas operações, no seu ritmo.” do menu). Agora a página não repete o título: o menu tem o seu e a tela “Trabalho atual” tem o dela.
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.590 — Carteira › Oferta: botão Recusar
 - **A tela da oferta (Carteira) agora tem “Recusar”**, também quando o trabalho já foi encaminhado à fila do motorista (antes o botão só aparecia sem trabalho encaminhado). Toca em “Recusar” → aparece a confirmação (“Ao recusar, o trabalho sai da sua fila e você não recebe por ele.”) → “Confirmar recusa” ou “Voltar”.

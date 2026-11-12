@@ -33,9 +33,9 @@ jobs:
 
       - name: Zip dist
         run: |
-          rm -f NVU-PRO-2.3.247-dist.zip
-          (cd dist && zip -qr ../NVU-PRO-2.3.247-dist.zip .)
-          ls -lh NVU-PRO-2.3.247-dist.zip
+          rm -f NVU-PRO-2.3.248-dist.zip
+          (cd dist && zip -qr ../NVU-PRO-2.3.248-dist.zip .)
+          ls -lh NVU-PRO-2.3.248-dist.zip
 
       - name: Lint result
         if: always()
@@ -45,6 +45,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NVU-PRO-2.3.247-dist
-          path: NVU-PRO-2.3.247-dist.zip
+          name: NVU-PRO-2.3.248-dist
+          path: NVU-PRO-2.3.248-dist.zip
           if-no-files-found: error

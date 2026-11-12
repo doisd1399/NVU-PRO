@@ -898,10 +898,10 @@ function DriverProfileContent({ currentUser }: { currentUser: User }) {
     <>
       {activeTab === "profile" ? <DriverProfileToolbar view={profileView} onViewChange={setProfileView}
         infoOpen={isInfoOpen} onInfo={() => setIsInfoOpen(value => !value)} onEdit={() => setIsEditProfileOpen(true)}/> :
-      (activeTab !== "dashboard" || displayActiveJob) && <header className="nvu-driver-page-heading" data-page={activeTab}>
+      /* O Painel do motorista (aba dashboard) tem o próprio título dentro do menu — e "Trabalho atual" tem o seu — para não duplicar. */
+      activeTab !== "dashboard" && <header className="nvu-driver-page-heading" data-page={activeTab}>
         <div>
-          <h1>{activeTab === "dashboard" ? "Painel do motorista" : activeTab === "results" ? "Resultados" : "Atividade"}</h1>
-          {activeTab === "dashboard" && <p>Acompanhe suas entregas e o prazo.</p>}
+          <h1>{activeTab === "results" ? "Resultados" : "Atividade"}</h1>
           {activeTab === "results" && <p>Ganhos e relatórios</p>}
           {(activeTab === "activity" || activeTab === "operations") && <p>Suas viagens e operações</p>}
         </div>

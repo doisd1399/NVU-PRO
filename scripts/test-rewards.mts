@@ -325,4 +325,8 @@ test("Recusar oferta: também com o trabalho já encaminhado (confirma antes; o 
   assert.match(server, /decision === "decline" && text\(outcome\.offer\.jobId\)/); assert.match(server, /driverDecline: true/);
   assert.match(commands, /ownPendingDecline = options\.driverDecline === true && action === "cancel" && driverId === uid && old\.status === "pending"/, "só o próprio motorista, só cancelar, só trabalho pendente");
 });
+test("Painel do motorista: título único (a página não repete o título do menu)", () => {
+  const profile = readFileSync("src/pages/driver/Profile.tsx", "utf8");
+  assert.match(profile, /activeTab !== "dashboard" && <header className="nvu-driver-page-heading"/); assert.doesNotMatch(profile, /Acompanhe suas entregas e o prazo/, "sem o segundo título na aba do painel");
+});
 console.log(`${checks} verificações de Recompensas passaram.`);

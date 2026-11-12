@@ -1,7 +1,7 @@
 ﻿<#
  Confere o instalador da NVU PRO que está NO SEU COMPUTADOR (o arquivo realmente baixado) contra o release-manifest.json que o acompanha.
  Uso (PowerShell, na pasta dos arquivos):   .\Verificar-NVU.ps1
-                                            .\Verificar-NVU.ps1 -Installer "C:\Downloads\NVU-PRO-Setup-0.2.16-x64.exe"
+                                            .\Verificar-NVU.ps1 -Installer "C:\Downloads\NVU-PRO-Setup-0.2.17-x64.exe"
  Resultado: tamanho, SHA-256 e assinatura digital. NÃO desativa nenhuma proteção do Windows.
  Códigos de saída: 0 = confere · 1 = tamanho/SHA-256 diferentes (download incompleto ou alterado) · 2 = arquivo não encontrado · 3 = confere, mas NÃO está assinado/validado · 4 = erro inesperado.
  Ao abrir com o botão direito (Executar com o PowerShell) a janela espera Enter para você ler o resultado; use -NoPause para automação.
@@ -25,7 +25,7 @@ try {
     if ($found) { $Installer = $found.FullName }
   }
   if (-not $Installer -or -not (Test-Path -LiteralPath $Installer)) {
-    Write-Host 'Instalador não encontrado. Informe o caminho: .\Verificar-NVU.ps1 -Installer "C:\Downloads\NVU-PRO-Setup-0.2.16-x64.exe"'
+    Write-Host 'Instalador não encontrado. Informe o caminho: .\Verificar-NVU.ps1 -Installer "C:\Downloads\NVU-PRO-Setup-0.2.17-x64.exe"'
     Finish 2
   }
   if (-not $Manifest) { $Manifest = Join-Path (Split-Path -Parent $Installer) 'release-manifest.json' }
