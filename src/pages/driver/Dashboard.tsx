@@ -988,7 +988,7 @@ function DashboardComponent({
     />;
 
     const filaOperacionalSection = pendingDriverJobs.length > 0 && <DriverAssignedQueue
-      key={`assigned:${resultScope}`} jobs={pendingDriverJobs} contracts={contracts} suspended={operationalSuspension.active}
+      key={`assigned:${resultScope}`} jobs={pendingDriverJobs} contracts={contracts} companyName={currentCompany?.companyName || currentCompany?.name} suspended={operationalSuspension.active}
       startingJobId={startingJobId} onStart={async job => {
         if (operationalSuspension.active || startingJobId) return;
         if (job.partnershipId) { setPartnershipStartJob(job); return; }

@@ -485,7 +485,6 @@ body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { p
 /* Fila de encaminhamentos: cartões compactos; a oferta de trabalho (com pagamento) ganha destaque, selo e as condições em blocos. */
 .nvu-queue-list { display: grid; gap: 8px; margin-top: 10px; }
 .nvu-queue-card { border: 1px solid var(--idle-line); border-radius: 14px; background: color-mix(in srgb, var(--idle-icon-paper) 45%, transparent); overflow: hidden; }
-.nvu-queue-card[data-reward="1"] { border-color: color-mix(in srgb, var(--idle-accent) 50%, var(--idle-line)); background: linear-gradient(135deg, color-mix(in srgb, var(--idle-accent) 16%, var(--idle-paper)), var(--idle-paper) 72%); box-shadow: inset 3px 0 0 var(--idle-accent); }
 .nvu-queue-card summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; list-style: none; cursor: pointer; min-height: 52px; }
 .nvu-queue-card summary::-webkit-details-marker { display: none; }
 .nvu-queue-index { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; background: var(--idle-icon-paper); color: var(--idle-accent); font-size: 11px; font-weight: 800; }
@@ -500,10 +499,36 @@ body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { p
 .nvu-queue-facts > div { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--idle-icon-paper) 85%, transparent); min-width: 0; }
 .nvu-queue-facts dt { margin: 0; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--idle-muted); }
 .nvu-queue-facts dd { margin: 2px 0 0; font-size: 15px; font-weight: 800; line-height: 1.2; color: var(--idle-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nvu-queue-facts [data-k="money"] dd { color: var(--idle-accent); }
-.nvu-queue-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; font-size: 12px; line-height: 1.4; color: var(--idle-muted); }
-.nvu-queue-note svg { flex: none; margin-top: 1px; color: var(--idle-accent); }
 .nvu-queue-start { width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 12px; color: #f1f5f6; background: var(--idle-action); font-size: 13.5px; font-weight: 700; }
 .nvu-queue-start:disabled { opacity: .55; cursor: not-allowed; }
 .nvu-queue-facts dd small { font-size: 11px; font-weight: 600; color: var(--idle-muted); }
 .nvu-queue-card[open] .nvu-queue-title small { display: none; } /* aberto, os blocos abaixo já mostram esses dados */
+/* Oferta de trabalho (layout "Compacto"): números menores, respiro entre as faixas, altura baixa. */
+.nvu-offer-card { --offer-gold: #b7791f; display: grid; gap: 13px; padding: 14px; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--idle-accent) 35%, var(--idle-line)); background: linear-gradient(155deg, color-mix(in srgb, var(--idle-accent) 14%, var(--idle-paper)), var(--idle-paper) 62%, color-mix(in srgb, #6b57d6 7%, var(--idle-paper))); box-shadow: 0 10px 28px rgba(15, 35, 42, .10), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.dark .nvu-offer-card { --offer-gold: #ffd98a; box-shadow: 0 14px 34px rgba(0, 0, 0, .35), inset 0 1px 0 rgba(255, 255, 255, .10); }
+.nvu-offer-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nvu-offer-badge { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px 4px 4px; border-radius: 999px; background: color-mix(in srgb, var(--idle-accent) 14%, transparent); color: var(--idle-text); font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.nvu-offer-badge i { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--idle-accent); color: var(--idle-paper); }
+.nvu-offer-tag { padding: 3px 10px; border-radius: 999px; font-style: normal; font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; color: #3b2600; background: linear-gradient(135deg, #ffe29a, #f2b53f); }
+.nvu-offer-card[data-state="accepted"] .nvu-offer-tag { color: var(--idle-success); background: color-mix(in srgb, var(--idle-success) 16%, transparent); }
+.nvu-offer-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; min-width: 0; }
+.nvu-offer-head > div { min-width: 0; display: grid; gap: 4px; }
+.nvu-offer-head strong { font-size: 19px; line-height: 1.1; letter-spacing: -.02em; font-weight: 800; color: var(--idle-text); overflow-wrap: anywhere; }
+.nvu-offer-head small { font-size: 11px; color: var(--idle-muted); line-height: 1.3; }
+.nvu-offer-price { text-align: right; flex: none; }
+.nvu-offer-price b { font-size: 19px; line-height: 1.1; letter-spacing: -.02em; font-weight: 800; color: var(--idle-accent); white-space: nowrap; }
+.nvu-offer-price small { font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+.nvu-offer-facts { display: grid; grid-template-columns: repeat(3, 1fr); margin: 0; border-radius: 14px; border: 1px solid var(--idle-line); background: color-mix(in srgb, var(--idle-icon-paper) 70%, transparent); }
+.nvu-offer-facts > div { min-width: 0; padding: 9px 11px; }
+.nvu-offer-facts > div + div { border-left: 1px solid var(--idle-line); }
+.nvu-offer-facts dt { margin: 0; font-size: 8.5px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--idle-muted); }
+.nvu-offer-facts dd { margin: 4px 0 0; font-size: 13px; font-weight: 800; line-height: 1.15; color: var(--idle-text); white-space: nowrap; }
+.nvu-offer-facts dd small { font-size: 10px; font-weight: 600; color: var(--idle-muted); }
+.nvu-offer-facts [data-k="deadline"] dd { color: var(--offer-gold); }
+.nvu-offer-facts [data-k="deadline"] dd small { color: var(--idle-muted); }
+.nvu-offer-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; font-size: 11px; line-height: 1.45; color: var(--idle-muted); }
+.nvu-offer-note svg { flex: none; margin-top: 1px; color: var(--idle-accent); }
+.nvu-offer-note strong { color: var(--offer-gold); font-weight: 800; }
+.nvu-offer-card[data-late="1"] .nvu-offer-note strong { color: #c0392b; }
+.nvu-offer-start { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; margin-top: 1px; padding: 4px 5px 4px 18px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #052b2a; background: linear-gradient(135deg, #c9fff6, #69e0cf 60%, #3fc1b3); box-shadow: 0 8px 20px rgba(63, 193, 179, .28), inset 0 1px 0 rgba(255, 255, 255, .55); }
+.nvu-offer-start i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #052b2a; color: #c9fff6; }

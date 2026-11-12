@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Building2, Check, CheckCircle2, ChevronDown, ChevronRight, History, Info, Route, Wallet } from "lucide-react";
+import { ArrowRight, Building2, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, History, Route, Wallet } from "lucide-react";
 import { useSessionStore } from "../../context/AppContext";
 import { useDriverRewards } from "../../hooks/useRewards";
 import { formatMoney } from "../../lib/partnerships";
@@ -79,11 +79,22 @@ const brt = (ms: number) => new Date(ms - 3 * 3_600_000).toISOString();
 /** Data ("16/11") e hora ("14:19") em horário de Brasília, curtas para caber nos cartões. */
 const deadlineParts = (ms: number) => { const iso = brt(ms); return { day: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, time: iso.slice(11, 16) }; };
 
+/** "3d 23h", "5h 10min" ou "menos de 1 min" — tempo que falta até o prazo da oferta. */
+export function remainingLabel(deadlineMs: number, nowMs: number): string {
+  const left = deadlineMs - nowMs;
+  if (left <= 0) return "";
+  const min = Math.floor(left / 60_000), d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}min`;
+  return m > 0 ? `${m} min` : "menos de 1 min";
+}
+
 /** Fila de encaminhamentos (visual): cartões compactos; o trabalho com pagamento (oferta) ganha selo, destaque e as condições em blocos. */
-export function AssignedQueueView({ jobs, contracts, suspended, startingJobId, onStart, rewardOf, defaultOpenId }: {
+export function AssignedQueueView({ jobs, contracts, suspended, startingJobId, onStart, rewardOf, defaultOpenId, companyName, nowMs }: {
   jobs: Job[]; contracts: Contract[]; suspended: boolean; startingJobId: string | null; onStart: (job: Job) => void;
-  rewardOf: (job: Job) => { perTripCents: number; deadlineMs: number; maxTripsPerDriver: number; status: string } | undefined; defaultOpenId?: string;
+  rewardOf: (job: Job) => { perTripCents: number; deadlineMs: number; maxTripsPerDriver: number; status: string } | undefined; defaultOpenId?: string; companyName?: string; nowMs?: number;
 }) {
+  const now = nowMs ?? Date.now();
   const [expanded, setExpanded] = useState(true);
   const id = React.useId();
   return <section className="nvu-idle-assigned-queue" aria-label="Trabalhos encaminhados pela empresa">
@@ -94,30 +105,46 @@ export function AssignedQueueView({ jobs, contracts, suspended, startingJobId, o
       {jobs.map((job, index) => {
         const contract = resolveOperationContract(job, contracts), reward = rewardOf(job), deliveries = contract?.totalDeliveries || 0, days = contract?.deadlineDays || 0;
         const facts = [deliveries ? `${deliveries} entregas` : "Entregas a definir", days ? `${days} ${days === 1 ? "dia" : "dias"}` : ""].filter(Boolean).join(" · ");
-        return <details key={job.id} className="nvu-queue-card nvu-idle-assigned-row" data-reward={reward ? "1" : undefined} open={defaultOpenId === job.id || undefined}>
+        if (reward) {
+          const trips = reward.maxTripsPerDriver || deliveries || 0, cap = trips ? reward.perTripCents * trips : 0, left = reward.deadlineMs ? remainingLabel(reward.deadlineMs, now) : "";
+          const late = Boolean(reward.deadlineMs) && !left, subtitle = [companyName, contract?.simulator].filter(Boolean).join(" · ");
+          return <article key={job.id} className="nvu-offer-card nvu-idle-assigned-row" data-state={reward.status} data-late={late ? "1" : undefined}>
+            <header className="nvu-offer-top">
+              <span className="nvu-offer-badge"><i><Wallet size={13} aria-hidden="true" /></i>Oferta de trabalho</span>
+              <em className="nvu-offer-tag">{reward.status === "pending" ? "Nova" : "Aceita"}</em>
+            </header>
+            <div className="nvu-offer-head">
+              <div><strong>{contract?.name || "Operação atribuída"}</strong>{subtitle ? <small>{subtitle}</small> : null}</div>
+              <div className="nvu-offer-price"><b>{formatMoney(reward.perTripCents)}</b><small>por viagem</small></div>
+            </div>
+            <dl className="nvu-offer-facts">
+              <div><dt>Viagens</dt><dd>{trips || "—"}</dd></div>
+              <div><dt>Teto</dt><dd>{cap ? formatMoney(cap) : "—"}</dd></div>
+              <div data-k="deadline"><dt>Prazo</dt><dd>{reward.deadlineMs ? <>{deadlineParts(reward.deadlineMs).day} <small>{deadlineParts(reward.deadlineMs).time}</small></> : days ? `${days} d` : "—"}</dd></div>
+            </dl>
+            <p className="nvu-offer-note"><Clock size={14} aria-hidden="true" /><span>{late ? <strong>Prazo encerrado.</strong> : left ? <strong>Restam {left}.</strong> : null} Fora do prazo você finaliza, mas não recebe.</span></p>
+            <button type="button" className="nvu-queue-start nvu-offer-start nvu-idle-assigned-start" onClick={() => onStart(job)} disabled={suspended || Boolean(startingJobId)}>
+              <span>{startingJobId === job.id ? "Iniciando operação…" : reward.status === "pending" ? "Ver condições e iniciar" : "Iniciar operação"}</span><i><ArrowRight size={16} aria-hidden="true" /></i>
+            </button>
+          </article>;
+        }
+        return <details key={job.id} className="nvu-queue-card nvu-idle-assigned-row" open={defaultOpenId === job.id || undefined}>
           <summary>
             <span className="nvu-queue-index">{index + 1}</span>
             <span className="nvu-queue-title">
-              {reward ? <em className="nvu-queue-chip"><Wallet size={11} aria-hidden="true" /> Oferta de trabalho</em> : job.partnershipId ? <em className="nvu-queue-chip">Parceria</em> : null}
+              {job.partnershipId ? <em className="nvu-queue-chip">Parceria</em> : null}
               <strong>{contract?.name || "Operação atribuída"}</strong>
-              <small>{reward ? `${formatMoney(reward.perTripCents)}/viagem${reward.deadlineMs ? ` · até ${deadlineParts(reward.deadlineMs).day}` : ""}` : facts}</small>
+              <small>{facts}</small>
             </span>
             <ChevronDown size={16} aria-hidden="true" className="nvu-queue-chevron" />
           </summary>
           <div className="nvu-queue-body">
             <dl className="nvu-queue-facts">
-              {reward ? <>
-                <div data-k="money"><dt>Por viagem</dt><dd>{formatMoney(reward.perTripCents)}</dd></div>
-                <div><dt>Viagens</dt><dd>{reward.maxTripsPerDriver || deliveries || "—"}</dd></div>
-                <div><dt>Prazo</dt><dd>{reward.deadlineMs ? <>{deadlineParts(reward.deadlineMs).day} <small>{deadlineParts(reward.deadlineMs).time}</small></> : days ? `${days} d` : "—"}</dd></div>
-              </> : <>
                 <div><dt>Entregas</dt><dd>{deliveries || "—"}</dd></div>
                 <div><dt>Prazo</dt><dd>{days ? `${days} ${days === 1 ? "dia" : "dias"}` : "—"}</dd></div>
-              </>}
             </dl>
-            {reward ? <p className="nvu-queue-note"><Info size={14} aria-hidden="true" />Fora do prazo você finaliza, mas não recebe pelo serviço.</p> : null}
             <button type="button" className="nvu-queue-start nvu-idle-assigned-start" onClick={() => onStart(job)} disabled={suspended || Boolean(startingJobId)}>
-              {startingJobId === job.id ? "Iniciando operação…" : reward?.status === "pending" ? "Ver condições e iniciar" : "Iniciar operação"}
+              {startingJobId === job.id ? "Iniciando operação…" : "Iniciar operação"}
             </button>
           </div>
         </details>;
@@ -127,7 +154,7 @@ export function AssignedQueueView({ jobs, contracts, suspended, startingJobId, o
 }
 
 /** Existing manual assignments use their original startJob handler; a trabalho com pagamento é identificado pela oferta do motorista (escuta compartilhada). */
-export function DriverAssignedQueue(props: { jobs: Job[]; contracts: Contract[]; suspended: boolean; startingJobId: string | null; onStart: (job: Job) => void }) {
+export function DriverAssignedQueue(props: { jobs: Job[]; contracts: Contract[]; suspended: boolean; startingJobId: string | null; onStart: (job: Job) => void; companyName?: string }) {
   const { currentUser } = useSessionStore();
   const { offers } = useDriverRewards(currentUser?.id);
   const rewardOf = (job: Job) => offers.find(offer => offer.jobId === job.id && (offer.status === "pending" || offer.status === "accepted"));

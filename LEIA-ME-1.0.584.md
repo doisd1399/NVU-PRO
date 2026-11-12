@@ -1,6 +1,12 @@
-# NVU PRO 1.0.583 (Android) / Web 2.3.240 / Windows 0.2.9
+# NVU PRO 1.0.584 (Android) / Web 2.3.241 / Windows 0.2.10
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 583 — instala como atualização da 582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 584 — instala como atualização da 583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.584 — Painel do motorista: card “Oferta de trabalho” compacto (layout aprovado)
+- **O trabalho com pagamento ganha um card próprio** em “Encaminhamentos da empresa”: selo “Oferta de trabalho” dentro do card, etiqueta **Nova** (dourada; vira **Aceita** depois do aceite), nome da operação e **valor por viagem** lado a lado, faixa **Viagens · Teto · Prazo**, linha “**Restam 3d 23h.** Fora do prazo você finaliza, mas não recebe.” e o botão arredondado “Ver condições e iniciar”.
+- **Mais compacto e com respiro:** números menores, mais espaço entre as faixas e menos altura vertical. Claro e escuro. Passado o prazo, a linha mostra “Prazo encerrado.” em vermelho.
+- Operação comum e Parceria seguem como cartão recolhível (Entregas · Prazo + “Iniciar operação”).
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.583 — Fila de encaminhamentos redesenhada
 - **Novo visual compacto e moderno** para “Encaminhamentos da empresa”: cada trabalho é um **cartão** (número, nome e resumo numa linha). A **Oferta de trabalho** ganha destaque (borda e fundo com a cor do tema), selo e, ao abrir, **blocos** com **Por viagem · Viagens · Prazo** (data e hora), um aviso curto (“Fora do prazo você finaliza, mas não recebe pelo serviço”) e **botão de largura total**. Antes o texto ficava espremido ao lado do botão.
