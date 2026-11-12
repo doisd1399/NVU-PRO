@@ -24,3 +24,12 @@ export function partnershipTripRecords(rows: Partnership[], companyId: string): 
   }
   return out;
 }
+
+/**
+ * Viagem feita pela empresa executora numa operação de parceria (B2P). Não conta na Central, no histórico nem nos ganhos da executora
+ * (nem em nenhum ranking): só no perfil do motorista e na empresa contratante. O registro sintético da contratante (partnershipRole "contractor") conta.
+ */
+export function isPartnershipExecution(trip: unknown): boolean {
+  const row = trip && typeof trip === "object" ? trip as Record<string, unknown> : {};
+  return Boolean(row.partnershipId || row.partnership === true) && row.partnershipRole !== "contractor";
+}

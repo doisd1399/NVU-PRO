@@ -20,7 +20,7 @@ export function WalletView({ entries, totals, busy, onOpen, onPay }: { entries: 
         <button type="button" role="tab" key={id} aria-selected={filter === id} data-on={filter === id ? "1" : "0"} onClick={() => setFilter(id)}>{label}</button>)}
     </div>
     {shown.length ? <div>{shown.map(entry => {
-      const action = entry.kind === "investimento" && entry.status === "a_pagar" ? "Marcar como pago" : entry.kind === "ganho" && (entry.status === "a_receber" || entry.status === "pago") ? "Confirmar recebimento" : "";
+      const action = entry.kind === "investimento" && entry.status === "a_pagar" ? "Pagar com comprovante" : entry.kind === "ganho" && (entry.status === "a_receber" || entry.status === "pago") ? "Confirmar recebimento" : "";
       return <div key={entry.id}><WalletRow e={entry} busy={busy} onAction={action ? () => onPay(entry) : undefined} actionLabel={action} />
         <div className="b2p-wactions" style={{ paddingBottom: 6, paddingTop: 0, marginTop: -6 }}><button type="button" className="b2p-btn" data-v="text" data-size="sm" onClick={() => onOpen(entry.partnershipId)}>Ver parceria</button></div></div>;
     })}</div> : <p className="b2p-empty">Sem movimentos ainda. Parcerias com valor do acordo aparecem aqui.</p>}

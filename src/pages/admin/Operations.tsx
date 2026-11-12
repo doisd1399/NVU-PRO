@@ -50,6 +50,7 @@ export default function Operations() {
   const { currentUser } = useSessionStore();
   const { historicoTrips = [] } = useTripHistory(activeCompanyId, {
     userId: currentUser?.id,
+    companyView: true,
   });
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ongoing");

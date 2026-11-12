@@ -177,6 +177,7 @@ function CompanyTab({
   } = useTripHistory(activeCompanyId, {
     enabled: Boolean(activeCompanyId),
     userId: currentUser?.id,
+    companyView: true,
   });
   // Resultados card of the Resumo: the company's trips as the Resultados page counts them, computed only when it is opened.
   const getCompanyResultTrips = useCallback(() => filterAndSortTripHistory(historicoTrips, { periodPreset: "todos" })

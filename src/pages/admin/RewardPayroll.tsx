@@ -8,6 +8,7 @@ import type { RewardOffer } from "../../lib/rewards";
 import { rewardErrorMessage } from "../../lib/rewards";
 import { BackLink, Section } from "../../components/partnerships/shared";
 import { PixPayPanel, ReceiptCard, Row } from "../../components/rewards/PaymentParts";
+import { ReceiptAttach } from "../../components/rewards/ReceiptAttach";
 
 const initials = (name: string) => name.split(/\s+/).map(word => word[0]).slice(0, 2).join("").toUpperCase();
 const Pill = ({ status }: { status: RewardPayment["status"] }) => <span className="b2p-pill" data-tone={PAYMENT_TONE[status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{COMPANY_PAYMENT_LABEL[status]}</span>;
@@ -83,8 +84,9 @@ export function PaymentDetail({ payment, onBack, backLabel }: { payment: RewardP
       <PixPayPanel payment={payment} />
       <section className="nvu-central-section b2p-sec"><div className="b2p-form">
         <div className="b2p-field"><span className="b2p-label">Código da transação Pix (opcional)</span><div className="b2p-input"><input value={e2e} maxLength={40} autoComplete="off" placeholder="Ex.: E1234567890…" onChange={event => setE2e(event.target.value)} /></div><span className="b2p-hint">Aparece no comprovante do banco.</span></div>
-        <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void run(() => rewardService.markPaid(payment.id, e2e), "Não foi possível marcar como pago.", "Marcado como pago. O motorista foi avisado.")}>{busy ? "Salvando…" : "Marcar como pago"}</button>
-          <button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={() => { if (window.confirm("Cancelar este pagamento? O valor volta para a próxima folha.")) void run(() => rewardService.cancelPayment(payment.id), "Não foi possível cancelar.", "Pagamento cancelado."); }}>Cancelar pagamento</button></div>
+        <ReceiptAttach scope="reward-receipt" refId={payment.id} expectedCents={payment.amountCents} busy={busy}
+          onConfirm={proof => run(() => rewardService.markPaid(payment.id, proof, e2e), "Não foi possível marcar como pago.", "Marcado como pago. O motorista foi avisado.")} />
+        <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={() => { if (window.confirm("Cancelar este pagamento? O valor volta para a próxima folha.")) void run(() => rewardService.cancelPayment(payment.id), "Não foi possível cancelar.", "Pagamento cancelado."); }}>Cancelar pagamento</button></div>
       </div></section>
     </> : <ReceiptCard payment={payment} />}
   </>;

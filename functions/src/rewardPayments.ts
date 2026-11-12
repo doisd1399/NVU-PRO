@@ -4,6 +4,7 @@
  */
 import * as admin from "./firebaseAdmin";
 import * as functions from "firebase-functions/v1";
+import { normalizeProof, REWARD_RECEIPT_PREFIX } from "./receiptProofPolicy";
 import { createHash } from "node:crypto";
 import { requireCompanyManager } from "./companyAccess";
 import { CALLABLE_REGIONS } from "./callableRegions";
@@ -146,8 +147,10 @@ export const markRewardPaid = functions.region(...CALLABLE_REGIONS).https.onCall
     const found = await step(db, tx, context, paymentId, "pay", "manager");
     if (found.replay) return { replayed: true, payment: found.payment };
     const paidAtMs = Date.now(), p = found.payment;
+    // Comprovante do banco anexado e conferido com o valor do pagamento (leitura feita no aparelho).
+    const proof = normalizeProof(data.proof, Number(p.amountCents) || 0, REWARD_RECEIPT_PREFIX, paymentId, context.auth!.uid, paidAtMs);
     const receipt = { number: receiptNumber(paymentId, paidAtMs), paidAtMs, amountCents: Number(p.amountCents) || 0, payerName: text(p.companyName), payeeName: text(p.driverName), pixType: text(p.pixType), pixKeyMasked: maskPixKey(text(p.pixType), text(p.pixKey)), e2eId,
-      campaigns: (Array.isArray(p.items) ? p.items : []).map((item: Data) => text(item.campaignName)).filter(Boolean) };
+      campaigns: (Array.isArray(p.items) ? p.items : []).map((item: Data) => text(item.campaignName)).filter(Boolean), proof };
     const stamp = admin.firestore.FieldValue.serverTimestamp();
     tx.update(found.ref, { status: "paid", paidAtMs, receipt, payAttempts: (Number(p.payAttempts) || 0) + 1, contestReason: admin.firestore.FieldValue.delete(), contestedAtMs: admin.firestore.FieldValue.delete(), updatedAt: stamp });
     return { replayed: false, payment: p, receipt };

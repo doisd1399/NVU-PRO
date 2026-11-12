@@ -60,6 +60,7 @@ function DriversTab() {
   }, [displayUsers, contacts, driverRequests, activeCompanyId]);
   const { historicoTrips = [] } = useTripHistory(activeCompanyId, {
     userId: currentUser?.id,
+    companyView: true,
   });
   React.useEffect(() => {
     if (currentUser?.id && activeCompanyId) void prepareFleetMembership(activeCompanyId, "fleet-ready");

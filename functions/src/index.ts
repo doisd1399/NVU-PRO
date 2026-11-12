@@ -158,5 +158,5 @@ export { processSeniorAccountCommand, recoverSeniorAccountCommands } from "./sen
 export { deleteCompanyCanonical, processCompanyDeletion, recoverCompanyDeletions } from "./companyDeletion";
 
 export { createPartnershipOffer, respondPartnershipOffer, cancelPartnershipOffer, designatePartnershipDriver, settlePartnershipPayment, setPartnershipPix, hidePartnership, syncPartnershipFromJob, syncPartnershipTrips } from "./partnerships";
-export { createRewardCampaign, respondRewardOffer, cancelRewardCampaign, syncRewardTrips, rewardDeadlineTick } from "./rewards";
+export { createRewardCampaign, respondRewardOffer, cancelRewardCampaign, updateRewardCampaign, syncRewardTrips, rewardDeadlineTick } from "./rewards";
 export { setRewardPayDay, setRewardPix, generateRewardPayroll, rewardPayDayTick, markRewardPaid, confirmRewardReceived, contestRewardPayment, cancelRewardPayment } from "./rewardPayments";

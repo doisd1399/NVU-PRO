@@ -1,3 +1,5 @@
+import { ReceiptAttach, ProofLine, type ReceiptProofInput } from "../rewards/ReceiptAttach";
+import { PROOF_LABEL } from "../../lib/rewardPayments";
 import React from "react";
 import { ArrowRight } from "lucide-react";
 import { formatDays, formatMoney, LATE_PENALTY_PERCENT, remainingText, resultsOf, roleIn, type Partnership, type PixType, shortName } from "../../lib/partnerships";
@@ -39,7 +41,7 @@ export function OfferDetail({ p, busy, notReady, onBack, onAccept, onDecline, on
 
 /** Detalhe da parceria: o card da operação e, abaixo, um resumo curto em lista (ganhos, duração, valor, pagamento). O resto fica em "Informações da operação" (ⓘ). */
 export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay, onInfo, company, onDriver, onSavePix }: {
-  p: Partnership; me: string; now: number; busy: boolean; onBack: () => void; onDesignate: () => void; onCancel: () => void; onPay: (action: "paid" | "received") => void; onInfo: () => void;
+  p: Partnership; me: string; now: number; busy: boolean; onBack: () => void; onDesignate: () => void; onCancel: () => void; onPay: (action: "paid" | "received", proof?: ReceiptProofInput) => Promise<unknown> | void; onInfo: () => void;
   company: { name: string; simulator: string }; onDriver?: () => void; onSavePix: (type: PixType, key: string) => Promise<void>;
 }) {
   const role = roleIn(p, me), s = p.settlement, pay = p.payment, r = resultsOf(p);
@@ -61,9 +63,11 @@ export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay,
       <button type="button" className="b2p-summary-more" onClick={onInfo}>Mais informações da operação<ArrowRight size={18} aria-hidden="true" /></button>
     </section>
     <PixSection p={p} me={me} busy={busy} onSave={onSavePix} />
-    {(needsDriver || (role === "contractor" && pay?.status === "pending") || (role === "executor" && pay && pay.status !== "settled") || (role === "contractor" && p.status === "pending")) ? <div className="b2p-actions b2p-detail-actions">
+    {role === "contractor" && s && pay?.status === "pending" ? <section className="nvu-central-section b2p-sec"><div className="b2p-form">
+      <ReceiptAttach scope="partnership-receipt" refId={p.id} expectedCents={s.finalCents} busy={busy} onConfirm={async proof => { await onPay("paid", proof); }} /></div></section> : null}
+    {pay?.proof ? <ProofLine proof={pay.proof} label={`${PROOF_LABEL[pay.proof.check]}.`} /> : null}
+    {(needsDriver || (role === "executor" && pay && pay.status !== "settled") || (role === "contractor" && p.status === "pending")) ? <div className="b2p-actions b2p-detail-actions">
       {needsDriver ? <button type="button" className="b2p-btn" data-v="primary" onClick={onDesignate}>Designar trabalho</button> : null}
-      {role === "contractor" && pay?.status === "pending" ? <button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onPay("paid")}>Marcar como pago</button> : null}
       {role === "executor" && pay && pay.status !== "settled" ? <button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onPay("received")}>Confirmar recebimento</button> : null}
       {role === "contractor" && p.status === "pending" ? <button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onCancel}>Cancelar oferta</button> : null}
     </div> : null}

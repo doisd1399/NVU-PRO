@@ -58,6 +58,7 @@ export default function ContractDetailsPage() {
   const { historicoTrips = [] } = useTripHistory(contract?.companyId, {
     enabled: Boolean(contract?.companyId),
     userId: currentUser?.id,
+    companyView: true,
   });
   
   if (!contractId || !contract) {

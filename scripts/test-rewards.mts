@@ -4,6 +4,11 @@ import { readFileSync } from "node:fs";
 import { accrueRewards, campaignBudget as serverBudget, driverMaxCents as serverDriverMax, goalEstimate as serverGoalEstimate, dayBounds, estimateMaxCost as serverEstimate, normalizeCampaign } from "../functions/src/rewardPolicy.ts";
 import { buildPayroll, offerCompleted as serverCompleted, dateBRT, maskPixKey, nextPaymentStatus, normalizeDispute, normalizeE2e, normalizePayDay, receiptNumber, weekdayBRT, type PaymentAction, type PaymentStatus } from "../functions/src/rewardPolicy.ts";
 import { isWorkspaceSubpage, workspaceDockActive } from "../src/lib/workspaceDock.ts";
+import { checkReceiptAmount, readReceiptAmounts } from "../src/lib/receiptAmounts.ts";
+import { isPartnershipExecution } from "../src/lib/partnershipTrips.ts";
+import { normalizeProof as clientProof } from "../src/lib/rewardPayments.ts";
+import { normalizeProof as serverProof } from "../functions/src/receiptProofPolicy.ts";
+import { DRIVER_MENU_ITEMS } from "../src/components/workspaceMenuItems.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
 import { PHASE_LABEL, offerPhase, timeLeftText, campaignBudget, campaignState, driverMaxCents, goalEstimate, goalOf, estimateMaxCost, normalizeCampaign as clientCampaign, normalizeOffer, offerCompleted, periodText, rewardErrorMessage, termText } from "../src/lib/rewards.ts";
@@ -144,7 +149,7 @@ test("Formulário da campanha: campos fora do componente (o teclado não fecha a
   const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), form = page.slice(page.indexOf("function NewCampaign("), page.indexOf("function CampaignDetail("));
   assert.doesNotMatch(form, /\bconst Field\s*=/, "componente declarado dentro de outro remonta os campos a cada letra e fecha o teclado");
   assert.match(page, /^const Field = /m);
-  assert.deepEqual(["1. Operação", "2. Valor por viagem", "3. Meta de ganhos", "4. Nome da campanha"].filter(label => !form.includes(label)), []);
+  assert.deepEqual(["1. Operação", "2. Veículo", "3. Valor por viagem", "4. Meta de ganhos", "5. Nome da campanha"].filter(label => !form.includes(label)), []);
   assert.match(form, /<DriverMultiSelect /, "seletor de motoristas igual ao do Encaminhar trabalho"); assert.match(readFileSync("src/components/rewards/DriverMultiSelect.tsx", "utf8"), /Selecionar todos[\s\S]*nvu-assignment-driver-list|nvu-assignment-driver-list[\s\S]*Selecionar todos/); assert.doesNotMatch(form, /Quem participa|b2p-seg/); assert.match(page, /audience: "selected", driverIds: picked/, "sempre envia os motoristas escolhidos"); assert.doesNotMatch(readFileSync("src/pages/admin/Rewards.tsx", "utf8") + readFileSync("src/pages/driver/Rewards.tsx", "utf8") + readFileSync("src/components/driver/DriverRewardsEntry.tsx", "utf8"), />Recompensas<|shell\("Recompensas"|label="Recompensas"|shell\("Salário"|label="Salário"|>Salário</, "o nome da área é Pagamentos"); assert.doesNotMatch(form, /Teto de investimento da campanha|Bônus da meta|Meta para o bônus/); assert.match(form, /AssignJobAssetPicker kind="contract"/, "seletor de operações já existente (busca, pastas e rolagem própria)"); assert.match(form, /<Row label="Total de viagens" value=\{totalTrips\} \/>/, "total de viagens = motoristas × viagens da operação (sem mostrar a conta)"); assert.match(form, /<Row label="Estimativa da meta"/); assert.match(form, /goalEstimate\(goalCents, people\)/); assert.match(form, /<Row label="Total a pagar"/); assert.doesNotMatch(form, /b2p-grid2|b2p-facts/, "campos empilhados e resumo em lista"); assert.match(page, /b2p-label-row/, "dica na mesma linha do título, sem quebra"); assert.doesNotMatch(form, /Total de viagens \(|Estimativa da meta \(|Total a pagar \(|1 operação de/, "sem cálculos escritos na tela"); assert.doesNotMatch(form, /type="date"|Início|label="Fim"|startDate|endDate/, "o prazo é o da operação: sem início e fim");  assert.doesNotMatch(form, /changePerTrip|changeGoal|snapGoal/, "salário por viagem e meta no simulador são coisas diferentes: sem ligação"); assert.match(form, /payroll = totalTrips \* perTripCents/);  assert.doesNotMatch(form, /placeholder="25,00"|placeholder="300,00"|placeholder=\{[^}]*formatMoney/, "não sugere valores"); assert.match(form, /hint="Sugerimos pagamentos em centavos\."/); assert.match(form, /hint="Total de ganhos por operação\."/); assert.match(form, /b2p-form b2p-compact/, "formulário compacto"); assert.doesNotMatch(form, /setTripsInput|label="[0-9]\. Viagens/, "o empresário não digita viagens: vêm da operação"); assert.doesNotMatch(form.slice(form.indexOf("onSend({"), form.indexOf("onSend({") + 300), /maxTripsPerDriver/, "o pedido não envia viagens"); assert.match(form, /OperationCardBody/, "prévia da operação igual à lista"); assert.match(readFileSync("src/components/admin/AssignJobAssetPicker.tsx", "utf8"), /<OperationCardBody name=\{contract\.name\}/, "a lista usa o mesmo cartão da prévia"); assert.match(form, /totalDeliveries/, "viagens vêm do total da operação");
   assert.match(page, /item\.status === "active" && item\.deleted !== true/, "só operações ativas");
 });
@@ -215,5 +220,62 @@ test("Dock e Voltar no desktop: dock visível em Parcerias e Pagamentos (item at
   const nav = readFileSync("src/hooks/useWorkspaceNavigation.ts", "utf8"); assert.match(nav, /id === active && !subpage/, "numa subpágina, tocar no item ativo navega para a raiz");
   const back = readFileSync("src/hooks/useWindowsBack.ts", "utf8"); assert.match(back, /isWindowsDesktop\(\)/); assert.match(back, /event\.altKey && event\.key === "ArrowLeft"/, "Alt + ←"); assert.match(back, /event\.button === 3/, "botão voltar do mouse"); assert.match(back, /dismissTopOptionModal\(\)/, "fecha a janela aberta antes de voltar");
   for (const file of ["src/layouts/AdminLayout.tsx", "src/layouts/DriverLayout.tsx"]) { const layout = readFileSync(file, "utf8"); assert.match(layout, /useWindowsBack\(/, file); assert.match(layout, /<WindowsBackButton onClick=\{windowsBack\.goBack\}/, file); }
+});
+test("Menu flutuante do motorista: Pagamentos logo abaixo de Painel Operacional", () => {
+  assert.deepEqual(DRIVER_MENU_ITEMS.map(item => item.label).slice(0, 3), ["Painel Operacional", "Pagamentos", "Manual"]);
+  assert.equal(DRIVER_MENU_ITEMS[1].path, "/driver/recompensas");
+});
+test("Nova campanha: escolhe o veículo como em Encaminhar trabalho, prepara a empresa e encaminha o trabalho à fila", () => {
+  const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), form = page.slice(page.indexOf("function NewCampaign("), page.indexOf("function CampaignDetail("));
+  assert.match(form, /kind="vehicle"[\s\S]*vehicleUsageById=\{usage\}/, "mesmo seletor de veículo, com o uso por motorista"); assert.match(form, /Escolha o veículo do trabalho/); assert.match(form, /vehicleId, name: finalName/, "o veículo segue no pedido");
+  assert.match(page, /operationalCommandVersion !== 1\) await rewardService\.prepareCompany\(me\)/, "empresa preparada para o comando de encaminhar (como em Parcerias)");
+  assert.match(page, /Trabalho encaminhado a/); assert.match(page, /sent\.failed/, "quem não pôde receber é informado");
+  const server = readFileSync("functions/src/rewards.ts", "utf8"); assert.match(server, /action: "assign"[\s\S]*requestId: `rwj_/, "mesmo comando de encaminhar, com pedido fixo (não duplica)"); assert.match(server, /updateRewardCampaign = functions/); assert.match(server, /REWARD_UPDATED/); assert.match(server, /REWARD_COMPLETED/);
+  assert.match(readFileSync("functions/src/index.ts", "utf8"), /updateRewardCampaign/); assert.match(readFileSync("src/lib/callableRegions.ts", "utf8"), /"updateRewardCampaign"/);
+  const service = readFileSync("src/services/rewardService.ts", "utf8"); assert.match(service, /vehicleId: string/); assert.match(service, /"updateRewardCampaign"/);
+});
+test("Editar campanha: nome, valor por viagem e meta; o motorista é avisado e vê o que mudou", () => {
+  const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), det = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8"), work = readFileSync("src/pages/driver/RewardWork.tsx", "utf8");
+  assert.match(page, /Editar campanha/); assert.match(page, /expectedRevision: campaign\.revision/); assert.match(page, /Salvar e avisar motoristas/);
+  assert.match(det, /Atualizado em/); assert.match(work, /Atualizado pela empresa/);
+});
+test("Trabalho com pagamento: as condições aparecem ao iniciar (aceite), fora do prazo finaliza mas não recebe; sem Recusar para trabalho já encaminhado", () => {
+  const dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), sheet = readFileSync("src/components/driver/RewardStartSheet.tsx", "utf8"), det = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8");
+  assert.match(dash, /if \(rewardOfferFor\(job\)\) \{ setRewardStartJob\(job\); return; \}/, "o início passa pelas condições"); assert.match(dash, /rewardService\.respond\(offer\.id, "accept"\)/);
+  assert.match(sheet, /não recebe<\/b> pelo serviço, por romper o acordo/); assert.match(sheet, /Aceitar e iniciar/); assert.match(sheet, /Iniciar sem pagamento/, "prazo vencido: inicia mas sem pagamento"); assert.match(sheet, /informe sua chave Pix/);
+  assert.match(det, /offer\.jobId \? null :[\s\S]*Recusar/);
+});
+test("Ao concluir: o motorista confirma/informa a chave Pix (no prazo) ou é avisado de que não recebe (fora do prazo); uma vez por operação", () => {
+  const prompt = readFileSync("src/components/driver/RewardCompletionPrompt.tsx", "utf8"), layout = readFileSync("src/layouts/DriverLayout.tsx", "utf8");
+  assert.match(prompt, /offer\.completedAtMs > recent && !offer\.expired/); assert.match(prompt, /offer\.expired && offer\.expiredAtMs > recent/); assert.match(prompt, /<DriverPixCard /); assert.match(prompt, /Usar esta chave/); assert.match(prompt, /não recebe<\/b>/); assert.match(prompt, /nvu-reward-completion-seen/);
+  assert.match(layout, /<RewardCompletionPrompt driverId=\{currentUser\?\.id\} \/>/);
+});
+test("Comprovante: o app lê o valor no texto da imagem (R$, RS, milhar, centavos) e confere com o valor a pagar", () => {
+  assert.deepEqual(readReceiptAmounts("Comprovante Pix\nValor R$ 1.250,00\nData 12/11/2026 10:41\nCPF ***.982.247-**"), { candidates: [125000], best: 125000 });
+  assert.deepEqual(readReceiptAmounts("Valor\nRS 250,00\nTarifa R$ 0,00").best, 25000, "o OCR troca $ por S; depois de \"Valor\" vale o primeiro");
+  assert.deepEqual(readReceiptAmounts("sem números aqui 12/11"), { candidates: [], best: null });
+  assert.deepEqual(readReceiptAmounts("Total 7,5 e R$ 12.345.678,90").candidates, [1234567890]);
+  const reading = readReceiptAmounts("Pix enviado\nValor: R$ 40,00 Saldo R$ 1.000,00");
+  assert.deepEqual(checkReceiptAmount(reading, 4000), { check: "verified", readCents: 4000 }, "algum valor lido é o esperado"); assert.deepEqual(checkReceiptAmount(reading, 5000), { check: "different", readCents: 4000 });
+  assert.deepEqual(checkReceiptAmount({ candidates: [], best: null }, 5000), { check: "unread", readCents: null });
+});
+test("Comprovante: servidor e app leem igual; só o arquivo do gestor neste pagamento; valor diferente só com confirmação da empresa", () => {
+  const url = (refId: string, uid: string) => `https://firebasestorage.googleapis.com/v0/b/b.appspot.com/o/${encodeURIComponent(`reward-receipts/${refId}/${uid}/1.jpg`)}?alt=media`, now = 1_000;
+  assert.deepEqual([serverProof({ url: url("rp1", "u1"), readCents: 500 }, 500, "reward-receipts", "rp1", "u1", now).check, serverProof({ url: url("rp1", "u1"), readCents: null }, 500, "reward-receipts", "rp1", "u1", now).check, serverProof({ url: url("rp1", "u1"), readCents: 400, override: true }, 500, "reward-receipts", "rp1", "u1", now).check], ["verified", "unverified", "override"]);
+  rejects(() => serverProof({ url: url("rp1", "u1"), readCents: 400 }, 500, "reward-receipts", "rp1", "u1", now), /diferente do valor do pagamento/); rejects(() => serverProof({ readCents: 500 }, 500, "reward-receipts", "rp1", "u1", now), /Anexe o comprovante/);
+  rejects(() => serverProof({ url: url("rp2", "u1"), readCents: 500 }, 500, "reward-receipts", "rp1", "u1", now), /Anexe o comprovante/); rejects(() => serverProof({ url: url("rp1", "u2"), readCents: 500 }, 500, "reward-receipts", "rp1", "u1", now), /Anexe o comprovante/);
+  assert.deepEqual(clientProof({ url: "https://x/y", check: "verified", readCents: 500, attachedAtMs: 7 }), { url: "https://x/y", check: "verified", readCents: 500, attachedAtMs: 7 }); assert.equal(clientProof({}), null); assert.equal(clientProof({ url: "https://x/y", check: "qualquer" })?.check, "unverified");
+  const payroll = readFileSync("src/pages/admin/RewardPayroll.tsx", "utf8"), detail = readFileSync("src/components/partnerships/DetailScreens.tsx", "utf8"), partner = readFileSync("src/pages/admin/Partnerships.tsx", "utf8");
+  assert.match(payroll, /<ReceiptAttach scope="reward-receipt"/); assert.doesNotMatch(payroll, /rewardService\.markPaid\(payment\.id, e2e\)/, "marcar pago sem comprovante não existe mais");
+  assert.match(detail, /<ReceiptAttach scope="partnership-receipt"/, "Parcerias: mesmo esquema do comprovante"); assert.match(partner, /entry\.kind === "investimento" \? open\(entry\.partnershipId\)/, "pagar pela carteira abre a parceria para anexar o comprovante");
+  const rules = readFileSync("storage.rules", "utf8"); assert.match(rules, /match \/reward-receipts\/\{paymentId\}\/\{userId\}\/\{fileName\}/); assert.match(rules, /match \/partnership-receipts\/\{partnershipId\}\/\{userId\}\/\{fileName\}/); assert.match(readFileSync("src/services/uploadService.ts", "utf8"), /`reward-receipts\/\$\{cleanFolder\}\/\$\{uploaderUid\}/);
+});
+test("Viagens de parceria: fora do Ranking e da Central/histórico da empresa prestadora; só no perfil do motorista e na empresa contratante", () => {
+  assert.equal(isPartnershipExecution({ partnershipId: "po_1", companyId: "b" }), true, "viagem da executora"); assert.equal(isPartnershipExecution({ partnership: true }), true);
+  assert.equal(isPartnershipExecution({ partnershipId: "po_1", partnershipRole: "contractor" }), false, "registro da contratante conta"); assert.equal(isPartnershipExecution({ companyId: "b" }), false); assert.equal(isPartnershipExecution(null), false);
+  const hook = readFileSync("src/hooks/useTripHistory.ts", "utf8"); assert.match(hook, /companyView \? visibleState\.trips\.filter\(trip => !isPartnershipExecution\(trip\)\)/);
+  for (const file of ["src/pages/admin/Operations.tsx", "src/pages/admin/Reports.tsx", "src/pages/admin/fleet/OperationsTab.tsx", "src/pages/admin/fleet/CompanyTab.tsx", "src/pages/admin/fleet/DriversTab.tsx", "src/pages/admin/ContractDetailsPage.tsx", "src/pages/AuditPage.tsx"]) assert.match(readFileSync(file, "utf8"), /companyView: true/, file);
+  for (const file of ["src/pages/admin/DriverProfileReference.tsx", "src/pages/admin/DriverProfileIsolated.tsx", "src/pages/driver/TripHistory.tsx"]) assert.doesNotMatch(readFileSync(file, "utf8"), /companyView/, `${file}: perfil do motorista mantém tudo`);
+  const ranking = readFileSync("functions/src/rankingAggregates.ts", "utf8"); assert.match(ranking, /if \(isPartnershipTripRecord\(data\)\) return false;/, "nenhum ranking pontua viagem de parceria (agregados novos e reconstrução)");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

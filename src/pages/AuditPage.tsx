@@ -27,6 +27,7 @@ export default function AuditPage() {
   const { simulators = [] } = useOperationalStore();
   const { historicoTrips = [] } = useTripHistory(activeCompanyId, {
     userId: currentUser?.id,
+    companyView: true,
   });
   const [report, setReport] = useState<string>("Calculando...");
 

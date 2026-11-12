@@ -24,7 +24,7 @@ export interface UploadOptions {
   compressionMaxSizeMB?: number;
   maxWidthOrHeight?: number;
   maxOutputBytes?: number;
-  storageScope?: "default" | "trip-receipt" | "profile-cover" | "profile-photo" | "company-logo-draft" | "partnership-start-photo";
+  storageScope?: "default" | "trip-receipt" | "profile-cover" | "profile-photo" | "company-logo-draft" | "partnership-start-photo" | "reward-receipt" | "partnership-receipt";
   coverTarget?: ProfileCoverTarget;
   authTimeoutMs?: number;
   compressionTimeoutMs?: number;
@@ -293,6 +293,10 @@ export const uploadService = {
     const path =
       storageScope === "partnership-start-photo"
         ? `partnership-start-photos/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}`
+        : storageScope === "reward-receipt"
+        ? `reward-receipts/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}`
+        : storageScope === "partnership-receipt"
+        ? `partnership-receipts/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}`
         : storageScope === "profile-photo"
         ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}`
         : storageScope === "company-logo-draft"

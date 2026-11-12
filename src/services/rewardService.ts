@@ -6,17 +6,19 @@ import { normalizeCampaign, normalizeOffer, type RewardCampaign, type RewardOffe
 import { normalizePayment, type RewardPayment } from "../lib/rewardPayments";
 
 const call = async <T,>(name: string, data: Record<string, unknown>, timeout = 30_000): Promise<T> => (await httpsCallable<Record<string, unknown>, T>(functions, name, { timeout })(data)).data;
-export type CampaignPayload = { companyId: string; contractId: string; name: string; startDate?: string; endDate?: string; perTripCents: number; goalCents: number; audience: "all" | "selected"; driverIds: string[]; requestId: string };
+export type CampaignPayload = { companyId: string; contractId: string; vehicleId: string; name: string; startDate?: string; endDate?: string; perTripCents: number; goalCents: number; audience: "all" | "selected"; driverIds: string[]; requestId: string };
 
 /** Recompensas: toda escrita passa pelos callables (o cliente só lê o Firestore). */
 export const rewardService = {
-  create: (payload: CampaignPayload) => call<{ success: true; campaignId: string; drivers: number }>("createRewardCampaign", payload, 60_000),
+  create: (payload: CampaignPayload) => call<{ success: true; campaignId: string; drivers: number; failed: { driverId: string; driverName: string; message: string }[] }>("createRewardCampaign", payload, 180_000),
+  update: (campaignId: string, patch: { name?: string; perTripCents?: number; goalCents?: number; expectedRevision?: number }) => call<{ success: true; revision: number; notified: number }>("updateRewardCampaign", { campaignId, ...patch }, 60_000),
+  prepareCompany: (companyId: string) => call<{ success: boolean; enabled: boolean; ready: boolean }>("prepareCompanyOperationalCommands", { companyId, enable: true }, 60_000),
   respond: (offerId: string, decision: "accept" | "decline") => call<{ success: true; status: string }>("respondRewardOffer", { offerId, decision }),
-  cancel: (campaignId: string) => call<{ success: true }>("cancelRewardCampaign", { campaignId }),
+  cancel: (campaignId: string) => call<{ success: true }>("cancelRewardCampaign", { campaignId }, 120_000),
   setPayDay: (companyId: string, payDay: number) => call<{ success: true; payDay: number }>("setRewardPayDay", { companyId, payDay }),
   setPix: (type: string, key: string) => call<{ success: true; type: string; key: string }>("setRewardPix", { type, key }),
   generatePayroll: (companyId: string, requestId: string) => call<{ success: true; payments: number; totalCents: number; replayed: boolean; partial: boolean }>("generateRewardPayroll", { companyId, requestId }, 120_000),
-  markPaid: (paymentId: string, e2eId?: string) => call<{ success: true; status: string }>("markRewardPaid", { paymentId, e2eId: e2eId || "" }),
+  markPaid: (paymentId: string, proof: { url: string; readCents: number | null; override?: boolean }, e2eId?: string) => call<{ success: true; status: string }>("markRewardPaid", { paymentId, e2eId: e2eId || "", proof }),
   confirmReceived: (paymentId: string) => call<{ success: true; status: string }>("confirmRewardReceived", { paymentId }),
   contest: (paymentId: string, reason: string) => call<{ success: true; status: string }>("contestRewardPayment", { paymentId, reason }),
   cancelPayment: (paymentId: string) => call<{ success: true; status: string }>("cancelRewardPayment", { paymentId }),

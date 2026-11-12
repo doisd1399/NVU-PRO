@@ -59,6 +59,34 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    // Comprovante do pagamento (Pix): só a gestão da empresa pagadora envia (uma vez, sem sobrescrever) enquanto o pagamento está em aberto;
+    // leem quem enviou, a gestão da empresa e o motorista que recebe (Pagamentos) ou a gestão das duas empresas (Parcerias).
+    function rewardPaymentDoc(paymentId) {
+      let path = /databases/(default)/documents/rewardPayments/$(paymentId);
+      return firestore.exists(path) ? firestore.get(path).data : {};
+    }
+    match /reward-receipts/{paymentId}/{userId}/{fileName} {
+      allow read: if isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || isSenior() ||
+        request.auth.uid == rewardPaymentDoc(paymentId).get('driverId', '-') ||
+        managesCompany(rewardPaymentDoc(paymentId).get('companyId', '-')));
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(2000000) &&
+        managesCompany(rewardPaymentDoc(paymentId).get('companyId', '-')) &&
+        rewardPaymentDoc(paymentId).get('status', '') in ['pending', 'contested'];
+      allow update, delete: if false;
+    }
+    match /partnership-receipts/{partnershipId}/{userId}/{fileName} {
+      allow read: if isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || isSenior() ||
+        managesCompany(partnershipDoc(partnershipId).get('contractorCompanyId', '-')) ||
+        managesCompany(partnershipDoc(partnershipId).get('executorCompanyId', '-')));
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(2000000) &&
+        managesCompany(partnershipDoc(partnershipId).get('contractorCompanyId', '-')) &&
+        partnershipDoc(partnershipId).get('status', '') == 'completed' &&
+        partnershipDoc(partnershipId).get('payment', {}).get('status', '') == 'pending';
+      allow update, delete: if false;
+    }
+
     // Covers are public identity media. Writing a driver's cover requires its
     // own UID; company covers require the same manager/owner boundary as frotas.
     match /profile-covers/{scope}/{profileId}/{userId}/{fileName} {

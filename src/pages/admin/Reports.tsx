@@ -59,6 +59,7 @@ export default function Reports({
     historyReady: tripsHistoryReady,
   } = useTripHistory(activeCompanyId, {
     userId: currentUser?.id,
+    companyView: true,
   });
 
   const isDriverView = activeRole === "driver" || Boolean(defaultDriverId);

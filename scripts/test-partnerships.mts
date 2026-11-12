@@ -495,7 +495,7 @@ test("Viagens da parceria entram nos números da contratante (resumo, histórico
   assert.equal(mine.length, 2, "viagem sem data não entra"); assert.deepEqual([mine[0].id, mine[0].companyId, mine[0].valorCents, mine[0].status, mine[0].currency, mine[0].partnershipRole], ["pt_po_t1_1", "dc", 3_000_000, "completed", "BRL", "contractor"]);
   assert.equal(partnershipTripRecords([p], "cts").length, 0, "a executora já tem as viagens como suas"); assert.equal(partnershipTripRecords([p], "outra").length, 0);
   assert.equal(partnershipTripRecords([{ ...p, hiddenFor: ["dc"] } as typeof p], "dc").length, 2, "o filtro de excluídas é do hook, não do mapeamento");
-  const hook = readFileSync("src/hooks/useTripHistory.ts", "utf8"); assert.match(hook, /usePartnershipTrips\(scope \? normalizedCompanyId : ""\)/); assert.match(hook, /sortTrips\(\[\.\.\.visibleState\.trips, \.\.\.partnershipTrips\]\)/);
+  const hook = readFileSync("src/hooks/useTripHistory.ts", "utf8"); assert.match(hook, /usePartnershipTrips\(scope \? normalizedCompanyId : ""\)/); assert.match(hook, /sortTrips\(\[\.\.\.ownTrips, \.\.\.partnershipTrips\]\)/);
 });
 test("Excluir canceladas e chave Pix: telas, serviço, regiões e funções", () => {
   const page = readFileSync("src/pages/admin/Partnerships.tsx", "utf8"), parts = readFileSync("src/components/partnerships/PanelParts.tsx", "utf8"), svc = readFileSync("src/services/partnershipService.ts", "utf8");

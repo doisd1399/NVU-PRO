@@ -4,7 +4,8 @@ import { crc16 } from "./pixBrCode";
 
 export type PaymentStatus = "pending" | "paid" | "received" | "contested" | "cancelled";
 export type PaymentItem = { offerId: string; campaignId: string; campaignName: string; cents: number };
-export type PaymentReceipt = { number: string; paidAtMs: number; amountCents: number; payerName: string; payeeName: string; pixType: string; pixKeyMasked: string; e2eId: string; campaigns: string[] };
+export type PaymentReceipt = { number: string; paidAtMs: number; amountCents: number; payerName: string; payeeName: string; pixType: string; pixKeyMasked: string; e2eId: string; campaigns: string[]; proof: PaymentProof | null };
+export type PaymentProof = { url: string; readCents: number | null; check: "verified" | "unverified" | "override"; attachedAtMs: number };
 export type RewardPayment = {
   id: string; payrollId: string; payrollAtMs: number; source: "manual" | "auto"; companyId: string; companyName: string; driverId: string; driverName: string; amountCents: number; items: PaymentItem[];
   pixType: string; pixKey: string; status: PaymentStatus; paidAtMs: number; receivedAtMs: number; contestReason: string; contestedAtMs: number; payAttempts: number; receipt: PaymentReceipt | null; createdAtMs: number;
@@ -14,6 +15,14 @@ const text = (value: unknown) => String(value ?? "").trim();
 const num = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) : 0;
 const STATUSES: PaymentStatus[] = ["pending", "paid", "received", "contested", "cancelled"];
 
+/** Comprovante do banco anexado pela empresa (imagem + o valor que o app leu nela). */
+export function normalizeProof(raw: unknown): PaymentProof | null {
+  const proof = raw && typeof raw === "object" ? raw as Record<string, any> : null, url = proof ? text(proof.url) : "";
+  if (!proof || !url) return null;
+  const check = proof.check === "verified" || proof.check === "override" ? proof.check : "unverified";
+  return { url, readCents: proof.readCents === null || proof.readCents === undefined ? null : num(proof.readCents), check, attachedAtMs: num(proof.attachedAtMs) };
+}
+export const PROOF_LABEL: Record<PaymentProof["check"], string> = { verified: "Valor conferido no comprovante", unverified: "Comprovante anexado (valor não lido)", override: "Valor diferente, confirmado pela empresa" };
 export function normalizePayment(id: string, raw: Record<string, any>): RewardPayment {
   const receipt = raw.receipt && typeof raw.receipt === "object" ? raw.receipt as Record<string, any> : null;
   return { id, payrollId: text(raw.payrollId), payrollAtMs: num(raw.payrollAtMs), source: raw.source === "auto" ? "auto" : "manual", companyId: text(raw.companyId), companyName: text(raw.companyName) || "Empresa", driverId: text(raw.driverId),
@@ -22,7 +31,7 @@ export function normalizePayment(id: string, raw: Record<string, any>): RewardPa
     pixType: text(raw.pixType), pixKey: text(raw.pixKey), status: STATUSES.find(item => item === raw.status) || "pending", paidAtMs: num(raw.paidAtMs), receivedAtMs: num(raw.receivedAtMs), contestReason: text(raw.contestReason), contestedAtMs: num(raw.contestedAtMs),
     payAttempts: num(raw.payAttempts), createdAtMs: ms(raw.createdAt),
     receipt: receipt ? { number: text(receipt.number), paidAtMs: num(receipt.paidAtMs), amountCents: num(receipt.amountCents), payerName: text(receipt.payerName), payeeName: text(receipt.payeeName), pixType: text(receipt.pixType), pixKeyMasked: text(receipt.pixKeyMasked), e2eId: text(receipt.e2eId),
-      campaigns: (Array.isArray(receipt.campaigns) ? receipt.campaigns : []).map(text).filter(Boolean) } : null };
+      campaigns: (Array.isArray(receipt.campaigns) ? receipt.campaigns : []).map(text).filter(Boolean), proof: normalizeProof(receipt.proof) } : null };
 }
 
 /** Rótulos vistos pela empresa e pelo motorista (o mesmo pagamento, duas leituras). */

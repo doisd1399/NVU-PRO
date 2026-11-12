@@ -21,7 +21,7 @@ const get = path => db.doc(path).get();
 const failsWith = async (fn, code) => assert.rejects(fn, error => { assert.ok(String(error.code).includes(code), `expected ${code}, got ${error.code}: ${error.message}`); return true; });
 const day = offset => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + offset * 86_400_000));
 let seq = 0;
-const campaignData = (extra = {}) => ({ companyId: "a", contractId: "ct-1", name: "Semana de Ouro", startDate: day(-1), endDate: day(5), perTripCents: 2500, bonusCents: 20000, bonusGoalTrips: 3, budgetCents: 600000, audience: "all", driverIds: [], requestId: `req-${++seq}-${Date.now()}`, ...extra });
+const campaignData = (extra = {}) => ({ companyId: "a", vehicleId: "v-1", contractId: "ct-1", name: "Semana de Ouro", startDate: day(-1), endDate: day(5), perTripCents: 2500, bonusCents: 20000, bonusGoalTrips: 3, budgetCents: 600000, audience: "all", driverIds: [], requestId: `req-${++seq}-${Date.now()}`, ...extra });
 const create = (extra = {}, uid = "owner-a") => rewards.createRewardCampaign.run(campaignData(extra), ctx(uid));
 const respond = (offerId, decision, uid) => rewards.respondRewardOffer.run({ offerId, decision }, ctx(uid));
 const member = (uid, companyId) => [`companyMembers/${uid}_${companyId}`, { userId: uid, companyId, roles: ["driver"], status: "active" }];
@@ -33,7 +33,8 @@ const seed = async () => {
     ["users/owner-a", { name: "Dono A", companyId: "a", role: "admin", status: "active" }], ["users/owner-b", { name: "Dono B", companyId: "b", role: "admin", status: "active" }],
     ["users/drv-1", { name: "Naylson Silva", role: "driver", roles: ["driver"], companyId: "a", status: "active" }], ["users/drv-2", { name: "Dudu Tv", role: "driver", roles: ["driver"], companyId: "a", status: "active" }],
     ["users/drv-b", { name: "Caio Lima", role: "driver", roles: ["driver"], companyId: "b", status: "active" }],
-    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, simulator: "GTO" }], ["contratos/ct-2", { companyId: "a", name: "Curta", status: "active", totalDeliveries: 2 }], ["contratos/ct-0", { companyId: "a", name: "Vazia", status: "active", totalDeliveries: 0 }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
+    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, deadlineDays: 5, simulator: "GTO" }], ["contratos/ct-2", { companyId: "a", name: "Curta", status: "active", totalDeliveries: 2, deadlineDays: 5, simulator: "GTO" }], ["contratos/ct-0", { companyId: "a", name: "Vazia", status: "active", totalDeliveries: 0 }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
+    ["veiculos/v-1", { companyId: "a", name: "Iveco S-Way", plate: "BLS-160", status: "available" }], ["veiculos/v-b", { companyId: "b", name: "Scania", status: "available" }],
     member("drv-1", "a"), member("drv-2", "a"), member("drv-b", "b"),
   ];
   const batch = db.batch(); rows.forEach(([ref, data]) => batch.set(db.doc(ref), data)); await batch.commit();
@@ -61,6 +62,9 @@ const earn = async (drv1Trips, drv2Trips = 0, extra = {}) => {
 const payroll = (uid = "owner-a", companyId = "a") => pay.generateRewardPayroll.run({ companyId, requestId: `pr-${++seq}-${Date.now()}` }, ctx(uid));
 const payments = async () => (await db.collection("rewardPayments").get()).docs.map(row => ({ id: row.id, ...row.data() })).sort((a, b) => a.driverId.localeCompare(b.driverId));
 const act = (name, paymentId, uid, extra = {}) => pay[name].run({ paymentId, ...extra }, ctx(uid));
+const proofUrl = (paymentId, uid = "owner-a", file = "1.jpg") => `https://firebasestorage.googleapis.com/v0/b/demo.appspot.com/o/${encodeURIComponent(`reward-receipts/${paymentId}/${uid}/${file}`)}?alt=media&token=t`;
+/** Marca como pago com comprovante conferido (valor lido = valor do pagamento). */
+const markPaid = async (paymentId, uid = "owner-a", extra = {}) => { const amountCents = (await get(`rewardPayments/${paymentId}`)).get("amountCents"); return act("markRewardPaid", paymentId, uid, { proof: { url: proofUrl(paymentId, uid), readCents: amountCents }, ...extra }); };
 try {
   await test("dia de pagamento e chave Pix: só o gestor define o dia; o motorista valida e salva a própria chave", async () => {
     await failsWith(() => pay.setRewardPayDay.run({ companyId: "a", payDay: 5 }, ctx("drv-1")), "permission-denied"); await failsWith(() => pay.setRewardPayDay.run({ companyId: "a", payDay: 5 }, ctx("owner-b")), "permission-denied");
@@ -104,7 +108,7 @@ try {
     await failsWith(() => act("markRewardPaid", row.id, "drv-1"), "permission-denied"); await failsWith(() => act("markRewardPaid", row.id, "owner-b"), "permission-denied"); await failsWith(() => act("markRewardPaid", "nao-existe", "owner-a"), "not-found");
     await failsWith(() => act("markRewardPaid", row.id, "owner-a", { e2eId: "curto" }), "invalid-argument");
     await failsWith(() => act("confirmRewardReceived", row.id, "drv-1"), "failed-precondition"); // ainda não foi pago
-    const paid = await act("markRewardPaid", row.id, "owner-a", { e2eId: "E1234567890ABCDEF" }); assert.equal(paid.status, "paid");
+    const paid = await markPaid(row.id, "owner-a", { e2eId: "E1234567890ABCDEF" }); assert.equal(paid.status, "paid");
     const after = (await get(`rewardPayments/${row.id}`)).data();
     assert.equal(after.status, "paid"); assert.match(after.receipt.number, /^RC-\d{8}-[0-9A-F]{8}$/); assert.equal(after.receipt.amountCents, 5000); assert.equal(after.receipt.pixKeyMasked, "***.982.247-**"); assert.equal(after.receipt.e2eId, "E1234567890ABCDEF");
     assert.equal(after.receipt.payerName, "DC Transportes"); assert.equal(after.receipt.payeeName, "Naylson Silva"); assert.ok(!JSON.stringify(after.receipt).includes("52998224725"), "o comprovante não traz a chave inteira");
@@ -115,16 +119,34 @@ try {
     assert.ok((await get(`rewardPayments/${row.id}`)).get("receivedAtMs") > 0); assert.equal((await db.collection("notifications").where("type", "==", "REWARD_RECEIVED").get()).size, 1);
     await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "não caiu" }), "failed-precondition"); await failsWith(() => act("cancelRewardPayment", row.id, "owner-a"), "failed-precondition"); await failsWith(() => act("markRewardPaid", row.id, "owner-a"), "failed-precondition");
   });
+  await test("comprovante: sem imagem não paga; só o arquivo do próprio gestor neste pagamento; valor diferente é recusado; leitura impossível ou confirmação manual ficam registradas", async () => {
+    await pay.setRewardPix.run({ type: "cpf", key: "52998224725" }, ctx("drv-1")); await earn(2); await payroll();
+    const [row] = await payments(), value = row.amountCents;
+    await failsWith(() => act("markRewardPaid", row.id, "owner-a"), "invalid-argument"); await failsWith(() => act("markRewardPaid", row.id, "owner-a", { proof: { readCents: value } }), "invalid-argument");
+    await failsWith(() => act("markRewardPaid", row.id, "owner-a", { proof: { url: proofUrl("outro-pagamento"), readCents: value } }), "invalid-argument");
+    await failsWith(() => act("markRewardPaid", row.id, "owner-a", { proof: { url: proofUrl(row.id, "owner-b"), readCents: value } }), "invalid-argument");
+    await failsWith(() => act("markRewardPaid", row.id, "owner-a", { proof: { url: "https://exemplo.com/comprovante.jpg", readCents: value } }), "invalid-argument");
+    await failsWith(() => act("markRewardPaid", row.id, "owner-a", { proof: { url: proofUrl(row.id), readCents: -5 } }), "invalid-argument");
+    await failsWith(() => act("markRewardPaid", row.id, "owner-a", { proof: { url: proofUrl(row.id), readCents: value - 1 } }), "failed-precondition");
+    assert.equal((await get(`rewardPayments/${row.id}`)).get("status"), "pending", "nada mudou com o comprovante recusado");
+    await act("markRewardPaid", row.id, "owner-a", { proof: { url: proofUrl(row.id), readCents: null } });
+    let proof = (await get(`rewardPayments/${row.id}`)).get("receipt.proof"); assert.deepEqual([proof.check, proof.readCents, proof.url.includes("reward-receipts")], ["unverified", null, true]);
+    await act("contestRewardPayment", row.id, "drv-1", { reason: "não caiu" });
+    await act("markRewardPaid", row.id, "owner-a", { proof: { url: proofUrl(row.id, "owner-a", "2.jpg"), readCents: value + 100, override: true } });
+    proof = (await get(`rewardPayments/${row.id}`)).get("receipt.proof"); assert.deepEqual([proof.check, proof.readCents], ["override", value + 100]);
+    await act("contestRewardPayment", row.id, "drv-1", { reason: "de novo" }); await markPaid(row.id);
+    assert.deepEqual([(await get(`rewardPayments/${row.id}`)).get("receipt.proof.check"), (await get(`rewardPayments/${row.id}`)).get("receipt.proof.readCents")], ["verified", value]);
+  });
   await test("contestar: só depois de pago, com motivo; a empresa paga de novo (novo comprovante) e o motorista confirma", async () => {
     await earn(2); await payroll(); const [row] = await payments();
-    await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "não caiu" }), "failed-precondition"); await act("markRewardPaid", row.id, "owner-a");
+    await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "não caiu" }), "failed-precondition"); await markPaid(row.id, "owner-a");
     await failsWith(() => act("contestRewardPayment", row.id, "drv-1", { reason: "x" }), "invalid-argument"); await failsWith(() => act("contestRewardPayment", row.id, "drv-2", { reason: "não caiu na conta" }), "permission-denied");
     const first = (await get(`rewardPayments/${row.id}`)).get("receipt.number");
     await act("contestRewardPayment", row.id, "drv-1", { reason: "O Pix não caiu na minha conta" });
     let now = (await get(`rewardPayments/${row.id}`)).data(); assert.deepEqual([now.status, now.contestReason], ["contested", "O Pix não caiu na minha conta"]);
     assert.equal((await db.collection("notifications").where("type", "==", "REWARD_CONTESTED").get()).size, 1);
     await failsWith(() => act("confirmRewardReceived", row.id, "drv-1"), "failed-precondition");
-    await new Promise(resolve => setTimeout(resolve, 15)); await act("markRewardPaid", row.id, "owner-a"); now = (await get(`rewardPayments/${row.id}`)).data();
+    await new Promise(resolve => setTimeout(resolve, 15)); await markPaid(row.id, "owner-a"); now = (await get(`rewardPayments/${row.id}`)).data();
     assert.deepEqual([now.status, now.payAttempts, now.contestReason], ["paid", 2, undefined]); assert.notEqual(now.receipt.number, first, "novo pagamento, novo comprovante");
     assert.equal((await act("confirmRewardReceived", row.id, "drv-1")).status, "received");
   });

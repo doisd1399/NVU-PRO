@@ -18,7 +18,7 @@ export type Partnership = {
   /** Prazo combinado em dias; só começa a contar quando a executora aceita (`acceptedAtMs`). `deadlineMs` = 0 até lá. */
   durationDays: number; acceptedAtMs: number; deadlineAt: string; deadlineMs: number; conditions: string; goalAmountCents: number | null;
   /** Valor do acordo (negociado entre as empresas, fora do NVU). `settlement`/`payment` só existem depois da conclusão. */
-  agreedAmountCents: number | null; settlement: Settlement | null; payment: { status: PaymentStatus; paidAtMs: number; settledAtMs: number } | null; completedAtMs: number;
+  agreedAmountCents: number | null; settlement: Settlement | null; payment: { status: PaymentStatus; paidAtMs: number; settledAtMs: number; proof: { url: string; check: "verified" | "unverified" | "override"; readCents: number | null } | null } | null; completedAtMs: number;
   progress: number; earningsCents: number; bestCents: number; averageCents: number; ledger: PartnershipLedgerEntry[];
   jobId: string | null; driverId: string | null; driverName?: string; vehicleId?: string; vehicleName?: string; vehiclePlate?: string; trailerName?: string;
   startPhotoUrl?: string;
@@ -77,7 +77,7 @@ export function normalizePartnership(id: string, raw: Record<string, any>): Part
     durationDays: Math.max(0, Math.round(num(raw.durationDays))) || (num(raw.deadlineMs) && ms(raw.createdAt) ? Math.max(1, Math.round((num(raw.deadlineMs) - ms(raw.createdAt)) / 86_400_000)) : 0),
     agreedAmountCents: Number.isSafeInteger(raw.agreedAmountCents) && raw.agreedAmountCents > 0 ? raw.agreedAmountCents : null, completedAtMs: num(raw.completedAtMs),
     settlement: raw.settlement && Number.isSafeInteger(raw.settlement.finalCents) ? { agreedCents: num(raw.settlement.agreedCents), late: Boolean(raw.settlement.late), penaltyPercent: num(raw.settlement.penaltyPercent), discountCents: num(raw.settlement.discountCents), finalCents: num(raw.settlement.finalCents), deadlineMs: num(raw.settlement.deadlineMs), completedAtMs: num(raw.settlement.completedAtMs) } : null,
-    payment: raw.payment && ["pending", "paid", "settled"].includes(raw.payment.status) ? { status: raw.payment.status, paidAtMs: ms(raw.payment.paidAt), settledAtMs: ms(raw.payment.settledAt) } : null,
+    payment: raw.payment && ["pending", "paid", "settled"].includes(raw.payment.status) ? { status: raw.payment.status, paidAtMs: ms(raw.payment.paidAt), settledAtMs: ms(raw.payment.settledAt), proof: raw.payment.proof && typeof raw.payment.proof.url === "string" && raw.payment.proof.url ? { url: String(raw.payment.proof.url), check: raw.payment.proof.check === "verified" || raw.payment.proof.check === "override" ? raw.payment.proof.check : "unverified", readCents: raw.payment.proof.readCents === null || raw.payment.proof.readCents === undefined ? null : Number(raw.payment.proof.readCents) } : null } : null,
     acceptedAtMs: ms(raw.acceptedAt), deadlineAt: text(raw.deadlineAt), deadlineMs: num(raw.deadlineMs) || ms(raw.deadlineAt),
     conditions: text(raw.conditions), goalAmountCents: Number.isSafeInteger(raw.goalAmountCents) && raw.goalAmountCents > 0 ? raw.goalAmountCents : null,
     progress: Math.max(0, num(raw.progress)), earningsCents: Math.max(0, num(raw.earningsCents)),

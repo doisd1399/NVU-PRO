@@ -14,7 +14,7 @@ if (!admin.apps.length) admin.initializeApp({ projectId });
 const partnerships = require("./lib/partnerships.js");
 const { executeOperationalCommand } = require("./lib/operationalCommands.js");
 const { refreshCompanyAccess } = require("./lib/companyAccess.js");
-const { scoreCompanyIdOf } = require("./lib/rankingAggregates.js");
+const { scoreCompanyIdOf, isPartnershipTripRecord } = require("./lib/rankingAggregates.js");
 const environment = await initializeTestEnvironment({ projectId, firestore: { rules: fs.readFileSync("firestore.rules", "utf8") } });
 const db = admin.firestore();
 const ctx = (uid, token = {}) => ({ auth: { uid, token } });
@@ -209,7 +209,7 @@ try {
     assert.equal(job.status, "active"); assert.match(job.startVehiclePhotoUrl, /partnership-start-photos/);
   });
 
-  await test("viagens: cada viagem confirmada conta uma vez no livro; pendente e de outro trabalho não contam; ranking credita a contratante", async () => {
+  await test("viagens: cada viagem confirmada conta uma vez no livro; pendente e de outro trabalho não contam; ranking não pontua viagem de parceria", async () => {
     const { partnershipId } = await createOffer(); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId);
     const base = { jobId, companyId: "b", empresaId: "b", driverId: "drv-b", contractId: `pc_${partnershipId}`, partnershipId, scoreCompanyId: "a", contractorCompanyId: "a", status: "concluida", recordStatus: "concluida", serverValidatedAt: new Date() };
     await db.doc("historico_viagens/t1").set({ ...base, valorCents: 150_000, completedAt: new Date(Date.now() - 3000) });
@@ -219,7 +219,9 @@ try {
     await partnerships.projectTrips(db, partnershipId); await partnerships.projectTrips(db, partnershipId);
     const p = (await get(`partnerships/${partnershipId}`)).data();
     assert.equal(p.progress, 2); assert.equal(p.earningsCents, 400_000); assert.equal(p.bestCents, 250_000); assert.equal(p.averageCents, 200_000); assert.equal(p.ledger.length, 2);
-    assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId, scoreCompanyId: "a" }), "a", "ranking de empresas: contratante");
+    assert.equal(isPartnershipTripRecord({ companyId: "b", partnershipId, scoreCompanyId: "a" }), true, "viagem de parceria não pontua em nenhum ranking (nem executora, nem contratante)");
+    assert.equal(isPartnershipTripRecord({ companyId: "b", partnership: true }), true); assert.equal(isPartnershipTripRecord({ companyId: "b" }), false, "viagem comum pontua como antes"); assert.equal(isPartnershipTripRecord(undefined), false);
+    assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId, scoreCompanyId: "a" }), "a", "agregados antigos: o crédito ainda aponta para a contratante");
     assert.equal(scoreCompanyIdOf({ companyId: "b" }), "b", "viagem comum: a própria empresa, como antes");
     assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId }), "b", "sem marca de pontuação não desvia nada");
     assert.equal((await get("historico_viagens/t1")).get("driverId"), "drv-b", "o histórico do motorista continua dele");
@@ -239,13 +241,17 @@ try {
     const row = await complete(late.partnershipId, late.jobId, new Date(Date.now() + 6 * DAY).toISOString());
     assert.equal(row.status, "completed"); assert.equal(row.settlement.late, true); assert.equal(row.settlement.penaltyPercent, 25);
     assert.equal(row.settlement.finalCents, 750_000); assert.equal(row.settlement.discountCents, 250_000); assert.equal(row.payment.status, "pending");
-    const settle = (id, action, uid) => partnerships.settlePartnershipPayment.run({ partnershipId: id, action }, ctx(uid));
+    const proofOf = (id, uid, file = "1.jpg") => ({ url: `https://firebasestorage.googleapis.com/v0/b/demo.appspot.com/o/${encodeURIComponent(`partnership-receipts/${id}/${uid}/${file}`)}?alt=media&token=t`, readCents: 750_000 });
+    const settle = (id, action, uid, proof) => partnerships.settlePartnershipPayment.run({ partnershipId: id, action, ...(action === "paid" ? { proof: proof === undefined ? proofOf(id, uid) : proof } : {}) }, ctx(uid));
+    // comprovante: sem imagem, de outra pasta ou com valor diferente do acordo não marca como pago
+    await failsWith(() => settle(late.partnershipId, "paid", "owner-a", null), "invalid-argument"); await failsWith(() => settle(late.partnershipId, "paid", "owner-a", proofOf("po_outra", "owner-a")), "invalid-argument");
+    await failsWith(() => settle(late.partnershipId, "paid", "owner-a", { ...proofOf(late.partnershipId, "owner-a"), readCents: 1_000_000 }), "failed-precondition");
     await failsWith(() => settle(late.partnershipId, "paid", "owner-b"), "permission-denied"); // a executora não marca pago
     await failsWith(() => settle(late.partnershipId, "received", "owner-a"), "permission-denied"); // a contratante não confirma recebimento
     await failsWith(() => settle(late.partnershipId, "foi", "owner-a"), "invalid-argument");
     assert.equal((await settle(late.partnershipId, "paid", "owner-a")).status, "paid");
     assert.equal((await settle(late.partnershipId, "paid", "owner-a")).replayed, true, "repetir é idempotente");
-    assert.ok((await get(`partnerships/${late.partnershipId}`)).get("payment.paidAt"));
+    assert.ok((await get(`partnerships/${late.partnershipId}`)).get("payment.paidAt")); assert.equal((await get(`partnerships/${late.partnershipId}`)).get("payment.proof.check"), "verified");
     assert.equal((await settle(late.partnershipId, "received", "owner-b")).status, "settled");
     assert.equal((await settle(late.partnershipId, "received", "owner-b")).replayed, true);
     await failsWith(() => settle(late.partnershipId, "paid", "owner-a"), "failed-precondition".replace("failed-precondition", "failed-precondition")).catch(async () => assert.equal((await settle(late.partnershipId, "paid", "owner-a")).replayed, true));
@@ -277,7 +283,7 @@ try {
     await partnerships.syncPartnershipFromJob.run({ before: { exists: true, data: () => ({}) }, after: { exists: true, data: () => job } }, { params: { jobId } });
     const notes = (await db.collection("notifications").where("type", "==", "PARTNERSHIP_PAYMENT_DUE").get()).docs.map(row => row.get("message"));
     assert.ok(notes.some(text => text.includes("fin@matecom.com") && text.includes("Pague R$")), "aviso de pagamento com a chave Pix");
-    assert.equal((await partnerships.settlePartnershipPayment.run({ partnershipId, action: "paid" }, ctx("owner-a"))).status, "paid");
+    assert.equal((await partnerships.settlePartnershipPayment.run({ partnershipId, action: "paid", proof: { url: `https://firebasestorage.googleapis.com/v0/b/demo.appspot.com/o/${encodeURIComponent(`partnership-receipts/${partnershipId}/owner-a/1.jpg`)}?alt=media`, readCents: null } }, ctx("owner-a"))).status, "paid");
     await partnerships.settlePartnershipPayment.run({ partnershipId, action: "received" }, ctx("owner-b"));
     await failsWith(() => pix("owner-b", "cpf", "52998224725"), "failed-precondition"); // liquidado: a chave não muda mais
     // excluir: só cancelada/recusada, só da própria lista

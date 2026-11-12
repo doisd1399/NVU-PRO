@@ -46,6 +46,7 @@ import { StableImage } from "../components/common/StableImage";
 import { NotificationCenter } from "../components/NotificationCenter";
 import { DRIVER_MENU_ITEMS } from "../components/workspaceMenuItems";
 import { GlobalMenu } from "../components/GlobalMenu";
+import { RewardCompletionPrompt } from "../components/driver/RewardCompletionPrompt";
 import { WorkspaceDock } from "../components/WorkspaceDock";
 import { WindowsBackButton } from "../components/WindowsBackButton";
 import { useWindowsBack } from "../hooks/useWindowsBack";
@@ -613,6 +614,7 @@ export default function DriverLayout() {
               isDriverHeroRoute ? "nvu-native-profile-shell pt-0" : "pt-11 md:pt-12",
             )}
           >
+            {isApproved ? <RewardCompletionPrompt driverId={currentUser?.id} /> : null}
             <GlobalMenu
               profile="driver"
               open={isMobileMenuOpen}

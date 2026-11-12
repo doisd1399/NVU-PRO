@@ -1838,6 +1838,7 @@ var DUAL_REGION_CALLABLES = [
   "createRewardCampaign",
   "respondRewardOffer",
   "cancelRewardCampaign",
+  "updateRewardCampaign",
   "setRewardPayDay",
   "setRewardPix",
   "generateRewardPayroll",
@@ -2224,7 +2225,7 @@ var uploadService = {
       /[^a-zA-Z0-9.\-_]/g,
       ""
     );
-    const path = storageScope === "partnership-start-photo" ? `partnership-start-photos/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-photo" ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "company-logo-draft" ? `company-logo-drafts/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-cover" ? `profile-covers/${coverTarget.scope}/${coverTarget.profileId}/${auth.currentUser.uid}/${timestamp}_${cleanFileName}` : storageScope === "trip-receipt" ? `trip-receipts/${cleanCompanyId || "Geral"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}` : `empresas/${cleanCompanyId || "Geral"}/${cleanFolder || "uploads"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}`;
+    const path = storageScope === "partnership-start-photo" ? `partnership-start-photos/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "reward-receipt" ? `reward-receipts/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "partnership-receipt" ? `partnership-receipts/${cleanFolder}/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-photo" ? `profile-photos/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "company-logo-draft" ? `company-logo-drafts/${uploaderUid}/${timestamp}_${cleanFileName}` : storageScope === "profile-cover" ? `profile-covers/${coverTarget.scope}/${coverTarget.profileId}/${auth.currentUser.uid}/${timestamp}_${cleanFileName}` : storageScope === "trip-receipt" ? `trip-receipts/${cleanCompanyId || "Geral"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}` : `empresas/${cleanCompanyId || "Geral"}/${cleanFolder || "uploads"}/${cleanUserId || auth.currentUser.uid}/${timestamp}_${cleanFileName}`;
     const storageRef = ref(storage, path);
     const performUpload = () => {
       if (storageScope === "trip-receipt") {

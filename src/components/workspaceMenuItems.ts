@@ -1,4 +1,4 @@
-import { BookOpen, LayoutDashboard, Truck } from "lucide-react";
+import { BookOpen, LayoutDashboard, Truck, Wallet } from "lucide-react";
 import type { GlobalMenuGroup, GlobalMenuItem } from "./GlobalMenu";
 
 // Routes also present in WorkspaceDock remain available through the dock.
@@ -9,5 +9,6 @@ export const COMPANY_MENU_GROUPS: GlobalMenuGroup[] = [{ title: "", items: [
 
 export const DRIVER_MENU_ITEMS: GlobalMenuItem[] = [
   { label: "Painel Operacional", icon: LayoutDashboard, path: "/driver", exact: true },
+  { label: "Pagamentos", icon: Wallet, path: "/driver/recompensas" },
   { label: "Manual", icon: BookOpen, path: "/driver/manual" },
 ];

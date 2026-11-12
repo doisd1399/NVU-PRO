@@ -13,16 +13,16 @@ export function ActiveTab({ offers, ready, now, onOpen }: { offers: RewardOffer[
   const pending = offers.filter(offer => offerPhase(offer) === "pending" && offer.endMs >= now), active = offers.filter(offer => offerPhase(offer) === "active");
   return <>
     <section className="nvu-central-section b2p-sec"><div className="b2p-sum"><div><small>Em andamento</small><b>{active.length}</b><em>{active.length === 1 ? "trabalho" : "trabalhos"}</em></div><div><small>Ofertas novas</small><b data-tone={pending.length ? "warn" : undefined}>{pending.length}</b><em>para responder</em></div></div></section>
-    {pending.length ? <Section title="Para responder" count={pending.length}>
+    {pending.length ? <Section title={pending.every(offer => offer.jobId) ? "Na sua fila" : "Para responder"} count={pending.length}>
       {pending.map((offer, index) => <button type="button" className="b2p-wrow" key={offer.id} onClick={() => onOpen(offer.id)} style={{ width: "100%", textAlign: "left", ...(index ? {} : { borderTop: 0 }) }}>
-        <span className="b2p-wico" data-k="ganho"><Trophy size={18} aria-hidden="true" /></span><div><b>{title(offer)}</b><small>{offer.companyName} · {termText(offer)}</small></div>
+        <span className="b2p-wico" data-k="ganho"><Trophy size={18} aria-hidden="true" /></span><div><b>{title(offer)}</b><small>{offer.companyName} · {termText(offer)}</small>{offer.changedAtMs ? <small style={{ color: "var(--central-warning)" }}>Atualizado pela empresa</small> : null}</div>
         <span className="b2p-amt"><strong data-k="ganho">{formatMoney(offer.perTripCents)}/viagem</strong><Pill offer={offer} /></span></button>)}
     </Section> : null}
     <Section title="Em andamento" count={active.length}>
       {active.length ? active.map((offer, index) => { const left = timeLeftText(offer.deadlineMs, now), urgent = offer.deadlineMs > 0 && offer.deadlineMs - now < 48 * 3_600_000;
         return <button type="button" className="b2p-wrow" key={offer.id} onClick={() => onOpen(offer.id)} style={{ width: "100%", textAlign: "left", ...(index ? {} : { borderTop: 0 }) }}>
           <span className="b2p-wico" data-k="ganho"><ClipboardList size={18} aria-hidden="true" /></span>
-          <div><b>{title(offer)}</b><small>{offer.companyName} · {offer.trips}/{offer.maxTripsPerDriver || offer.trips} viagens</small>{left ? <small style={urgent ? { color: "var(--central-warning)" } : undefined}>Prazo: {left}</small> : null}</div>
+          <div><b>{title(offer)}</b><small>{offer.companyName} · {offer.trips}/{offer.maxTripsPerDriver || offer.trips} viagens</small>{offer.changedAtMs ? <small style={{ color: "var(--central-warning)" }}>Atualizado pela empresa</small> : null}{left ? <small style={urgent ? { color: "var(--central-warning)" } : undefined}>Prazo: {left}</small> : null}</div>
           <span className="b2p-amt"><strong data-k="ganho">{formatMoney(offer.perTripCents * (offer.maxTripsPerDriver || offer.trips))}</strong><small>ao concluir</small></span><ChevronRight className="b2p-row-chev" size={16} aria-hidden="true" /></button>; })
         : <p className="b2p-empty">{ready ? "Nenhum trabalho em andamento." : "Carregando…"}</p>}
     </Section>

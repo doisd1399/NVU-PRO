@@ -6,6 +6,7 @@ import { driverDisplayIdentity } from "./driverDisplayIdentity";
 import { resolveSimulatorCurrency } from "./simulatorCurrencyRegistry";
 import { CALLABLE_REGIONS } from "./callableRegions";
 import { executeOperationalCommand } from "./operationalCommands";
+import { normalizeProof, PARTNERSHIP_RECEIPT_PREFIX } from "./receiptProofPolicy";
 import { assertCompany, companySimulatorKey, fail, id, text } from "./operationalCommandPolicy";
 import {
   MAX_PENDING_OFFERS, PARTNERSHIPS, buildLedger, computeSettlement, isPartnerAvailable, nextPayment, toMillis, type PaymentStatus, mayTransition, normalizeOffer, partnershipContractId,
@@ -309,7 +310,9 @@ export const settlePartnershipPayment = functions.region(...CALLABLE_REGIONS).ht
       fail("failed-precondition", "Este pagamento não pode mais ser alterado.");
     }
     const now = admin.firestore.FieldValue.serverTimestamp();
-    tx.update(ref, { payment: { ...p.payment, status: target, ...(action === "paid" ? { paidAt: now, paidBy: uid } : { settledAt: now, settledBy: uid }) }, revision: Number(p.revision || 1) + 1, updatedAt: now });
+    // Quem paga anexa o comprovante do banco; o valor lido nele é conferido com o valor do acordo.
+    const proof = action === "paid" ? normalizeProof(data.proof, Number(p.settlement?.finalCents) || 0, PARTNERSHIP_RECEIPT_PREFIX, partnershipId, uid as string, Date.now()) : null;
+    tx.update(ref, { payment: { ...p.payment, status: target, ...(action === "paid" ? { paidAt: now, paidBy: uid, proof } : { settledAt: now, settledBy: uid }) }, revision: Number(p.revision || 1) + 1, updatedAt: now });
     return { replayed: false, p, target };
   });
   if (!outcome.replayed) await notifyCompany(db, text(action === "paid" ? outcome.p.executorCompanyId : outcome.p.contractorCompanyId), { type: action === "paid" ? "PARTNERSHIP_PAID" : "PARTNERSHIP_SETTLED", partnershipId,

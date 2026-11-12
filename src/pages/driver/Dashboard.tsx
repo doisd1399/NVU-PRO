@@ -6,6 +6,9 @@ import { OperationSyncNotice } from "../../components/OperationSyncNotice";
 import { DriverOperationCard } from "../../components/driver/DriverOperationCard";
 import { PartnershipStartSheet } from "../../components/driver/PartnershipStartSheet";
 import { DriverRewardsEntry } from "../../components/driver/DriverRewardsEntry";
+import { RewardStartSheet } from "../../components/driver/RewardStartSheet";
+import { useDriverRewards } from "../../hooks/useRewards";
+import { rewardService } from "../../services/rewardService";
 import { DiscreetDisclosure } from "../../components/common/DiscreetDisclosure";
 import { RetainedPanel } from "../../components/common/RetainedPanel";
 import { AutomaticDriverQueue } from "../../components/operations/AutomaticDriverQueue";
@@ -204,6 +207,10 @@ function DashboardComponent({
   const [isRequestingId, setIsRequestingId] = useState<string | null>(null);
   const [startingJobId, setStartingJobId] = useState<string | null>(null);
   const [partnershipStartJob, setPartnershipStartJob] = useState<Job | null>(null);
+  // Trabalho encaminhado com pagamento: as condições aparecem antes de iniciar (aceite).
+  const [rewardStartJob, setRewardStartJob] = useState<Job | null>(null);
+  const { offers: rewardOffers } = useDriverRewards(currentUser?.id);
+  const rewardOfferFor = (job: Job | null) => job ? rewardOffers.find(offer => offer.jobId === job.id && offer.status === "pending") : undefined;
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [operationInfoScope, setOperationInfoScope] = useState<string | null>(null);
   const operationInfoId = React.useId();
@@ -983,6 +990,7 @@ function DashboardComponent({
       startingJobId={startingJobId} onStart={async job => {
         if (operationalSuspension.active || startingJobId) return;
         if (job.partnershipId) { setPartnershipStartJob(job); return; }
+        if (rewardOfferFor(job)) { setRewardStartJob(job); return; }
         setStartingJobId(job.id);
         try { await startJob(job.id); }
         catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
@@ -1015,6 +1023,15 @@ function DashboardComponent({
             catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
             finally { setStartingJobId(current => current === job.id ? null : current); }
           }} />
+        <RewardStartSheet offer={rewardOfferFor(rewardStartJob) || null} onClose={() => setRewardStartJob(null)} onConfirm={async () => {
+          const job = rewardStartJob, offer = rewardOfferFor(job);
+          if (!job || !offer) return;
+          if (!(offer.deadlineMs > 0 && offer.deadlineMs < Date.now())) await rewardService.respond(offer.id, "accept"); // aceita as condições e, em seguida, inicia (prazo vencido: inicia sem pagamento)
+          setRewardStartJob(null); setStartingJobId(job.id);
+          try { await startJob(job.id); }
+          catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
+          finally { setStartingJobId(current => current === job.id ? null : current); }
+        }} />
         {solicitarTrabalhoCard}
         {filaOperacionalSection}
         {hasAutomaticQueues && <AutomaticDriverQueue blocked={operationalSuspension.active} />}

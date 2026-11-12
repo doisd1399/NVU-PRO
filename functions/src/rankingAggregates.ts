@@ -238,7 +238,13 @@ function parseTripValue(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Viagem de operação em parceria (B2P): fica no histórico do motorista e no livro do acordo, mas não pontua em nenhum ranking (nem executora, nem contratante). */
+export function isPartnershipTripRecord(data: FirebaseFirestore.DocumentData | undefined): boolean {
+  return Boolean(data && (data.partnershipId || data.partnership === true));
+}
+
 function isValidCompletedTrip(data: FirebaseFirestore.DocumentData): boolean {
+  if (isPartnershipTripRecord(data)) return false;
   if (!isTrustedServerConfirmedTrip(data as Record<string, unknown>)) return false;
   const status = normalizeText(data.recordStatus || data.status);
   const canceled =
@@ -276,8 +282,8 @@ function companyIdOf(data: FirebaseFirestore.DocumentData): string {
 }
 
 /**
- * Company-ranking credit. A partnership trip belongs to the executor's job (and to the driver's own history) but only the
- * contractor's company ranking receives it; every other trip is credited to its own company, exactly as before.
+ * Company-ranking credit. Partnership trips no longer score at all (see `isPartnershipTripRecord`); every other trip is
+ * credited to its own company. Kept for aggregates written before that rule.
  */
 export function scoreCompanyIdOf(data: FirebaseFirestore.DocumentData): string {
   const scored = data.partnershipId ? firstNonEmpty(data.scoreCompanyId) : "";

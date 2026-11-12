@@ -59,7 +59,7 @@ export default function OperationsTab({ active = true }: { active?: boolean }) {
   const { companies, activeCompanyId, allCompanyMembers, allCompanyMembersReady } = useCompanyStore();
   const { users, contracts, jobs, vehicles, trailers, simulators, sequences, cancelJob, changeJobVehicle, rejectJobDemand, operationalDataReady, operationalDataRefreshing } = useOperationalStore();
   const { jobDemands } = useActivityStore();
-  const { historicoTrips = [], loading: historyLoading, refreshing: historyRefreshing, error: historyError } = useTripHistory(activeCompanyId, { userId: currentUser?.id });
+  const { historicoTrips = [], loading: historyLoading, refreshing: historyRefreshing, error: historyError } = useTripHistory(activeCompanyId, { userId: currentUser?.id, companyView: true });
   const navigate = useNavigate();
   const viewerId = auth.currentUser?.uid || currentUser?.id || "";
   const periodStorageKey = `nvu-central-period:${encodeURIComponent(viewerId)}:${encodeURIComponent(activeCompanyId || "")}`;

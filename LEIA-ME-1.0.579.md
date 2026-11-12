@@ -1,6 +1,16 @@
-# NVU PRO 1.0.578 (Android) / Web 2.3.235 / Windows 0.2.4
+# NVU PRO 1.0.579 (Android) / Web 2.3.236 / Windows 0.2.5
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 578 — instala como atualização da 577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.2, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 579 — instala como atualização da 578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.5, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.579 — Pagamentos: veículo, fila do motorista, edição, Pix ao concluir e comprovante conferido
+- **Nova campanha com veículo:** seletor de veículo igual ao de “Encaminhar trabalho”. Ao enviar, o **trabalho entra na fila do motorista** (Painel → Encaminhamentos da empresa), pelo mesmo comando do encaminhamento comum. Quem não puder receber (suspensão, vínculo) sai da campanha e a empresa vê o motivo.
+- **Ao iniciar o trabalho** o motorista vê as **condições** (valor por viagem, viagens, prazo) e aceita (“Aceitar e iniciar”). **Fora do prazo ele finaliza, mas não recebe pelo serviço** (rompe o acordo) — isso é dito antes de iniciar e também depois de vencido (“Iniciar sem pagamento”). O prazo do pagamento é o **mesmo do trabalho** (conta do encaminhamento).
+- **Ao concluir** a operação: no prazo, o motorista **confirma/informa a chave Pix** que a empresa vai usar; fora do prazo, é avisado de que finalizou mas não recebe. A empresa recebe o aviso “operação concluída no prazo”.
+- **Editar campanha em andamento** (nome, valor por viagem, meta): cada motorista é **avisado do que mudou** e vê “Atualizado pela empresa”. O valor por viagem fica travado quando já existe pagamento na folha. Encerrar a campanha tira da fila os trabalhos ainda não iniciados.
+- **Menu flutuante do motorista:** botão **Pagamentos** logo abaixo de **Painel Operacional**.
+- **Comprovante do pagamento:** para marcar como pago, a empresa **anexa o comprovante do banco**; o app **lê o valor** na imagem (no aparelho) e confere com o valor a pagar: igual → conferido; diferente → só segue se a empresa confirmar que a leitura está errada; sem leitura → segue como “valor não lido”. O motorista vê o comprovante e o resultado da conferência e ainda **confirma o recebimento**. Vale para **Pagamentos** e para **Parcerias** (a contratante anexa o comprovante; a executora vê).
+- **Viagens de parceria não contam no Ranking** (nenhum) **nem na Central/histórico/ganhos da empresa prestadora**: aparecem só no **perfil do motorista** e na **empresa contratante** (resumo/histórico/relatórios).
+- **Servidor:** `createRewardCampaign`, `cancelRewardCampaign`, `markRewardPaid`, `settlePartnershipPayment` atualizados; novo `updateRewardCampaign`; regras de **Storage** novas (`reward-receipts`, `partnership-receipts`) e ranking sem viagens de parceria. **Exige publicar funções e regras do Storage** (o ranking atual só se corrige quando o agregado é recalculado).
 
 ## 1.0.578 — Windows 0.2.4: dock em Parcerias/Pagamentos e botão Voltar
 - **Dock visível em Parcerias B2P e Pagamentos** (empresa e motorista), com “Gestão/Trabalho” destacado. Estando nessas páginas, tocar no item destacado **volta para a página inicial** dele.

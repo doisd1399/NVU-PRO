@@ -94,11 +94,12 @@ export default function Partnerships() {
   const cancel = (p: Partnership) => run(async () => { await partnershipService.cancel(p.id); toast.message("Oferta cancelada."); setView({ name: "list" }); }, "Não foi possível cancelar a oferta.");
   const hide = (p: Partnership) => { if (window.confirm(`Excluir "${p.operationName}" da sua lista? Esta operação ${p.status === "declined" ? "recusada" : "cancelada"} não poderá ser recuperada.`)) void run(async () => { await partnershipService.hide(p.id, me); toast.message("Operação excluída."); }, "Não foi possível excluir a operação."); };
   const savePix = (p: Partnership) => (type: PixType, key: string) => run(async () => { await partnershipService.setPix(p.id, type, key); toast.success("Chave Pix salva."); }, "Não foi possível salvar a chave Pix.");
-  const pay = (partnershipId: string, action: "paid" | "received") => run(async () => {
-    await partnershipService.settle(partnershipId, action);
+  const pay = (partnershipId: string, action: "paid" | "received", proof?: { url: string; readCents: number | null; override?: boolean }) => run(async () => {
+    await partnershipService.settle(partnershipId, action, proof);
     toast.success(action === "paid" ? "Pagamento registrado. A parceira será avisada." : "Recebimento confirmado.");
   }, "Não foi possível registrar o pagamento.");
-  const payEntry = (entry: WalletEntry) => void pay(entry.partnershipId, entry.kind === "investimento" ? "paid" : "received");
+  // Pagar exige o comprovante: abre a parceria (onde o comprovante é anexado); confirmar recebimento é direto.
+  const payEntry = (entry: WalletEntry) => entry.kind === "investimento" ? open(entry.partnershipId) : void pay(entry.partnershipId, "received");
 
   const simulatorLabel = ownCompany ? resolveSimulatorDisplayLabel(ownCompany, simulators as any[], allCompanies) : "";
   const infoRow = infoId ? byId.get(infoId) : undefined;
@@ -131,7 +132,7 @@ export default function Partnerships() {
     onBack={goList} onDone={() => { toast.success("Motorista designado. A operação já aparece para ele."); setView({ name: "detail", id: current.id }); }} />);
   if (view.name === "results" && current) return shell(<Results p={current} me={me} onBack={() => setView({ name: "detail", id: current.id })} />);
   if (view.name === "detail" && current) return shell(<Detail p={current} me={me} now={now} busy={busy} onBack={goList}
-    onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)} onPay={action => void pay(current.id, action)} onInfo={() => setInfoId(current.id)}
+    onDesignate={() => setView({ name: "designate", id: current.id })} onCancel={() => cancel(current)} onPay={(action, proof) => pay(current.id, action, proof)} onInfo={() => setInfoId(current.id)}
     company={company} onDriver={openDriver(current)} onSavePix={savePix(current)} />);
 
   const open = (id: string, name: "offer" | "detail" | "designate" = "detail") => setView({ name, id });

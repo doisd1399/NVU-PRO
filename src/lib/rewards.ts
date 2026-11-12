@@ -2,13 +2,14 @@
 export type RewardCampaignStatus = "active" | "cancelled";
 export type RewardCampaign = {
   id: string; companyId: string; name: string; startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; budgetCents: number;
-  audience: "all" | "selected"; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; status: RewardCampaignStatus; accruedCents: number; tripsCount: number; capped: boolean; driversCount: number; acceptedCount: number; createdAtMs: number;
+  audience: "all" | "selected"; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; status: RewardCampaignStatus; accruedCents: number; tripsCount: number; capped: boolean; driversCount: number; acceptedCount: number; createdAtMs: number; vehicleId: string; vehicleName: string; revision: number;
 };
 export type RewardOfferStatus = "pending" | "accepted" | "declined" | "cancelled";
 export type RewardOffer = {
   id: string; campaignId: string; companyId: string; companyName: string; driverId: string; driverName: string; status: RewardOfferStatus; name: string;
   startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; payDay: number | null; deadlineMs: number; expired: boolean; lostCents: number; expiredAtMs: number; completedAtMs: number;
   trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; settledCents: number; simCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
+  jobId: string; vehicleId: string; vehicleName: string; vehiclePlate: string; revision: number; changedAtMs: number; changeNote: string;
 };
 const ms = (value: any): number => (value?.toMillis?.() ?? (typeof value?.seconds === "number" ? value.seconds * 1000 : typeof value === "number" ? value : Date.parse(String(value || "")))) || 0;
 const text = (value: unknown) => String(value ?? "").trim();
@@ -17,14 +18,15 @@ const num = (value: unknown) => Number.isFinite(Number(value)) ? Number(value) :
 export function normalizeCampaign(id: string, raw: Record<string, any>): RewardCampaign {
   return { id, companyId: text(raw.companyId), name: text(raw.name) || "Campanha", startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents),
     bonusGoalTrips: num(raw.bonusGoalTrips), budgetCents: num(raw.budgetCents), audience: raw.audience === "selected" ? "selected" : "all", contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver), goalCents: num(raw.goalCents), openEnded: raw.openEnded === true, deadlineDays: num(raw.deadlineDays), status: raw.status === "cancelled" ? "cancelled" : "active",
-    accruedCents: num(raw.accruedCents), tripsCount: num(raw.tripsCount), capped: raw.capped === true, driversCount: num(raw.driversCount), acceptedCount: num(raw.acceptedCount), createdAtMs: ms(raw.createdAt) };
+    accruedCents: num(raw.accruedCents), tripsCount: num(raw.tripsCount), capped: raw.capped === true, driversCount: num(raw.driversCount), acceptedCount: num(raw.acceptedCount), createdAtMs: ms(raw.createdAt), vehicleId: text(raw.vehicleId), vehicleName: text(raw.vehicleName), revision: num(raw.revision) || 1 };
 }
 export function normalizeOffer(id: string, raw: Record<string, any>): RewardOffer {
   const status = (["pending", "accepted", "declined", "cancelled"] as const).find(item => item === raw.status) || "pending";
   return { id, campaignId: text(raw.campaignId), companyId: text(raw.companyId), companyName: text(raw.companyName) || "Empresa", driverId: text(raw.driverId), driverName: text(raw.driverName) || "Motorista", status, name: text(raw.name) || "Campanha",
     startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents), bonusGoalTrips: num(raw.bonusGoalTrips), contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver), goalCents: num(raw.goalCents), openEnded: raw.openEnded === true, deadlineDays: num(raw.deadlineDays), payDay: Number.isInteger(raw.payDay) && raw.payDay >= 0 && raw.payDay <= 6 ? raw.payDay : null,
     deadlineMs: num(raw.deadlineMs), expired: raw.expired === true, lostCents: num(raw.lostCents), expiredAtMs: num(raw.expiredAtMs), completedAtMs: num(raw.completedAtMs),
-    trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), simCents: num(raw.simCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt) };
+    trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), simCents: num(raw.simCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt),
+    jobId: text(raw.jobId), vehicleId: text(raw.vehicleId), vehicleName: text(raw.vehicleName), vehiclePlate: text(raw.vehiclePlate), revision: num(raw.revision) || 1, changedAtMs: num(raw.changedAtMs), changeNote: text(raw.changeNote) };
 }
 
 export type CampaignState = "active" | "scheduled" | "ended" | "cancelled" | "capped";
@@ -84,3 +86,13 @@ export const timeLeftText = (deadlineMs: number, now: number): string => {
   if (left <= 0) return "encerrado"; const hours = Math.floor(left / 3_600_000);
   if (hours >= 48) return `${Math.floor(hours / 24)} dias`; if (hours >= 24) return "1 dia"; return hours >= 1 ? `${hours} h` : "menos de 1 h";
 };
+
+/** Oferta de um trabalho que a empresa já encaminhou para a fila do motorista (as condições são confirmadas ao iniciar o trabalho). */
+export const isDispatched = (offer: Pick<RewardOffer, "jobId">) => Boolean(offer.jobId);
+/** Condições do pagamento em frases curtas, para o aviso ao iniciar o trabalho. */
+export function termsLines(offer: Pick<RewardOffer, "perTripCents" | "maxTripsPerDriver" | "goalCents" | "deadlineMs" | "payDay">, now: number): string[] {
+  const money = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const lines = [`${money(offer.perTripCents)} por viagem${offer.maxTripsPerDriver ? ` · ${offer.maxTripsPerDriver} viagens` : ""}.`];
+  if (offer.deadlineMs) lines.push(`Conclua a operação no prazo (${timeLeftText(offer.deadlineMs, now) || "prazo da operação"}).`);
+  return lines;
+}

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import { usePartnershipTrips } from "./usePartnershipTrips";
+import { isPartnershipExecution } from "../lib/partnershipTrips";
 import { CanonicalTripQueryService } from "../application/trip/CanonicalTripQueryService";
 import { getTripMetricDate } from "../lib/tripNormalizer";
 import {
@@ -440,7 +441,7 @@ export function removeTripHistoryOptimistically(
 
 export function useTripHistory(
   companyId: string | null | undefined,
-  options: { enabled?: boolean; userId?: string | null; diagnosticOwnerDriverIds?: string[] } = {},
+  options: { enabled?: boolean; userId?: string | null; diagnosticOwnerDriverIds?: string[]; companyView?: boolean } = {},
 ) {
   ensureTeardownListener();
   const enabled = options.enabled !== false;
@@ -486,7 +487,11 @@ export function useTripHistory(
 
   // Contratante: as viagens das operações executadas por parceiras também contam no histórico e nos resumos da empresa.
   const partnershipTrips = usePartnershipTrips(scope ? normalizedCompanyId : "");
-  const historicoTrips = useMemo(() => partnershipTrips.length ? sortTrips([...visibleState.trips, ...partnershipTrips]) : visibleState.trips, [visibleState.trips, partnershipTrips]);
+  // Visão da empresa (Central, histórico, relatórios): viagens feitas em operação de parceria NÃO contam para a empresa prestadora (executora);
+  // só aparecem no perfil do motorista e na empresa contratante (as do livro da parceria, acima). Perfil do motorista: tudo.
+  const companyView = options.companyView === true;
+  const ownTrips = useMemo(() => companyView ? visibleState.trips.filter(trip => !isPartnershipExecution(trip)) : visibleState.trips, [companyView, visibleState.trips]);
+  const historicoTrips = useMemo(() => partnershipTrips.length ? sortTrips([...ownTrips, ...partnershipTrips]) : ownTrips, [ownTrips, partnershipTrips]);
   return {
     historicoTrips,
     loading: visibleState.loading,

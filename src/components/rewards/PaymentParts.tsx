@@ -3,7 +3,8 @@ import { Copy } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { PIX_LABEL, formatMoney, normalizePixKey, type PixType } from "../../lib/partnerships";
 import { buildPixBrCode } from "../../lib/pixBrCode";
-import { dateTimeText, formatPixKey, type RewardPayment } from "../../lib/rewardPayments";
+import { PROOF_LABEL, dateTimeText, formatPixKey, type RewardPayment } from "../../lib/rewardPayments";
+import { ProofLine } from "./ReceiptAttach";
 
 const TYPES = Object.keys(PIX_LABEL) as PixType[];
 const HINT: Record<PixType, string> = { cpf: "000.000.000-00", cnpj: "00.000.000/0000-00", phone: "(11) 91234-5678", email: "nome@email.com", random: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" };
@@ -35,7 +36,7 @@ export function PixPayPanel({ payment }: { payment: RewardPayment }) {
       {qr ? <PixQr code={code} /> : null}
     </> : null}
     {copied === "falhou" ? <p className="b2p-alert" role="alert">Não foi possível copiar. Selecione o texto e copie manualmente.</p> : null}
-    <p className="b2p-hint">Pague no app do banco e toque em <b>Marcar como pago</b>.</p>
+    <p className="b2p-hint">Pague no app do banco e anexe o comprovante abaixo.</p>
   </section>;
 }
 
@@ -58,6 +59,7 @@ export function ReceiptCard({ payment }: { payment: RewardPayment }) {
       {r.campaigns.length ? <Row label="Campanhas" value={r.campaigns.join(", ")} /> : null}
       {payment.receivedAtMs ? <Row label="Recebimento confirmado" value={dateTimeText(payment.receivedAtMs)} /> : null}
     </div>
+    {r.proof ? <ProofLine proof={r.proof} label={`${PROOF_LABEL[r.proof.check]}.`} /> : null}
     <p className="b2p-hint">Registro do NVU. Não é comprovante bancário.</p>
     <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="ghost" data-size="sm" onClick={async () => { setCopied(await copyText(receiptText(payment))); window.setTimeout(() => setCopied(false), 2000); }}><Copy size={15} aria-hidden="true" />{copied ? "Comprovante copiado" : "Copiar comprovante"}</button></div>
   </section>;

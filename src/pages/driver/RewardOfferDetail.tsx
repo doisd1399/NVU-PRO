@@ -29,12 +29,14 @@ export function OfferDetail({ offer, now, busy, onBack, onRespond }: { offer: Re
         </> : null}
       </div>
       {accepted && goal ? (() => { const pct = Math.min(100, sim / goal * 100); return <div className="nvu-central-progress" role="progressbar" aria-label="Progresso até a meta da operação" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${pct}%` }} /></div>; })() : null}
-      {phase === "pending" ? <p className="b2p-note-box" data-tone="warn">{days ? `Conclua a operação em ${days} ${days === 1 ? "dia" : "dias"} depois de aceitar. ` : ""}Sem concluir no prazo, você perde o pagamento.</p> : null}
+      {offer.changeNote && offer.changedAtMs ? <p className="b2p-note-box" data-tone="warn" role="status"><b>Atualizado em {dateTimeText(offer.changedAtMs)}:</b> {offer.changeNote}</p> : null}
+      {phase === "pending" && offer.jobId ? <p className="b2p-note-box" data-tone="warn">O trabalho está na sua fila do Painel.{left ? ` Prazo: ${left}.` : ""} Sem concluir no prazo, você finaliza mas não recebe.</p>
+        : phase === "pending" ? <p className="b2p-note-box" data-tone="warn">{days ? `Conclua a operação em ${days} ${days === 1 ? "dia" : "dias"} depois de aceitar. ` : ""}Sem concluir no prazo, você perde o pagamento.</p> : null}
       {phase === "active" ? <p className="b2p-note-box" data-tone={offer.deadlineMs && offer.deadlineMs - now < 48 * 3_600_000 ? "warn" : undefined}>{left ? `Prazo: ${left}. ` : ""}Sem concluir no prazo, você perde o pagamento.</p> : null}
       {phase === "done" ? <p className="b2p-note-box">Operação concluída. Pagamento na folha do dia de pagamento{payDay}.</p> : null}
       {phase === "expired" ? <p className="b2p-alert" role="alert">Prazo encerrado. Você não concluiu a operação e perdeu o pagamento.</p> : null}
       {phase === "pending" || phase === "active" ? <p className="b2p-hint">Pago por Pix só depois da operação concluída. O NVU só registra: não paga nem garante.</p> : null}
-      {phase === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onRespond("accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => onRespond("decline")}>Recusar</button></div>
+      {phase === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onRespond("accept")}>{busy ? "Aguarde…" : "Aceitar"}</button>{offer.jobId ? null : <button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => onRespond("decline")}>Recusar</button>}</div>
         : phase === "declined" || phase === "cancelled" ? <p className="b2p-hint">{PHASE_LABEL[phase]}.</p> : null}
     </div></section>
   </>;

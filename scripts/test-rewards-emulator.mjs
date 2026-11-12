@@ -20,7 +20,7 @@ const get = path => db.doc(path).get();
 const failsWith = async (fn, code) => assert.rejects(fn, error => { assert.ok(String(error.code).includes(code), `expected ${code}, got ${error.code}: ${error.message}`); return true; });
 const day = offset => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.now() + offset * 86_400_000));
 let seq = 0;
-const campaignData = (extra = {}) => ({ companyId: "a", contractId: "ct-1", name: "Semana de Ouro", startDate: day(-1), endDate: day(5), perTripCents: 2500, bonusCents: 20000, bonusGoalTrips: 3, budgetCents: 600000, audience: "all", driverIds: [], requestId: `req-${++seq}-${Date.now()}`, ...extra });
+const campaignData = (extra = {}) => ({ companyId: "a", vehicleId: "v-1", contractId: "ct-1", name: "Semana de Ouro", startDate: day(-1), endDate: day(5), perTripCents: 2500, bonusCents: 20000, bonusGoalTrips: 3, budgetCents: 600000, audience: "all", driverIds: [], requestId: `req-${++seq}-${Date.now()}`, ...extra });
 const create = (extra = {}, uid = "owner-a") => rewards.createRewardCampaign.run(campaignData(extra), ctx(uid));
 const respond = (offerId, decision, uid) => rewards.respondRewardOffer.run({ offerId, decision }, ctx(uid));
 const member = (uid, companyId) => [`companyMembers/${uid}_${companyId}`, { userId: uid, companyId, roles: ["driver"], status: "active" }];
@@ -32,7 +32,8 @@ const seed = async () => {
     ["users/owner-a", { name: "Dono A", companyId: "a", role: "admin", status: "active" }], ["users/owner-b", { name: "Dono B", companyId: "b", role: "admin", status: "active" }],
     ["users/drv-1", { name: "Naylson Silva", role: "driver", roles: ["driver"], companyId: "a", status: "active" }], ["users/drv-2", { name: "Dudu Tv", role: "driver", roles: ["driver"], companyId: "a", status: "active" }],
     ["users/drv-b", { name: "Caio Lima", role: "driver", roles: ["driver"], companyId: "b", status: "active" }],
-    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, simulator: "GTO" }], ["contratos/ct-2", { companyId: "a", name: "Curta", status: "active", totalDeliveries: 2 }], ["contratos/ct-0", { companyId: "a", name: "Vazia", status: "active", totalDeliveries: 0 }], ["contratos/ct-d", { companyId: "a", name: "Com prazo", status: "active", totalDeliveries: 2, deadlineDays: 3 }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
+    ["contratos/ct-1", { companyId: "a", name: "Cargas SP", status: "active", totalDeliveries: 10, deadlineDays: 5, simulator: "GTO" }], ["contratos/ct-2", { companyId: "a", name: "Curta", status: "active", totalDeliveries: 2, deadlineDays: 5, simulator: "GTO" }], ["contratos/ct-0", { companyId: "a", name: "Vazia", status: "active", totalDeliveries: 0 }], ["contratos/ct-d", { companyId: "a", name: "Com prazo", status: "active", totalDeliveries: 2, deadlineDays: 3, simulator: "GTO" }], ["contratos/ct-b", { companyId: "b", name: "Cargas B", status: "active" }], ["contratos/ct-x", { companyId: "a", name: "Apagada", status: "active", deleted: true }],
+    ["veiculos/v-1", { companyId: "a", name: "Iveco S-Way", plate: "BLS-160", status: "available" }], ["veiculos/v-b", { companyId: "b", name: "Scania", status: "available" }],
     member("drv-1", "a"), member("drv-2", "a"), member("drv-b", "b"),
   ];
   const batch = db.batch(); rows.forEach(([ref, data]) => batch.set(db.doc(ref), data)); await batch.commit();
@@ -86,10 +87,11 @@ try {
     for (const id of ["g2", "g3"]) { await trip(id, "drv-1", "a", 1000 + Number(id.slice(1)), { valorCents: 400000 }); await fire(id); }
     row = (await get(`rewardOffers/${campaignId}_drv-1`)).data(); assert.deepEqual([row.trips, row.totalCents, row.simCents, row.goalReached], [3, 7500, 1_200_000, true], "meta da operação alcançada (R$ 12.000 ≥ R$ 10.000); o salário continua sendo só viagens × R$ 25");
   });
-  await test("prazo: conta a partir do aceite; concluir no prazo vale; vencido sem concluir perde o pagamento e o motorista é avisado; viagem fora do prazo não conta", async () => {
+  await test("prazo: conta a partir do encaminhamento; concluir no prazo vale; vencido sem concluir perde o pagamento e o motorista é avisado; viagem fora do prazo não conta", async () => {
     const { campaignId } = await create({ contractId: "ct-d", startDate: undefined, endDate: undefined }), offerId = `${campaignId}_drv-1`, other = `${campaignId}_drv-2`;
     assert.equal((await get(`rewardOffers/${offerId}`)).get("deadlineDays"), 3); const before = Date.now(); await respond(offerId, "accept", "drv-1"); await respond(other, "accept", "drv-2");
-    let row = (await get(`rewardOffers/${offerId}`)).data(); assert.ok(row.deadlineMs >= before + 3 * 86_400_000 && row.deadlineMs === row.openDeadlineMs, "prazo = aceite + dias da operação");
+    let row = (await get(`rewardOffers/${offerId}`)).data(); assert.ok(row.deadlineMs > 0 && row.deadlineMs < before + 3 * 86_400_000 + 5000 && row.deadlineMs >= before - 60_000 + 3 * 86_400_000 && row.deadlineMs === row.openDeadlineMs, "prazo = o do trabalho encaminhado (encaminhamento + dias da operação), sem recomeçar no aceite");
+    const job = (await get(`trabalhos/${row.jobId}`)).data(); assert.equal(Date.parse(job.dueAt), row.deadlineMs, "o mesmo prazo do trabalho");
     await trip("d1", "drv-1", "a", 1000, { contractId: "ct-d" }); await fire("d1"); await trip("d2", "drv-2", "a", 1100, { contractId: "ct-d" }); await trip("d3", "drv-2", "a", 1200, { contractId: "ct-d" }); await fire("d3");
     row = (await get(`rewardOffers/${other}`)).data(); assert.deepEqual([row.trips, row.totalCents, row.expired === true, row.openDeadlineMs], [2, 5000, false, undefined], "concluiu no prazo: vale e o prazo aberto some");
     // o prazo do drv-1 vence sem concluir (1 de 2 viagens)
@@ -110,10 +112,65 @@ try {
   });
   await test("campanha sem datas: vale o prazo da operação (aberta a partir de agora); com datas continua valendo o período", async () => {
     const { campaignId } = await create({ startDate: undefined, endDate: undefined }), c = (await get(`rewardCampaigns/${campaignId}`)).data();
-    assert.deepEqual([c.openEnded, c.deadlineDays, c.endMs - c.startMs], [true, 0, 365 * 86_400_000]); assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("openEnded"), true);
+    assert.deepEqual([c.openEnded, c.deadlineDays, c.endMs - c.startMs], [true, 5, 365 * 86_400_000]); assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("openEnded"), true);
     await respond(`${campaignId}_drv-1`, "accept", "drv-1"); await trip("ab1", "drv-1", "a", 1000); await fire("ab1"); assert.equal((await get(`rewardOffers/${campaignId}_drv-1`)).get("trips"), 1);
     await failsWith(() => create({ startDate: day(0), endDate: undefined }), "invalid-argument");
     assert.equal((await get(`rewardCampaigns/${(await create({}) ).campaignId}`)).get("openEnded"), false);
+  });
+  await test("encaminhar: o trabalho entra na fila de cada motorista com o veículo escolhido; repetir não duplica; veículo de outra empresa ou em manutenção é recusado", async () => {
+    await failsWith(() => create({ vehicleId: "" }), "invalid-argument"); await failsWith(() => create({ vehicleId: "v-b" }), "failed-precondition"); await failsWith(() => create({ vehicleId: "nao-existe" }), "failed-precondition");
+    await db.doc("veiculos/v-1").update({ status: "maintenance" }); await failsWith(() => create({}), "failed-precondition"); await db.doc("veiculos/v-1").update({ status: "available" });
+    const data = campaignData({ audience: "all" }), first = await rewards.createRewardCampaign.run(data, ctx("owner-a"));
+    assert.deepEqual([first.drivers, first.failed.length], [2, 0]);
+    const offers = (await db.collection("rewardOffers").where("campaignId", "==", first.campaignId).get()).docs;
+    assert.equal(offers.length, 2); for (const offer of offers) {
+      const row = offer.data(), job = (await get(`trabalhos/${row.jobId}`)).data();
+      assert.deepEqual([row.status, row.vehicleId, row.vehicleName, Boolean(row.dispatchedAtMs)], ["pending", "v-1", "Iveco S-Way", true]);
+      assert.deepEqual([job.status, job.driverId, job.vehicleId, job.contractId, job.companyId], ["pending", row.driverId, "v-1", "ct-1", "a"], "trabalho pendente na fila do motorista");
+      assert.equal(Date.parse(job.dueAt), row.deadlineMs, "prazo do pagamento = prazo do trabalho");
+    }
+    const jobsBefore = (await db.collection("trabalhos").get()).size; const again = await rewards.createRewardCampaign.run(data, ctx("owner-a"));
+    assert.equal(again.replayed, true); assert.equal((await db.collection("trabalhos").get()).size, jobsBefore, "repetir o pedido não cria outro trabalho");
+    const notes = await db.collection("notifications").where("type", "==", "REWARD_OFFER").get(); assert.equal(notes.size, 2); assert.match(notes.docs[0].get("message"), /fila/);
+  });
+  await test("encaminhar: quem não pode receber sai da campanha com o motivo; se ninguém pode, a campanha é encerrada", async () => {
+    await db.doc("users/drv-2").update({ status: "suspended", accountStatus: "suspended" });
+    const partial = await create({ audience: "selected", driverIds: ["drv-1", "drv-2"] });
+    assert.equal(partial.drivers, 1); assert.deepEqual(partial.failed.map(row => row.driverId), ["drv-2"]);
+    assert.equal((await get(`rewardOffers/${partial.campaignId}_drv-2`)).get("status"), "cancelled"); assert.ok((await get(`rewardOffers/${partial.campaignId}_drv-2`)).get("dispatchError"));
+    assert.equal((await get(`rewardOffers/${partial.campaignId}_drv-1`)).get("status"), "pending");
+    const none = await create({ audience: "selected", driverIds: ["drv-2"] }); assert.equal(none.drivers, 0); assert.equal((await get(`rewardCampaigns/${none.campaignId}`)).get("status"), "cancelled");
+  });
+  await test("aceitar um trabalho encaminhado não recomeça o prazo; depois do prazo já não dá para aceitar", async () => {
+    const { campaignId } = await create({ contractId: "ct-d" }), offerId = `${campaignId}_drv-1`, row = (await get(`rewardOffers/${offerId}`)).data();
+    await respond(offerId, "accept", "drv-1"); assert.equal((await get(`rewardOffers/${offerId}`)).get("deadlineMs"), row.deadlineMs);
+    const late = `${campaignId}_drv-2`; await db.doc(`rewardOffers/${late}`).update({ deadlineMs: Date.now() - 1000, openDeadlineMs: Date.now() - 1000 });
+    await failsWith(() => respond(late, "accept", "drv-2"), "failed-precondition");
+  });
+  await test("editar: só gestor da empresa; nome, valor por viagem e meta; cada motorista é avisado; valor travado com pagamento gerado; versão antiga é recusada", async () => {
+    const { campaignId } = await create({ contractId: "ct-2", budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0, goalCents: 10000 }), offerId = `${campaignId}_drv-1`;
+    await respond(offerId, "accept", "drv-1");
+    const edit = (patch, uid = "owner-a") => rewards.updateRewardCampaign.run({ campaignId, ...patch }, ctx(uid));
+    await failsWith(() => edit({ name: "Novo nome" }, "drv-1"), "permission-denied"); await failsWith(() => edit({ name: "Novo nome" }, "owner-b"), "permission-denied");
+    await failsWith(() => edit({}), "failed-precondition"); await failsWith(() => edit({ perTripCents: 0 }), "invalid-argument"); await failsWith(() => edit({ name: "x" }), "invalid-argument");
+    await failsWith(() => edit({ name: "Outro", expectedRevision: 9 }), "aborted");
+    const done = await edit({ name: "Semana nova", perTripCents: 4000, goalCents: 20000, expectedRevision: 1 }); assert.deepEqual([done.revision, done.notified], [2, 2]);
+    const campaign = (await get(`rewardCampaigns/${campaignId}`)).data(), offer = (await get(`rewardOffers/${offerId}`)).data();
+    assert.deepEqual([campaign.name, campaign.perTripCents, campaign.goalCents, campaign.revision, campaign.budgetCents], ["Semana nova", 4000, 20000, 2, 2 * 2 * 4000], "teto recalculado");
+    assert.deepEqual([offer.name, offer.perTripCents, offer.goalCents, offer.revision], ["Semana nova", 4000, 20000, 2]); assert.match(offer.changeNote, /Valor por viagem: R\$ 25,00 → R\$ 40,00/);
+    const notes = await db.collection("notifications").where("type", "==", "REWARD_UPDATED").get(); assert.equal(notes.size, 2); assert.match(notes.docs[0].get("message"), /alterou as condições de Semana nova/);
+    await trip("e1", "drv-1", "a", 1000, { contractId: "ct-2", valorCents: 3000 }); await fire("e1"); assert.equal((await get(`rewardOffers/${offerId}`)).get("totalCents"), 4000, "viagem nova já vale o valor editado");
+    await edit({ perTripCents: 5000 }); assert.equal((await get(`rewardOffers/${offerId}`)).get("totalCents"), 5000, "o novo valor vale para as viagens já feitas");
+    await db.doc(`rewardOffers/${offerId}`).update({ settledCents: 5000 }); await failsWith(() => edit({ perTripCents: 6000 }), "failed-precondition"); await edit({ name: "Só o nome" });
+    await rewards.cancelRewardCampaign.run({ campaignId }, ctx("owner-a")); await failsWith(() => edit({ name: "Depois de encerrada" }), "failed-precondition");
+  });
+  await test("encerrar campanha tira da fila os trabalhos ainda não iniciados e avisa o gestor quando o motorista conclui", async () => {
+    const { campaignId } = await create({ contractId: "ct-2", budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), jobs = (await db.collection("rewardOffers").where("campaignId", "==", campaignId).get()).docs.map(row => row.get("jobId"));
+    assert.equal(jobs.length, 2); await respond(`${campaignId}_drv-1`, "accept", "drv-1");
+    await trip("f1", "drv-1", "a", 1000, { contractId: "ct-2" }); await trip("f2", "drv-1", "a", 1100, { contractId: "ct-2" }); await fire("f2");
+    const done = await db.collection("notifications").where("type", "==", "REWARD_COMPLETED").get(); assert.ok(done.size >= 1); assert.match(done.docs[0].get("message"), /concluiu a operação Curta no prazo/);
+    await rewards.cancelRewardCampaign.run({ campaignId }, ctx("owner-a"));
+    const statuses = await Promise.all(jobs.map(async id => (await get(`trabalhos/${id}`)).get("status"))); assert.deepEqual(statuses.sort(), ["cancelled", "pending"], "a oferta aceita segue; a sem resposta saiu da fila");
   });
   await test("responder: só o motorista dono; aceitar/recusar; repetir é idempotente; mudar de ideia depois não vale", async () => {
     const { campaignId } = await create(), offer = `${campaignId}_drv-1`;

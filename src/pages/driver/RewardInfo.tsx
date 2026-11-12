@@ -5,7 +5,7 @@ import { WEEKDAYS, type RewardPayment } from "../../lib/rewardPayments";
 import { goalOf, offerPhase, type RewardOffer } from "../../lib/rewards";
 import { Section } from "../../components/partnerships/shared";
 
-const STEPS = ["Aceite a oferta da empresa.", "Conclua a operação dentro do prazo.", "Concluiu? Entra na folha do dia de pagamento (se perder o dia, na semana seguinte).", "Receba por Pix e confirme."];
+const STEPS = ["O trabalho chega na sua fila. Ao iniciar, aceite as condições.", "Conclua a operação dentro do prazo.", "Ao concluir, informe sua chave Pix.", "Entra na folha do dia de pagamento (se perder o dia, na semana seguinte).", "Receba por Pix e confirme."];
 
 /** Seção exclusiva do motorista: ganhos, trabalho, dia de pagamento e como funciona, em resumo. */
 export function InfoTab({ offers, payments }: { offers: RewardOffer[]; payments: RewardPayment[] }) {
