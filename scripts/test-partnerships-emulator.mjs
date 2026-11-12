@@ -14,7 +14,7 @@ if (!admin.apps.length) admin.initializeApp({ projectId });
 const partnerships = require("./lib/partnerships.js");
 const { executeOperationalCommand } = require("./lib/operationalCommands.js");
 const { refreshCompanyAccess } = require("./lib/companyAccess.js");
-const { scoreCompanyIdOf, isPartnershipTripRecord } = require("./lib/rankingAggregates.js");
+const { scoreCompanyIdOf } = require("./lib/rankingAggregates.js");
 const environment = await initializeTestEnvironment({ projectId, firestore: { rules: fs.readFileSync("firestore.rules", "utf8") } });
 const db = admin.firestore();
 const ctx = (uid, token = {}) => ({ auth: { uid, token } });
@@ -209,7 +209,7 @@ try {
     assert.equal(job.status, "active"); assert.match(job.startVehiclePhotoUrl, /partnership-start-photos/);
   });
 
-  await test("viagens: cada viagem confirmada conta uma vez no livro; pendente e de outro trabalho não contam; ranking não pontua viagem de parceria", async () => {
+  await test("viagens: cada viagem confirmada conta uma vez no livro; pendente e de outro trabalho não contam; ranking credita a contratante", async () => {
     const { partnershipId } = await createOffer(); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId);
     const base = { jobId, companyId: "b", empresaId: "b", driverId: "drv-b", contractId: `pc_${partnershipId}`, partnershipId, scoreCompanyId: "a", contractorCompanyId: "a", status: "concluida", recordStatus: "concluida", serverValidatedAt: new Date() };
     await db.doc("historico_viagens/t1").set({ ...base, valorCents: 150_000, completedAt: new Date(Date.now() - 3000) });
@@ -219,9 +219,7 @@ try {
     await partnerships.projectTrips(db, partnershipId); await partnerships.projectTrips(db, partnershipId);
     const p = (await get(`partnerships/${partnershipId}`)).data();
     assert.equal(p.progress, 2); assert.equal(p.earningsCents, 400_000); assert.equal(p.bestCents, 250_000); assert.equal(p.averageCents, 200_000); assert.equal(p.ledger.length, 2);
-    assert.equal(isPartnershipTripRecord({ companyId: "b", partnershipId, scoreCompanyId: "a" }), true, "viagem de parceria não pontua em nenhum ranking (nem executora, nem contratante)");
-    assert.equal(isPartnershipTripRecord({ companyId: "b", partnership: true }), true); assert.equal(isPartnershipTripRecord({ companyId: "b" }), false, "viagem comum pontua como antes"); assert.equal(isPartnershipTripRecord(undefined), false);
-    assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId, scoreCompanyId: "a" }), "a", "agregados antigos: o crédito ainda aponta para a contratante");
+    assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId, scoreCompanyId: "a" }), "a", "ranking de empresas: contratante (a executora não soma; o motorista conta a viagem para ele)");
     assert.equal(scoreCompanyIdOf({ companyId: "b" }), "b", "viagem comum: a própria empresa, como antes");
     assert.equal(scoreCompanyIdOf({ companyId: "b", partnershipId }), "b", "sem marca de pontuação não desvia nada");
     assert.equal((await get("historico_viagens/t1")).get("driverId"), "drv-b", "o histórico do motorista continua dele");

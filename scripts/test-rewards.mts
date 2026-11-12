@@ -270,13 +270,13 @@ test("Comprovante: servidor e app leem igual; só o arquivo do gestor neste paga
   assert.match(detail, /<ReceiptAttach scope="partnership-receipt"/, "Parcerias: mesmo esquema do comprovante"); assert.match(partner, /entry\.kind === "investimento" \? open\(entry\.partnershipId\)/, "pagar pela carteira abre a parceria para anexar o comprovante");
   const rules = readFileSync("storage.rules", "utf8"); assert.match(rules, /match \/reward-receipts\/\{paymentId\}\/\{userId\}\/\{fileName\}/); assert.match(rules, /match \/partnership-receipts\/\{partnershipId\}\/\{userId\}\/\{fileName\}/); assert.match(readFileSync("src/services/uploadService.ts", "utf8"), /`reward-receipts\/\$\{cleanFolder\}\/\$\{uploaderUid\}/);
 });
-test("Viagens de parceria: fora do Ranking e da Central/histórico da empresa prestadora; só no perfil do motorista e na empresa contratante", () => {
+test("Viagens de parceria: ranking credita a contratante e o motorista; fora da Central/histórico da empresa prestadora", () => {
   assert.equal(isPartnershipExecution({ partnershipId: "po_1", companyId: "b" }), true, "viagem da executora"); assert.equal(isPartnershipExecution({ partnership: true }), true);
   assert.equal(isPartnershipExecution({ partnershipId: "po_1", partnershipRole: "contractor" }), false, "registro da contratante conta"); assert.equal(isPartnershipExecution({ companyId: "b" }), false); assert.equal(isPartnershipExecution(null), false);
   const hook = readFileSync("src/hooks/useTripHistory.ts", "utf8"); assert.match(hook, /companyView \? visibleState\.trips\.filter\(trip => !isPartnershipExecution\(trip\)\)/);
   for (const file of ["src/pages/admin/Operations.tsx", "src/pages/admin/Reports.tsx", "src/pages/admin/fleet/OperationsTab.tsx", "src/pages/admin/fleet/CompanyTab.tsx", "src/pages/admin/fleet/DriversTab.tsx", "src/pages/admin/ContractDetailsPage.tsx", "src/pages/AuditPage.tsx"]) assert.match(readFileSync(file, "utf8"), /companyView: true/, file);
   for (const file of ["src/pages/admin/DriverProfileReference.tsx", "src/pages/admin/DriverProfileIsolated.tsx", "src/pages/driver/TripHistory.tsx"]) assert.doesNotMatch(readFileSync(file, "utf8"), /companyView/, `${file}: perfil do motorista mantém tudo`);
-  const ranking = readFileSync("functions/src/rankingAggregates.ts", "utf8"); assert.match(ranking, /if \(isPartnershipTripRecord\(data\)\) return false;/, "nenhum ranking pontua viagem de parceria (agregados novos e reconstrução)");
+  const ranking = readFileSync("functions/src/rankingAggregates.ts", "utf8"); assert.doesNotMatch(ranking, /isPartnershipTripRecord/, "o ranking não exclui viagem de parceria"); assert.match(ranking, /data\.partnershipId \? firstNonEmpty\(data\.scoreCompanyId\)/, "crédito da empresa vai para a contratante (scoreCompanyId)");
 });
 test("Pagamentos (empresa): descrição curta sem repetir texto e foto do motorista nas listas", () => {
   assert.equal(termText({ openEnded: true, deadlineDays: 1, startMs: 0, endMs: 0 }), "1 dia"); assert.equal(termText({ openEnded: true, deadlineDays: 0, startMs: 0, endMs: 0 }), "prazo da operação");
