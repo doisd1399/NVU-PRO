@@ -12,7 +12,7 @@ export function OfferDetail({ offer, now, busy, onBack, onRespond }: { offer: Re
   const sim = Number(offer.simCents) || 0, phase = offerPhase(offer), accepted = offer.status === "accepted", goal = goalOf(offer), days = offer.deadlineDays, left = timeLeftText(offer.deadlineMs, now);
   const payDay = offer.payDay === null ? "" : ` (toda ${WEEKDAYS[offer.payDay].toLowerCase()})`;
   return <>
-    <BackLink label="Pagamentos" onClick={onBack} />
+    <BackLink label="Trabalhos" onClick={onBack} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form">
       <div className="b2p-op-row"><span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={22} aria-hidden="true" /></span><div><b>{offer.name}</b><small>{offer.companyName} · {termText(offer)}</small></div></div>
       <div className="b2p-settle">

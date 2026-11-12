@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import React, { useEffect, useRef, useState } from "react";
 import { Handshake, ImagePlus, X } from "lucide-react";
 import { auth } from "../../lib/firebase";
@@ -48,7 +49,7 @@ export function PartnershipStartSheet({ open, partnershipId, operationName, part
       setBusy(false);
     }
   };
-  return <div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && onClose()}>
+  return createPortal(<div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && onClose()}>
     <section className="nvu-pss" role="dialog" aria-modal="true" aria-labelledby="nvu-pss-title" onClick={event => event.stopPropagation()}>
       <header><span className="nvu-pss-badge"><Handshake size={14} aria-hidden="true" /> Parceria</span>
         <button type="button" aria-label="Fechar" disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button></header>
@@ -65,5 +66,5 @@ export function PartnershipStartSheet({ open, partnershipId, operationName, part
       {error ? <p className="nvu-pss-error" role="alert">{error}</p> : null}
       {error ? <button type="button" className="nvu-pss-start" disabled={!file || busy} onClick={() => void confirm()}>{busy ? "Enviando foto e iniciando…" : "Tentar novamente"}</button> : null}
     </section>
-  </div>;
+  </div>, document.body);
 }

@@ -1,4 +1,4 @@
-.nvu-pss-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; background: rgb(8 14 22 / .55); }
+.nvu-pss-backdrop { position: fixed; inset: 0; z-index: 1900; /* acima da dock (40) e do cabeçalho: o painel inteiro, com os botões, fica visível */ display: flex; align-items: flex-end; justify-content: center; background: rgb(8 14 22 / .55); overscroll-behavior: contain; }
 .nvu-pss { width: min(100%, 460px); max-height: 92dvh; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   border-radius: 20px 20px 0 0; background: var(--nvu-surface, #fff); color: var(--nvu-text, #182332); box-shadow: 0 -8px 30px rgb(0 0 0 / .25); }
 @media (min-width: 640px) { .nvu-pss-backdrop { align-items: center; } .nvu-pss { border-radius: 20px; } }

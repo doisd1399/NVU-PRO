@@ -730,7 +730,7 @@ function DashboardComponent({
     { id: "/driver/profile", label: "Meu Perfil", icon: UserIcon },
     { id: "/driver/history", label: "Histórico de Viagens", icon: History },
     { id: "/driver/reports", label: "Relatórios", icon: Activity },
-    { id: "/driver/recompensas", label: "Pagamentos", icon: Wallet },
+    { id: "/driver/recompensas", label: "Trabalhos", icon: Wallet },
   ];
 
   const activePageDetails =

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import React, { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Wallet, X } from "lucide-react";
@@ -27,9 +28,9 @@ export function RewardCompletionPrompt({ driverId }: { driverId: string | undefi
   if (!driverId || !target) return null;
   const close = () => { markSeen(target.id); setDismissed(list => [...list, target.id]); };
   const lost = target.expired;
-  return <div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && close()}>
+  return createPortal(<div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && close()}>
     <section className="nvu-pss" role="dialog" aria-modal="true" aria-labelledby="nvu-rcp-title" onClick={event => event.stopPropagation()} data-testid="reward-completion-prompt">
-      <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Pagamentos</span><button type="button" aria-label="Fechar" disabled={busy} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+      <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Trabalhos</span><button type="button" aria-label="Fechar" disabled={busy} onClick={close}><X size={18} aria-hidden="true" /></button></header>
       <h2 id="nvu-rcp-title">{lost ? "Prazo encerrado" : "Operação concluída"}</h2>
       <p className="nvu-pss-partner">{target.contractName || target.name} · {target.companyName}</p>
       {lost
@@ -40,5 +41,5 @@ export function RewardCompletionPrompt({ driverId }: { driverId: string | undefi
         </>}
       <button type="button" className="nvu-pss-start" disabled={busy || (!lost && !pix)} onClick={close}>{lost ? "Entendi" : pix ? "Usar esta chave" : "Cadastre a chave para continuar"}</button>
     </section>
-  </div>;
+  </div>, document.body);
 }

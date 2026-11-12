@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import React, { useEffect, useState } from "react";
 import { Wallet, X } from "lucide-react";
 import { formatMoney } from "../../lib/partnerships";
@@ -18,9 +19,9 @@ export function RewardStartSheet({ offer, onClose, onConfirm }: { offer: RewardO
     if (busy) return; setBusy(true); setError("");
     try { await onConfirm(); } catch (reason: any) { setError(reason?.message || "Não foi possível iniciar o trabalho."); setBusy(false); }
   };
-  return <div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && onClose()}>
+  return createPortal(<div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && onClose()}>
     <section className="nvu-pss" role="dialog" aria-modal="true" aria-labelledby="nvu-rss-title" onClick={event => event.stopPropagation()} data-testid="reward-start-sheet">
-      <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Trabalho com pagamento</span>
+      <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Oferta de trabalho</span>
         <button type="button" aria-label="Fechar" disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></button></header>
       <h2 id="nvu-rss-title">{offer.contractName || offer.name}</h2>
       <p className="nvu-pss-partner">{offer.companyName}</p>
@@ -35,5 +36,5 @@ export function RewardStartSheet({ offer, onClose, onConfirm }: { offer: RewardO
       <button type="button" className="nvu-pss-start" disabled={busy} onClick={() => void confirm()}>{busy ? "Iniciando…" : late ? "Iniciar sem pagamento" : "Aceitar e iniciar"}</button>
       <button type="button" className="nvu-pss-start" style={{ background: "transparent", color: "inherit", border: "1px solid currentColor", opacity: 0.8, marginTop: 8 }} disabled={busy} onClick={onClose}>Agora não</button>
     </section>
-  </div>;
+  </div>, document.body);
 }

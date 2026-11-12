@@ -1,6 +1,12 @@
-# NVU PRO 1.0.581 (Android) / Web 2.3.238 / Windows 0.2.7
+# NVU PRO 1.0.582 (Android) / Web 2.3.239 / Windows 0.2.8
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 581 — instala como atualização da 580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.7, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 582 — instala como atualização da 581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.8, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.582 — Motorista: página “Trabalhos” e oferta de trabalho identificada na fila
+- **A página do motorista passa a se chamar “Trabalhos”** (antes “Pagamentos”): título, botão do menu flutuante, seletor do painel e atalho. A área da empresa continua “Pagamentos”.
+- **Em “Encaminhamentos da empresa”** o trabalho com pagamento agora tem o **selo “Oferta de trabalho”**, o nome em destaque e, ao abrir, as condições (“R$ 0,25 por viagem · prazo …; fora do prazo você finaliza, mas não recebe”). O botão passa a “Ver condições e iniciar”.
+- **Janelas de condições/Pix/foto não ficam mais cobertas pela dock:** a janela “Trabalho com pagamento” (e a de conclusão e a da parceria) agora aparece **acima** da barra inferior, com todos os botões e informações visíveis.
+- Sem mudança no servidor.
 
 ## 1.0.581 — Ranking: regra das parcerias corrigida
 - **Parceria no ranking:** a empresa que **fez a oferta (contratante)** e o **motorista que fez o serviço** pontuam; a **empresa prestadora (que aceitou) não soma** essas viagens nem os ganhos (também fora da Central/histórico dela). Isto **restaura** o comportamento anterior do ranking (a v1.0.579 chegou a tirar as viagens de parceria de todo o ranking, o que derrubou a contratante). **Exige publicar as funções do ranking**; os totais voltam quando o agregado é recalculado.

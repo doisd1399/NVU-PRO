@@ -1,5 +1,9 @@
 import React, { useState } from "react";
-import { Building2, Check, CheckCircle2, ChevronDown, ChevronRight, History, Route } from "lucide-react";
+import { Building2, Check, CheckCircle2, ChevronDown, ChevronRight, History, Route, Wallet } from "lucide-react";
+import { useSessionStore } from "../../context/AppContext";
+import { useDriverRewards } from "../../hooks/useRewards";
+import { dateTimeText } from "../../lib/rewardPayments";
+import { formatMoney } from "../../lib/partnerships";
 import { StableImage } from "../common/StableImage";
 import { DiscreetDisclosure } from "../common/DiscreetDisclosure";
 import { DriverStatusRow } from "./DriverStatusRow";
@@ -82,18 +86,23 @@ export function DriverAssignedQueue({ jobs, contracts, suspended, startingJobId,
 }) {
   const [expanded, setExpanded] = useState(true);
   const id = React.useId();
+  // Trabalho com pagamento: identificado na fila (selo + condições). A escuta é compartilhada e só esta lista é refeita quando muda.
+  const { currentUser } = useSessionStore();
+  const { offers: rewardOffers } = useDriverRewards(currentUser?.id);
+  const rewardOf = (job: Job) => rewardOffers.find(offer => offer.jobId === job.id && (offer.status === "pending" || offer.status === "accepted"));
   return <section className="nvu-idle-assigned-queue" aria-label="Trabalhos encaminhados pela empresa">
     <h2><button className="nvu-idle-assigned-heading" type="button" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>
       <Route size={20} aria-hidden="true" /><span>Encaminhamentos da empresa</span><small>{jobs.length}</small><ChevronDown size={17} className={expanded ? "rotate-180" : ""} aria-hidden="true" />
     </button></h2>
     <div hidden={!expanded} id={id}>
       {jobs.map((job, index) => {
-        const contract = resolveOperationContract(job, contracts);
-        return <details key={job.id} className="nvu-idle-assigned-row">
-          <summary><span>{index + 1}</span><strong>{contract?.name || "Operação atribuída"}</strong>{job.partnershipId ? <em className="nvu-idle-partnership-tag">Parceria</em> : null}<small>A realizar</small><ChevronDown size={15} aria-hidden="true" /></summary>
+        const contract = resolveOperationContract(job, contracts), reward = rewardOf(job);
+        return <details key={job.id} className="nvu-idle-assigned-row" data-reward={reward ? "1" : undefined}>
+          <summary><span>{index + 1}</span><strong>{contract?.name || "Operação atribuída"}</strong>{job.partnershipId ? <em className="nvu-idle-partnership-tag">Parceria</em> : null}{reward ? <em className="nvu-idle-partnership-tag nvu-idle-reward-tag"><Wallet size={10} aria-hidden="true" /> Oferta de trabalho</em> : null}<small>A realizar</small><ChevronDown size={15} aria-hidden="true" /></summary>
           <div><p>{contract?.totalDeliveries ? `${contract.totalDeliveries} entregas` : "Entregas a definir"}{contract?.deadlineDays ? ` · ${contract.deadlineDays} dias` : ""}</p>
+            {reward ? <p className="nvu-idle-reward-terms"><b>{formatMoney(reward.perTripCents)}</b> por viagem{reward.deadlineMs ? ` · prazo ${dateTimeText(reward.deadlineMs)}` : ""}. Fora do prazo você finaliza, mas não recebe.</p> : null}
             <button type="button" className="nvu-idle-assigned-start" onClick={() => onStart(job)} disabled={suspended || Boolean(startingJobId)}>
-              {startingJobId === job.id ? "Iniciando operação…" : "Iniciar operação"}
+              {startingJobId === job.id ? "Iniciando operação…" : reward?.status === "pending" ? "Ver condições e iniciar" : "Iniciar operação"}
             </button></div>
         </details>;
       })}

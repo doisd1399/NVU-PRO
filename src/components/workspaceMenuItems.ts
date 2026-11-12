@@ -9,6 +9,6 @@ export const COMPANY_MENU_GROUPS: GlobalMenuGroup[] = [{ title: "", items: [
 
 export const DRIVER_MENU_ITEMS: GlobalMenuItem[] = [
   { label: "Painel Operacional", icon: LayoutDashboard, path: "/driver", exact: true },
-  { label: "Pagamentos", icon: Wallet, path: "/driver/recompensas" },
+  { label: "Trabalhos", icon: Wallet, path: "/driver/recompensas" },
   { label: "Manual", icon: BookOpen, path: "/driver/manual" },
 ];

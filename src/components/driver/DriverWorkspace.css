@@ -491,3 +491,9 @@ body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { p
 /* Selo "Parceria" (B2P) na fila de encaminhamentos. */
 .nvu-idle-partnership-tag { flex-shrink: 0; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
   background: var(--nvu-accent-soft, #e0f7fa); color: var(--nvu-accent, #00899a); }
+
+/* Selo "Pagamento" e condições na fila de encaminhamentos: o trabalho com pagamento não parece uma operação comum. */
+.nvu-idle-reward-tag { display: inline-flex; align-items: center; gap: 3px; }
+.nvu-idle-reward-terms { margin: 0 0 8px; font-size: 12.5px; line-height: 1.4; color: var(--idle-muted); }
+.nvu-idle-reward-terms b { color: inherit; font-weight: 800; }
+.nvu-idle-assigned-row[data-reward="1"] > summary strong { color: var(--nvu-accent, #00899a); }
