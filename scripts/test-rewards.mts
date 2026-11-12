@@ -175,7 +175,7 @@ test("Pagamento só de quem concluiu a operação; quem não concluiu fica para 
   assert.deepEqual([{ ...base, trips: 9 }, { ...base, trips: 10 }, { totalCents: 500 }].map(offerCompleted), [false, true, true], "servidor e app iguais");
   const open = normalizeCampaign({ ...input({}), startDate: undefined, endDate: undefined, contractId: "ct-1" }, NOW); assert.deepEqual([open.openEnded, open.startMs, open.endMs - open.startMs], [true, NOW, 365 * DAY], "sem datas: aberta, a partir de agora"); assert.equal(normalizeCampaign(input({}), NOW).openEnded, false);
   rejects(() => normalizeCampaign({ ...input({}), endDate: undefined }, NOW), /datas/);
-  assert.equal(termText({ openEnded: true, deadlineDays: 4, startMs: 0, endMs: 0 }), "prazo da operação: 4 dias"); assert.equal(termText({ openEnded: false, deadlineDays: 4, startMs: NOW, endMs: NOW + DAY }), periodText(NOW, NOW + DAY));
+  assert.equal(termText({ openEnded: true, deadlineDays: 4, startMs: 0, endMs: 0 }), "4 dias"); assert.equal(termText({ openEnded: false, deadlineDays: 4, startMs: NOW, endMs: NOW + DAY }), periodText(NOW, NOW + DAY));
   const waiting = pendingBalance([normalizeOffer("a", { status: "accepted", driverId: "d1", driverName: "Ana", totalCents: 2500, perTripCents: 2500, maxTripsPerDriver: 4, trips: 1 }), normalizeOffer("b", { status: "accepted", driverId: "d2", driverName: "Beto", totalCents: 10000, perTripCents: 2500, maxTripsPerDriver: 4, trips: 4 })]);
   assert.deepEqual([waiting.rows.map(row => row.driverId), waiting.totalCents, waiting.waiting.map(row => [row.driverId, row.trips, row.of])], [["d2"], 10000, [["d1", 1, 4]]], "pronto para a folha × em andamento");
 });
@@ -241,7 +241,7 @@ test("Editar campanha: nome, valor por viagem e meta; o motorista é avisado e v
 });
 test("Trabalho com pagamento: as condições aparecem ao iniciar (aceite), fora do prazo finaliza mas não recebe; sem Recusar para trabalho já encaminhado", () => {
   const dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), sheet = readFileSync("src/components/driver/RewardStartSheet.tsx", "utf8"), det = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8");
-  assert.match(dash, /if \(rewardOfferFor\(job\)\) \{ setRewardStartJob\(job\); return; \}/, "o início passa pelas condições"); assert.match(dash, /rewardService\.respond\(offer\.id, "accept"\)/);
+  assert.match(dash, /if \(offer\) \{ setRewardStart\(\{ job, offer \}\); return; \}/, "o início passa pelas condições"); assert.doesNotMatch(dash, /useDriverRewards/, "o painel não assina as ofertas (não refaz a tela a cada atualização)"); assert.match(dash, /rewardService\.respond\(offer\.id, "accept"\)/);
   assert.match(sheet, /não recebe<\/b> pelo serviço, por romper o acordo/); assert.match(sheet, /Aceitar e iniciar/); assert.match(sheet, /Iniciar sem pagamento/, "prazo vencido: inicia mas sem pagamento"); assert.match(sheet, /informe sua chave Pix/);
   assert.match(det, /offer\.jobId \? null :[\s\S]*Recusar/);
 });
@@ -277,5 +277,19 @@ test("Viagens de parceria: fora do Ranking e da Central/histórico da empresa pr
   for (const file of ["src/pages/admin/Operations.tsx", "src/pages/admin/Reports.tsx", "src/pages/admin/fleet/OperationsTab.tsx", "src/pages/admin/fleet/CompanyTab.tsx", "src/pages/admin/fleet/DriversTab.tsx", "src/pages/admin/ContractDetailsPage.tsx", "src/pages/AuditPage.tsx"]) assert.match(readFileSync(file, "utf8"), /companyView: true/, file);
   for (const file of ["src/pages/admin/DriverProfileReference.tsx", "src/pages/admin/DriverProfileIsolated.tsx", "src/pages/driver/TripHistory.tsx"]) assert.doesNotMatch(readFileSync(file, "utf8"), /companyView/, `${file}: perfil do motorista mantém tudo`);
   const ranking = readFileSync("functions/src/rankingAggregates.ts", "utf8"); assert.match(ranking, /if \(isPartnershipTripRecord\(data\)\) return false;/, "nenhum ranking pontua viagem de parceria (agregados novos e reconstrução)");
+});
+test("Pagamentos (empresa): descrição curta sem repetir texto e foto do motorista nas listas", () => {
+  assert.equal(termText({ openEnded: true, deadlineDays: 1, startMs: 0, endMs: 0 }), "1 dia"); assert.equal(termText({ openEnded: true, deadlineDays: 0, startMs: 0, endMs: 0 }), "prazo da operação");
+  const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), payroll = readFileSync("src/pages/admin/RewardPayroll.tsx", "utf8"), avatar = readFileSync("src/components/rewards/DriverAvatar.tsx", "utf8");
+  assert.match(page, /campaign\.contractName !== campaign\.name \? `\$\{campaign\.contractName\} · `/, "o nome da operação só aparece quando difere do nome da campanha");
+  assert.match(page, /\{formatMoney\(campaign\.perTripCents\)\}\/viagem · \{termText\(campaign\)\}/); assert.doesNotMatch(page, /por viagem<\/span>/);
+  assert.match(page, /<DriverPhotosContext\.Provider value=\{photos\}>/); assert.match(page, /<DriverAvatar id=\{offer\.driverId\}/);
+  assert.equal((payroll.match(/<DriverAvatar /g) || []).length >= 3, true, "folha, em andamento, prontos e detalhe"); assert.doesNotMatch(payroll, /initials\(/);
+  assert.match(avatar, /<StableImage src=\{photo\}/); assert.match(avatar, /initials\(name\)/, "sem foto, iniciais");
+});
+test("Desempenho: escutas do motorista compartilhadas (uma por motorista), painel sem refazer a tela e Portal sem baixar a Central ao abrir", () => {
+  const hooks = readFileSync("src/hooks/useRewards.ts", "utf8"), portal = readFileSync("src/pages/Portal.tsx", "utf8");
+  assert.match(hooks, /driverStores = new Map/); assert.match(hooks, /useSyncExternalStore\(subscribe/); assert.equal((hooks.match(/rewardService\.subscribeDriver\(/g) || []).length, 1, "uma única escuta de ofertas por motorista");
+  assert.match(portal, /window\.setTimeout\(\(\) => \{[\s\S]*requestIdleCallback[\s\S]*\}, 2500\)/, "Central/perfil só no ocioso, depois de 2,5 s"); assert.match(portal, /void preloadRoute\("\/select-profile"\)/, "o seletor continua aquecido na hora");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

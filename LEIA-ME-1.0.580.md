@@ -1,6 +1,13 @@
-# NVU PRO 1.0.579 (Android) / Web 2.3.236 / Windows 0.2.5
+# NVU PRO 1.0.580 (Android) / Web 2.3.237 / Windows 0.2.6
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 579 — instala como atualização da 578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.5, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 580 — instala como atualização da 579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.6, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.580 — Pagamentos: texto curto, foto do motorista e desempenho
+- **Campanha com descrição curta:** a linha da lista mostra “R$ 0,25/viagem · 4 dias” (o nome da operação só aparece quando é diferente do nome da campanha, e o prazo não repete a palavra “prazo”). No detalhe, “Operação” some quando repete o título e “Prazo” mostra só “4 dias”.
+- **Foto do motorista** nas listas de Pagamentos (motoristas da campanha, folha, em andamento, prontos para a folha, transferências e detalhe do pagamento); sem foto, as iniciais.
+- **Botão “Escolher perfil” lento logo após atualizar:** a abertura do app deixava de baixar a Central/perfil ao mesmo tempo em que o usuário tocava; agora isso fica para quando o aparelho estiver ocioso (o seletor continua aquecido). A primeira abertura após atualizar ainda precisa preparar o app, então pode levar um instante.
+- **Rolagem que trava e depois responde:** (1) o Feed de notícias gravava a posição de rolagem no armazenamento a cada quadro; agora só na pausa da rolagem; (2) as escutas de Pagamentos do motorista (ofertas, recebimentos e chave Pix) passaram a ser **uma só por motorista** (antes eram várias, e o Painel refazia a tela a cada atualização).
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.579 — Pagamentos: veículo, fila do motorista, edição, Pix ao concluir e comprovante conferido
 - **Nova campanha com veículo:** seletor de veículo igual ao de “Encaminhar trabalho”. Ao enviar, o **trabalho entra na fila do motorista** (Painel → Encaminhamentos da empresa), pelo mesmo comando do encaminhamento comum. Quem não puder receber (suspensão, vínculo) sai da campanha e a empresa vê o motivo.

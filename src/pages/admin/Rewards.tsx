@@ -14,12 +14,12 @@ import { DriverMultiSelect, type DriverChoice } from "../../components/rewards/D
 import { resolveDriverPhoto } from "../../lib/resolveDriverPhoto";
 import AssignJobAssetPicker, { OperationCardBody } from "../../components/admin/AssignJobAssetPicker";
 import { countFleetAssetUsage } from "../../lib/fleetUsage";
+import { DriverAvatar, DriverPhotosContext } from "../../components/rewards/DriverAvatar";
 import "../../components/partnerships/Partnerships.css";
 
 const TONE: Record<CampaignState, string> = { active: "good", scheduled: "warn", ended: "muted", cancelled: "muted", capped: "late" };
 const OFFER_TONE: Record<string, string> = { pending: "warn", accepted: "good", declined: "muted", cancelled: "muted" };
 const offerLabel = (offer: RewardOffer) => offer.status === "pending" && offer.jobId ? "Na fila do motorista" : OFFER_STATE_LABEL[offer.status];
-const initials = (name: string) => name.split(/\s+/).map(word => word[0]).slice(0, 2).join("").toUpperCase();
 const Bar = ({ pct, warn }: { pct: number; warn?: boolean }) => <div className="nvu-central-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}><span style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: warn ? "var(--central-warning)" : undefined }} /></div>;
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
 
@@ -40,7 +40,9 @@ export default function Rewards() {
   const now = useMemo(() => Date.now(), [campaigns, view]);
   useEffect(() => { window.scrollTo?.({ top: 0 }); }, [view.name]);
   const header = (title: string, description: string) => <PageHeader title={title} description={description} companyName={String(ownCompany?.companyName || ownCompany?.fleetName || "")} simulator={ownCompany ? resolveSimulatorDisplayLabel(ownCompany, simulators as any[], allCompanies) : ""} />;
-  const shell = (title: string, description: string, children: React.ReactNode) => <div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{header(title, description)}{children}</div></div>;
+  // Fotos dos motoristas nas listas de Pagamentos (campanha, folha e transferências).
+  const photos = useMemo(() => new Map((users as any[]).map(user => [String(user.id), resolveDriverPhoto(user) || ""] as [string, string]).filter(([, photo]) => photo)), [users]);
+  const shell = (title: string, description: string, children: React.ReactNode) => <DriverPhotosContext.Provider value={photos}><div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{header(title, description)}{children}</div></div></DriverPhotosContext.Provider>;
   if (!me) return shell("Pagamentos", "Pague os motoristas.", <p className="b2p-empty">Selecione uma empresa.</p>);
   const goList = () => setView({ name: "list" });
 
@@ -102,7 +104,7 @@ export default function Rewards() {
         return <button type="button" className="b2p-row" key={campaign.id} onClick={() => setView({ name: "detail", id: campaign.id })} aria-label={`${campaign.name}, ${CAMPAIGN_STATE_LABEL[state]}`}>
           <span className="nvu-central-avatar b2p-logo" style={{ display: "inline-grid", placeItems: "center", width: 44, height: 44 }}><Trophy size={20} aria-hidden="true" /></span>
           <span className="b2p-row-head"><strong className="b2p-row-title">{campaign.name}</strong><span className="b2p-pill b2p-row-status" data-tone={TONE[state]}><i aria-hidden="true" />{CAMPAIGN_STATE_LABEL[state]}</span></span>
-          <span className="b2p-row-sub">{campaign.contractName ? `${campaign.contractName} · ` : ""}{termText(campaign)} · {formatMoney(campaign.perTripCents)} por viagem</span>
+          <span className="b2p-row-sub">{campaign.contractName && campaign.contractName !== campaign.name ? `${campaign.contractName} · ` : ""}{formatMoney(campaign.perTripCents)}/viagem · {termText(campaign)}</span>
           <span className="b2p-row-facts"><span>{formatMoney(campaign.accruedCents)}</span><span>{campaign.tripsCount} {campaign.tripsCount === 1 ? "viagem" : "viagens"}</span><span>{campaign.acceptedCount} de {campaign.driversCount} aceitaram</span></span>
           <ChevronRight className="b2p-row-chev" size={18} aria-hidden="true" />
         </button>; }) : <p className="b2p-empty">{ready ? "Nenhuma campanha ainda." : "Carregando campanhas…"}</p>}
@@ -185,7 +187,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onCancel 
       <div className="b2p-sum"><div><small>Ganhos acumulados</small><b>{formatMoney(campaign.accruedCents)}</b><em>{campaign.tripsCount} {campaign.tripsCount === 1 ? "viagem" : "viagens"}</em></div><div><small>Teto</small><b>{formatMoney(campaign.budgetCents)}</b><em>restam {formatMoney(Math.max(0, campaign.budgetCents - campaign.accruedCents))}</em></div></div>
       <Bar pct={campaign.budgetCents ? campaign.accruedCents / campaign.budgetCents * 100 : 0} warn={campaign.capped} />
       <div className="b2p-settle">
-        {campaign.contractName ? <Row label="Operação" value={campaign.contractName} /> : null}{campaign.vehicleName ? <Row label="Veículo" value={campaign.vehicleName} /> : null}<Row label="Prazo" value={termText(campaign)} /><Row label="Valor por viagem" value={formatMoney(campaign.perTripCents)} />
+        {campaign.contractName && campaign.contractName !== campaign.name ? <Row label="Operação" value={campaign.contractName} /> : null}{campaign.vehicleName ? <Row label="Veículo" value={campaign.vehicleName} /> : null}<Row label="Prazo" value={termText(campaign)} /><Row label="Valor por viagem" value={formatMoney(campaign.perTripCents)} />
         {campaign.maxTripsPerDriver ? <><Row label="Viagens da operação" value={campaign.maxTripsPerDriver} />{goalOf(campaign) ? <Row label="Meta da operação" value={formatMoney(goalOf(campaign))} /> : null}</> : null}
         {campaign.bonusCents ? <Row label="Bônus da meta" value={`${formatMoney(campaign.bonusCents)} em ${campaign.bonusGoalTrips} viagens`} /> : null}
         <Row label="Aceitaram" value={`${campaign.acceptedCount} de ${campaign.driversCount}`} />
@@ -194,7 +196,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onCancel 
     </section>
     <Section title="Motoristas" count={offers.length}>
       {offers.length ? [...offers].sort((a, b) => b.totalCents - a.totalCents || a.driverName.localeCompare(b.driverName)).map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
-        <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(offer.driverName)}</span>
+        <DriverAvatar id={offer.driverId} name={offer.driverName} />
         <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${goalOf(campaign) ? ` · operação ${formatMoney(offer.simCents)} de ${formatMoney(goalOf(campaign))}${offer.simCents >= goalOf(campaign) ? " ✓" : ""}` : ""}` : offerLabel(offer)}</small></div>
         <span className="b2p-amt"><strong data-k="x" style={offer.expired ? { textDecoration: "line-through", opacity: 0.7 } : undefined}>{offer.status === "accepted" ? formatMoney(offer.expired ? offer.lostCents : offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={offer.expired ? "late" : offerCompleted(offer) && offer.status === "accepted" ? "good" : OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.expired ? "Prazo perdido" : offerCompleted(offer) && offer.status === "accepted" ? "Concluiu" : offerLabel(offer)}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}

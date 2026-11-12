@@ -9,11 +9,11 @@ import { rewardErrorMessage } from "../../lib/rewards";
 import { BackLink, Section } from "../../components/partnerships/shared";
 import { PixPayPanel, ReceiptCard, Row } from "../../components/rewards/PaymentParts";
 import { ReceiptAttach } from "../../components/rewards/ReceiptAttach";
+import { DriverAvatar } from "../../components/rewards/DriverAvatar";
 
-const initials = (name: string) => name.split(/\s+/).map(word => word[0]).slice(0, 2).join("").toUpperCase();
 const Pill = ({ status }: { status: RewardPayment["status"] }) => <span className="b2p-pill" data-tone={PAYMENT_TONE[status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{COMPANY_PAYMENT_LABEL[status]}</span>;
 const PaymentRow = ({ payment, onOpen, showDate }: { payment: RewardPayment; onOpen: () => void; showDate?: boolean }) => <button type="button" className="b2p-wrow" onClick={onOpen} aria-label={`${payment.driverName}, ${formatMoney(payment.amountCents)}, ${COMPANY_PAYMENT_LABEL[payment.status]}`} style={{ width: "100%", textAlign: "left" }}>
-  <span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(payment.driverName)}</span>
+  <DriverAvatar id={payment.driverId} name={payment.driverName} />
   <div><b>{payment.driverName}</b><small>{showDate ? dateTimeText(payment.paidAtMs || payment.payrollAtMs) : payment.status === "contested" ? "Contestado pelo motorista" : payment.pixKey ? "Chave Pix cadastrada" : "Sem chave Pix"}</small></div>
   <span className="b2p-amt"><strong data-k="x">{formatMoney(payment.amountCents)}</strong><Pill status={payment.status} /></span>
   <ChevronRight className="b2p-row-chev" size={16} aria-hidden="true" /></button>;
@@ -43,8 +43,8 @@ export function PayrollTab({ companyId, payments, offers, payDay, ready, now, on
     <Section title="A pagar" count={open.length}>
       {open.length ? open.map(payment => <PaymentRow key={payment.id} payment={payment} onOpen={() => onOpen(payment.id)} />)
         : <p className="b2p-empty">{ready ? "Nenhum pagamento na folha." : "Carregando a folha…"}</p>}
-      {balance.waiting.length ? <><p className="b2p-hint">Em andamento (recebem ao concluir):</p>{balance.waiting.map(row => <div className="b2p-wrow" key={row.id}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>em andamento{row.of ? ` · ${row.trips} de ${row.of} viagens` : ""}</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
-      {balance.rows.length ? <><p className="b2p-hint">Prontos para a próxima folha:</p>{balance.rows.map(row => <div className="b2p-wrow" key={row.driverId}><span className="nvu-central-avatar" style={{ display: "inline-grid", placeItems: "center", width: 36, height: 36, fontWeight: 700 }}>{initials(row.driverName)}</span><div><b>{row.driverName}</b><small>ganho ainda não pago</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
+      {balance.waiting.length ? <><p className="b2p-hint">Em andamento (recebem ao concluir):</p>{balance.waiting.map(row => <div className="b2p-wrow" key={row.id}><DriverAvatar id={row.driverId} name={row.driverName} /><div><b>{row.driverName}</b><small>em andamento{row.of ? ` · ${row.trips} de ${row.of} viagens` : ""}</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
+      {balance.rows.length ? <><p className="b2p-hint">Prontos para a próxima folha:</p>{balance.rows.map(row => <div className="b2p-wrow" key={row.driverId}><DriverAvatar id={row.driverId} name={row.driverName} /><div><b>{row.driverName}</b><small>ganho ainda não pago</small></div><span className="b2p-amt"><strong data-k="x">{formatMoney(row.cents)}</strong></span></div>)}</> : null}
     </Section>
   </>;
 }
@@ -74,7 +74,7 @@ export function PaymentDetail({ payment, onBack, backLabel }: { payment: RewardP
   return <>
     <BackLink label={backLabel} onClick={onBack} />
     <section className="nvu-central-section b2p-sec">
-      <div className="b2p-sec-head"><h2>{payment.driverName}</h2><Pill status={payment.status} /></div>
+      <div className="b2p-sec-head"><h2 style={{ display: "flex", gap: 10, alignItems: "center" }}><DriverAvatar id={payment.driverId} name={payment.driverName} size={40} />{payment.driverName}</h2><Pill status={payment.status} /></div>
       <div className="b2p-sum"><div><small>Valor</small><b>{formatMoney(payment.amountCents)}</b><em>folha de {dateTimeText(payment.payrollAtMs)}</em></div></div>
       <div className="b2p-settle">{payment.items.map(item => <Row key={item.offerId} label={item.campaignName} value={formatMoney(item.cents)} />)}<Row label="Total" value={formatMoney(payment.amountCents)} strong /></div>
       {payment.status === "contested" ? <p className="b2p-note-box" data-tone="warn" role="alert"><b>Contestado:</b> {payment.contestReason}</p> : null}

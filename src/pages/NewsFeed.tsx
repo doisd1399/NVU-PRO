@@ -1617,19 +1617,20 @@ export default function NewsFeed() {
   useEffect(() => {
     if (!activeQueryKey || !currentUser?.id || typeof window === "undefined") return;
     const userId = String(currentUser.id);
+    // Gravar o armazenamento a cada quadro durante a rolagem (60×/s) trava a rolagem no Android: grava só quando ela dá uma pausa (e ao sair da tela).
     const savePosition = () => {
-      if (scrollSaveFrameRef.current !== null) return;
-      scrollSaveFrameRef.current = window.requestAnimationFrame(() => {
+      if (scrollSaveFrameRef.current !== null) window.clearTimeout(scrollSaveFrameRef.current);
+      scrollSaveFrameRef.current = window.setTimeout(() => {
         scrollSaveFrameRef.current = null;
         writeFeedScrollPosition(userId, activeQueryKey, window.scrollY);
-      });
+      }, 200);
     };
 
     window.addEventListener("scroll", savePosition, { passive: true });
     return () => {
       window.removeEventListener("scroll", savePosition);
       if (scrollSaveFrameRef.current !== null) {
-        window.cancelAnimationFrame(scrollSaveFrameRef.current);
+        window.clearTimeout(scrollSaveFrameRef.current);
         scrollSaveFrameRef.current = null;
       }
       writeFeedScrollPosition(userId, activeQueryKey, window.scrollY);

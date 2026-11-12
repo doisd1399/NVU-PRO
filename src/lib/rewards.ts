@@ -69,8 +69,8 @@ export const rewardErrorMessage = (error: unknown, fallback: string) => {
   if (!raw || /^(internal|not-found|unavailable|unknown|deadline-exceeded)(\s*\[\d+\])?$/i.test(raw)) return `${fallback} O servidor não respondeu; tente de novo em instantes.`;
   return raw;
 };
-/** Prazo da campanha em texto: sem datas, vale o prazo da operação. */
-export const termText = (c: { openEnded: boolean; deadlineDays: number; startMs: number; endMs: number }) => c.openEnded ? (c.deadlineDays ? `prazo da operação: ${c.deadlineDays} dias` : "prazo da operação") : periodText(c.startMs, c.endMs);
+/** Prazo da campanha em texto curto ("4 dias"): sem datas, vale o prazo da operação. */
+export const termText = (c: { openEnded: boolean; deadlineDays: number; startMs: number; endMs: number }) => c.openEnded ? (c.deadlineDays ? `${c.deadlineDays} ${c.deadlineDays === 1 ? "dia" : "dias"}` : "prazo da operação") : periodText(c.startMs, c.endMs);
 
 export type OfferPhase = "pending" | "active" | "done" | "expired" | "declined" | "cancelled";
 /** Em que pé está a oferta para o motorista: para responder, em andamento, concluída, prazo perdido, recusada ou cancelada. */

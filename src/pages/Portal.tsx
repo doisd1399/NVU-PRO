@@ -27,9 +27,18 @@ export default function Portal() {
     if (currentUser || sessionRecovering || !authInitialized) {
       void preloadRoute("/select-profile");
     }
-    if (sessionReady && currentUser) {
-      void preloadRoute(activeRole === "admin" ? "/admin/fleet" : "/driver/profile");
-    }
+    // O botão "Escolher perfil" só precisa do seletor (acima). A Central/perfil são pesados: baixá-los e interpretá-los logo ao abrir (principalmente
+    // na primeira abertura depois de atualizar o app) disputa a thread principal com o toque do usuário. Ficam para quando o aparelho estiver ocioso
+    // (o seletor também os aquece enquanto o usuário escolhe).
+    if (!(sessionReady && currentUser)) return;
+    const target = activeRole === "admin" ? "/admin/fleet" : "/driver/profile";
+    const idle = (window as unknown as { requestIdleCallback?: (cb: () => void, options?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void });
+    let timer = 0, handle = 0;
+    timer = window.setTimeout(() => {
+      if (idle.requestIdleCallback) handle = idle.requestIdleCallback(() => { void preloadRoute(target).catch(() => undefined); }, { timeout: 4000 });
+      else void preloadRoute(target).catch(() => undefined);
+    }, 2500);
+    return () => { window.clearTimeout(timer); if (handle) idle.cancelIdleCallback?.(handle); };
   }, [activeRole, authInitialized, currentUser?.id, sessionRecovering, sessionReady]);
 
   useEffect(() => {
