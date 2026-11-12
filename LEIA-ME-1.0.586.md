@@ -1,6 +1,12 @@
-# NVU PRO 1.0.585 (Android) / Web 2.3.242 / Windows 0.2.11
+# NVU PRO 1.0.586 (Android) / Web 2.3.243 / Windows 0.2.12
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 585 — instala como atualização da 584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 586 — instala como atualização da 585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.586 — Carteira
+- **Nova opção “Carteira” no Painel operacional** (entre “Histórico de operações” e “Perfil”): abre a página que antes se chamava “Trabalhos” (ofertas, recebimentos, histórico de ganhos e informações).
+- **A página passou a se chamar “Carteira”** (título, link de voltar nos detalhes da oferta, janela de conclusão/Pix e atalho do painel). O botão “Trabalhos” **saiu do menu flutuante** do motorista.
+- “Ver Trabalhos” (fila de trabalhos recebidos) continua como estava.
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.585 — Painel do motorista: lista de opções
 - **Sem o card “Empresa vinculada”.** O painel mostra o **Status** e, logo abaixo, uma **lista de opções no mesmo desenho da Central de gestão**: **1. Solicitar trabalho** (envia o pedido; com pedido em andamento abre “Ver Trabalhos” para acompanhar/cancelar), **2. Ver Trabalhos**, **3. Histórico de operações**, **4. Perfil** (abre a página de perfil) e **5. Conquistas** (“Em breve”).

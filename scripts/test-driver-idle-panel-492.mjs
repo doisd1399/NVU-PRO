@@ -41,12 +41,12 @@ try {
   await test("Menu: sem card de empresa; opções na ordem pedida, Perfil abre o perfil e Conquistas fica em breve", async () => {
     await reset({});
     assert.equal(await page.locator(".nvu-idle-company").count(), 0); assert.equal(await page.getByText("Empresa vinculada").count(), 0);
-    assert.deepEqual(await page.locator(".nvu-idle-menu-item .nvu-idle-menu-label").evaluateAll(n => n.map(e => e.childNodes[0].textContent)), ["Solicitar trabalho", "Ver Trabalhos", "Histórico de operações", "Perfil", "Conquistas"]);
+    assert.deepEqual(await page.locator(".nvu-idle-menu-item .nvu-idle-menu-label").evaluateAll(n => n.map(e => e.childNodes[0].textContent)), ["Solicitar trabalho", "Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"]);
     const order = await page.evaluate(() => { const status = document.querySelector(".nvu-driver-status-row").getBoundingClientRect(), menu = document.querySelector(".nvu-idle-menu").getBoundingClientRect(); return menu.top >= status.bottom; });
     assert(order, "a lista de opções fica abaixo do status");
     assert(await page.locator('.nvu-idle-menu-item[data-item="achievements"]').isDisabled()); assert.match(await page.locator('.nvu-idle-menu-item[data-item="achievements"]').innerText(), /Em breve/);
-    await page.locator('.nvu-idle-menu-item[data-item="profile"]').click();
-    assert.deepEqual((await calls()).map(c => c.action), ["profile"]);
+    await page.locator('.nvu-idle-menu-item[data-item="wallet"]').click(); await page.locator('.nvu-idle-menu-item[data-item="profile"]').click();
+    assert.deepEqual((await calls()).map(c => c.action), ["wallet", "profile"]);
     await reset({}); await page.locator('.nvu-idle-menu-item[data-item="request"]').click();
     assert.deepEqual((await calls()).map(c => c.action), ["request"]);
     assert.match(await page.locator('.nvu-idle-menu-item[data-item="request"]').innerText(), /Aguardando a empresa/);

@@ -207,7 +207,7 @@ test("Prazo: viagem depois do prazo não conta; prazo vencido sem concluir perde
 });
 test("Motorista: página Pagamentos no menu do painel, com Ativos, Recebimentos, Histórico e Info; avisos de prazo e perda do pagamento", () => {
   const dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), page = readFileSync("src/pages/driver/Rewards.tsx", "utf8"), det = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8"), work = readFileSync("src/pages/driver/RewardWork.tsx", "utf8");
-  assert.match(dash, /id: "\/driver\/recompensas", label: "Trabalhos"/, "item no menu flutuante do motorista");
+  assert.match(dash, /id: "\/driver\/recompensas", label: "Carteira"/, "seletor de páginas do motorista");
   for (const label of ["Ativos", "Recebimentos", "Histórico", "Info"]) assert.match(page, new RegExp(`label: "${label}"`), label);
   assert.match(det, /Sem concluir no prazo, você perde o pagamento/); assert.match(det, /Prazo encerrado\. Você não concluiu a operação e perdeu o pagamento/); assert.match(det, /Pago por Pix só depois da operação concluída/);
   assert.match(work, /Prazo perdido/); assert.match(work, /Concluídas/); assert.match(work, /Recebido/);
@@ -221,9 +221,9 @@ test("Dock e Voltar no desktop: dock visível em Parcerias e Pagamentos (item at
   const back = readFileSync("src/hooks/useWindowsBack.ts", "utf8"); assert.match(back, /isWindowsDesktop\(\)/); assert.match(back, /event\.altKey && event\.key === "ArrowLeft"/, "Alt + ←"); assert.match(back, /event\.button === 3/, "botão voltar do mouse"); assert.match(back, /dismissTopOptionModal\(\)/, "fecha a janela aberta antes de voltar");
   for (const file of ["src/layouts/AdminLayout.tsx", "src/layouts/DriverLayout.tsx"]) { const layout = readFileSync(file, "utf8"); assert.match(layout, /useWindowsBack\(/, file); assert.match(layout, /<WindowsBackButton onClick=\{windowsBack\.goBack\}/, file); }
 });
-test("Menu flutuante do motorista: Trabalhos (a página do motorista) logo abaixo de Painel Operacional", () => {
-  assert.deepEqual(DRIVER_MENU_ITEMS.map(item => item.label).slice(0, 3), ["Painel Operacional", "Trabalhos", "Manual"]);
-  assert.equal(DRIVER_MENU_ITEMS[1].path, "/driver/recompensas");
+test("Menu flutuante do motorista: sem a página Carteira (ela abre pelo Painel operacional)", () => {
+  assert.deepEqual(DRIVER_MENU_ITEMS.map(item => item.label), ["Painel Operacional", "Manual"]);
+  assert.ok(!DRIVER_MENU_ITEMS.some(item => item.path === "/driver/recompensas"));
 });
 test("Nova campanha: escolhe o veículo como em Encaminhar trabalho, prepara a empresa e encaminha o trabalho à fila", () => {
   const page = readFileSync("src/pages/admin/Rewards.tsx", "utf8"), form = page.slice(page.indexOf("function NewCampaign("), page.indexOf("function CampaignDetail("));
@@ -301,15 +301,16 @@ test("Excluir campanha cancelada do histórico: função no servidor, serviço, 
 test("Fila do motorista: trabalho com pagamento é identificado (selo + condições) e os avisos ao iniciar ficam sobre a dock", () => {
   const queue = readFileSync("src/components/driver/DriverIdlePanel.tsx", "utf8"), css = readFileSync("src/components/driver/PartnershipStartSheet.css", "utf8"), ws = readFileSync("src/components/driver/DriverWorkspace.css", "utf8");
   assert.match(queue, /offer\.jobId === job\.id && \(offer\.status === "pending" \|\| offer\.status === "accepted"\)/); assert.match(queue, /className="nvu-offer-badge"><i><Wallet size=\{13\} aria-hidden="true" \/><\/i>Oferta de trabalho/, "selo dentro do card"); assert.match(queue, /className="nvu-offer-facts"/, "condições em faixa"); assert.match(queue, /<dt>Teto<\/dt>/); assert.match(queue, /className="nvu-offer-note"/); assert.match(queue, /Restam \{left\}/); assert.match(queue, /reward\.status === "pending" \? "Nova" : "Aceita"/); assert.match(queue, /Ver condições e iniciar/);
-  assert.match(ws, /\.nvu-offer-card \{/); assert.match(ws, /\.nvu-offer-facts/); assert.match(ws, /\.nvu-queue-facts/); assert.doesNotMatch(ws, /nvu-idle-reward-terms/); const driverPage = readFileSync("src/pages/driver/Rewards.tsx", "utf8"); assert.match(driverPage, /shell\("Trabalhos", tab === "receipts"/, "a página do motorista se chama Trabalhos, não Pagamentos"); assert.doesNotMatch(driverPage, /shell\("Pagamentos"/); assert.match(readFileSync("src/components/driver/RewardStartSheet.tsx", "utf8"), /Oferta de trabalho/); 
+  assert.match(ws, /\.nvu-offer-card \{/); assert.match(ws, /\.nvu-offer-facts/); assert.match(ws, /\.nvu-queue-facts/); assert.doesNotMatch(ws, /nvu-idle-reward-terms/); const driverPage = readFileSync("src/pages/driver/Rewards.tsx", "utf8"); assert.match(driverPage, /shell\("Carteira", tab === "receipts"/, "a página do motorista se chama Carteira, não Pagamentos"); assert.doesNotMatch(driverPage, /shell\("Pagamentos"/); assert.match(readFileSync("src/components/driver/RewardStartSheet.tsx", "utf8"), /Oferta de trabalho/); 
   assert.match(css, /\.nvu-pss-backdrop \{ position: fixed; inset: 0; z-index: 1900;/, "acima da dock (z-index 40)");
   for (const file of ["src/components/driver/RewardStartSheet.tsx", "src/components/driver/RewardCompletionPrompt.tsx", "src/components/driver/PartnershipStartSheet.tsx"]) { const source = readFileSync(file, "utf8"); assert.match(source, /createPortal\(/, file); assert.match(source, /, document\.body\);/, `${file}: renderizado no corpo da página (fora de qualquer camada que a dock cubra)`); }
 });
-test("Painel do motorista: sem card de empresa; lista de opções (Solicitar trabalho, Ver Trabalhos, Histórico, Perfil, Conquistas) e \"Trabalhos recebidos\"", () => {
+test("Painel do motorista: sem card de empresa; lista de opções (Solicitar trabalho, Ver Trabalhos, Histórico, Carteira, Perfil, Conquistas) e \"Trabalhos recebidos\"", () => {
   const panel = readFileSync("src/components/driver/DriverIdlePanel.tsx", "utf8"), dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), ws = readFileSync("src/components/driver/DriverWorkspace.css", "utf8");
   assert.doesNotMatch(panel, /Empresa vinculada|nvu-idle-company/); assert.doesNotMatch(ws, /\.nvu-idle-company/);
   const labels = [...panel.matchAll(/label: "([^"]+)", icon:/g)].map(match => match[1]);
-  assert.deepEqual(labels, ["Solicitar trabalho", "Ver Trabalhos", "Histórico de operações", "Perfil", "Conquistas"], "ordem pedida");
+  assert.deepEqual(labels, ["Solicitar trabalho", "Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"], "ordem pedida");
+  assert.match(panel, /label: "Carteira", icon: Wallet, onSelect: onWallet/); assert.match(dash, /onWallet=\{\(\) => navigate\("\/driver\/recompensas"\)\}/);
   assert.match(panel, /soon: true, disabled: true/); assert.match(panel, /Em breve/); assert.match(panel, /onSelect: onProfile/);
   assert.match(panel, /<DriverStatusRow[\s\S]*nvu-idle-menu/, "a lista fica abaixo do status");
   assert.match(panel, /<span>Trabalhos recebidos<\/span>/); assert.doesNotMatch(panel, /Encaminhamentos da empresa/);

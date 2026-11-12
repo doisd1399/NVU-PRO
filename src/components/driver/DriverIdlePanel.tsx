@@ -17,13 +17,15 @@ type IdleMenuItem = { id: string; label: string; icon: LucideIcon; hint?: string
  * Painel do motorista sem operação: status no topo e uma lista de opções (mesmo desenho da Central de gestão).
  * "Ver Trabalhos" e "Histórico de operações" abrem a própria tela dentro do painel, com botão de voltar.
  */
-export function DriverIdlePanel({ online, suspended, onAvailabilityChange, request, onProfile, workJobIds = [], works, history, defaultView = "menu", children }: {
+export function DriverIdlePanel({ online, suspended, onAvailabilityChange, request, onProfile, onWallet, workJobIds = [], works, history, defaultView = "menu", children }: {
   online: boolean;
   suspended: boolean;
   onAvailabilityChange: (online: boolean) => void;
   /** Estado do pedido de trabalho; a opção "Solicitar trabalho" envia o pedido (com um pedido em andamento, abre "Ver Trabalhos" para acompanhar/cancelar). */
   request: { pending: boolean; busy: boolean; success: boolean; onRequest: () => void };
   onProfile: () => void;
+  /** Abre a página Carteira (ofertas, recebimentos e histórico de ganhos). */
+  onWallet: () => void;
   /** Trabalhos recebidos (ids) — conta quantos têm oferta de pagamento nova. */
   workJobIds?: string[];
   works: React.ReactNode;
@@ -44,6 +46,7 @@ export function DriverIdlePanel({ online, suspended, onAvailabilityChange, reque
       onSelect: () => (request.pending ? setView("works") : request.onRequest()) },
     { id: "works", label: "Ver Trabalhos", icon: Briefcase, badge: worksNew > 0 ? `${worksNew} ${worksNew === 1 ? "nova" : "novas"}` : worksCount || undefined, onSelect: () => setView("works") },
     { id: "history", label: "Histórico de operações", icon: History, onSelect: () => setView("history") },
+    { id: "wallet", label: "Carteira", icon: Wallet, onSelect: onWallet },
     { id: "profile", label: "Perfil", icon: UserRound, onSelect: onProfile },
     { id: "achievements", label: "Conquistas", icon: Trophy, soon: true, disabled: true },
   ];

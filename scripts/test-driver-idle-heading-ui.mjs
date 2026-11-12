@@ -18,7 +18,7 @@ const bundle = await build({
 import React from "react";import {createRoot} from "react-dom/client";
 import {DriverIdlePanel} from "./src/components/driver/DriverIdlePanel";
 createRoot(document.getElementById("root")).render(<main className="nvu-workspace-theme nvu-driver-workspace" style={{padding:14,background:"var(--driver-page)",minHeight:"100vh"}}>
-<DriverIdlePanel online suspended={false} onAvailabilityChange={()=>{}} request={{pending:false,busy:false,success:false,onRequest:()=>{}}} onProfile={()=>{}} works={null} history={null}><section data-testid="after">Fila</section></DriverIdlePanel></main>);` },
+<DriverIdlePanel online suspended={false} onAvailabilityChange={()=>{}} request={{pending:false,busy:false,success:false,onRequest:()=>{}}} onProfile={()=>{}} onWallet={()=>{}} works={null} history={null}><section data-testid="after">Fila</section></DriverIdlePanel></main>);` },
   bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic", loader: { ".css": "empty" }, logLevel: "error",
   define: { "process.env.NODE_ENV": '"test"', "import.meta.env.DEV": "false" },
   plugins: [{ name: "firebase-free", setup(b) {

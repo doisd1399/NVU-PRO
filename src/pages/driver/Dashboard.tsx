@@ -730,7 +730,7 @@ function DashboardComponent({
     { id: "/driver/profile", label: "Meu Perfil", icon: UserIcon },
     { id: "/driver/history", label: "Histórico de Viagens", icon: History },
     { id: "/driver/reports", label: "Relatórios", icon: Activity },
-    { id: "/driver/recompensas", label: "Trabalhos", icon: Wallet },
+    { id: "/driver/recompensas", label: "Carteira", icon: Wallet },
   ];
 
   const activePageDetails =
@@ -1004,7 +1004,7 @@ function DashboardComponent({
         online={Boolean(currentUser?.isOnline)} suspended={operationalSuspension.active}
         onAvailabilityChange={updateUserOnlineStatus}
         request={{ pending: Boolean(myDemand), busy: isSubmittingDemand, success: demandSuccess, onRequest: () => void handleRequestDemand() }}
-        onProfile={() => navigate("/driver/profile")}
+        onProfile={() => navigate("/driver/profile")} onWallet={() => navigate("/driver/recompensas")}
         workJobIds={pendingDriverJobs.map(job => job.id)}
         works={<>
           {solicitarTrabalhoCard}

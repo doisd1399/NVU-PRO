@@ -30,7 +30,7 @@ export function RewardCompletionPrompt({ driverId }: { driverId: string | undefi
   const lost = target.expired;
   return createPortal(<div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && close()}>
     <section className="nvu-pss" role="dialog" aria-modal="true" aria-labelledby="nvu-rcp-title" onClick={event => event.stopPropagation()} data-testid="reward-completion-prompt">
-      <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Trabalhos</span><button type="button" aria-label="Fechar" disabled={busy} onClick={close}><X size={18} aria-hidden="true" /></button></header>
+      <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Carteira</span><button type="button" aria-label="Fechar" disabled={busy} onClick={close}><X size={18} aria-hidden="true" /></button></header>
       <h2 id="nvu-rcp-title">{lost ? "Prazo encerrado" : "Operação concluída"}</h2>
       <p className="nvu-pss-partner">{target.contractName || target.name} · {target.companyName}</p>
       {lost
