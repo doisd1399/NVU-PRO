@@ -20,7 +20,7 @@ import { LandscapeOperationPanel } from "../../components/operations/LandscapeOp
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
 import { useLandscapeBodyHeight } from "../../hooks/useLandscapeBodyHeight";
 import { createPortal } from "react-dom";
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { PendingProOperationNotice } from "../../components/PendingProOperationNotice";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useActivityStore, useOperationalStore, useSessionStore, type Job } from "../../context/AppContext";
@@ -66,6 +66,7 @@ import {
   ChevronsUpDown,
   ChevronsDownUp,
   Wallet,
+  ArrowLeft,
 } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 import { prepareAndCommitNavigation } from "../../lib/navigationTransition";
@@ -307,6 +308,20 @@ function DashboardComponent({
     () => resolveOperationContract(myJob, contracts),
     [myJob, contracts],
   );
+
+  // O Painel do motorista abre no menu (mesmo com operação em andamento); "Trabalho atual" abre a operação.
+  const [currentOpen, setCurrentOpen] = useState(false);
+  const baselineJobRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (operationCardOnly) return;
+    if (!(jobsReady && (!myJob || Boolean(contract) || contractsReady))) return;
+    const id = myJob?.id || null;
+    if (baselineJobRef.current === undefined) { baselineJobRef.current = id; return; } // operação que já existia ao abrir: fica no menu
+    if (!id) { baselineJobRef.current = null; setCurrentOpen(false); return; }
+    if (id !== baselineJobRef.current) { baselineJobRef.current = id; setCurrentOpen(true); } // iniciou um trabalho agora: abre a operação
+  }, [operationCardOnly, jobsReady, contractsReady, myJob, contract]);
+  const panelMenuStamp = (location.state as { panelMenu?: number } | null)?.panelMenu;
+  useEffect(() => { if (panelMenuStamp) setCurrentOpen(false); }, [panelMenuStamp]);
 
   const currentOperationTrips = useMemo(() => {
     if (!myJob) return [];
@@ -969,7 +984,7 @@ function DashboardComponent({
     );
   }
 
-  if (!myJob || !contract) {
+  if (!myJob || !contract || (!operationCardOnly && !currentOpen)) {
     if (operationCardOnly) {
       return <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-[13px] text-slate-500 dark:border-nvu-line dark:bg-nvu-surface dark:text-nvu-muted">Nenhuma operação em andamento.</div>;
     }
@@ -991,6 +1006,7 @@ function DashboardComponent({
       key={`assigned:${resultScope}`} jobs={pendingDriverJobs} contracts={contracts} companyName={currentCompany?.companyName || currentCompany?.name} suspended={operationalSuspension.active}
       startingJobId={startingJobId} onStart={async job => {
         if (operationalSuspension.active || startingJobId) return;
+        if (myJob && contract) { toast.error("Finalize o trabalho atual antes de iniciar outro."); return; }
         if (job.partnershipId) { setPartnershipStartJob(job); return; }
         { const offer = rewardOfferFor(job); if (offer) { setRewardStart({ job, offer }); return; } }
         setStartingJobId(job.id);
@@ -1004,9 +1020,11 @@ function DashboardComponent({
         online={Boolean(currentUser?.isOnline)} suspended={operationalSuspension.active}
         onAvailabilityChange={updateUserOnlineStatus}
         onProfile={() => navigate("/driver/profile", { state: { profileTab: "profile" } })} onWallet={() => navigate("/driver/recompensas")}
+        current={myJob && contract ? { name: String(contract.name || "Operação"), progress: `${currentOperationProgress}${contract.totalDeliveries ? ` de ${contract.totalDeliveries}` : ""} entregas` } : null}
+        onCurrent={() => setCurrentOpen(true)}
         workJobIds={pendingDriverJobs.map(job => job.id)}
         works={<>
-          {solicitarTrabalhoCard}
+          {myJob && contract ? <section className="nvu-idle-empty-queue" aria-label="Trabalho em andamento"><h2>Trabalho em andamento</h2><p>Finalize o trabalho atual para solicitar ou iniciar outro.</p></section> : solicitarTrabalhoCard}
           {filaOperacionalSection}
           {hasAutomaticQueues && <AutomaticDriverQueue blocked={operationalSuspension.active} />}
           {!hasAutomaticQueues && !pendingDriverJobs.length && <section className="nvu-idle-empty-queue" aria-label="Fila operacional">
@@ -1297,6 +1315,10 @@ function DashboardComponent({
 
   return (
     <div className="space-y-3 sm:space-y-4 w-full max-w-7xl mx-auto pb-4 pt-0">
+      {!operationCardOnly && <div className="nvu-current-back" data-testid="current-operation-back">
+        <button type="button" onClick={() => setCurrentOpen(false)} aria-label="Voltar ao painel do motorista"><ArrowLeft size={18} aria-hidden="true" /></button>
+        <h2>Trabalho atual</h2>
+      </div>}
       {maintenanceMode && (
         <WorkModeMaintenanceDialog
           mode={maintenanceMode === "simple" ? "pro" : maintenanceMode}

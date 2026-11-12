@@ -539,3 +539,8 @@ body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { p
 .nvu-offer-card[data-late="1"] .nvu-offer-note strong { color: #c0392b; }
 .nvu-offer-start { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; margin-top: 1px; padding: 4px 5px 4px 18px; border-radius: 999px; font-size: 12.5px; font-weight: 800; color: #052b2a; background: linear-gradient(135deg, #c9fff6, #69e0cf 60%, #3fc1b3); box-shadow: 0 8px 20px rgba(63, 193, 179, .28), inset 0 1px 0 rgba(255, 255, 255, .55); }
 .nvu-offer-start i { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #052b2a; color: #c9fff6; }
+
+/* Botão de voltar da tela "Trabalho atual" (a operação aberta pelo menu do painel). */
+.nvu-current-back { display: flex; align-items: center; gap: 10px; padding: 2px 2px 0; }
+.nvu-current-back h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: var(--driver-text, inherit); }
+.nvu-current-back button { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--driver-line, #dce5ea); color: var(--driver-text, inherit); background: var(--driver-paper, transparent); }

@@ -1,3 +1,4 @@
+import { driverPanelMenuState } from "../lib/driverPanelMenu";
 import { RetainedWorkspaceOutlet } from "../components/common/RetainedWorkspaceOutlet";
 import { NvuWordmark } from "../components/common/NvuWordmark";
 import { resolveNewsSessionSimulator } from "../lib/newsSimulator";
@@ -320,7 +321,7 @@ export default function DriverLayout() {
     if (activeRole === newRole) {
       commitRoleVisualTransition(newRole, () => {
         void switchRole(newRole, activeCompanyId || undefined);
-        navigate(target, { replace: true });
+        navigate(target, { replace: true, ...(target === "/driver/profile" ? { state: driverPanelMenuState() } : {}) });
       });
       return;
     }
@@ -345,7 +346,7 @@ export default function DriverLayout() {
 
     commitRoleVisualTransition(newRole, () => {
       void switchRole(newRole, activeCompanyId || undefined);
-      navigate(target, { replace: true });
+      navigate(target, { replace: true, ...(target === "/driver/profile" ? { state: driverPanelMenuState() } : {}) });
     });
     void preloadRoute(target).catch(() => undefined);
   };
@@ -361,7 +362,7 @@ export default function DriverLayout() {
       void switchRole(nextRole, companyId);
       setIsProfileMenuOpen(false);
       setIsMobileMenuOpen(false);
-      navigate(target, { replace: true });
+      navigate(target, { replace: true, ...(target === "/driver/profile" ? { state: driverPanelMenuState() } : {}) });
     };
 
     if (nextRole === activeRole) {

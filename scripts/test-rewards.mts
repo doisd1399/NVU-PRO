@@ -305,11 +305,13 @@ test("Fila do motorista: trabalho com pagamento é identificado (selo + condiç�
   assert.match(css, /\.nvu-pss-backdrop \{ position: fixed; inset: 0; z-index: 1900;/, "acima da dock (z-index 40)");
   for (const file of ["src/components/driver/RewardStartSheet.tsx", "src/components/driver/RewardCompletionPrompt.tsx", "src/components/driver/PartnershipStartSheet.tsx"]) { const source = readFileSync(file, "utf8"); assert.match(source, /createPortal\(/, file); assert.match(source, /, document\.body\);/, `${file}: renderizado no corpo da página (fora de qualquer camada que a dock cubra)`); }
 });
-test("Painel do motorista: sem card de empresa; lista de opções (Ver Trabalhos, Histórico, Carteira, Perfil, Conquistas) e \"Trabalhos recebidos\"", () => {
+test("Painel do motorista: sem card de empresa; lista de opções (Trabalho atual, Ver Trabalhos, Histórico, Carteira, Perfil, Conquistas) e \"Trabalhos recebidos\"", () => {
   const panel = readFileSync("src/components/driver/DriverIdlePanel.tsx", "utf8"), dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), ws = readFileSync("src/components/driver/DriverWorkspace.css", "utf8");
   assert.doesNotMatch(panel, /Empresa vinculada|nvu-idle-company/); assert.doesNotMatch(ws, /\.nvu-idle-company/);
   const labels = [...panel.matchAll(/label: "([^"]+)", icon:/g)].map(match => match[1]);
-  assert.deepEqual(labels, ["Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"], "ordem pedida (Solicitar trabalho fica dentro de Ver Trabalhos)");
+  assert.deepEqual(labels, ["Trabalho atual", "Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"], "ordem pedida (Trabalho atual no topo; Solicitar trabalho fica dentro de Ver Trabalhos)");
+  assert.match(dash, /\(!myJob \|\| !contract \|\| \(!operationCardOnly && !currentOpen\)\)/, "o painel abre no menu mesmo com operação em andamento"); assert.match(dash, /onCurrent=\{\(\) => setCurrentOpen\(true\)\}/); assert.match(dash, /data-testid="current-operation-back"/); assert.match(dash, /Finalize o trabalho atual antes de iniciar outro/, "com trabalho atual não inicia outro pela fila"); assert.match(dash, /panelMenuStamp/);
+  const driverLayout = readFileSync("src/layouts/DriverLayout.tsx", "utf8"), adminLayout = readFileSync("src/layouts/AdminLayout.tsx", "utf8"); assert.match(driverLayout, /driverPanelMenuState\(\)/, "escolher o perfil de motorista cai no menu"); assert.match(adminLayout, /driverPanelMenuState\(\)/);
   assert.match(panel, /label: "Carteira", icon: Wallet, onSelect: onWallet/); assert.match(dash, /onProfile=\{\(\) => navigate\("\/driver\/profile", \{ state: \{ profileTab: "profile" \} \}\)\}/, "Perfil abre a página de Resumo do período (aba Perfil), como o botão da dock"); assert.match(dash, /onWallet=\{\(\) => navigate\("\/driver\/recompensas"\)\}/);
   assert.match(panel, /soon: true, disabled: true/); assert.match(panel, /Em breve/); assert.match(panel, /onSelect: onProfile/);
   assert.match(panel, /<DriverStatusRow[\s\S]*nvu-idle-menu/, "a lista fica abaixo do status");

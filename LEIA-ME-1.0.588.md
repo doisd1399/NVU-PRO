@@ -1,6 +1,14 @@
-# NVU PRO 1.0.587 (Android) / Web 2.3.244 / Windows 0.2.13
+# NVU PRO 1.0.588 (Android) / Web 2.3.245 / Windows 0.2.14
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 587 — instala como atualização da 586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 588 — instala como atualização da 587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.588 — Painel do motorista vira o menu (Trabalho atual)
+- **O Painel do motorista agora abre sempre no menu**, com ou sem operação em andamento. **Escolher o perfil de motorista** (Alternar perfil / trocar de empresa como motorista) **cai nesse menu**.
+- **Nova opção “Trabalho atual” no topo da lista.** Com operação em andamento, ela mostra o nome e o progresso e **abre a tela da operação** (a mesma de antes: card, veículo, finalizar etc.), com botão de voltar ao menu. Sem operação, fica desabilitada (“Nenhum em andamento”).
+- **Ao iniciar um trabalho**, a tela da operação abre sozinha. Ao finalizar, volta ao menu (com o resultado da operação).
+- Em “Ver Trabalhos”, com um trabalho em andamento, o pedido de trabalho dá lugar ao aviso “Finalize o trabalho atual…” e a fila não inicia outro trabalho.
+- A aba **Atividade** continua mostrando a operação ativa como antes.
+- Sem mudança no servidor (nada a publicar). **Windows 0.2.14** acompanha esta versão.
 
 ## 1.0.587 — Painel operacional: sem “Solicitar trabalho”, Perfil abre o Resumo do período
 - **Removida a opção “Solicitar trabalho”** do Painel operacional (o pedido continua em “Ver Trabalhos”). A lista fica: Ver Trabalhos, Histórico de operações, Carteira, Perfil e Conquistas (em breve).

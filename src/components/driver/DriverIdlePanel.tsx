@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ArrowLeft, ArrowRight, Briefcase, CheckCircle2, ChevronDown, ChevronRight, Clock, History, Route, Trophy, UserRound, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, Briefcase, CheckCircle2, ChevronDown, ChevronRight, Clock, History, Route, Trophy, Truck, UserRound, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useSessionStore } from "../../context/AppContext";
 import { useDriverRewards } from "../../hooks/useRewards";
@@ -17,13 +17,16 @@ type IdleMenuItem = { id: string; label: string; icon: LucideIcon; hint?: string
  * Painel do motorista sem operação: status no topo e uma lista de opções (mesmo desenho da Central de gestão).
  * "Ver Trabalhos" e "Histórico de operações" abrem a própria tela dentro do painel, com botão de voltar.
  */
-export function DriverIdlePanel({ online, suspended, onAvailabilityChange, onProfile, onWallet, workJobIds = [], works, history, defaultView = "menu", children }: {
+export function DriverIdlePanel({ online, suspended, onAvailabilityChange, onProfile, onWallet, current = null, onCurrent, workJobIds = [], works, history, defaultView = "menu", children }: {
   online: boolean;
   suspended: boolean;
   onAvailabilityChange: (online: boolean) => void;
   onProfile: () => void;
   /** Abre a página Carteira (ofertas, recebimentos e histórico de ganhos). */
   onWallet: () => void;
+  /** Trabalho em andamento (se houver): a opção "Trabalho atual" abre a tela da operação. */
+  current?: { name: string; progress?: string } | null;
+  onCurrent?: () => void;
   /** Trabalhos recebidos (ids) — conta quantos têm oferta de pagamento nova. */
   workJobIds?: string[];
   works: React.ReactNode;
@@ -38,6 +41,7 @@ export function DriverIdlePanel({ online, suspended, onAvailabilityChange, onPro
   const worksCount = workJobIds.length, worksNew = offers.filter(offer => offer.status === "pending" && offer.jobId && workJobIds.includes(offer.jobId)).length;
   const id = React.useId();
   const items: IdleMenuItem[] = [
+    { id: "current", label: "Trabalho atual", icon: Truck, hint: current ? [current.name, current.progress].filter(Boolean).join(" · ") : "Nenhum em andamento", disabled: !current, onSelect: onCurrent },
     { id: "works", label: "Ver Trabalhos", icon: Briefcase, badge: worksNew > 0 ? `${worksNew} ${worksNew === 1 ? "nova" : "novas"}` : worksCount || undefined, onSelect: () => setView("works") },
     { id: "history", label: "Histórico de operações", icon: History, onSelect: () => setView("history") },
     { id: "wallet", label: "Carteira", icon: Wallet, onSelect: onWallet },

@@ -41,12 +41,17 @@ try {
   await test("Menu: sem card de empresa; opções na ordem pedida (sem Solicitar trabalho), Carteira e Perfil abrem as páginas e Conquistas fica em breve", async () => {
     await reset({});
     assert.equal(await page.locator(".nvu-idle-company").count(), 0); assert.equal(await page.getByText("Empresa vinculada").count(), 0);
-    assert.deepEqual(await page.locator(".nvu-idle-menu-item .nvu-idle-menu-label").evaluateAll(n => n.map(e => e.childNodes[0].textContent)), ["Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"]);
+    assert.deepEqual(await page.locator(".nvu-idle-menu-item .nvu-idle-menu-label").evaluateAll(n => n.map(e => e.childNodes[0].textContent)), ["Trabalho atual", "Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"]);
     const order = await page.evaluate(() => { const status = document.querySelector(".nvu-driver-status-row").getBoundingClientRect(), menu = document.querySelector(".nvu-idle-menu").getBoundingClientRect(); return menu.top >= status.bottom; });
     assert(order, "a lista de opções fica abaixo do status");
     assert(await page.locator('.nvu-idle-menu-item[data-item="achievements"]').isDisabled()); assert.match(await page.locator('.nvu-idle-menu-item[data-item="achievements"]').innerText(), /Em breve/);
     await page.locator('.nvu-idle-menu-item[data-item="wallet"]').click(); await page.locator('.nvu-idle-menu-item[data-item="profile"]').click();
     assert.deepEqual((await calls()).map(c => c.action), ["wallet", "profile"]);
+    assert(await page.locator('.nvu-idle-menu-item[data-item="current"]').isDisabled(), "sem trabalho atual a opção fica desabilitada"); assert.match(await page.locator('.nvu-idle-menu-item[data-item="current"]').innerText(), /Nenhum em andamento/);
+    await reset({ current: true }); const current = page.locator('.nvu-idle-menu-item[data-item="current"]');
+    assert(await current.isEnabled()); assert.match(await current.innerText(), /BLS - 30 · 3 de 12 entregas/);
+    assert(await page.evaluate(() => document.querySelector(".nvu-idle-menu-item").dataset.item === "current"), "Trabalho atual é a primeira opção");
+    await current.click(); assert.deepEqual((await calls()).map(c => c.action), ["current"]);
     assert.equal(await page.locator('.nvu-idle-menu-item[data-item="request"]').count(), 0, "Solicitar trabalho fica só dentro de Ver Trabalhos");
     await page.locator('.nvu-idle-menu-item[data-item="works"]').click(); assert(await page.getByRole("button", { name: "Solicitar trabalho", exact: true }).isVisible());
     await page.getByRole("button", { name: "Voltar ao painel do motorista" }).click(); assert(await page.locator(".nvu-idle-menu").isVisible());

@@ -1,3 +1,4 @@
+import { driverPanelMenuState } from "../lib/driverPanelMenu";
 import { corporateNotificationTab } from "../lib/notificationNavigation";
 import { RetainedWorkspaceOutlet } from "../components/common/RetainedWorkspaceOutlet";
 import { NvuWordmark } from "../components/common/NvuWordmark";
@@ -265,7 +266,7 @@ export default function AdminLayout() {
       // profile. Navigation alone would leave its queued role update alive.
       commitRoleVisualTransition(newRole, () => {
         void switchRole(newRole, activeCompanyId || undefined);
-        navigate(target, { replace: true });
+        navigate(target, { replace: true, ...(target === "/driver/profile" ? { state: driverPanelMenuState() } : {}) });
       });
       return;
     }
@@ -296,7 +297,7 @@ export default function AdminLayout() {
 
     commitRoleVisualTransition(newRole, () => {
       void switchRole(newRole, activeCompanyId || undefined);
-      navigate(target, { replace: true });
+      navigate(target, { replace: true, ...(target === "/driver/profile" ? { state: driverPanelMenuState() } : {}) });
     });
     void preloadRoute(target).catch(() => undefined);
   };
@@ -311,7 +312,7 @@ export default function AdminLayout() {
       void switchRole(nextRole, companyId);
       setIsProfileMenuOpen(false);
       setIsMobileMenuOpen(false);
-      navigate(target, { replace: true });
+      navigate(target, { replace: true, ...(target === "/driver/profile" ? { state: driverPanelMenuState() } : {}) });
     };
 
     if (nextRole === activeRole) {
