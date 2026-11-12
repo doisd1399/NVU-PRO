@@ -18,7 +18,7 @@ const bundle = await build({
 import React from "react";import {createRoot} from "react-dom/client";
 import {DriverIdlePanel} from "./src/components/driver/DriverIdlePanel";
 createRoot(document.getElementById("root")).render(<main className="nvu-workspace-theme nvu-driver-workspace" style={{padding:14,background:"var(--driver-page)",minHeight:"100vh"}}>
-<DriverIdlePanel company={{id:"c",companyName:"DC Transportes"}} viewerId="u" online suspended={false} onAvailabilityChange={()=>{}}><section data-testid="after">Fila</section></DriverIdlePanel></main>);` },
+<DriverIdlePanel online suspended={false} onAvailabilityChange={()=>{}} request={{pending:false,busy:false,success:false,onRequest:()=>{}}} onProfile={()=>{}} works={null} history={null}><section data-testid="after">Fila</section></DriverIdlePanel></main>);` },
   bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic", loader: { ".css": "empty" }, logLevel: "error",
   define: { "process.env.NODE_ENV": '"test"', "import.meta.env.DEV": "false" },
   plugins: [{ name: "firebase-free", setup(b) {
@@ -47,7 +47,7 @@ try {
       const r = s => document.querySelector(s).getBoundingClientRect(), panel = r('[data-testid="driver-idle-panel"]'), h1 = document.querySelector(".nvu-idle-heading h1"), p = document.querySelector(".nvu-idle-heading p");
       return { titleSize: getComputedStyle(h1).fontSize, titleWeight: getComputedStyle(h1).fontWeight, descSize: getComputedStyle(p).fontSize, descPad: getComputedStyle(p).padding,
         titleOffset: r(".nvu-idle-heading h1").top - panel.top, descGap: r(".nvu-idle-heading p").top - r(".nvu-idle-heading h1").bottom,
-        companyGap: r(".nvu-idle-company").top - r(".nvu-idle-heading p").bottom, overflow: document.documentElement.scrollWidth > innerWidth,
+        companyGap: r(".nvu-driver-status-row").top - r(".nvu-idle-heading p").bottom, overflow: document.documentElement.scrollWidth > innerWidth,
         center: Math.abs((r(".nvu-idle-heading h1").left + r(".nvu-idle-heading h1").width / 2) - (panel.left + panel.width / 2)) };
     });
     const tag = `${dark ? "dark" : "light"} ${width}`;

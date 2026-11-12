@@ -1,6 +1,12 @@
-# NVU PRO 1.0.584 (Android) / Web 2.3.241 / Windows 0.2.10
+# NVU PRO 1.0.585 (Android) / Web 2.3.242 / Windows 0.2.11
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 584 — instala como atualização da 583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 585 — instala como atualização da 584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.585 — Painel do motorista: lista de opções
+- **Sem o card “Empresa vinculada”.** O painel mostra o **Status** e, logo abaixo, uma **lista de opções no mesmo desenho da Central de gestão**: **1. Solicitar trabalho** (envia o pedido; com pedido em andamento abre “Ver Trabalhos” para acompanhar/cancelar), **2. Ver Trabalhos**, **3. Histórico de operações**, **4. Perfil** (abre a página de perfil) e **5. Conquistas** (“Em breve”).
+- **Ver Trabalhos** reúne **Solicitar trabalho**, **Trabalhos recebidos** (antes “Encaminhamentos da empresa”) e **Fila operacional**. A opção mostra a quantidade e “N nova(s)” quando há oferta de pagamento pendente.
+- **Histórico de operações** abre a lista de trabalhos concluídos em tela própria (antes “Trabalhos anteriores”, recolhido no fim do painel). Nas duas telas há botão de voltar.
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.584 — Painel do motorista: card “Oferta de trabalho” compacto (layout aprovado)
 - **O trabalho com pagamento ganha um card próprio** em “Encaminhamentos da empresa”: selo “Oferta de trabalho” dentro do card, etiqueta **Nova** (dourada; vira **Aceita** depois do aceite), nome da operação e **valor por viagem** lado a lado, faixa **Viagens · Teto · Prazo**, linha “**Restam 3d 23h.** Fora do prazo você finaliza, mas não recebe.” e o botão arredondado “Ver condições e iniciar”.

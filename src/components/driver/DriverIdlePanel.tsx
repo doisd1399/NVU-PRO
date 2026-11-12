@@ -1,39 +1,77 @@
 import React, { useState } from "react";
-import { ArrowRight, Building2, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, History, Route, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, Briefcase, CheckCircle2, ChevronDown, ChevronRight, Clock, History, Navigation, Route, Trophy, UserRound, Wallet } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useSessionStore } from "../../context/AppContext";
 import { useDriverRewards } from "../../hooks/useRewards";
 import { formatMoney } from "../../lib/partnerships";
-import { StableImage } from "../common/StableImage";
 import { DiscreetDisclosure } from "../common/DiscreetDisclosure";
 import { DriverStatusRow } from "./DriverStatusRow";
 import type { CompanyProfile, Contract, Job } from "../../context/AppContext";
 import { resolveOperationContract } from "../../lib/operationResultSummary";
 import { deriveCurrentOperationProgress } from "../../lib/currentOperation";
 
-export function DriverIdlePanel({ company, viewerId, online, suspended, onAvailabilityChange, children }: {
-  company: CompanyProfile | null;
-  viewerId: string;
+export type IdleView = "menu" | "works" | "history";
+type IdleMenuItem = { id: string; label: string; icon: LucideIcon; hint?: string; badge?: string | number; soon?: boolean; disabled?: boolean; onSelect?: () => void };
+
+/**
+ * Painel do motorista sem operação: status no topo e uma lista de opções (mesmo desenho da Central de gestão).
+ * "Ver Trabalhos" e "Histórico de operações" abrem a própria tela dentro do painel, com botão de voltar.
+ */
+export function DriverIdlePanel({ online, suspended, onAvailabilityChange, request, onProfile, workJobIds = [], works, history, defaultView = "menu", children }: {
   online: boolean;
   suspended: boolean;
   onAvailabilityChange: (online: boolean) => void;
-  children: React.ReactNode;
+  /** Estado do pedido de trabalho; a opção "Solicitar trabalho" envia o pedido (com um pedido em andamento, abre "Ver Trabalhos" para acompanhar/cancelar). */
+  request: { pending: boolean; busy: boolean; success: boolean; onRequest: () => void };
+  onProfile: () => void;
+  /** Trabalhos recebidos (ids) — conta quantos têm oferta de pagamento nova. */
+  workJobIds?: string[];
+  works: React.ReactNode;
+  history: React.ReactNode;
+  defaultView?: IdleView;
+  /** Janelas e avisos que ficam sempre montados (resultado da operação, suspensão, condições do trabalho). */
+  children?: React.ReactNode;
 }) {
-  const name = company?.companyName || company?.name || company?.fleetName || "Empresa vinculada";
-  const logo = company?.logoUrl || company?.logoURL || company?.companyLogoURL;
-  return <section className="nvu-driver-idle-workspace nvu-workspace-theme" data-testid="driver-idle-panel">
+  const [view, setView] = useState<IdleView>(defaultView);
+  const { currentUser } = useSessionStore();
+  const { offers } = useDriverRewards(currentUser?.id);
+  const worksCount = workJobIds.length, worksNew = offers.filter(offer => offer.status === "pending" && offer.jobId && workJobIds.includes(offer.jobId)).length;
+  const id = React.useId();
+  const blocked = suspended || !online;
+  const requestHint = suspended ? "Bloqueado na suspensão" : !online ? "Fique disponível" : request.pending ? "Aguardando a empresa" : request.busy ? "Enviando…" : request.success ? "Solicitação enviada" : undefined;
+  const items: IdleMenuItem[] = [
+    { id: "request", label: "Solicitar trabalho", icon: Navigation, hint: requestHint, disabled: request.pending ? false : blocked || request.busy || request.success,
+      onSelect: () => (request.pending ? setView("works") : request.onRequest()) },
+    { id: "works", label: "Ver Trabalhos", icon: Briefcase, badge: worksNew > 0 ? `${worksNew} ${worksNew === 1 ? "nova" : "novas"}` : worksCount || undefined, onSelect: () => setView("works") },
+    { id: "history", label: "Histórico de operações", icon: History, onSelect: () => setView("history") },
+    { id: "profile", label: "Perfil", icon: UserRound, onSelect: onProfile },
+    { id: "achievements", label: "Conquistas", icon: Trophy, soon: true, disabled: true },
+  ];
+  const title = view === "works" ? "Trabalhos" : "Histórico de operações";
+  return <section className="nvu-driver-idle-workspace nvu-workspace-theme" data-testid="driver-idle-panel" data-view={view}>
     <header className="nvu-idle-heading">
       <h1>Painel do motorista</h1>
       <p>Suas operações, no seu ritmo.</p>
     </header>
-    {company ? <section className="nvu-idle-company" aria-label="Empresa vinculada">
-      <StableImage src={logo} alt={`Logo de ${name}`} wrapperClassName="nvu-idle-company-logo"
-        persistentViewerId={viewerId} persistentAssetId={`company-logo:${company.id}`}
-        className="h-full w-full object-cover" fallback={<Building2 size={24} aria-hidden="true" />} />
-      <div className="nvu-idle-company-identity"><span>Empresa vinculada</span><strong>{name}</strong></div>
-      <span className="nvu-idle-company-linked"><Check size={14} aria-hidden="true" /><span>Vinculado</span></span>
-    </section> : <p className="nvu-idle-company-unavailable" role="status">Os dados da empresa vinculada ainda não estão disponíveis neste aparelho.</p>}
     <DriverStatusRow online={online} suspended={suspended} onChange={onAvailabilityChange} />
     {children}
+    {view === "menu" ? <section className="nvu-idle-menu" aria-labelledby={`${id}-menu`}>
+      <h2 id={`${id}-menu`} className="nvu-idle-menu-heading">Painel operacional</h2>
+      <div className="nvu-idle-menu-list">
+        {items.map(({ id: itemId, label, icon: Icon, hint, badge, soon, disabled, onSelect }) => <button type="button" key={itemId} className="nvu-idle-menu-item" data-item={itemId} disabled={disabled} onClick={onSelect}>
+          <Icon className="nvu-idle-menu-icon" size={24} strokeWidth={1.7} aria-hidden="true" />
+          <span className="nvu-idle-menu-label">{label}{hint ? <small>{hint}</small> : null}</span>
+          {soon ? <em className="nvu-idle-menu-soon">Em breve</em> : badge !== undefined ? <em className="nvu-idle-menu-badge">{badge}</em> : null}
+          <span className="nvu-idle-menu-arrow" aria-hidden="true"><ArrowRight size={17} strokeWidth={2} /></span>
+        </button>)}
+      </div>
+    </section> : <>
+      <div className="nvu-idle-subhead">
+        <button type="button" className="nvu-idle-back" onClick={() => setView("menu")} aria-label="Voltar ao painel do motorista"><ArrowLeft size={18} aria-hidden="true" /></button>
+        <h2>{title}</h2>
+      </div>
+      {view === "works" ? works : history}
+    </>}
   </section>;
 }
 
@@ -55,7 +93,7 @@ export function DriverPreviousWork({ jobs, contracts, trips, driverId, historyRe
 
 // Mounted only after opening the disclosure; navigation never renders a long
 // operation history or starts another trip query just to show its count.
-function PreviousWorkRows({ jobs, contracts, trips, driverId, historyReady, onReview }: React.ComponentProps<typeof DriverPreviousWork>) {
+export function PreviousWorkRows({ jobs, contracts, trips, driverId, historyReady, onReview }: React.ComponentProps<typeof DriverPreviousWork>) {
   const [limit, setLimit] = useState(10);
   if (!jobs.length) return <p className="nvu-idle-empty">Nenhum trabalho concluído nesta empresa.</p>;
   return <>
@@ -97,9 +135,9 @@ export function AssignedQueueView({ jobs, contracts, suspended, startingJobId, o
   const now = nowMs ?? Date.now();
   const [expanded, setExpanded] = useState(true);
   const id = React.useId();
-  return <section className="nvu-idle-assigned-queue" aria-label="Trabalhos encaminhados pela empresa">
+  return <section className="nvu-idle-assigned-queue" aria-label="Trabalhos recebidos">
     <h2><button className="nvu-idle-assigned-heading" type="button" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>
-      <Route size={20} aria-hidden="true" /><span>Encaminhamentos da empresa</span><small>{jobs.length}</small><ChevronDown size={17} className={expanded ? "rotate-180" : ""} aria-hidden="true" />
+      <Route size={20} aria-hidden="true" /><span>Trabalhos recebidos</span><small>{jobs.length}</small><ChevronDown size={17} className={expanded ? "rotate-180" : ""} aria-hidden="true" />
     </button></h2>
     <div hidden={!expanded} id={id} className="nvu-queue-list">
       {jobs.map((job, index) => {

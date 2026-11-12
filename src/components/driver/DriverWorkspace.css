@@ -326,14 +326,25 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
 .nvu-idle-heading { padding: 12px 4px 4px; margin: 0; text-align: center; }
 .nvu-idle-heading h1 { margin: 0 0 6px; color: var(--idle-text); font-size: 19px; line-height: 1.3; letter-spacing: -.025em; font-weight: 550; }
 .nvu-idle-heading p { display: inline-block; max-width: 100%; margin: 0; padding: 4px 9px; border: 1px solid var(--idle-line); border-radius: 8px; color: var(--idle-muted); background: var(--idle-paper); font-size: var(--nvu-driver-dashboard-description-size, 10px); line-height: 1.35; }
-.nvu-idle-company { display: flex; align-items: center; gap: 16px; padding: 20px 16px; border: 1px solid var(--idle-line); border-radius: 14px; background: var(--idle-paper); min-width: 0; }
-.nvu-idle-company .nvu-idle-company-logo { width: 48px; height: 48px; flex-shrink: 0; border-radius: 10px; background: var(--idle-icon-paper); color: var(--idle-accent); }
-.nvu-idle-company-identity { display: flex; flex: 1; flex-direction: column; gap: 5px; min-width: 0; }
-.nvu-idle-company-identity > span { color: var(--idle-muted); font-size: 11px; line-height: 1.4; }
-.nvu-idle-company-identity > strong { font-size: 15px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
-.nvu-idle-company-linked { display: flex; align-items: center; gap: 5px; flex-shrink: 0; font-size: 10px; font-weight: 550; color: var(--idle-success); }
-.nvu-idle-company-linked > svg { width: 16px; height: 16px; padding: 2px; border-radius: 50%; background: var(--idle-success); color: var(--idle-paper); }
-.nvu-idle-company-unavailable { font-size: 12px; color: var(--idle-muted); line-height: 1.6; margin: 0; }
+/* Lista de opções do painel (mesmo desenho da lista "Gerenciar empresa" da Central de gestão). */
+.nvu-idle-menu { min-width: 0; border: 1px solid var(--idle-line); border-radius: 14px; background: var(--idle-paper); overflow: hidden; }
+.nvu-idle-menu-heading { margin: 0; padding: 14px 16px 10px; font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: var(--idle-text); }
+.nvu-idle-menu-list { display: flex; flex-direction: column; gap: 5px; padding: 0 8px 10px; }
+.nvu-idle-menu-item { display: flex; align-items: center; gap: 18px; width: 100%; min-height: 48px; padding: 3px 10px; border-radius: 14px; text-align: left; color: var(--idle-text); background: var(--idle-icon-paper); }
+.nvu-idle-menu-item:disabled { cursor: not-allowed; }
+.nvu-idle-menu-item:disabled .nvu-idle-menu-icon, .nvu-idle-menu-item:disabled .nvu-idle-menu-label { opacity: .6; }
+.nvu-idle-menu-icon { flex-shrink: 0; }
+.nvu-idle-menu-label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-size: 13px; line-height: 1.3; font-weight: 400; letter-spacing: -.03em; }
+.nvu-idle-menu-label small { font-size: 10.5px; letter-spacing: 0; color: var(--idle-muted); }
+.nvu-idle-menu-badge, .nvu-idle-menu-soon { flex: none; font-style: normal; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 7px; color: var(--idle-text); background: var(--idle-line); font-variant-numeric: tabular-nums; }
+.nvu-idle-menu-soon { font-weight: 600; color: var(--idle-muted); background: transparent; border: 1px solid var(--idle-line); }
+.nvu-idle-menu-arrow { width: 30px; height: 30px; display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; color: #fff; background: #23343b; }
+.dark .nvu-idle-menu-arrow { background: var(--idle-line); }
+.nvu-idle-menu-item:disabled .nvu-idle-menu-arrow { opacity: .45; }
+.nvu-idle-subhead { display: flex; align-items: center; gap: 10px; padding: 2px 2px 0; }
+.nvu-idle-subhead h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: var(--idle-text); }
+.nvu-idle-back { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--idle-line); color: var(--idle-text); background: var(--idle-paper); }
+.nvu-idle-history-view { border: 1px solid var(--idle-line); border-radius: 14px; background: var(--idle-paper); padding: 0 12px; }
 .nvu-driver-idle-workspace > .nvu-driver-status-row { border: 1px solid var(--idle-line); border-radius: 12px; padding: 10px 14px; min-height: 48px; background: var(--idle-paper); }
 .nvu-driver-idle-workspace .nvu-driver-status-value { color: var(--idle-muted); border-color: var(--idle-line); }
 .nvu-driver-idle-workspace .nvu-driver-status-row:has(input:checked) > .nvu-driver-status-dot { background: var(--idle-success); }
@@ -378,10 +389,6 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
 .nvu-idle-assigned-heading small { color: var(--idle-muted); }
 .nvu-driver-idle-workspace button:focus-visible, .nvu-driver-idle-workspace summary:focus-visible { outline: 2px solid var(--idle-accent); outline-offset: 3px; }
 @media(max-width: 359px) {
-  .nvu-idle-company { gap: 12px; padding: 18px 12px; }
-  .nvu-idle-company .nvu-idle-company-logo { width: 40px; height: 40px; }
-  .nvu-idle-company-linked { flex-direction: column; gap: 4px; font-size: 9px; }
-  .nvu-idle-company-identity > strong { font-size: 14px; }
   .nvu-driver-idle-workspace .nvu-idle-work-request { grid-template-columns: 34px minmax(0, 1fr); gap: 8px 10px; padding: 14px; }
   .nvu-idle-request-icon { width: 34px; }
   .nvu-idle-work-request h2 { font-size: 13px; }

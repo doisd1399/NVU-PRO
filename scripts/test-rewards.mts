@@ -305,4 +305,15 @@ test("Fila do motorista: trabalho com pagamento é identificado (selo + condiç�
   assert.match(css, /\.nvu-pss-backdrop \{ position: fixed; inset: 0; z-index: 1900;/, "acima da dock (z-index 40)");
   for (const file of ["src/components/driver/RewardStartSheet.tsx", "src/components/driver/RewardCompletionPrompt.tsx", "src/components/driver/PartnershipStartSheet.tsx"]) { const source = readFileSync(file, "utf8"); assert.match(source, /createPortal\(/, file); assert.match(source, /, document\.body\);/, `${file}: renderizado no corpo da página (fora de qualquer camada que a dock cubra)`); }
 });
+test("Painel do motorista: sem card de empresa; lista de opções (Solicitar trabalho, Ver Trabalhos, Histórico, Perfil, Conquistas) e \"Trabalhos recebidos\"", () => {
+  const panel = readFileSync("src/components/driver/DriverIdlePanel.tsx", "utf8"), dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), ws = readFileSync("src/components/driver/DriverWorkspace.css", "utf8");
+  assert.doesNotMatch(panel, /Empresa vinculada|nvu-idle-company/); assert.doesNotMatch(ws, /\.nvu-idle-company/);
+  const labels = [...panel.matchAll(/label: "([^"]+)", icon:/g)].map(match => match[1]);
+  assert.deepEqual(labels, ["Solicitar trabalho", "Ver Trabalhos", "Histórico de operações", "Perfil", "Conquistas"], "ordem pedida");
+  assert.match(panel, /soon: true, disabled: true/); assert.match(panel, /Em breve/); assert.match(panel, /onSelect: onProfile/);
+  assert.match(panel, /<DriverStatusRow[\s\S]*nvu-idle-menu/, "a lista fica abaixo do status");
+  assert.match(panel, /<span>Trabalhos recebidos<\/span>/); assert.doesNotMatch(panel, /Encaminhamentos da empresa/);
+  assert.match(dash, /onProfile=\{\(\) => navigate\("\/driver\/profile"\)\}/); assert.match(dash, /works=\{<>[\s\S]*solicitarTrabalhoCard[\s\S]*filaOperacionalSection[\s\S]*Fila operacional/);
+  assert.match(ws, /\.nvu-idle-menu-item \{/); assert.match(ws, /\.nvu-idle-menu-arrow \{/);
+});
 console.log(`${checks} verificações de Recompensas passaram.`);

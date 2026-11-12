@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { DriverIdlePanel, DriverPreviousWork, DriverAssignedQueue } from "../../src/components/driver/DriverIdlePanel";
+import { DriverIdlePanel, PreviousWorkRows, DriverAssignedQueue } from "../../src/components/driver/DriverIdlePanel";
 import { DriverWorkRequest } from "../../src/components/driver/DriverWorkRequest";
 import { DriverQueuePanel } from "../../src/components/operations/AutomaticDriverQueue";
 import { ProfileHero } from "../../src/components/common/ProfileHero";
@@ -35,8 +35,11 @@ function App() {
       <ProfileHero scope="driver" name="Motorista de validação" description="Motorista Parceiro" image={image}
         viewerId="driver" assetId="qa-banner" simulator="WBDS" simulatorOpen={false} onSimulator={() => calls.push({ action: "simulator" })} />
       <main className="nvu-driver-surface" data-page="dashboard">
-        <DriverIdlePanel company={company} viewerId="driver" online={config.online !== false} suspended={Boolean(config.suspended)}
-          onAvailabilityChange={online => { calls.push({ action: "availability", online }); setConfig((v: any) => ({ ...v, online })); }}>
+        <DriverIdlePanel key={`panel:${generation}`} defaultView={config.view || "menu"} online={config.online !== false} suspended={Boolean(config.suspended)}
+          onAvailabilityChange={online => { calls.push({ action: "availability", online }); setConfig((v: any) => ({ ...v, online })); }}
+          request={{ pending: Boolean(config.pending), busy: Boolean(config.busy), success: Boolean(config.success), onRequest: () => { calls.push({ action: "request" }); setConfig((v: any) => ({ ...v, pending: true })); } }}
+          onProfile={() => calls.push({ action: "profile" })} workJobIds={config.manual ? [manual.id] : []}
+          works={<>
           <DriverWorkRequest variant="panel" online={config.online !== false} suspended={Boolean(config.suspended)} busy={Boolean(config.busy)}
             pending={Boolean(config.pending)} requestedAt="12:00" success={Boolean(config.success)}
             onRequest={() => { calls.push({ action: "request" }); setConfig((v: any) => ({ ...v, pending: true })); }}
@@ -45,8 +48,9 @@ function App() {
             : <DriverQueuePanel key={`queue:${generation}:${companyId}`} blocked={Boolean(config.suspended)} api={{ view, scopeKey: companyId, loading: false, error: null,
               offline: Boolean(config.offline), fresh: !config.offline, offlineAvailable: Boolean(config.offline), localCommandPending: false,
               refresh: async () => { calls.push({ action: "refresh" }); } }} onStart={async (next, vehicleId) => { calls.push({ action: "automatic-start", next, vehicleId }); }} />}
-          <DriverPreviousWork key={`history:${generation}:${companyId}`} jobs={completed} contracts={[]} trips={[]} driverId="driver" historyReady={false}
-            onReview={job => calls.push({ action: "review", id: job.id })} />
+          </>}
+          history={<section data-testid="driver-previous-work" className="nvu-idle-history-view"><PreviousWorkRows key={`history:${generation}:${companyId}`} jobs={completed} contracts={[]} trips={[]} driverId="driver" historyReady={false}
+            onReview={job => calls.push({ action: "review", id: job.id })} /></section>}>
         </DriverIdlePanel>
       </main>
     </div>

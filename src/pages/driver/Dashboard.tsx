@@ -14,7 +14,7 @@ import { DiscreetDisclosure } from "../../components/common/DiscreetDisclosure";
 import { RetainedPanel } from "../../components/common/RetainedPanel";
 import { AutomaticDriverQueue } from "../../components/operations/AutomaticDriverQueue";
 import { DriverWorkRequest } from "../../components/driver/DriverWorkRequest";
-import { DriverIdlePanel, DriverPreviousWork, DriverAssignedQueue } from "../../components/driver/DriverIdlePanel";
+import { DriverIdlePanel, PreviousWorkRows, DriverAssignedQueue } from "../../components/driver/DriverIdlePanel";
 import { useOptionalAutomaticOperations } from "../../contexts/AutomaticOperationsProvider";
 import { LandscapeOperationPanel } from "../../components/operations/LandscapeOperationPanel";
 import { useLandscapeWorkspace } from "../../hooks/useLandscapeWorkspace";
@@ -1000,9 +1000,25 @@ function DashboardComponent({
       }} />;
 
     return (
-      <DriverIdlePanel company={currentCompany} viewerId={String(currentUser?.id || "")}
+      <DriverIdlePanel
         online={Boolean(currentUser?.isOnline)} suspended={operationalSuspension.active}
-        onAvailabilityChange={updateUserOnlineStatus}>
+        onAvailabilityChange={updateUserOnlineStatus}
+        request={{ pending: Boolean(myDemand), busy: isSubmittingDemand, success: demandSuccess, onRequest: () => void handleRequestDemand() }}
+        onProfile={() => navigate("/driver/profile")}
+        workJobIds={pendingDriverJobs.map(job => job.id)}
+        works={<>
+          {solicitarTrabalhoCard}
+          {filaOperacionalSection}
+          {hasAutomaticQueues && <AutomaticDriverQueue blocked={operationalSuspension.active} />}
+          {!hasAutomaticQueues && !pendingDriverJobs.length && <section className="nvu-idle-empty-queue" aria-label="Fila operacional">
+            <h2>Fila operacional</h2><p>A empresa ainda não encaminhou operações para a sua fila.</p>
+          </section>}
+        </>}
+        history={<section className="nvu-idle-history-view" data-testid="driver-previous-work" aria-label="Histórico de operações">
+          <PreviousWorkRows key={`history:${resultScope}`} jobs={completedJobs} contracts={contracts} trips={historicoTrips}
+            driverId={String(currentUser?.id || "")} historyReady={Boolean(isIntegrated ? tripHistoryReadyOverride : driverTripsState.historyReady)}
+            onReview={reviewPreviousWork} />
+        </section>}>
         <OperationResultModal
           key={resultScope}
           isOpen={showOperationResultModal && operationResultScope === resultScope}
@@ -1034,15 +1050,6 @@ function DashboardComponent({
           catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
           finally { setStartingJobId(current => current === job.id ? null : current); }
         }} />
-        {solicitarTrabalhoCard}
-        {filaOperacionalSection}
-        {hasAutomaticQueues && <AutomaticDriverQueue blocked={operationalSuspension.active} />}
-        {!hasAutomaticQueues && !pendingDriverJobs.length && <section className="nvu-idle-empty-queue" aria-label="Fila operacional">
-          <h2>Fila operacional</h2><p>A empresa ainda não encaminhou operações para a sua fila.</p>
-        </section>}
-        <DriverPreviousWork key={`history:${resultScope}`} jobs={completedJobs} contracts={contracts} trips={historicoTrips}
-          driverId={String(currentUser?.id || "")} historyReady={Boolean(isIntegrated ? tripHistoryReadyOverride : driverTripsState.historyReady)}
-          onReview={reviewPreviousWork} />
       </DriverIdlePanel>
     );
   }
