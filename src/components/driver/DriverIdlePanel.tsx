@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { Building2, Check, CheckCircle2, ChevronDown, ChevronRight, History, Route, Wallet } from "lucide-react";
+import { Building2, Check, CheckCircle2, ChevronDown, ChevronRight, History, Info, Route, Wallet } from "lucide-react";
 import { useSessionStore } from "../../context/AppContext";
 import { useDriverRewards } from "../../hooks/useRewards";
-import { dateTimeText } from "../../lib/rewardPayments";
 import { formatMoney } from "../../lib/partnerships";
 import { StableImage } from "../common/StableImage";
 import { DiscreetDisclosure } from "../common/DiscreetDisclosure";
@@ -76,36 +75,61 @@ function PreviousWorkRows({ jobs, contracts, trips, driverId, historyReady, onRe
   </>;
 }
 
-/** Existing manual assignments use their original startJob handler. */
-export function DriverAssignedQueue({ jobs, contracts, suspended, startingJobId, onStart }: {
-  jobs: Job[];
-  contracts: Contract[];
-  suspended: boolean;
-  startingJobId: string | null;
-  onStart: (job: Job) => void;
+const brt = (ms: number) => new Date(ms - 3 * 3_600_000).toISOString();
+/** Data ("16/11") e hora ("14:19") em horário de Brasília, curtas para caber nos cartões. */
+const deadlineParts = (ms: number) => { const iso = brt(ms); return { day: `${iso.slice(8, 10)}/${iso.slice(5, 7)}`, time: iso.slice(11, 16) }; };
+
+/** Fila de encaminhamentos (visual): cartões compactos; o trabalho com pagamento (oferta) ganha selo, destaque e as condições em blocos. */
+export function AssignedQueueView({ jobs, contracts, suspended, startingJobId, onStart, rewardOf, defaultOpenId }: {
+  jobs: Job[]; contracts: Contract[]; suspended: boolean; startingJobId: string | null; onStart: (job: Job) => void;
+  rewardOf: (job: Job) => { perTripCents: number; deadlineMs: number; maxTripsPerDriver: number; status: string } | undefined; defaultOpenId?: string;
 }) {
   const [expanded, setExpanded] = useState(true);
   const id = React.useId();
-  // Trabalho com pagamento: identificado na fila (selo + condições). A escuta é compartilhada e só esta lista é refeita quando muda.
-  const { currentUser } = useSessionStore();
-  const { offers: rewardOffers } = useDriverRewards(currentUser?.id);
-  const rewardOf = (job: Job) => rewardOffers.find(offer => offer.jobId === job.id && (offer.status === "pending" || offer.status === "accepted"));
   return <section className="nvu-idle-assigned-queue" aria-label="Trabalhos encaminhados pela empresa">
     <h2><button className="nvu-idle-assigned-heading" type="button" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(value => !value)}>
       <Route size={20} aria-hidden="true" /><span>Encaminhamentos da empresa</span><small>{jobs.length}</small><ChevronDown size={17} className={expanded ? "rotate-180" : ""} aria-hidden="true" />
     </button></h2>
-    <div hidden={!expanded} id={id}>
+    <div hidden={!expanded} id={id} className="nvu-queue-list">
       {jobs.map((job, index) => {
-        const contract = resolveOperationContract(job, contracts), reward = rewardOf(job);
-        return <details key={job.id} className="nvu-idle-assigned-row" data-reward={reward ? "1" : undefined}>
-          <summary><span>{index + 1}</span><strong>{contract?.name || "Operação atribuída"}</strong>{job.partnershipId ? <em className="nvu-idle-partnership-tag">Parceria</em> : null}{reward ? <em className="nvu-idle-partnership-tag nvu-idle-reward-tag"><Wallet size={10} aria-hidden="true" /> Oferta de trabalho</em> : null}<small>A realizar</small><ChevronDown size={15} aria-hidden="true" /></summary>
-          <div><p>{contract?.totalDeliveries ? `${contract.totalDeliveries} entregas` : "Entregas a definir"}{contract?.deadlineDays ? ` · ${contract.deadlineDays} dias` : ""}</p>
-            {reward ? <p className="nvu-idle-reward-terms"><b>{formatMoney(reward.perTripCents)}</b> por viagem{reward.deadlineMs ? ` · prazo ${dateTimeText(reward.deadlineMs)}` : ""}. Fora do prazo você finaliza, mas não recebe.</p> : null}
-            <button type="button" className="nvu-idle-assigned-start" onClick={() => onStart(job)} disabled={suspended || Boolean(startingJobId)}>
+        const contract = resolveOperationContract(job, contracts), reward = rewardOf(job), deliveries = contract?.totalDeliveries || 0, days = contract?.deadlineDays || 0;
+        const facts = [deliveries ? `${deliveries} entregas` : "Entregas a definir", days ? `${days} ${days === 1 ? "dia" : "dias"}` : ""].filter(Boolean).join(" · ");
+        return <details key={job.id} className="nvu-queue-card nvu-idle-assigned-row" data-reward={reward ? "1" : undefined} open={defaultOpenId === job.id || undefined}>
+          <summary>
+            <span className="nvu-queue-index">{index + 1}</span>
+            <span className="nvu-queue-title">
+              {reward ? <em className="nvu-queue-chip"><Wallet size={11} aria-hidden="true" /> Oferta de trabalho</em> : job.partnershipId ? <em className="nvu-queue-chip">Parceria</em> : null}
+              <strong>{contract?.name || "Operação atribuída"}</strong>
+              <small>{reward ? `${formatMoney(reward.perTripCents)}/viagem${reward.deadlineMs ? ` · até ${deadlineParts(reward.deadlineMs).day}` : ""}` : facts}</small>
+            </span>
+            <ChevronDown size={16} aria-hidden="true" className="nvu-queue-chevron" />
+          </summary>
+          <div className="nvu-queue-body">
+            <dl className="nvu-queue-facts">
+              {reward ? <>
+                <div data-k="money"><dt>Por viagem</dt><dd>{formatMoney(reward.perTripCents)}</dd></div>
+                <div><dt>Viagens</dt><dd>{reward.maxTripsPerDriver || deliveries || "—"}</dd></div>
+                <div><dt>Prazo</dt><dd>{reward.deadlineMs ? <>{deadlineParts(reward.deadlineMs).day} <small>{deadlineParts(reward.deadlineMs).time}</small></> : days ? `${days} d` : "—"}</dd></div>
+              </> : <>
+                <div><dt>Entregas</dt><dd>{deliveries || "—"}</dd></div>
+                <div><dt>Prazo</dt><dd>{days ? `${days} ${days === 1 ? "dia" : "dias"}` : "—"}</dd></div>
+              </>}
+            </dl>
+            {reward ? <p className="nvu-queue-note"><Info size={14} aria-hidden="true" />Fora do prazo você finaliza, mas não recebe pelo serviço.</p> : null}
+            <button type="button" className="nvu-queue-start nvu-idle-assigned-start" onClick={() => onStart(job)} disabled={suspended || Boolean(startingJobId)}>
               {startingJobId === job.id ? "Iniciando operação…" : reward?.status === "pending" ? "Ver condições e iniciar" : "Iniciar operação"}
-            </button></div>
+            </button>
+          </div>
         </details>;
       })}
     </div>
   </section>;
+}
+
+/** Existing manual assignments use their original startJob handler; a trabalho com pagamento é identificado pela oferta do motorista (escuta compartilhada). */
+export function DriverAssignedQueue(props: { jobs: Job[]; contracts: Contract[]; suspended: boolean; startingJobId: string | null; onStart: (job: Job) => void }) {
+  const { currentUser } = useSessionStore();
+  const { offers } = useDriverRewards(currentUser?.id);
+  const rewardOf = (job: Job) => offers.find(offer => offer.jobId === job.id && (offer.status === "pending" || offer.status === "accepted"));
+  return <AssignedQueueView {...props} rewardOf={rewardOf} />;
 }

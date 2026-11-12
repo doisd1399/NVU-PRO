@@ -376,17 +376,6 @@ body .nvu-workspace-shell .nvu-admin-shell-content > main > div:first-child {
 .nvu-idle-assigned-heading { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; text-align: left; }
 .nvu-idle-assigned-heading > span { flex: 1; min-width: 0; }
 .nvu-idle-assigned-heading small { color: var(--idle-muted); }
-.nvu-idle-assigned-row { border-top: 1px solid var(--idle-line); margin-top: 8px; }
-.nvu-idle-assigned-row summary { display: flex; align-items: center; gap: 10px; min-height: 48px; padding-block: 10px; list-style: none; cursor: pointer; }
-.nvu-idle-assigned-row summary::-webkit-details-marker { display: none; }
-.nvu-idle-assigned-row summary > span { font-size: 11px; color: var(--idle-muted); padding-right: 10px; border-right: 1px solid var(--idle-line); }
-.nvu-idle-assigned-row strong { font-size: 13px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.nvu-idle-assigned-row summary > small { color: var(--idle-muted); font-size: 10px; }
-.nvu-idle-assigned-row[open] summary > svg { transform: rotate(180deg); }
-.nvu-idle-assigned-row > div { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 0; }
-.nvu-idle-assigned-row p { flex: 1; color: var(--idle-muted); font-size: 12px; }
-.nvu-idle-assigned-start { min-height: 44px; padding: 10px 14px; border-radius: 8px; color: #f1f5f6; background: var(--idle-action); font-size: 12px; }
-.nvu-idle-assigned-start:disabled { opacity: .55; cursor: not-allowed; }
 .nvu-driver-idle-workspace button:focus-visible, .nvu-driver-idle-workspace summary:focus-visible { outline: 2px solid var(--idle-accent); outline-offset: 3px; }
 @media(max-width: 359px) {
   .nvu-idle-company { gap: 12px; padding: 18px 12px; }
@@ -492,8 +481,29 @@ body .nvu-admin-company-page.nvu-company-workspace .nvu-company-hero-content { p
 .nvu-idle-partnership-tag { flex-shrink: 0; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
   background: var(--nvu-accent-soft, #e0f7fa); color: var(--nvu-accent, #00899a); }
 
-/* Selo "Pagamento" e condições na fila de encaminhamentos: o trabalho com pagamento não parece uma operação comum. */
-.nvu-idle-reward-tag { display: inline-flex; align-items: center; gap: 3px; }
-.nvu-idle-reward-terms { margin: 0 0 8px; font-size: 12.5px; line-height: 1.4; color: var(--idle-muted); }
-.nvu-idle-reward-terms b { color: inherit; font-weight: 800; }
-.nvu-idle-assigned-row[data-reward="1"] > summary strong { color: var(--nvu-accent, #00899a); }
+
+/* Fila de encaminhamentos: cartões compactos; a oferta de trabalho (com pagamento) ganha destaque, selo e as condições em blocos. */
+.nvu-queue-list { display: grid; gap: 8px; margin-top: 10px; }
+.nvu-queue-card { border: 1px solid var(--idle-line); border-radius: 14px; background: color-mix(in srgb, var(--idle-icon-paper) 45%, transparent); overflow: hidden; }
+.nvu-queue-card[data-reward="1"] { border-color: color-mix(in srgb, var(--idle-accent) 50%, var(--idle-line)); background: linear-gradient(135deg, color-mix(in srgb, var(--idle-accent) 16%, var(--idle-paper)), var(--idle-paper) 72%); box-shadow: inset 3px 0 0 var(--idle-accent); }
+.nvu-queue-card summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 11px 12px; list-style: none; cursor: pointer; min-height: 52px; }
+.nvu-queue-card summary::-webkit-details-marker { display: none; }
+.nvu-queue-index { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 9px; background: var(--idle-icon-paper); color: var(--idle-accent); font-size: 11px; font-weight: 800; }
+.nvu-queue-title { display: grid; gap: 2px; min-width: 0; justify-items: start; }
+.nvu-queue-title strong { font-size: 14px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; color: var(--idle-text); }
+.nvu-queue-title small { font-size: 11.5px; color: var(--idle-muted); line-height: 1.3; }
+.nvu-queue-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-style: normal; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: color-mix(in srgb, var(--idle-accent) 18%, transparent); color: var(--idle-accent); }
+.nvu-queue-chevron { color: var(--idle-muted); transition: transform .18s ease; }
+.nvu-queue-card[open] .nvu-queue-chevron { transform: rotate(180deg); }
+.nvu-queue-body { display: grid; gap: 10px; padding: 0 12px 12px; }
+.nvu-queue-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 6px; margin: 0; }
+.nvu-queue-facts > div { padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--idle-icon-paper) 85%, transparent); min-width: 0; }
+.nvu-queue-facts dt { margin: 0; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--idle-muted); }
+.nvu-queue-facts dd { margin: 2px 0 0; font-size: 15px; font-weight: 800; line-height: 1.2; color: var(--idle-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nvu-queue-facts [data-k="money"] dd { color: var(--idle-accent); }
+.nvu-queue-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; font-size: 12px; line-height: 1.4; color: var(--idle-muted); }
+.nvu-queue-note svg { flex: none; margin-top: 1px; color: var(--idle-accent); }
+.nvu-queue-start { width: 100%; min-height: 44px; padding: 10px 14px; border-radius: 12px; color: #f1f5f6; background: var(--idle-action); font-size: 13.5px; font-weight: 700; }
+.nvu-queue-start:disabled { opacity: .55; cursor: not-allowed; }
+.nvu-queue-facts dd small { font-size: 11px; font-weight: 600; color: var(--idle-muted); }
+.nvu-queue-card[open] .nvu-queue-title small { display: none; } /* aberto, os blocos abaixo já mostram esses dados */
