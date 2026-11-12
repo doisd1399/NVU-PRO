@@ -1003,8 +1003,7 @@ function DashboardComponent({
       <DriverIdlePanel
         online={Boolean(currentUser?.isOnline)} suspended={operationalSuspension.active}
         onAvailabilityChange={updateUserOnlineStatus}
-        request={{ pending: Boolean(myDemand), busy: isSubmittingDemand, success: demandSuccess, onRequest: () => void handleRequestDemand() }}
-        onProfile={() => navigate("/driver/profile")} onWallet={() => navigate("/driver/recompensas")}
+        onProfile={() => navigate("/driver/profile", { state: { profileTab: "profile" } })} onWallet={() => navigate("/driver/recompensas")}
         workJobIds={pendingDriverJobs.map(job => job.id)}
         works={<>
           {solicitarTrabalhoCard}

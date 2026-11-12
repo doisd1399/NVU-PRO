@@ -38,22 +38,18 @@ try {
   const reset = async options => { await page.evaluate(o => window.__idle492.reset(o), options); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); };
   const calls = () => page.evaluate(() => window.__idle492.calls());
   const test = async (name, fn) => { await fn(); results.push({ name, result: "PASS" }); console.log(`PASS ${name}`); };
-  await test("Menu: sem card de empresa; opções na ordem pedida, Perfil abre o perfil e Conquistas fica em breve", async () => {
+  await test("Menu: sem card de empresa; opções na ordem pedida (sem Solicitar trabalho), Carteira e Perfil abrem as páginas e Conquistas fica em breve", async () => {
     await reset({});
     assert.equal(await page.locator(".nvu-idle-company").count(), 0); assert.equal(await page.getByText("Empresa vinculada").count(), 0);
-    assert.deepEqual(await page.locator(".nvu-idle-menu-item .nvu-idle-menu-label").evaluateAll(n => n.map(e => e.childNodes[0].textContent)), ["Solicitar trabalho", "Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"]);
+    assert.deepEqual(await page.locator(".nvu-idle-menu-item .nvu-idle-menu-label").evaluateAll(n => n.map(e => e.childNodes[0].textContent)), ["Ver Trabalhos", "Histórico de operações", "Carteira", "Perfil", "Conquistas"]);
     const order = await page.evaluate(() => { const status = document.querySelector(".nvu-driver-status-row").getBoundingClientRect(), menu = document.querySelector(".nvu-idle-menu").getBoundingClientRect(); return menu.top >= status.bottom; });
     assert(order, "a lista de opções fica abaixo do status");
     assert(await page.locator('.nvu-idle-menu-item[data-item="achievements"]').isDisabled()); assert.match(await page.locator('.nvu-idle-menu-item[data-item="achievements"]').innerText(), /Em breve/);
     await page.locator('.nvu-idle-menu-item[data-item="wallet"]').click(); await page.locator('.nvu-idle-menu-item[data-item="profile"]').click();
     assert.deepEqual((await calls()).map(c => c.action), ["wallet", "profile"]);
-    await reset({}); await page.locator('.nvu-idle-menu-item[data-item="request"]').click();
-    assert.deepEqual((await calls()).map(c => c.action), ["request"]);
-    assert.match(await page.locator('.nvu-idle-menu-item[data-item="request"]').innerText(), /Aguardando a empresa/);
-    await page.locator('.nvu-idle-menu-item[data-item="request"]').click();
-    assert(await page.getByRole("heading", { name: "Solicitação em andamento" }).isVisible(), "com pedido em andamento, a opção abre Ver Trabalhos");
+    assert.equal(await page.locator('.nvu-idle-menu-item[data-item="request"]').count(), 0, "Solicitar trabalho fica só dentro de Ver Trabalhos");
+    await page.locator('.nvu-idle-menu-item[data-item="works"]').click(); assert(await page.getByRole("button", { name: "Solicitar trabalho", exact: true }).isVisible());
     await page.getByRole("button", { name: "Voltar ao painel do motorista" }).click(); assert(await page.locator(".nvu-idle-menu").isVisible());
-    for (const options of [{ online: false }, { suspended: true }, { busy: true }]) { await reset(options); assert(await page.locator('.nvu-idle-menu-item[data-item="request"]').isDisabled()); }
   });
   await test("Ver Trabalhos reúne solicitar trabalho, trabalhos recebidos e fila operacional; Histórico abre a própria tela", async () => {
     await reset({ manual: true }); assert.match(await page.locator('.nvu-idle-menu-item[data-item="works"]').innerText(), /1/);

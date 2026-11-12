@@ -37,7 +37,6 @@ function App() {
       <main className="nvu-driver-surface" data-page="dashboard">
         <DriverIdlePanel key={`panel:${generation}`} defaultView={config.view || "menu"} online={config.online !== false} suspended={Boolean(config.suspended)}
           onAvailabilityChange={online => { calls.push({ action: "availability", online }); setConfig((v: any) => ({ ...v, online })); }}
-          request={{ pending: Boolean(config.pending), busy: Boolean(config.busy), success: Boolean(config.success), onRequest: () => { calls.push({ action: "request" }); setConfig((v: any) => ({ ...v, pending: true })); } }}
           onProfile={() => calls.push({ action: "profile" })} onWallet={() => calls.push({ action: "wallet" })} workJobIds={config.manual ? [manual.id] : []}
           works={<>
           <DriverWorkRequest variant="panel" online={config.online !== false} suspended={Boolean(config.suspended)} busy={Boolean(config.busy)}

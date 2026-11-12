@@ -1,6 +1,11 @@
-# NVU PRO 1.0.586 (Android) / Web 2.3.243 / Windows 0.2.12
+# NVU PRO 1.0.587 (Android) / Web 2.3.244 / Windows 0.2.13
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 586 — instala como atualização da 585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 587 — instala como atualização da 586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.587 — Painel operacional: sem “Solicitar trabalho”, Perfil abre o Resumo do período
+- **Removida a opção “Solicitar trabalho”** do Painel operacional (o pedido continua em “Ver Trabalhos”). A lista fica: Ver Trabalhos, Histórico de operações, Carteira, Perfil e Conquistas (em breve).
+- **“Perfil” agora abre a página de Perfil com o Resumo do período** (a mesma do botão Perfil da barra inferior). Antes ele reabria o próprio painel, e parecia que nada acontecia.
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.586 — Carteira
 - **Nova opção “Carteira” no Painel operacional** (entre “Histórico de operações” e “Perfil”): abre a página que antes se chamava “Trabalhos” (ofertas, recebimentos, histórico de ganhos e informações).
