@@ -49,7 +49,21 @@ await test("Reload preserves identity; another account cannot replay/project it"
   h.uid("driver"); await restored.synchronize("start"); assert.equal(h.calls.length, 1);
 });
 await test("Storage failure never produces a successful local command", async () => {
-  const h = harness(); h.storage.quota(true); assert.throws(h.start, /QuotaExceeded/); assert.equal(h.calls.length, 0);
+  const h = harness(); h.storage.quota(true); assert.throws(h.start, /Sem espaço no aparelho/); assert.equal(h.calls.length, 0);
+});
+await test("Full storage frees rebuildable caches (largest first) and keeps the command durable; pending data is never touched", async () => {
+  const values = new Map<string, string>([["nvu.trips.v2:big", "x".repeat(900)], ["nvu.trips.v2:small", "y".repeat(50)], ["nvu.offline.trip.queue.v2", "z".repeat(900)],
+    ["nvu-management-v1:pending", JSON.stringify({ value: { pending: true }, pad: "p".repeat(900) })], ["nvu-profile-cover:v1:me", "c".repeat(900)]]);
+  const used = () => [...values.entries()].reduce((sum, [key, value]) => sum + key.length + value.length, 0), LIMIT = 4200;
+  const storage = { getItem: (key: string) => values.get(key) ?? null, removeItem: (key: string) => { values.delete(key); }, get length() { return values.size; }, key: (index: number) => [...values.keys()][index] ?? null,
+    setItem: (key: string, value: string) => { const before = values.get(key); values.set(key, value); if (used() > LIMIT) { before === undefined ? values.delete(key) : values.set(key, before); throw Object.assign(new Error("exceeded the quota"), { name: "QuotaExceededError" }); } } };
+  const h = harness({ storage: () => storage }); const entry = h.start(); assert.equal(entry.state, "PENDING"); assert.equal(h.outbox.entries().length, 1);
+  assert.ok(!values.has("nvu.trips.v2:big"), "o maior cache foi liberado"); assert.ok(values.has("nvu.offline.trip.queue.v2"), "fila de viagens intacta"); assert.ok(values.has("nvu-management-v1:pending"), "pendente intacto"); assert.ok(values.has("nvu-profile-cover:v1:me"), "capa intacta");
+});
+await test("Settled, observed entries are slimmed to their identity (smaller queue, faster reads)", async () => {
+  const h = harness(); h.start(); h.online(true); await h.outbox.synchronize("start"); const [confirmed] = h.outbox.entries(); assert.equal(confirmed.state, "CONFIRMED");
+  h.outbox.observe("driver", "company", [{ ...confirmed.job, status: "active" } as any]); const [slim] = h.outbox.entries();
+  assert.equal(slim.observed, true); assert.equal(slim.result, undefined); assert.equal(slim.input, undefined); assert.deepEqual(Object.keys(slim.job).sort(), ["companyId", "contractId", "driverId", "id", "status", "totalDeliveries", "vehicleId"]);
 });
 await test("Corrupt durable data is retained and never overwritten", async () => {
   const h = harness(); h.storage.values.set("nvu.operation.outbox.v1.driver", "corrupt");

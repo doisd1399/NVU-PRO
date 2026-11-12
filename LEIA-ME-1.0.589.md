@@ -1,6 +1,13 @@
-# NVU PRO 1.0.588 (Android) / Web 2.3.245 / Windows 0.2.14
+# NVU PRO 1.0.589 (Android) / Web 2.3.246 / Windows 0.2.15
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 588 — instala como atualização da 587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 589 — instala como atualização da 588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.589 — Erro “exceeded the quota” ao iniciar um trabalho
+- **Causa:** o armazenamento local do aparelho (poucos MB) ficou cheio, e a gravação do **início da operação** (fila local durável) foi recusada — o trabalho com pagamento era aceito, mas a operação não iniciava.
+- **Correção:** ao faltar espaço, o app **libera só cache que ele mesmo refaz** (viagens em cache, ranking, páginas lidas, caches de gestão etc., do maior para o menor, só o necessário) e grava de novo. **Nunca apaga** fila de viagens, início/fim pendente, capa/foto ainda não enviada ou registros marcados como pendentes.
+- **Fila local mais enxuta:** comandos já confirmados e vistos no servidor guardam só a identidade (sem o instantâneo completo do trabalho nem o recibo), o que também deixa cada leitura/gravação mais rápida.
+- Se mesmo assim não houver espaço, aparece uma **mensagem clara** (com o caminho para limpar o cache do app) em vez do texto técnico, **sem janela bloqueante** (toast).
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.588 — Painel do motorista vira o menu (Trabalho atual)
 - **O Painel do motorista agora abre sempre no menu**, com ou sem operação em andamento. **Escolher o perfil de motorista** (Alternar perfil / trocar de empresa como motorista) **cai nesse menu**.

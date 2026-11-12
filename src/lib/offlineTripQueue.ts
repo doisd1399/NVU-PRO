@@ -1,4 +1,5 @@
 export type OfflineTripStatus = "LOCAL_CREATED" | "PENDING_SYNC" | "SYNCING" | "UPLOADING" | "SERVER_RECEIVED" | "VALIDATION_PENDING" | "SENT" | "VALIDATED" | "FAILED";
+import { setItemReclaiming } from "./storageReclaim";
 
 export type OfflineTripRecord = {
   id: string;
@@ -46,7 +47,7 @@ const read = (): OfflineTripRecord[] => {
     // Commit before removing v1. If storage is full, leave v1 intact and
     // return it so the pending records remain accessible on the next launch.
     try {
-      localStorage.setItem(KEY, JSON.stringify(migrated));
+      setItemReclaiming(localStorage, KEY, JSON.stringify(migrated));
     } catch {
       return migrated;
     }
@@ -57,7 +58,7 @@ const read = (): OfflineTripRecord[] => {
 
 const write = (items: OfflineTripRecord[]) => {
   if (typeof window === "undefined") return;
-  localStorage.setItem(KEY, JSON.stringify(items));
+  setItemReclaiming(localStorage, KEY, JSON.stringify(items));
 };
 
 const emit = (name: string, detail?: unknown) => {

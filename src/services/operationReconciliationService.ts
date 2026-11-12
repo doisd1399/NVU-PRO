@@ -1,4 +1,5 @@
 import type { CanonicalTrip } from "../domain/trip/CanonicalTrip";
+import { setItemReclaiming } from "../lib/storageReclaim";
 import { normalizeCanonicalOperation, operationIdentityOf, type CanonicalOperation } from "../domain/operation/CanonicalOperation";
 import { canonicalTripRepository } from "../repositories/CanonicalTripRepository";
 import { clearActiveOperationSnapshot } from "../lib/activeOperationSnapshot";
@@ -56,7 +57,7 @@ function persist(): void {
   const target = storage();
   if (!target) return;
   try {
-    target.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(projections.entries())));
+    setItemReclaiming(target, STORAGE_KEY, JSON.stringify(Object.fromEntries(projections.entries())));
   } catch { /* projection is reconstructible from the repository */ }
 }
 

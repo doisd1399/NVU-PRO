@@ -1011,7 +1011,7 @@ function DashboardComponent({
         { const offer = rewardOfferFor(job); if (offer) { setRewardStart({ job, offer }); return; } }
         setStartingJobId(job.id);
         try { await startJob(job.id); }
-        catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
+        catch (error: any) { toast.error(error?.message || "Não foi possível iniciar a operação."); }
         finally { setStartingJobId(current => current === job.id ? null : current); }
       }} />;
 
@@ -1055,7 +1055,7 @@ function DashboardComponent({
             setPartnershipStartJob(null);
             setStartingJobId(job.id);
             try { await startJob(job.id, { startPhotoUrl }); }
-            catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
+            catch (error: any) { toast.error(error?.message || "Não foi possível iniciar a operação."); }
             finally { setStartingJobId(current => current === job.id ? null : current); }
           }} />
         <RewardStartSheet offer={rewardStart?.offer || null} onClose={() => setRewardStart(null)} onConfirm={async () => {
@@ -1064,7 +1064,7 @@ function DashboardComponent({
           if (!(offer.deadlineMs > 0 && offer.deadlineMs < Date.now())) await rewardService.respond(offer.id, "accept"); // aceita as condições e, em seguida, inicia (prazo vencido: inicia sem pagamento)
           setRewardStart(null); setStartingJobId(job.id);
           try { await startJob(job.id); }
-          catch (error: any) { alert(error?.message || "Não foi possível iniciar a operação."); }
+          catch (error: any) { toast.error(error?.message || "Não foi possível iniciar a operação."); }
           finally { setStartingJobId(current => current === job.id ? null : current); }
         }} />
       </DriverIdlePanel>

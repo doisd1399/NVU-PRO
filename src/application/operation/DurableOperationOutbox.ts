@@ -1,4 +1,5 @@
 import type { OperationalCommandInput } from "./OperationalCommandClient";
+import { isQuotaError, setItemReclaiming, type ReclaimStorage } from "../../lib/storageReclaim";
 
 export type LocalOperationJob = Record<string, any> & { id: string; companyId: string; driverId: string; contractId: string; status: string };
 export type OperationCommandState = "PENDING" | "SENDING" | "CONFIRMED" | "REJECTED";
@@ -11,7 +12,7 @@ export type OperationOutboxEntry = {
   nativeCleanupDone?: boolean;
   resultPresented?: boolean;
 };
-type StoragePort = Pick<Storage, "getItem" | "setItem">;
+type StoragePort = ReclaimStorage;
 type Ports = {
   uid: () => string; online: () => boolean; storage: () => StoragePort;
   sendStart: (entry: OperationOutboxEntry) => Promise<LocalOperationJob>;
@@ -81,8 +82,17 @@ export class DurableOperationOutbox {
   /** Settled history is bounded: every read parses (and every write rewrites) the whole queue, so an ever-growing list of
    * long-confirmed commands made each tap slower with use and would eventually exhaust localStorage. Anything that can
    * still matter is kept: unconfirmed entries, and recent confirmed ones (the projection and native cleanup need them). */
+  /** An entry that is settled and already seen in the server data only needs its identity: dropping the job snapshot and the
+   * server receipt keeps the queue small (every read parses it and every write rewrites it, on a storage of only a few MB). */
+  private slim(entry: OperationOutboxEntry): OperationOutboxEntry {
+    const settled = entry.state === "CONFIRMED" && entry.observed === true && (entry.kind === "start" || entry.resultPresented === true && entry.nativeCleanupDone === true);
+    if (!settled || (!entry.result && !entry.input && Object.keys(entry.job).length <= 8)) return entry;
+    const { id, companyId, driverId, contractId, status, vehicleId, totalDeliveries } = entry.job;
+    return { ...entry, input: undefined, result: undefined, job: { id, companyId, driverId, contractId, status, vehicleId, totalDeliveries } };
+  }
   private compact(entries: OperationOutboxEntry[]): OperationOutboxEntry[] {
     const now = this.now();
+    entries = entries.map(entry => this.slim(entry));
     const alive = entries.filter(entry => entry.state !== "CONFIRMED" || now - entry.createdAt <= CONFIRMED_RETENTION_MS);
     const confirmed = alive.filter(entry => entry.state === "CONFIRMED");
     if (confirmed.length <= CONFIRMED_KEEP) return alive;
@@ -93,7 +103,11 @@ export class DurableOperationOutbox {
   private write(uid: string, entries: OperationOutboxEntry[]) {
     const storage = this.ports.storage();
     const raw = JSON.stringify({ version: 1, actorId: uid, entries: this.compact(entries) });
-    storage.setItem(prefix + uid, raw);
+    try { setItemReclaiming(storage, prefix + uid, raw); } // sem espaço: libera só cache refazível e tenta de novo
+    catch (error) {
+      if (isQuotaError(error)) throw Object.assign(new Error("Sem espaço no aparelho para salvar a operação. Limpe o cache do app (Configurações do Android › Apps › NVU PRO › Armazenamento) e tente de novo."), { code: "storage-full", cause: error });
+      throw error;
+    }
     if (storage.getItem(prefix + uid) !== raw) throw new Error("OPERATION_OUTBOX_NOT_DURABLE");
     this.ports.notify?.(uid);
   }
