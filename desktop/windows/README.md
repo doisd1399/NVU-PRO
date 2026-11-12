@@ -1,4 +1,4 @@
-# NVU PRO Windows 0.2.15
+# NVU PRO Windows 0.2.16
 
 Aplicativo Windows (Electron) e plugin de telemetria SCS (ETS2/ATS) do mesmo projeto Web/Android. Este documento é técnico; o guia para o usuário final é `GUIA-ATUALIZAR-NVU-E-PREPARAR-ETS2-ATS.md`.
 
@@ -8,7 +8,7 @@ Aplicativo Windows (Electron) e plugin de telemetria SCS (ETS2/ATS) do mesmo pro
 
 | Arquivo | Para quem |
 |---|---|
-| `NVU-PRO-Setup-0.2.15-x64.exe` | **Principal.** Instala ou atualiza a NVU (por usuário, sem administrador). |
+| `NVU-PRO-Setup-0.2.16-x64.exe` | **Principal.** Instala ou atualiza a NVU (por usuário, sem administrador). |
 | `release-manifest.json`, `SHA256SUMS.txt`, `Verificar-NVU.ps1` | Conferência do arquivo baixado (tamanho, SHA-256, assinatura). |
 | `nvu_scs_telemetry.dll` + `.manifest.json` e `plugin/` (fonte) | Opcional/técnico: plugin e fonte do plugin. |
 | Projeto completo (ZIP) e relatório | Opcional/técnico. |
@@ -29,7 +29,7 @@ npm run windows:verify                # reverifica artifacts/windows (tamanho, S
 npm run windows:portable              # secundário: ZIP sem instalação
 npm run windows:dev                   # abre o aplicativo a partir do código
 npm run test:role-matrix              # matriz por papel (emulador, dados fictícios)
-bash desktop/windows/tests/e2e/wine-installer-check.sh artifacts/windows/NVU-PRO-Setup-0.2.15-x64.exe ~/wine-nvu   # emulado (Wine), prefixo descartável
+bash desktop/windows/tests/e2e/wine-installer-check.sh artifacts/windows/NVU-PRO-Setup-0.2.16-x64.exe ~/wine-nvu   # emulado (Wine), prefixo descartável
 ```
 
 A versão do aplicativo e do plugin vem de **uma única fonte**: `desktop/windows/package.json` (`version` e `nvu.pluginVersion`). O build do plugin grava a versão na DLL e gera `nvu_scs_telemetry.manifest.json` (SHA-256/tamanho); o aplicativo confere a DLL empacotada com esse manifesto ao iniciar.

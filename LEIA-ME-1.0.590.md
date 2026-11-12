@@ -1,6 +1,11 @@
-# NVU PRO 1.0.589 (Android) / Web 2.3.246 / Windows 0.2.15
+# NVU PRO 1.0.590 (Android) / Web 2.3.247 / Windows 0.2.16
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 589 — instala como atualização da 588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 590 — instala como atualização da 589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.590 — Carteira › Oferta: botão Recusar
+- **A tela da oferta (Carteira) agora tem “Recusar”**, também quando o trabalho já foi encaminhado à fila do motorista (antes o botão só aparecia sem trabalho encaminhado). Toca em “Recusar” → aparece a confirmação (“Ao recusar, o trabalho sai da sua fila e você não recebe por ele.”) → “Confirmar recusa” ou “Voltar”.
+- **Servidor:** recusar uma oferta com trabalho encaminhado **cancela o trabalho na fila do motorista** (só se ele ainda não foi iniciado; um trabalho já iniciado não é tocado) e avisa a empresa. A permissão é restrita: só o próprio motorista, só “cancelar” e só trabalho pendente.
+- **Exige publicar a função `respondRewardOffer`** (sem a publicação, o app novo recusa a oferta, mas o trabalho continua na fila).
 
 ## 1.0.589 — Erro “exceeded the quota” ao iniciar um trabalho
 - **Causa:** o armazenamento local do aparelho (poucos MB) ficou cheio, e a gravação do **início da operação** (fila local durável) foi recusada — o trabalho com pagamento era aceito, mas a operação não iniciava.

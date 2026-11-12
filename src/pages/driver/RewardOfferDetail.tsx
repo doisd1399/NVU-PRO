@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Trophy } from "lucide-react";
 import { formatMoney } from "../../lib/partnerships";
 import { WEEKDAYS, dateTimeText } from "../../lib/rewardPayments";
@@ -9,6 +9,7 @@ const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; 
 
 /** Uma oferta: condições, prazo, progresso e o que acontece em cada situação (inclusive perder o pagamento). */
 export function OfferDetail({ offer, now, busy, onBack, onRespond }: { offer: RewardOffer; now: number; busy: boolean; onBack: () => void; onRespond: (decision: "accept" | "decline") => void }) {
+  const [confirmDecline, setConfirmDecline] = useState(false);
   const sim = Number(offer.simCents) || 0, phase = offerPhase(offer), accepted = offer.status === "accepted", goal = goalOf(offer), days = offer.deadlineDays, left = timeLeftText(offer.deadlineMs, now);
   const payDay = offer.payDay === null ? "" : ` (toda ${WEEKDAYS[offer.payDay].toLowerCase()})`;
   return <>
@@ -36,7 +37,11 @@ export function OfferDetail({ offer, now, busy, onBack, onRespond }: { offer: Re
       {phase === "done" ? <p className="b2p-note-box">Operação concluída. Pagamento na folha do dia de pagamento{payDay}.</p> : null}
       {phase === "expired" ? <p className="b2p-alert" role="alert">Prazo encerrado. Você não concluiu a operação e perdeu o pagamento.</p> : null}
       {phase === "pending" || phase === "active" ? <p className="b2p-hint">Pago por Pix só depois da operação concluída. O NVU só registra: não paga nem garante.</p> : null}
-      {phase === "pending" ? <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onRespond("accept")}>{busy ? "Aguarde…" : "Aceitar"}</button>{offer.jobId ? null : <button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => onRespond("decline")}>Recusar</button>}</div>
+      {phase === "pending" ? (confirmDecline
+        ? <div className="b2p-actions" role="group" aria-label="Confirmar recusa"><p className="b2p-hint" role="status">{offer.jobId ? "Ao recusar, o trabalho sai da sua fila e você não recebe por ele." : "Ao recusar, você não recebe por esta oferta."}</p>
+            <button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={() => onRespond("decline")}>{busy ? "Aguarde…" : "Confirmar recusa"}</button>
+            <button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => setConfirmDecline(false)}>Voltar</button></div>
+        : <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => onRespond("accept")}>{busy ? "Aguarde…" : "Aceitar"}</button><button type="button" className="b2p-btn" data-v="ghost" disabled={busy} onClick={() => setConfirmDecline(true)}>Recusar</button></div>)
         : phase === "declined" || phase === "cancelled" ? <p className="b2p-hint">{PHASE_LABEL[phase]}.</p> : null}
     </div></section>
   </>;

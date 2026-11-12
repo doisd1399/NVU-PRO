@@ -243,7 +243,7 @@ test("Trabalho com pagamento: as condições aparecem ao iniciar (aceite), fora 
   const dash = readFileSync("src/pages/driver/Dashboard.tsx", "utf8"), sheet = readFileSync("src/components/driver/RewardStartSheet.tsx", "utf8"), det = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8");
   assert.match(dash, /if \(offer\) \{ setRewardStart\(\{ job, offer \}\); return; \}/, "o início passa pelas condições"); assert.doesNotMatch(dash, /useDriverRewards/, "o painel não assina as ofertas (não refaz a tela a cada atualização)"); assert.match(dash, /rewardService\.respond\(offer\.id, "accept"\)/);
   assert.match(sheet, /não recebe<\/b> pelo serviço, por romper o acordo/); assert.match(sheet, /Aceitar e iniciar/); assert.match(sheet, /Iniciar sem pagamento/, "prazo vencido: inicia mas sem pagamento"); assert.match(sheet, /informe sua chave Pix/);
-  assert.match(det, /offer\.jobId \? null :[\s\S]*Recusar/);
+  assert.match(det, /setConfirmDecline\(true\)\}>Recusar</); // Recusar também com o trabalho já na fila (v84)
 });
 test("Ao concluir: o motorista confirma/informa a chave Pix (no prazo) ou é avisado de que não recebe (fora do prazo); uma vez por operação", () => {
   const prompt = readFileSync("src/components/driver/RewardCompletionPrompt.tsx", "utf8"), layout = readFileSync("src/layouts/DriverLayout.tsx", "utf8");
@@ -318,5 +318,11 @@ test("Painel do motorista: sem card de empresa; lista de opções (Trabalho atua
   assert.match(panel, /<span>Trabalhos recebidos<\/span>/); assert.doesNotMatch(panel, /Encaminhamentos da empresa/);
   assert.match(dash, /works=\{<>[\s\S]*solicitarTrabalhoCard[\s\S]*filaOperacionalSection[\s\S]*Fila operacional/);
   assert.match(ws, /\.nvu-idle-menu-item \{/); assert.match(ws, /\.nvu-idle-menu-arrow \{/);
+});
+test("Recusar oferta: também com o trabalho já encaminhado (confirma antes; o servidor tira o trabalho da fila só se ainda estiver pendente)", () => {
+  const detail = readFileSync("src/pages/driver/RewardOfferDetail.tsx", "utf8"), server = readFileSync("functions/src/rewards.ts", "utf8"), commands = readFileSync("functions/src/operationalCommands.ts", "utf8");
+  assert.match(detail, /onClick=\{\(\) => setConfirmDecline\(true\)\}>Recusar</); assert.match(detail, /Confirmar recusa/); assert.doesNotMatch(detail, /offer\.jobId \? null : <button/, "o botão Recusar não some mais quando há trabalho na fila");
+  assert.match(server, /decision === "decline" && text\(outcome\.offer\.jobId\)/); assert.match(server, /driverDecline: true/);
+  assert.match(commands, /ownPendingDecline = options\.driverDecline === true && action === "cancel" && driverId === uid && old\.status === "pending"/, "só o próprio motorista, só cancelar, só trabalho pendente");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

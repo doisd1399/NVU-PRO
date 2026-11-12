@@ -187,6 +187,8 @@ try {
     assert.ok((await get(`rewardOffers/${offer}`)).get("acceptedAtMs") > 0); assert.equal((await get(`rewardCampaigns/${campaignId}`)).get("acceptedCount"), 1);
     await failsWith(() => respond(offer, "decline", "drv-1"), "failed-precondition");
     assert.equal((await respond(`${campaignId}_drv-2`, "decline", "drv-2")).status, "declined"); assert.equal((await get(`rewardCampaigns/${campaignId}`)).get("acceptedCount"), 1);
+    const declinedJob = (await get(`rewardOffers/${campaignId}_drv-2`)).get("jobId"); assert.ok(declinedJob, "a oferta recusada tinha trabalho encaminhado"); assert.equal((await get(`trabalhos/${declinedJob}`)).get("status"), "cancelled", "recusar tira o trabalho da fila do motorista");
+    const acceptedJob = (await get(`rewardOffers/${offer}`)).get("jobId"); assert.equal((await get(`trabalhos/${acceptedJob}`)).get("status"), "pending", "o trabalho de quem aceitou segue na fila");
   });
   await test("ganho: conta só viagem confirmada, do motorista, da empresa, depois do aceite e no período; cada viagem uma vez; bônus na meta", async () => {
     const { campaignId } = await create(), offer = `${campaignId}_drv-1`;

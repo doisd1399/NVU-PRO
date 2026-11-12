@@ -190,6 +190,11 @@ export const respondRewardOffer = functions.region(...CALLABLE_REGIONS).https.on
     if (decision === "accept") tx.update(campaignRef, { acceptedCount: admin.firestore.FieldValue.increment(1), updatedAt: now });
     return { replayed: false, offer };
   });
+  // Recusar uma oferta já encaminhada: o trabalho sai da fila do motorista (só se ainda não foi iniciado).
+  if (!outcome.replayed && decision === "decline" && text(outcome.offer.jobId)) {
+    try { await executeOperationalCommand(db, { action: "cancel", companyId: text(outcome.offer.companyId), requestId: `rwd_${offerId}`.slice(0, 120), jobId: text(outcome.offer.jobId) }, context, { driverDecline: true }); }
+    catch (error) { functions.logger.warn("respondRewardOffer decline job", { offerId, jobId: text(outcome.offer.jobId), error: (error as Error).message }); }
+  }
   if (!outcome.replayed) await notifyManagers(db, text(outcome.offer.companyId), `${text(outcome.offer.driverName)} ${decision === "accept" ? "aceitou" : "recusou"} a campanha ${text(outcome.offer.name)}.`, `${text(outcome.offer.campaignId)}_${uid}_${decision}`);
   if (!outcome.replayed && decision === "accept") await recomputeRewardCampaign(db, text(outcome.offer.campaignId));
   return { success: true, offerId, status: decision === "accept" ? "accepted" : "declined", replayed: outcome.replayed };

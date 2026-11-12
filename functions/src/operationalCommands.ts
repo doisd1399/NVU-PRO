@@ -53,7 +53,11 @@ export function applyOperationalCompletion(tx: Tx, jobId: string, job: Data, dat
 }
 
 /** A single transaction boundary reused by all v1 client operational actions. */
-export async function executeOperationalCommand(db: DB, input: unknown, context: Context): Promise<Data> {
+/**
+ * `driverDecline`: usado só por quem recusa uma oferta de trabalho com pagamento — o próprio motorista pode cancelar o trabalho
+ * encaminhado a ele enquanto ainda está pendente (nunca um trabalho iniciado, nem o de outro motorista, nem outra ação).
+ */
+export async function executeOperationalCommand(db: DB, input: unknown, context: Context, options: { driverDecline?: boolean } = {}): Promise<Data> {
   const uid = context.auth?.uid;
   if (!uid) fail("unauthenticated", "Faça login para confirmar a operação.");
   const data = input && typeof input === "object" && !Array.isArray(input) ? input as Data : {};
@@ -96,7 +100,8 @@ export async function executeOperationalCommand(db: DB, input: unknown, context:
     const old = existing?.data() || {};
     if (!creates && (!existing?.exists || field(old, "companyId", "empresaId") !== companyId)) fail("not-found", "O trabalho não pertence à empresa selecionada.");
     const driverId = automatic ? uid! : action === "assign" ? args.driverId : id(field(old, "driverId", "motoristaId"), "Motorista");
-    if (((action === "start" || automatic) && driverId !== uid) || (action !== "start" && !automatic && !isManager)) fail("permission-denied", "Você não pode realizar esta ação nesta empresa.");
+    const ownPendingDecline = options.driverDecline === true && action === "cancel" && driverId === uid && old.status === "pending";
+    if (((action === "start" || automatic) && driverId !== uid) || (action !== "start" && !automatic && !isManager && !ownPendingDecline)) fail("permission-denied", "Você não pode realizar esta ação nesta empresa.");
     const stateRef = db.collection("operationalDriverStates").doc(operationalDriverStateId(companyId, driverId));
     // Cancel needs the driver state plus, per linked asset, the asset and its
     // other live jobs: one wave instead of state followed by the assets.
