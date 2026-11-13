@@ -466,3 +466,8 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
   .nvu-central-vehicle-photo.nvu-driver-op-photo img { width: auto; height: auto; max-width: 100%; max-height: 100%; }
   .nvu-central-vehicle-photo img, .nvu-central-photo-frame img { object-fit: contain !important; border-radius: 12px; }
 }
+
+/* "Dados salvos · data/hora" não empurra a página: aparece como uma etiqueta flutuante acima da dock (a Central abre já na posição final). */
+.nvu-central-cache-status { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 92px); transform: translateX(-50%); z-index: 35; width: max-content; max-width: calc(100vw - 32px); margin: 0 !important;
+  padding: 5px 14px; border: 1px solid var(--central-line, #dce5eb); border-radius: 999px; background: var(--central-paper, #fff); color: var(--central-muted, #65758a); font-size: 11px; line-height: 1.4; text-align: center; pointer-events: none; box-shadow: 0 6px 18px rgb(0 0 0 / .18); }
+.nvu-landscape-central .nvu-central-cache-status { grid-column: auto; grid-row: auto; }

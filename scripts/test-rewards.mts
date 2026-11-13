@@ -8,6 +8,7 @@ import { checkReceiptAmount, readReceiptAmounts } from "../src/lib/receiptAmount
 import { isPartnershipExecution } from "../src/lib/partnershipTrips.ts";
 import { normalizeProof as clientProof } from "../src/lib/rewardPayments.ts";
 import { normalizeProof as serverProof } from "../functions/src/receiptProofPolicy.ts";
+import { buildOperationResults } from "../src/lib/operationResults.ts";
 import { DRIVER_MENU_ITEMS } from "../src/components/workspaceMenuItems.ts";
 import { brText, buildPixBrCode, crc16, parsePixBrCode } from "../src/lib/pixBrCode.ts";
 import { dateTimeText, formatPixKey, nextPayDayText, normalizePayment, pendingBalance } from "../src/lib/rewardPayments.ts";
@@ -350,9 +351,11 @@ test("Central: Carteira (era Pagamentos), página própria de Trabalhos ativos a
   assert.match(readFileSync("src/pages/admin/Rewards.tsx", "utf8"), /shell\("Carteira", /);
   assert.match(tab, /navigate\("\/admin\/trabalhos-ativos"\)/); assert.match(tab, /view === "jobs" \? <ManagementActiveJobs/); assert.match(readFileSync("src/App.tsx", "utf8"), /path="trabalhos-ativos"/);
   assert.match(readFileSync("src/layouts/AdminLayout.tsx", "utf8"), /\/admin\/trabalhos-ativos/); assert.ok(isWorkspaceSubpage("/admin/trabalhos-ativos", "admin"), "a dock continua e o item ativo volta para a raiz");
-  assert.match(readFileSync("src/pages/admin/ActiveJobs.tsx", "utf8"), /title="Trabalhos ativos"/);
+  assert.match(readFileSync("src/pages/admin/ActiveJobs.tsx", "utf8"), /"Trabalhos ativos"/);
   assert.match(card, /onResults\?: \(\) => void/); assert.match(card, /nvu-central-results-button/); assert.ok(card.indexOf("nvu-central-results-button") < card.indexOf('className="nvu-central-job-status" data-state={operation.state}'), "o ícone fica ao lado do card de situação");
-  assert.match(tab, /OperationResultModal/); assert.match(tab, /buildOperationResultSummary/);
+  assert.match(tab, /OperationResultsPage/); assert.doesNotMatch(tab, /OperationResultModal/, "o ícone abre a página de resultados, não a janela de informações");
+  assert.match(readFileSync("src/pages/admin/ActiveJobs.tsx", "utf8"), /resultsId \? "Resultados" : "Trabalhos ativos"/);
+  assert.match(css, /\.nvu-central-cache-status \{ position: fixed;/, "Dados salvos não empurra a Central para baixo");
   const desktop = css.slice(css.indexOf("@media (min-width: 768px) {\n  .nvu-central-vehicle-photo { background: transparent; }"));
   assert.match(desktop, /aspect-ratio: auto/); assert.match(desktop, /border-radius: 12px/); assert.match(desktop, /background: transparent/);
 });
@@ -361,5 +364,14 @@ test("Parcerias: o pagamento usa o mesmo método da Carteira (chave, valor, Pix 
   assert.match(parts, /export function PixPayCard/); assert.match(parts, /export function PixPayPanel[\s\S]*<PixPayCard/, "a folha dos motoristas e a parceria usam o mesmo painel");
   assert.match(pix, /<PixPayCard pixKey=\{p\.payeePix\.key\}[\s\S]*amountCents=\{Number\(p\.settlement!\.finalCents\)\}/);
   assert.match(pix, /p\.settlement\?\.goalMissed\) return null/, "sem pagamento (meta não atingida): sem Pix");
+});
+test("Resultados da operação comum: % = viagens feitas ÷ previstas (sem meta), ganhos por viagem, média e melhor viagem", () => {
+  const trip = (at: string, valor: number, currency = "BRL") => ({ completedAt: at, valorCents: valor * 100, currency });
+  const r = buildOperationResults([trip("2026-11-11T14:02:00Z", 43747), trip("2026-11-10T14:00:00Z", 44083), trip("2026-11-10T15:00:00Z", 43747), { completedAt: "2026-11-12T10:00:00Z" }], 8);
+  assert.deepEqual([r.trips, r.required, r.percent, r.currency, r.earningsCents, r.bestCents, r.bestN, r.outsideTotals], [4, 8, 50, "BRL", (43747 + 44083 + 43747) * 100, 44083 * 100, 1, 1], "4 de 8 = 50%; a viagem sem valor conta na execução, mas fica fora dos ganhos");
+  assert.deepEqual(r.entries.map(entry => entry.n), [1, 2, 3], "numeradas pela ordem das viagens"); assert.equal(r.averageCents, Math.round((43747 + 44083 + 43747) * 100 / 3));
+  assert.equal(buildOperationResults([trip("2026-11-10T10:00:00Z", 10), trip("2026-11-10T11:00:00Z", 10)], 1).percent, 100, "nunca passa de 100%");
+  assert.equal(buildOperationResults([], 5).percent, 0); assert.equal(buildOperationResults([trip("2026-11-10T10:00:00Z", 10)], 0).percent, 0, "sem total previsto, não inventa porcentagem");
+  const mixed = buildOperationResults([trip("2026-11-10T10:00:00Z", 10, "BRL"), trip("2026-11-10T11:00:00Z", 20, "BRL"), trip("2026-11-10T12:00:00Z", 5, "USD")], 3); assert.deepEqual([mixed.currency, mixed.earningsCents, mixed.outsideTotals], ["BRL", 3000, 1], "outra moeda não entra nos ganhos");
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

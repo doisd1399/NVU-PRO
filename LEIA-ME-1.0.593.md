@@ -1,6 +1,11 @@
-# NVU PRO 1.0.592 (Android) / Web 2.3.249 / Windows 0.2.18
+# NVU PRO 1.0.593 (Android) / Web 2.3.250 / Windows 0.2.19
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 592 — instala como atualização da 591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 593 — instala como atualização da 592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.593 — Resultados da operação como página; “Dados salvos” não empurra a Central
+- **Ícone de resultados nas operações da empresa** agora abre a **página “Resultados”** (a mesma dos resultados da parceria: anel, ganho em viagens, média, melhor viagem, gráfico por viagem e lista das viagens), no lugar da janela de informações. **Adaptada:** operação comum não tem meta, então a **porcentagem é a execução das viagens** (feitas ÷ previstas). Botão “Trabalhos ativos” volta para a lista.
+- **Central de gestão:** a etiqueta “Dados salvos · data” **não entra mais no fluxo da página** (era ela que empurrava tudo para baixo ao abrir): agora aparece como uma etiqueta flutuante acima da dock.
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.592 — Central: Carteira, Trabalhos ativos em página própria, resultados; Parcerias: Pix e regra da meta
 - **Central de gestão:** “Pagamentos” agora se chama **Carteira**. Em “Gerenciar empresa” entra a opção **Trabalhos ativos** (logo abaixo de “Designar Trabalhos”, com a quantidade em andamento) e o **card isolado no fim da página saiu**: os trabalhos ativos têm **página própria** (com a dock e o botão “Central” para voltar).

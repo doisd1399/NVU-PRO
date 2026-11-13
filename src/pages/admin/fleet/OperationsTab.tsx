@@ -8,7 +8,7 @@ import { ManagementDialog } from "../../../components/admin/management/Managemen
 import { ManagementActiveJobs } from "../../../components/admin/management/ManagementActiveJobs";
 import { OperationInfoSheet, type OperationInfoAction } from "../../../components/admin/management/OperationInfoSheet";
 import { OperationTripsSheet } from "../../../components/admin/management/OperationTripsSheet";
-import { OperationResultModal } from "../../../components/OperationResultModal";
+import { OperationResultsPage } from "../../../components/admin/management/OperationResultsPage";
 import AssignJobAssetPicker from "../../../components/admin/AssignJobAssetPicker";
 import { countFleetAssetUsage } from "../../../lib/fleetUsage";
 import type { ManagementOperation } from "../../../components/admin/management/ManagementOperationCard";
@@ -19,7 +19,7 @@ import { useOperationalGoal } from "../../../hooks/useOperationalGoal";
 import { useNetworkOnline } from "../../../hooks/useNetworkOnline";
 import { managementCacheKey, readManagementCache, writeManagementCache } from "../../../lib/managementOfflineCache";
 import { deriveCurrentOperationProgress, selectCanonicalOperationTrips } from "../../../lib/currentOperation";
-import { buildOperationResultSummary, operationDateMs, resolveOperationContract } from "../../../lib/operationResultSummary";
+import { operationDateMs, resolveOperationContract } from "../../../lib/operationResultSummary";
 import { normalizeTrip, calculateWeeklyMetrics, getWeeklyRange, getMonthlyRange, applySimulatorCurrencyContext } from "../../../lib/metricsEngine";
 import { isTrailerlessSimulator, resolveSimulatorId } from "../../../lib/resolveSimulator";
 import { resolveVehiclePhotoOperationSimulatorId } from "../../../lib/vehiclePhotoIdentity";
@@ -56,7 +56,10 @@ function savedSummaryPeriod(key: string, companyId: string) {
 }
 
 /** Data adapter only. Both mobile and desktop mount the new management view. */
-export default function OperationsTab({ active = true, view = "central" }: { active?: boolean; /** "jobs": a página própria de Trabalhos ativos (só a lista e as janelas das operações). */ view?: "central" | "jobs" }) {
+export default function OperationsTab({ active = true, view = "central", resultsId: controlledResultsId, onResultsChange }: {
+  active?: boolean; /** "jobs": a página própria de Trabalhos ativos (só a lista e as janelas das operações). */ view?: "central" | "jobs";
+  /** Página de resultados de uma operação (controlada pela página, que troca o título). */ resultsId?: string | null; onResultsChange?: (id: string | null) => void;
+}) {
   const { currentUser, seniorCompanyId } = useSessionStore();
   const { companies, activeCompanyId, allCompanyMembers, allCompanyMembersReady } = useCompanyStore();
   const { users, contracts, jobs, vehicles, trailers, simulators, sequences, cancelJob, changeJobVehicle, rejectJobDemand, operationalDataReady, operationalDataRefreshing } = useOperationalStore();
@@ -75,7 +78,8 @@ export default function OperationsTab({ active = true, view = "central" }: { act
   const [infoId, setInfoId] = useState<string | null>(null);
   const [jobToCancel, setJobToCancel] = useState<string | null>(null);
   const [tripsId, setTripsId] = useState<string | null>(null);
-  const [resultsId, setResultsId] = useState<string | null>(null);
+  const [localResultsId, setLocalResultsId] = useState<string | null>(null);
+  const resultsId = controlledResultsId !== undefined ? controlledResultsId : localResultsId, setResultsId = onResultsChange || setLocalResultsId;
   const [vehicleJobId, setVehicleJobId] = useState<string | null>(null);
   const [vehicleAttempt, setVehicleAttempt] = useState<{ jobId: string; vehicleId: string; status: "saving" | "error"; message: string } | null>(null);
   const vehicleSaveRef = useRef(false);
@@ -239,15 +243,12 @@ export default function OperationsTab({ active = true, view = "central" }: { act
   const operationTrips = useMemo(() => tripsJob
     ? selectCanonicalOperationTrips(tripsJob as any, historicoTrips as any[], String(tripsJob.driverId || "")).map(trip => applySimulatorCurrencyContext(normalizeTrip(trip), companies, simulators))
     : [], [tripsJob, historicoTrips, companies, simulators]);
-  // Resultados de uma operação da própria empresa (ícone ao lado da situação): o mesmo resumo que o motorista vê, com os ganhos por moeda.
+  // Resultados de uma operação da própria empresa (ícone ao lado da situação): página com ganhos e ritmo; % = viagens feitas ÷ previstas.
   const resultsOperation = visibleOperations.find(operation => operation.id === resultsId);
   const resultsJob = resultsId ? jobs.find(job => job.id === resultsId) : undefined;
-  const resultsData = useMemo(() => {
-    if (!resultsJob || !resultsOperation) return null;
-    const trips = selectCanonicalOperationTrips(resultsJob as any, historicoTrips as any[], String(resultsJob.driverId || "")).map(trip => applySimulatorCurrencyContext(normalizeTrip(trip), companies, simulators));
-    return buildOperationResultSummary({ job: resultsJob as any, contract: resolveOperationContract(resultsJob as any, contracts) as any, trips: trips as any[],
-      vehicleName: resultsOperation.vehicleName, trailerName: resultsOperation.trailerName, showTrailer: resultsOperation.showTrailer });
-  }, [resultsJob, resultsOperation, historicoTrips, companies, simulators, contracts]);
+  const resultsTrips = useMemo(() => resultsJob
+    ? selectCanonicalOperationTrips(resultsJob as any, historicoTrips as any[], String(resultsJob.driverId || "")).map(trip => applySimulatorCurrencyContext(normalizeTrip(trip), companies, simulators))
+    : [], [resultsJob, historicoTrips, companies, simulators]);
   const onResults = (operation: ManagementOperation) => {
     if (operation.partnership?.role === "contractor") { const partnershipId = operation.partnership.id; commitNavigation(() => navigate("/admin/parcerias", { state: { openId: partnershipId, view: "results" } })); return; }
     setResultsId(operation.id);
@@ -316,7 +317,8 @@ export default function OperationsTab({ active = true, view = "central" }: { act
   const periodLabel = resumoPeriod === "mensal" ? monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1) : resumoPeriod === "semana" ? "Semana atual" : `${dayFormat.format(range.start)} – ${dayFormat.format(range.end)}`;
   return <>
     {(!online || useSaved) && <p className="nvu-central-cache-status" role="status">{validCached ? `${online ? "Dados salvos" : "Offline · dados salvos"} · ${new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(validCached.savedAt)}` : "Offline · conecte-se para carregar os dados pela primeira vez."}</p>}
-    {view === "jobs" ? <ManagementActiveJobs operations={visibleOperations} active={active} loading={!operationalDataReady || historyLoading} onInfo={operation => setInfoId(operation.id)} onDriver={onDriver} onResults={onResults} />
+    {view === "jobs" && resultsId && resultsOperation ? <OperationResultsPage operation={resultsOperation} trips={resultsTrips as Record<string, unknown>[]} />
+      : view === "jobs" ? <ManagementActiveJobs operations={visibleOperations} active={active} loading={!operationalDataReady || historyLoading} onInfo={operation => setInfoId(operation.id)} onDriver={onDriver} onResults={onResults} />
       : <ManagementDashboard active={active} periodLabel={periodLabel} periodDescription={`${dateFormat.format(range.start)} – ${dateFormat.format(range.end)}`} onPeriod={() => setPeriodOpen(true)} earnings={visibleEarnings} tripCount={visibleTripCount}
       goal={{ amount: goalTarget ? formatHistoryMoney(goalTarget, goalCurrency, "known") : goalError ? "Consulta pendente" : "Não configurada", progress: goalTarget ? visibleGoalRevenue / goalTarget * 100 : null, error: goalError || (goal.pending ? "Salva neste aparelho · aguardando sincronização" : !online && goal.cached ? "Offline · última meta salva" : ""), loading: goalLoading, canEdit: canManageGoal, onRetry: canManageGoal ? () => void goal.retry() : undefined }}
       onGoal={() => { setGoalDraft(goalTarget ? formatGoalAmount(goalTarget) : ""); setGoalSaveError(""); setGoalOpen(true); }}
@@ -345,7 +347,6 @@ export default function OperationsTab({ active = true, view = "central" }: { act
       else if (action === "vehicle") setVehicleJobId(info.id);
       else { setCancelError(""); setJobToCancel(info.id); }
     }} />}
-    {resultsData && <OperationResultModal isOpen resultData={resultsData} status={resultsJob && ["completed", "cancelled"].includes(String(resultsJob.status)) ? "completed" : "in_progress"} onClose={() => setResultsId(null)} />}
     {tripsOperation && tripsJob && <OperationTripsSheet operation={tripsOperation} job={tripsJob as any} trips={operationTrips} companyTrips={historicoTrips as any[]} loading={historyLoading && !historicoTrips.length} error={historyError} onClose={() => setTripsId(null)} />}
     {vehicleOperation && !vehicleAttempt && <AssignJobAssetPicker kind="vehicle" open selectedId={vehicleOperation.vehicleId} currentId={vehicleOperation.vehicleId} vehicles={vehicleChoices as any} sequences={sequences as any} vehicleUsageById={vehicleUsageById}
       onClose={() => setVehicleJobId(null)} onSelect={vehicleId => { const jobId = vehicleOperation.id; setVehicleJobId(null); void changeVehicle(jobId, vehicleId); }} />}
