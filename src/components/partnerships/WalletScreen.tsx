@@ -24,6 +24,6 @@ export function WalletView({ entries, totals, busy, onOpen, onPay }: { entries: 
       return <div key={entry.id}><WalletRow e={entry} busy={busy} onAction={action ? () => onPay(entry) : undefined} actionLabel={action} />
         <div className="b2p-wactions" style={{ paddingBottom: 6, paddingTop: 0, marginTop: -6 }}><button type="button" className="b2p-btn" data-v="text" data-size="sm" onClick={() => onOpen(entry.partnershipId)}>Ver parceria</button></div></div>;
     })}</div> : <p className="b2p-empty">Sem movimentos ainda. Parcerias com valor do acordo aparecem aqui.</p>}
-    <p className="b2p-hint">A carteira é o registro do que foi combinado entre as empresas: o pagamento acontece fora do NVU. Fora do prazo, o valor final tem −25%.</p>
+    <p className="b2p-hint">A carteira é o registro do que foi combinado entre as empresas: o pagamento acontece fora do NVU. Operação com meta de ganhos concluída abaixo da meta não é paga. Fora do prazo, o valor final tem −25%.</p>
   </>;
 }

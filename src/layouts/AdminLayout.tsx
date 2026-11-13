@@ -110,7 +110,7 @@ export default function AdminLayout() {
   const hasSeniorPanelAccess = true;
   const windowsBack = useWindowsBack("/admin/fleet", { activeTab: "operations" });
   const isNewsRoute = location.pathname.includes("/admin/news");
-  const isAssignmentRoute = location.pathname === "/admin/assign" || location.pathname.startsWith("/admin/parcerias") || location.pathname.startsWith("/admin/recompensas");
+  const isAssignmentRoute = location.pathname === "/admin/assign" || location.pathname.startsWith("/admin/parcerias") || location.pathname.startsWith("/admin/recompensas") || location.pathname === "/admin/trabalhos-ativos";
   const isManualRoute = location.pathname.includes("/admin/manual");
   const isAdminCompanyRoute = location.pathname.startsWith("/admin/fleet");
   const fleetTab = (location.state as { activeTab?: string } | null)?.activeTab;

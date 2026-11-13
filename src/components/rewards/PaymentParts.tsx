@@ -18,17 +18,19 @@ export function PixQr({ code }: { code: string }) {
 }
 
 /** Como a empresa paga: chave Pix, código copia e cola e QR Code do valor exato. O pagamento é feito no app do banco (o NVU não move dinheiro). */
-export function PixPayPanel({ payment }: { payment: RewardPayment }) {
+export function PixPayCard({ pixKey, pixType, holder, amountCents, missingText, hint = "Pague no app do banco e anexe o comprovante abaixo." }: {
+  pixKey: string; pixType: string; holder: string; amountCents: number; missingText: string; hint?: string;
+}) {
   const [copied, setCopied] = useState(""), [qr, setQr] = useState(false);
-  const code = useMemo(() => { try { return payment.pixKey ? buildPixBrCode({ key: payment.pixKey, amountCents: payment.amountCents, name: payment.driverName }) : ""; } catch { return ""; } }, [payment.pixKey, payment.amountCents, payment.driverName]);
+  const code = useMemo(() => { try { return pixKey ? buildPixBrCode({ key: pixKey, amountCents, name: holder }) : ""; } catch { return ""; } }, [pixKey, amountCents, holder]);
   useEffect(() => { if (!copied) return; const timer = window.setTimeout(() => setCopied(""), 2000); return () => window.clearTimeout(timer); }, [copied]);
   const copy = async (what: string, value: string) => setCopied(await copyText(value) ? what : "falhou");
-  if (!payment.pixKey) return <p className="b2p-note-box" data-tone="warn" role="note">O motorista ainda não cadastrou a chave Pix.</p>;
+  if (!pixKey) return <p className="b2p-note-box" data-tone="warn" role="note">{missingText}</p>;
   return <section className="b2p-pix" aria-label="Pagar por Pix">
     <h3>Pagar por Pix</h3>
-    <div className="b2p-pix-row"><div><small>{PIX_LABEL[payment.pixType as PixType] || "Chave Pix"} · {payment.driverName}</small><b>{formatPixKey(payment.pixType, payment.pixKey)}</b></div>
-      <button type="button" className="b2p-btn" data-v="ghost" data-size="sm" onClick={() => void copy("chave", payment.pixKey)}><Copy size={15} aria-hidden="true" />{copied === "chave" ? "Copiada" : "Copiar chave"}</button></div>
-    <div className="b2p-pix-row"><div><small>Valor</small><b>{formatMoney(payment.amountCents)}</b></div></div>
+    <div className="b2p-pix-row"><div><small>{PIX_LABEL[pixType as PixType] || "Chave Pix"} · {holder}</small><b>{formatPixKey(pixType, pixKey)}</b></div>
+      <button type="button" className="b2p-btn" data-v="ghost" data-size="sm" onClick={() => void copy("chave", pixKey)}><Copy size={15} aria-hidden="true" />{copied === "chave" ? "Copiada" : "Copiar chave"}</button></div>
+    <div className="b2p-pix-row"><div><small>Valor</small><b>{formatMoney(amountCents)}</b></div></div>
     {code ? <>
       <div className="b2p-pix-code" aria-label="Pix copia e cola">{code}</div>
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" data-size="sm" onClick={() => void copy("codigo", code)}><Copy size={15} aria-hidden="true" />{copied === "codigo" ? "Código copiado" : "Copiar Pix copia e cola"}</button>
@@ -36,8 +38,12 @@ export function PixPayPanel({ payment }: { payment: RewardPayment }) {
       {qr ? <PixQr code={code} /> : null}
     </> : null}
     {copied === "falhou" ? <p className="b2p-alert" role="alert">Não foi possível copiar. Selecione o texto e copie manualmente.</p> : null}
-    <p className="b2p-hint">Pague no app do banco e anexe o comprovante abaixo.</p>
+    <p className="b2p-hint">{hint}</p>
   </section>;
+}
+/** Pagamento da folha de um motorista da empresa. */
+export function PixPayPanel({ payment }: { payment: RewardPayment }) {
+  return <PixPayCard pixKey={payment.pixKey} pixType={payment.pixType} holder={payment.driverName} amountCents={payment.amountCents} missingText="O motorista ainda não cadastrou a chave Pix." />;
 }
 
 export const receiptText = (payment: RewardPayment): string => {

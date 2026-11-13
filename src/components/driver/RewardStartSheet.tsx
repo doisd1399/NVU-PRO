@@ -28,10 +28,11 @@ export function RewardStartSheet({ offer, onClose, onConfirm }: { offer: RewardO
       <ul style={{ margin: "10px 0", padding: 0, listStyle: "none", display: "grid", gap: 6, fontSize: 14 }}>
         <li><b>{formatMoney(offer.perTripCents)}</b> por viagem{offer.maxTripsPerDriver ? ` · ${offer.maxTripsPerDriver} viagens` : ""}</li>
         {offer.deadlineMs ? <li>Prazo: <b>{dateTimeText(offer.deadlineMs)}</b>{left ? ` (${left})` : ""}</li> : null}
+        {offer.goalRequired && offer.goalCents ? <li>Meta de ganhos: <b>{formatMoney(offer.goalCents)}</b></li> : null}
         <li>Pagamento por Pix, depois de concluir.</li>
       </ul>
       {late ? <p className="nvu-pss-notice" role="alert">O prazo desta operação já terminou. Você pode iniciar e finalizar o trabalho, mas <b>não recebe</b> pelo serviço.</p> : null}
-      {late ? null : <p className="nvu-pss-notice" role="note">Conclua a operação no prazo. Fora do prazo você finaliza o trabalho, mas <b>não recebe</b> pelo serviço, por romper o acordo. Ao concluir, informe sua chave Pix.</p>}
+      {late ? null : <p className="nvu-pss-notice" role="note">Conclua a operação no prazo. Fora do prazo você finaliza o trabalho, mas <b>não recebe</b> pelo serviço, por romper o acordo.{offer.goalRequired && offer.goalCents ? <> Os ganhos das viagens também precisam atingir a meta de {formatMoney(offer.goalCents)}: <b>sem a meta, não há pagamento</b> pelo trabalho.</> : null} Ao concluir, informe sua chave Pix.</p>}
       {error ? <p className="nvu-pss-error" role="alert">{error}</p> : null}
       <button type="button" className="nvu-pss-start" disabled={busy} onClick={() => void confirm()}>{busy ? "Iniciando…" : late ? "Iniciar sem pagamento" : "Aceitar e iniciar"}</button>
       <button type="button" className="nvu-pss-start" style={{ background: "transparent", color: "inherit", border: "1px solid currentColor", opacity: 0.8, marginTop: 8 }} disabled={busy} onClick={onClose}>Agora não</button>

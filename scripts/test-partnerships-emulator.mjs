@@ -234,7 +234,7 @@ try {
     };
     const open = async extra => { const { partnershipId } = await createOffer("owner-a", extra); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId); return { partnershipId, jobId }; };
     // atrasada: 5 dias de prazo, concluída no 6º
-    const late = await open({ agreedAmountCents: 1_000_000 });
+    const late = await open({ agreedAmountCents: 1_000_000, goalAmountCents: null });
     assert.equal((await get(`partnerships/${late.partnershipId}`)).get("agreedAmountCents"), 1_000_000);
     const row = await complete(late.partnershipId, late.jobId, new Date(Date.now() + 6 * DAY).toISOString());
     assert.equal(row.status, "completed"); assert.equal(row.settlement.late, true); assert.equal(row.settlement.penaltyPercent, 25);
@@ -254,7 +254,7 @@ try {
     assert.equal((await settle(late.partnershipId, "received", "owner-b")).replayed, true);
     await failsWith(() => settle(late.partnershipId, "paid", "owner-a"), "failed-precondition".replace("failed-precondition", "failed-precondition")).catch(async () => assert.equal((await settle(late.partnershipId, "paid", "owner-a")).replayed, true));
     // no prazo: valor cheio; sem valor combinado: nada a liquidar
-    const ontime = await open({ agreedAmountCents: 400_000 });
+    const ontime = await open({ agreedAmountCents: 400_000, goalAmountCents: null });
     const okRow = await complete(ontime.partnershipId, ontime.jobId, new Date().toISOString());
     assert.equal(okRow.settlement.late, false); assert.equal(okRow.settlement.finalCents, 400_000); assert.equal(okRow.settlement.discountCents, 0);
     assert.equal((await settle(ontime.partnershipId, "received", "owner-b")).status, "settled", "a executora pode confirmar sem esperar o 'pago'");
@@ -263,12 +263,30 @@ try {
     assert.equal(freeRow.settlement, null); assert.equal(freeRow.payment, null);
     await failsWith(() => settle(free.partnershipId, "paid", "owner-a"), "failed-precondition");
     await failsWith(() => settle(late.partnershipId + "x", "paid", "owner-a"), "not-found");
-    const running = await open({ agreedAmountCents: 100_000, operationName: "Em andamento" });
+    const running = await open({ agreedAmountCents: 100_000, goalAmountCents: null, operationName: "Em andamento" });
     await failsWith(() => settle(running.partnershipId, "paid", "owner-a"), "failed-precondition");
   });
 
+  await test("regra da meta: concluir abaixo da meta de ganhos = sem pagamento (sem liquidação, sem Pix) e as duas empresas são avisadas; meta atingida paga como antes", async () => {
+    const complete = async (partnershipId, jobId) => {
+      await db.doc(`trabalhos/${jobId}`).update({ status: "completed", completedAt: new Date().toISOString() });
+      const job = (await get(`trabalhos/${jobId}`)).data();
+      await partnerships.syncPartnershipFromJob.run({ before: { exists: true, data: () => ({}) }, after: { exists: true, data: () => job } }, { params: { jobId } });
+      return (await get(`partnerships/${partnershipId}`)).data();
+    };
+    const open = async extra => { const { partnershipId } = await createOffer("owner-a", extra); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId); return { partnershipId, jobId }; };
+    const missed = await open({ agreedAmountCents: 800_000, goalAmountCents: 4_000_000, operationName: "Abaixo da meta" });
+    assert.equal((await get(`partnerships/${missed.partnershipId}`)).get("goalRule"), 1, "ofertas novas nascem com a regra da meta");
+    const row = await complete(missed.partnershipId, missed.jobId);
+    assert.equal(row.status, "completed"); assert.equal(row.settlement.goalMissed, true); assert.equal(row.settlement.finalCents, 0); assert.equal(row.settlement.goalCents, 4_000_000); assert.equal(row.payment, null, "sem pagamento a fazer");
+    const notes = await db.collection("notifications").where("type", "==", "PARTNERSHIP_GOAL_MISSED").get(); assert.equal(notes.size, 2, "contratante e executora"); assert.match(notes.docs[0].get("message"), /não há pagamento/);
+    await failsWith(() => partnerships.settlePartnershipPayment.run({ partnershipId: missed.partnershipId, action: "received" }, ctx("owner-b")), "failed-precondition");
+    const old = await open({ agreedAmountCents: 800_000, goalAmountCents: 4_000_000, operationName: "Parceria antiga" });
+    await db.doc(`partnerships/${old.partnershipId}`).update({ goalRule: admin.firestore.FieldValue.delete() }); // parceria criada antes da regra
+    const legacy = await complete(old.partnershipId, old.jobId); assert.equal(legacy.settlement.goalMissed, undefined); assert.equal(legacy.settlement.finalCents, 800_000); assert.equal(legacy.payment.status, "pending");
+  });
   await test("Pix: só a executora informa a chave (validada); a contratante a vê; avisos ao concluir; excluir cancelada só da própria lista", async () => {
-    const { partnershipId, jobId } = await (async () => { const { partnershipId } = await createOffer("owner-a", { agreedAmountCents: 500_000, operationName: "Com Pix" }); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId); return { partnershipId, jobId }; })();
+    const { partnershipId, jobId } = await (async () => { const { partnershipId } = await createOffer("owner-a", { agreedAmountCents: 500_000, goalAmountCents: null, operationName: "Com Pix" }); await respond(partnershipId, "accept"); const { jobId } = await designate(partnershipId); return { partnershipId, jobId }; })();
     const pix = (uid, type, key, id = partnershipId) => partnerships.setPartnershipPix.run({ partnershipId: id, type, key }, ctx(uid));
     await failsWith(() => pix("owner-a", "cpf", "52998224725"), "permission-denied"); // contratante não informa a chave do recebedor
     await failsWith(() => pix("owner-b", "cpf", "123"), "invalid-argument"); await failsWith(() => pix("owner-b", "pix", "x"), "invalid-argument");

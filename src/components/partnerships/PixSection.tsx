@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Copy } from "lucide-react";
 import { normalizePixKey, PIX_LABEL, roleIn, type Partnership, type PixType } from "../../lib/partnerships";
+import { PixPayCard } from "../rewards/PaymentParts";
 
 const TYPES = Object.keys(PIX_LABEL) as PixType[];
 const HINT: Record<PixType, string> = { cpf: "000.000.000-00", cnpj: "00.000.000/0000-00", phone: "(11) 91234-5678", email: "nome@empresa.com", random: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" };
@@ -12,10 +13,14 @@ const HINT: Record<PixType, string> = { cpf: "000.000.000-00", cnpj: "00.000.000
 export function PixSection({ p, me, busy, onSave }: { p: Partnership; me: string; busy: boolean; onSave: (type: PixType, key: string) => Promise<void> }) {
   const role = roleIn(p, me), pay = p.payment;
   const [editing, setEditing] = useState(false), [type, setType] = useState<PixType>(p.payeePix?.type || "cpf"), [key, setKey] = useState(""), [error, setError] = useState(""), [copied, setCopied] = useState(false);
-  if (!p.agreedAmountCents || !["accepted", "active", "completed"].includes(p.status) || pay?.status === "settled") return null;
+  if (!p.agreedAmountCents || !["accepted", "active", "completed"].includes(p.status) || pay?.status === "settled" || p.settlement?.goalMissed) return null;
   const copy = async (value: string) => {
     try { await navigator.clipboard.writeText(value); setCopied(true); window.setTimeout(() => setCopied(false), 2000); } catch { setError("Não foi possível copiar. Selecione a chave."); }
   };
+  // Concluída com valor a pagar: o mesmo método do pagamento aos motoristas da empresa — chave, valor, Pix copia e cola e QR Code do valor exato.
+  if (role === "contractor" && p.payeePix && p.status === "completed" && pay?.status === "pending" && Number(p.settlement?.finalCents) > 0)
+    return <PixPayCard pixKey={p.payeePix.key} pixType={p.payeePix.type} holder={p.payeePix.holder || p.executorName || "Recebedor"} amountCents={Number(p.settlement!.finalCents)}
+      missingText="A empresa que recebe ainda não informou a chave Pix." />;
   if (role === "contractor") return <section className="b2p-pix" aria-label="Chave Pix para pagamento">
     <h3>Pix para pagar</h3>
     {p.payeePix ? <div className="b2p-pix-row"><div><small>{PIX_LABEL[p.payeePix.type]} · {p.payeePix.holder || "recebedor"}</small><b>{p.payeePix.key}</b></div>

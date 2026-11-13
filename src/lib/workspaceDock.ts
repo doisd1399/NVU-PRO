@@ -17,7 +17,7 @@ export function workspaceDockRole(pathname: string, state: unknown, activeRole: 
 /** Páginas filhas de um item da dock (não são a raiz dele): tocar no item ativo volta para a raiz. */
 export function isWorkspaceSubpage(pathname: string, role: WorkspaceDockRole): boolean {
   const prefix = role === "admin" ? "/admin" : "/driver";
-  return pathname === `${prefix}/recompensas` || (role === "admin" && (pathname === "/admin/parcerias" || pathname.startsWith("/admin/parcerias/")));
+  return pathname === `${prefix}/recompensas` || (role === "admin" && (pathname === "/admin/parcerias" || pathname.startsWith("/admin/parcerias/") || pathname === "/admin/trabalhos-ativos"));
 }
 
 export function workspaceDockActive(pathname: string, state: unknown, role: WorkspaceDockRole): WorkspaceDockId | null {

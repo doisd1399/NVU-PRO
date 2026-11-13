@@ -1,6 +1,14 @@
-# NVU PRO 1.0.591 (Android) / Web 2.3.248 / Windows 0.2.17
+# NVU PRO 1.0.592 (Android) / Web 2.3.249 / Windows 0.2.18
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 591 — instala como atualização da 590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 592 — instala como atualização da 591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.592 — Central: Carteira, Trabalhos ativos em página própria, resultados; Parcerias: Pix e regra da meta
+- **Central de gestão:** “Pagamentos” agora se chama **Carteira**. Em “Gerenciar empresa” entra a opção **Trabalhos ativos** (logo abaixo de “Designar Trabalhos”, com a quantidade em andamento) e o **card isolado no fim da página saiu**: os trabalhos ativos têm **página própria** (com a dock e o botão “Central” para voltar).
+- **Resultados nas operações da empresa:** cada card de operação ganhou **só um ícone de resultados**, ao lado do card de situação (Em andamento…). Abre o resumo da operação (tempo, prazo, viagens e ganhos por moeda); nas operações em parceria o ícone leva aos resultados da parceria.
+- **Windows (desktop):** a foto do veículo continua inteira, agora **sem faixas cinzas ao redor** e com as **bordas levemente arredondadas** (a caixa acompanha a proporção da própria foto).
+- **Parcerias — pagamento pelo mesmo método da Carteira:** a contratante vê **chave Pix, valor, “Pix copia e cola” e QR Code** do valor exato (como na folha dos motoristas), paga no banco e anexa o comprovante; a executora confirma o recebimento.
+- **Regra da meta (Parcerias e Carteira), de agora em diante:** concluir a operação **sem atingir a meta de ganhos** não paga o trabalho. Vale só para **ofertas/campanhas criadas a partir desta versão** (as anteriores seguem a regra de antes). Fica claro: na oferta (quem envia e quem aceita), na janela de aceite do motorista, na tela da oferta, na carteira, no histórico, em “Como funciona” e nos avisos às duas partes (“Meta não atingida · sem pagamento”).
+- **Exige publicar as funções:** `createRewardCampaign`, `syncRewardTrips`, `respondRewardOffer`, `generateRewardPayroll`, `rewardPayDayTick`, `createPartnershipOffer`, `syncPartnershipFromJob`, `syncPartnershipTrips`. Sem a publicação o app mostra o aviso da meta, mas o servidor ainda paga como antes.
 
 ## 1.0.591 — Título do Painel do motorista duplicado
 - **Corrigido:** com um trabalho em andamento, o Painel do motorista mostrava **dois títulos** (“Painel do motorista · Acompanhe suas entregas e o prazo.” da página e “Painel do motorista · Suas operações, no seu ritmo.” do menu). Agora a página não repete o título: o menu tem o seu e a tela “Trabalho atual” tem o dela.

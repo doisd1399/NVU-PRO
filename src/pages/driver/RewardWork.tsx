@@ -2,10 +2,10 @@ import React from "react";
 import { ChevronRight, ClipboardList, Trophy } from "lucide-react";
 import { formatMoney } from "../../lib/partnerships";
 import { type RewardPayment } from "../../lib/rewardPayments";
-import { PHASE_LABEL, PHASE_TONE, goalOf, offerPhase, termText, timeLeftText, type RewardOffer } from "../../lib/rewards";
+import { PHASE_LABEL, lostLabel, PHASE_TONE, goalOf, offerPhase, termText, timeLeftText, type RewardOffer } from "../../lib/rewards";
 import { Section } from "../../components/partnerships/shared";
 
-const Pill = ({ offer }: { offer: RewardOffer }) => { const phase = offerPhase(offer); return <span className="b2p-pill" data-tone={PHASE_TONE[phase]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{PHASE_LABEL[phase]}</span>; };
+const Pill = ({ offer }: { offer: RewardOffer }) => { const phase = offerPhase(offer); return <span className="b2p-pill" data-tone={PHASE_TONE[phase]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{phase === "expired" ? lostLabel(offer) : PHASE_LABEL[phase]}</span>; };
 const title = (offer: RewardOffer) => offer.contractName || offer.name;
 
 /** Ativos: ofertas para responder e trabalhos em andamento (com prazo e progresso). */
@@ -35,7 +35,7 @@ export function HistoryTab({ offers, payments, ready, onOpen }: { offers: Reward
   const done = finished.filter(offer => offerPhase(offer) === "done").length, lost = finished.filter(offer => offerPhase(offer) === "expired"), received = payments.filter(item => item.status === "received").reduce((sum, item) => sum + item.amountCents, 0);
   return <>
     <section className="nvu-central-section b2p-sec"><div className="b2p-facts" style={{ borderTop: 0 }}>
-      <div><b>{done}</b><span>Concluídas</span></div><div><b data-tone={lost.length ? "late" : undefined}>{lost.length}</b><span>Prazo perdido</span></div><div><b>{formatMoney(received)}</b><span>Recebido</span></div>
+      <div><b>{done}</b><span>Concluídas</span></div><div><b data-tone={lost.length ? "late" : undefined}>{lost.length}</b><span>Sem pagamento</span></div><div><b>{formatMoney(received)}</b><span>Recebido</span></div>
     </div></section>
     <Section title="Histórico" count={finished.length}>
       {finished.length ? finished.map((offer, index) => { const phase = offerPhase(offer);

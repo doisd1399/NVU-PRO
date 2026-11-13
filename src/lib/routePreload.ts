@@ -37,6 +37,7 @@ const routeLoaders: Record<string, Loader[]> = {
   "/admin/assign": [() => import("../pages/admin/AssignJob")],
   "/admin/parcerias": [() => import("../pages/admin/Partnerships")],
   "/admin/recompensas": [() => import("../pages/admin/Rewards")],
+  "/admin/trabalhos-ativos": [() => import("../pages/admin/ActiveJobs")],
   "/driver/recompensas": [() => import("../pages/driver/Rewards")],
   "/admin/add-driver": [() => import("../pages/admin/AddDriver")],
   "/driver": [

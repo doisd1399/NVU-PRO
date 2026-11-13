@@ -1,6 +1,6 @@
 import { useSessionStore } from "../../../context/AppContext";
 import React, { useEffect, useId, useState } from "react";
-import { ChevronDown, Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
+import { ChartNoAxesColumnIncreasing, ChevronDown, Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
 import { StableImage } from "../../common/StableImage";
 import { useVehiclePhoto } from "../../../hooks/useVehiclePhoto";
 import { shortName } from "../../../lib/partnerships";
@@ -70,8 +70,10 @@ function PaintsDialog({ operation, onClose }: { operation: ManagementOperation; 
  * and time line from the same markup and the same styles; the only differences are the vehicle photo block (not rendered
  * at all when minimized) and the direction of the arrow. Each card keeps its own state.
  */
-export function ManagementOperationCard({ operation, onInfo, onDriver, active = true, avatar }: {
+export function ManagementOperationCard({ operation, onInfo, onDriver, onResults, active = true, avatar }: {
   operation: ManagementOperation; onInfo: () => void; onDriver: () => void; active?: boolean;
+  /** Ícone de resultados ao lado da situação da operação (ganhos e ritmo). Sem a função, o ícone não aparece. */
+  onResults?: () => void;
   /** Imagem no lugar da foto do motorista (parceria ainda sem motorista: logo da empresa). */
   avatar?: React.ReactNode;
 }) {
@@ -94,6 +96,7 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, active = 
         <strong>{operation.driverName}</strong>
       </button>
       {operation.driverOutsideCompany && <span className="nvu-central-job-status" data-state="overdue" data-orphan="true"><i aria-hidden="true" />Fora da empresa</span>}
+      {onResults && <button type="button" className="nvu-central-results-button" onClick={onResults} aria-label={`Ver resultados de ${operation.name}`} title="Resultados"><ChartNoAxesColumnIncreasing size={18} strokeWidth={1.9} aria-hidden="true" /></button>}
       <span className="nvu-central-job-status" data-state={operation.state}><i aria-hidden="true" />{operation.statusLabel || statusLabels[operation.state]}</span>
       <button type="button" className="nvu-central-operation-toggle" aria-expanded={expanded} aria-controls={photoId} onClick={() => setExpanded(value => !value)}
         aria-label={`${expanded ? "Minimizar" : "Expandir"} operação de ${operation.driverName}`}><ChevronDown size={20} strokeWidth={2.2} aria-hidden="true" /></button>

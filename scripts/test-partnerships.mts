@@ -291,6 +291,20 @@ test("Valor do acordo: opcional, centavos positivos; o campo antigo de valor nã
   assert.equal(normalizeOffer(offer({ agreedAmountCents: 1_200_000 }), NOW, false).agreedAmountCents, 1_200_000);
   for (const bad of [0, -1, 1.5, "abc"]) rejects(() => normalizeOffer(offer({ agreedAmountCents: bad }), NOW, false), /valor do acordo/);
 });
+test("Regra da meta (parcerias novas): concluir abaixo da meta de ganhos = sem pagamento; parceria antiga e meta atingida seguem a regra de antes (servidor e app iguais)", () => {
+  const deadline = NOW + 5 * DAY;
+  for (const fn of [serverSettlement, computeSettlement]) {
+    const missed = fn(1_000_000, deadline, deadline - 1, { required: true, goalCents: 500_000, earningsCents: 499_999 })!;
+    assert.deepEqual([missed.goalMissed, missed.finalCents, missed.goalCents, missed.earningsCents], [true, 0, 500_000, 499_999]);
+    const hit = fn(1_000_000, deadline, deadline - 1, { required: true, goalCents: 500_000, earningsCents: 500_000 })!;
+    assert.deepEqual([hit.goalMissed, hit.finalCents], [undefined, 1_000_000], "no valor da meta já paga");
+    assert.equal(fn(1_000_000, deadline, deadline + 1, { required: true, goalCents: 500_000, earningsCents: 600_000 })!.finalCents, 750_000, "meta atingida + atraso: −25% como antes");
+    assert.equal(fn(1_000_000, deadline, deadline - 1, { required: false, goalCents: 500_000, earningsCents: 0 })!.finalCents, 1_000_000, "parceria antiga (sem a regra): paga como antes");
+    assert.equal(fn(1_000_000, deadline, deadline - 1, { required: true, goalCents: 0, earningsCents: 0 })!.finalCents, 1_000_000, "sem meta definida, não há o que atingir");
+  }
+  const src = readFileSync("functions/src/partnerships.ts", "utf8");
+  assert.match(src, /goalRule: 1/); assert.match(src, /PARTNERSHIP_GOAL_MISSED/); assert.match(src, /patch\.payment = null/);
+});
 test("Liquidação: no prazo = valor combinado; fora do prazo = menos 25% (servidor e app calculam igual)", () => {
   const deadline = NOW + 5 * DAY;
   for (const fn of [serverSettlement, computeSettlement]) {

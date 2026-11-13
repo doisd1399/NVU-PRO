@@ -26,7 +26,7 @@ const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; 
 type View = { name: "list" } | { name: "new" } | { name: "edit"; id: string } | { name: "detail"; id: string } | { name: "payment"; id: string; from: Tab };
 type Tab = "campaigns" | "payroll" | "transfers";
 
-/** Pagamentos (Central de gestão): campanhas de ganho por viagem, folha de pagamento por Pix e transferências com comprovante. */
+/** Carteira (Central de gestão): campanhas de ganho por viagem, folha de pagamento por Pix e transferências com comprovante. */
 export default function Rewards() {
   const { activeCompanyId, companies, allCompanies, allCompanyMembers, allCompanyMembersReady } = useCompanyStore();
   const { users, simulators, contracts, sequences, trailers, vehicles, jobs } = useOperationalStore();
@@ -44,7 +44,7 @@ export default function Rewards() {
   // Fotos dos motoristas nas listas de Pagamentos (campanha, folha e transferências).
   const photos = useMemo(() => new Map((users as any[]).map(user => [String(user.id), resolveDriverPhoto(user) || ""] as [string, string]).filter(([, photo]) => photo)), [users]);
   const shell = (title: string, description: string, children: React.ReactNode) => <DriverPhotosContext.Provider value={photos}><div className="nvu-central-page nvu-b2p"><div className="nvu-central-stack">{header(title, description)}{children}</div></div></DriverPhotosContext.Provider>;
-  if (!me) return shell("Pagamentos", "Pague os motoristas.", <p className="b2p-empty">Selecione uma empresa.</p>);
+  if (!me) return shell("Carteira", "Pague os motoristas.", <p className="b2p-empty">Selecione uma empresa.</p>);
   const goList = () => setView({ name: "list" });
 
   if (view.name === "new") {
@@ -70,7 +70,7 @@ export default function Rewards() {
   }
   if (view.name === "edit") {
     const campaign = campaigns.find(item => item.id === view.id);
-    if (!campaign) return shell("Editar campanha", "Altere as condições.", <><BackLink label="Pagamentos" onClick={goList} /><p className="b2p-empty">{ready ? "Esta campanha não está mais disponível." : "Carregando…"}</p></>);
+    if (!campaign) return shell("Editar campanha", "Altere as condições.", <><BackLink label="Carteira" onClick={goList} /><p className="b2p-empty">{ready ? "Esta campanha não está mais disponível." : "Carregando…"}</p></>);
     return shell("Editar campanha", "Os motoristas são avisados.", <EditCampaign campaign={campaign} busy={busy} onBack={() => setView({ name: "detail", id: campaign.id })} onSave={async patch => {
       setBusy(true);
       try { const done = await rewardService.update(campaign.id, { ...patch, expectedRevision: campaign.revision }); toast.success(`Campanha atualizada. ${done.notified} ${done.notified === 1 ? "motorista avisado" : "motoristas avisados"}.`); setView({ name: "detail", id: campaign.id }); }
@@ -79,7 +79,7 @@ export default function Rewards() {
   }
   if (view.name === "detail") {
     const campaign = campaigns.find(item => item.id === view.id);
-    if (!campaign) return shell("Campanha", "Acompanhe os motoristas.", <><BackLink label="Pagamentos" onClick={goList} /><p className="b2p-empty">{ready ? "Esta campanha não está mais disponível." : "Carregando…"}</p></>);
+    if (!campaign) return shell("Campanha", "Acompanhe os motoristas.", <><BackLink label="Carteira" onClick={goList} /><p className="b2p-empty">{ready ? "Esta campanha não está mais disponível." : "Carregando…"}</p></>);
     return shell("Campanha", "Acompanhe os motoristas.", <CampaignDetail campaign={campaign} offers={offers.filter(offer => offer.campaignId === campaign.id)} now={now} busy={busy} onBack={goList} onEdit={() => setView({ name: "edit", id: campaign.id })}
       onHide={async () => { if (!window.confirm("Excluir esta campanha do histórico? Os pagamentos já feitos continuam registrados.")) return; setBusy(true);
         try { await rewardService.hide(campaign.id); toast.message("Campanha excluída do histórico."); goList(); } catch (reason) { toast.error(rewardErrorMessage(reason, "Não foi possível excluir a campanha.")); } finally { setBusy(false); } }}
@@ -91,9 +91,9 @@ export default function Rewards() {
   const accrued = live.reduce((sum, item) => sum + item.accruedCents, 0), budget = live.reduce((sum, item) => sum + item.budgetCents, 0);
   const toPay = payments.filter(item => item.status === "pending" || item.status === "contested").length;
   const tabs = <Tabs<Tab> label="Seções de pagamentos" value={tab} onChange={setTab} items={[{ id: "campaigns", label: "Campanhas" }, { id: "payroll", label: "Folha", count: toPay, warn: true }, { id: "transfers", label: "Transferências" }]} />;
-  if (tab === "payroll") return shell("Pagamentos", "Pague os motoristas.", <>{tabs}<PayrollTab companyId={me} payments={payments} offers={offers} payDay={payDay} ready={paymentsReady} now={now} onOpen={id => setView({ name: "payment", id, from: "payroll" })} /></>);
-  if (tab === "transfers") return shell("Pagamentos", "Pague os motoristas.", <>{tabs}<TransfersTab payments={payments} ready={paymentsReady} onOpen={id => setView({ name: "payment", id, from: "transfers" })} /></>);
-  return shell("Pagamentos", "Pague os motoristas.", <>
+  if (tab === "payroll") return shell("Carteira", "Pague os motoristas.", <>{tabs}<PayrollTab companyId={me} payments={payments} offers={offers} payDay={payDay} ready={paymentsReady} now={now} onOpen={id => setView({ name: "payment", id, from: "payroll" })} /></>);
+  if (tab === "transfers") return shell("Carteira", "Pague os motoristas.", <>{tabs}<TransfersTab payments={payments} ready={paymentsReady} onOpen={id => setView({ name: "payment", id, from: "transfers" })} /></>);
+  return shell("Carteira", "Pague os motoristas.", <>
     {tabs}
     {error ? <p className="b2p-alert" role="alert">Não foi possível atualizar agora.</p> : null}
     <section className="nvu-central-section b2p-sec">
@@ -146,7 +146,7 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, vehic
     setError(""); await onSend({ companyId: me, contractId, vehicleId, name: finalName, perTripCents, goalCents, audience: "selected", driverIds: picked, requestId });
   };
   return <>
-    <BackLink label="Pagamentos" onClick={onBack} />
+    <BackLink label="Carteira" onClick={onBack} />
     <section className="nvu-central-section b2p-sec"><div className="b2p-form b2p-compact">
       <Field label="1. Operação">
         {/* Prévia igual ao cartão da lista "Escolher operação"; tocar abre a lista para trocar */}
@@ -165,7 +165,7 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, vehic
         {!vehicles.length ? <span className="b2p-note-box" data-tone="warn" role="note">Nenhum veículo na frota. Cadastre um em Frota.</span> : null}
       </Field>
       <Field label="3. Valor por viagem" hint="Sugerimos pagamentos em centavos."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
-      <Field label="4. Meta de ganhos" hint="Total de ganhos por operação."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} onChange={event => setGoalText(maskMoney(event.target.value))} /></div></Field>
+      <Field label="4. Meta de ganhos" hint="Total de ganhos por operação. Quem concluir abaixo da meta não recebe pelo trabalho."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goalText} onChange={event => setGoalText(maskMoney(event.target.value))} /></div></Field>
       <DriverMultiSelect drivers={drivers} selected={picked} onChange={setPicked} disabled={busy} ready={ready} />
       <Field label="5. Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} placeholder={suggestion || "Ex.: Semana de Ouro"} onChange={event => setName(event.target.value)} /></div></Field>
       <div className="b2p-settle" aria-label="Resumo">
@@ -184,7 +184,7 @@ function NewCampaign({ me, drivers, ready, contracts, sequences, trailers, vehic
 function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onHide, onCancel }: { campaign: RewardCampaign; offers: RewardOffer[]; now: number; busy: boolean; onBack: () => void; onEdit: () => void; onHide: () => void; onCancel: () => void }) {
   const state = campaignState(campaign, now), open = campaign.status === "active" && now <= campaign.endMs && !campaign.capped;
   return <>
-    <BackLink label="Pagamentos" onClick={onBack} />
+    <BackLink label="Carteira" onClick={onBack} />
     <section className="nvu-central-section b2p-sec">
       <div className="b2p-sec-head"><h2>{campaign.name}</h2><span className="b2p-pill" data-tone={TONE[state]}><i aria-hidden="true" />{CAMPAIGN_STATE_LABEL[state]}</span></div>
       <div className="b2p-sum"><div><small>Ganhos acumulados</small><b>{formatMoney(campaign.accruedCents)}</b><em>{campaign.tripsCount} {campaign.tripsCount === 1 ? "viagem" : "viagens"}</em></div><div><small>Teto</small><b>{formatMoney(campaign.budgetCents)}</b><em>restam {formatMoney(Math.max(0, campaign.budgetCents - campaign.accruedCents))}</em></div></div>
@@ -201,7 +201,7 @@ function CampaignDetail({ campaign, offers, now, busy, onBack, onEdit, onHide, o
       {offers.length ? [...offers].sort((a, b) => b.totalCents - a.totalCents || a.driverName.localeCompare(b.driverName)).map((offer, index) => <div className="b2p-wrow" key={offer.id} style={index ? undefined : { borderTop: 0 }}>
         <DriverAvatar id={offer.driverId} name={offer.driverName} />
         <div><b>{offer.driverName}</b><small>{offer.status === "accepted" ? `${offer.trips}${campaign.maxTripsPerDriver ? ` de ${campaign.maxTripsPerDriver}` : ""} ${(campaign.maxTripsPerDriver || offer.trips) === 1 ? "viagem" : "viagens"}${goalOf(campaign) ? ` · operação ${formatMoney(offer.simCents)} de ${formatMoney(goalOf(campaign))}${offer.simCents >= goalOf(campaign) ? " ✓" : ""}` : ""}` : offerLabel(offer)}</small></div>
-        <span className="b2p-amt"><strong data-k="x" style={offer.expired ? { textDecoration: "line-through", opacity: 0.7 } : undefined}>{offer.status === "accepted" ? formatMoney(offer.expired ? offer.lostCents : offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={offer.expired ? "late" : offerCompleted(offer) && offer.status === "accepted" ? "good" : OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.expired ? "Prazo perdido" : offerCompleted(offer) && offer.status === "accepted" ? "Concluiu" : offerLabel(offer)}</span></span></div>)
+        <span className="b2p-amt"><strong data-k="x" style={offer.expired || offer.goalMissed ? { textDecoration: "line-through", opacity: 0.7 } : undefined}>{offer.status === "accepted" ? formatMoney(offer.expired || offer.goalMissed ? offer.lostCents : offer.totalCents) : "—"}</strong><span className="b2p-pill" data-tone={offer.expired || offer.goalMissed ? "late" : offerCompleted(offer) && offer.status === "accepted" ? "good" : OFFER_TONE[offer.status]} style={{ padding: "1px 9px", fontSize: 11 }}><i aria-hidden="true" />{offer.goalMissed ? "Meta não atingida" : offer.expired ? "Prazo perdido" : offerCompleted(offer) && offer.status === "accepted" ? "Concluiu" : offerLabel(offer)}</span></span></div>)
         : <p className="b2p-empty">Carregando motoristas…</p>}
     </Section>
     {campaign.status === "cancelled" ? <div className="b2p-actions b2p-detail-actions"><button type="button" className="b2p-btn" data-v="danger" disabled={busy} onClick={onHide}>Excluir do histórico</button></div> : null}
@@ -225,7 +225,7 @@ function EditCampaign({ campaign, busy, onBack, onSave }: { campaign: RewardCamp
     <section className="nvu-central-section b2p-sec"><div className="b2p-form b2p-compact">
       <Field label="Nome da campanha"><div className="b2p-input"><input value={name} maxLength={60} onChange={event => setName(event.target.value)} /></div></Field>
       <Field label="Valor por viagem"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={perTrip} onChange={event => setPerTrip(maskMoney(event.target.value))} /></div></Field>
-      <Field label="Meta de ganhos"><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goal} onChange={event => setGoal(maskMoney(event.target.value))} /></div></Field>
+      <Field label="Meta de ganhos" hint="Quem concluir abaixo da meta não recebe pelo trabalho."><div className="b2p-input"><span className="b2p-pre">R$</span><input inputMode="numeric" value={goal} onChange={event => setGoal(maskMoney(event.target.value))} /></div></Field>
       <p className="b2p-hint">Vale para todos os motoristas, inclusive as viagens já feitas. O valor por viagem não muda depois que há pagamento na folha.</p>
       {error ? <p className="b2p-alert" role="alert">{error}</p> : null}
       <div className="b2p-actions"><button type="button" className="b2p-btn" data-v="primary" disabled={busy} onClick={() => void save()}>{busy ? "Salvando…" : "Salvar e avisar motoristas"}</button></div>

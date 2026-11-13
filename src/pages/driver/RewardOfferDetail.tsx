@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Trophy } from "lucide-react";
 import { formatMoney } from "../../lib/partnerships";
 import { WEEKDAYS, dateTimeText } from "../../lib/rewardPayments";
-import { PHASE_LABEL, goalOf, offerPhase, termText, timeLeftText, type RewardOffer } from "../../lib/rewards";
+import { PHASE_LABEL, goalOf, lostLabel, offerPhase, termText, timeLeftText, type RewardOffer } from "../../lib/rewards";
 import { BackLink } from "../../components/partnerships/shared";
 
 const Row = ({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) => <div data-total={strong ? "1" : undefined}><span>{label}</span><b>{value}</b></div>;
@@ -25,7 +25,7 @@ export function OfferDetail({ offer, now, busy, onBack, onRespond }: { offer: Re
         {accepted ? <>
           <Row label="Suas viagens" value={offer.maxTripsPerDriver ? `${offer.trips} de ${offer.maxTripsPerDriver}` : String(offer.trips)} />
           {offer.deadlineMs ? <Row label="Prazo" value={phase === "active" ? `${dateTimeText(offer.deadlineMs)} (${left})` : dateTimeText(offer.deadlineMs)} /> : null}
-          <Row label={phase === "expired" ? "Pagamento perdido" : "Você já ganhou"} value={formatMoney(Number(phase === "expired" ? offer.lostCents : offer.totalCents) || 0)} strong />
+          <Row label={phase === "expired" ? (offer.goalMissed ? "Pagamento perdido (meta não atingida)" : "Pagamento perdido") : "Você já ganhou"} value={formatMoney(Number(phase === "expired" ? offer.lostCents : offer.totalCents) || 0)} strong />
           {goal ? <Row label="Ganhos na operação" value={`${formatMoney(sim)} de ${formatMoney(goal)}`} /> : null}
         </> : null}
       </div>
@@ -35,7 +35,10 @@ export function OfferDetail({ offer, now, busy, onBack, onRespond }: { offer: Re
         : phase === "pending" ? <p className="b2p-note-box" data-tone="warn">{days ? `Conclua a operação em ${days} ${days === 1 ? "dia" : "dias"} depois de aceitar. ` : ""}Sem concluir no prazo, você perde o pagamento.</p> : null}
       {phase === "active" ? <p className="b2p-note-box" data-tone={offer.deadlineMs && offer.deadlineMs - now < 48 * 3_600_000 ? "warn" : undefined}>{left ? `Prazo: ${left}. ` : ""}Sem concluir no prazo, você perde o pagamento.</p> : null}
       {phase === "done" ? <p className="b2p-note-box">Operação concluída. Pagamento na folha do dia de pagamento{payDay}.</p> : null}
-      {phase === "expired" ? <p className="b2p-alert" role="alert">Prazo encerrado. Você não concluiu a operação e perdeu o pagamento.</p> : null}
+      {phase === "expired" ? (offer.goalMissed
+        ? <p className="b2p-alert" role="alert"><b>Meta não atingida.</b> Você concluiu a operação, mas os ganhos das viagens ({formatMoney(sim)}) ficaram abaixo da meta ({formatMoney(goal)}). Sem a meta, não há pagamento pelo trabalho.</p>
+        : <p className="b2p-alert" role="alert">Prazo encerrado. Você não concluiu a operação e perdeu o pagamento.</p>) : null}
+      {(phase === "pending" || phase === "active") && offer.goalRequired && goal ? <p className="b2p-note-box" data-tone="warn" role="note"><b>Meta de ganhos:</b> ao concluir, os ganhos das viagens precisam chegar a {formatMoney(goal)}. Abaixo da meta, você finaliza o trabalho, mas <b>não recebe</b> pelo serviço.</p> : null}
       {phase === "pending" || phase === "active" ? <p className="b2p-hint">Pago por Pix só depois da operação concluída. O NVU só registra: não paga nem garante.</p> : null}
       {phase === "pending" ? (confirmDecline
         ? <div className="b2p-actions" role="group" aria-label="Confirmar recusa"><p className="b2p-hint" role="status">{offer.jobId ? "Ao recusar, o trabalho sai da sua fila e você não recebe por ele." : "Ao recusar, você não recebe por esta oferta."}</p>

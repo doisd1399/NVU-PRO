@@ -23,17 +23,19 @@ export function RewardCompletionPrompt({ driverId }: { driverId: string | undefi
   const target: RewardOffer | undefined = useMemo(() => {
     if (!ready) return undefined;
     const seen = new Set([...seenIds(), ...dismissed]), recent = Date.now() - 14 * 86_400_000;
-    return offers.find(offer => offer.status === "accepted" && !seen.has(offer.id) && ((offer.completedAtMs > recent && !offer.expired) || (offer.expired && offer.expiredAtMs > recent)));
+    return offers.find(offer => offer.status === "accepted" && !seen.has(offer.id) && ((offer.completedAtMs > recent && !offer.expired && !offer.goalMissed) || (offer.expired && offer.expiredAtMs > recent) || (offer.goalMissed && offer.completedAtMs > recent)));
   }, [offers, ready, dismissed]);
   if (!driverId || !target) return null;
   const close = () => { markSeen(target.id); setDismissed(list => [...list, target.id]); };
-  const lost = target.expired;
+  const lost = target.expired || target.goalMissed;
   return createPortal(<div className="nvu-pss-backdrop" role="presentation" onClick={() => !busy && close()}>
     <section className="nvu-pss" role="dialog" aria-modal="true" aria-labelledby="nvu-rcp-title" onClick={event => event.stopPropagation()} data-testid="reward-completion-prompt">
       <header><span className="nvu-pss-badge"><Wallet size={14} aria-hidden="true" /> Carteira</span><button type="button" aria-label="Fechar" disabled={busy} onClick={close}><X size={18} aria-hidden="true" /></button></header>
-      <h2 id="nvu-rcp-title">{lost ? "Prazo encerrado" : "Operação concluída"}</h2>
+      <h2 id="nvu-rcp-title">{target.goalMissed ? "Meta não atingida" : lost ? "Prazo encerrado" : "Operação concluída"}</h2>
       <p className="nvu-pss-partner">{target.contractName || target.name} · {target.companyName}</p>
-      {lost
+      {target.goalMissed
+        ? <p className="nvu-pss-notice" role="alert">Você concluiu a operação, mas os ganhos das viagens ficaram abaixo da meta{target.goalCents ? ` de ${formatMoney(target.goalCents)}` : ""}. Sem a meta, você <b>não recebe</b> {target.lostCents ? `os ${formatMoney(target.lostCents)} ` : ""}pelo trabalho.</p>
+        : lost
         ? <p className="nvu-pss-notice" role="alert">Você finalizou fora do prazo. O trabalho foi concluído, mas você <b>não recebe</b> {target.lostCents ? `os ${formatMoney(target.lostCents)} ` : ""}pelo serviço, por romper o acordo.</p>
         : <>
           <p className="nvu-pss-notice" role="note">Você concluiu no prazo e vai receber <b>{formatMoney(target.totalCents)}</b>. Confirme a chave Pix para a empresa pagar.</p>

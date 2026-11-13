@@ -25,6 +25,7 @@ export function OfferDetail({ p, busy, notReady, onBack, onAccept, onDecline, on
         <Row label="Valor do acordo" value={p.agreedAmountCents ? formatMoney(p.agreedAmountCents, p.currency) : "Não informado"} />
         {p.goalAmountCents ? <Row label="Meta de ganhos" value={formatMoney(p.goalAmountCents, p.currency)} /> : null}
       </div>
+      {p.goalAmountCents ? <p className="b2p-note-box" data-tone="warn" role="note"><b>Meta de ganhos:</b> a operação só é paga se os ganhos das viagens chegarem a {formatMoney(p.goalAmountCents, p.currency)}. Concluindo abaixo da meta, <b>não há pagamento</b> pelo trabalho.</p> : null}
       {p.agreedAmountCents ? <p className="b2p-note-box" data-tone="warn">Concluindo fora do prazo, o valor final é <b>{formatMoney(Math.round(p.agreedAmountCents * (100 - LATE_PENALTY_PERCENT) / 100), p.currency)}</b> (−{LATE_PENALTY_PERCENT}%), calculado pelo app.</p> : null}
       {p.conditions ? <div className="b2p-field"><span className="b2p-label">Condições do acordo</span><p className="b2p-note-box">{p.conditions}</p></div> : null}
       <p className="b2p-note-box">Após aceitar, você escolhe o <b>motorista</b> da sua equipe e o <b>veículo</b> da sua frota. A pontuação do ranking vai para {shortName(p.contractorName)}, e o motorista mantém o histórico dele.</p>
@@ -48,13 +49,14 @@ export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay,
   const needsDriver = role === "executor" && p.status === "accepted" && !p.jobId;
   const money = (cents: number) => formatMoney(cents, p.currency);
   const duration = p.status === "completed" ? (s ? (s.late ? "Fora do prazo" : "No prazo") : "Concluída") : p.deadlineMs ? `${formatDays(p.durationDays)} · restam ${remainingText(p.deadlineMs, now) || "—"}` : p.durationDays ? `${formatDays(p.durationDays)} após o aceite` : "—";
-  const payment = s && pay ? (pay.status === "settled" ? "Liquidado" : pay.status === "paid" ? "Pago · aguarda confirmação" : role === "contractor" ? "A pagar" : "A receber") : "";
+  const payment = s && pay && !s.goalMissed ? (pay.status === "settled" ? "Liquidado" : pay.status === "paid" ? "Pago · aguarda confirmação" : role === "contractor" ? "A pagar" : "A receber") : "";
   const rows: [string, React.ReactNode][] = [
     ["Ganhos nas viagens", r.earningsCents ? money(r.earningsCents) : "—"],
     ["Duração", duration],
     ["Valor do acordo", p.agreedAmountCents ? money(p.agreedAmountCents) : "Não informado"],
   ];
-  if (s) rows.push([role === "contractor" ? "A pagar" : "A receber", <>{money(s.finalCents)}{s.late ? <small> −{s.penaltyPercent}%</small> : null}</>], ["Pagamento", payment]);
+  if (s?.goalMissed) rows.push(["Meta de ganhos", <>{money(s.earningsCents || r.earningsCents)} de {money(s.goalCents || 0)}</>], ["Pagamento", "Sem pagamento · meta não atingida"]);
+  else if (s) rows.push([role === "contractor" ? "A pagar" : "A receber", <>{money(s.finalCents)}{s.late ? <small> −{s.penaltyPercent}%</small> : null}</>], ["Pagamento", payment]);
   return <>
     <BackLink label="Parcerias" onClick={onBack} />
     <PartnershipOperationCard p={p} me={me} now={now} company={company} onInfo={onInfo} onDriver={onDriver} />
@@ -62,6 +64,7 @@ export function Detail({ p, me, now, busy, onBack, onDesignate, onCancel, onPay,
       {rows.map(([label, value]) => <div key={label}><span>{label}</span><b>{value}</b></div>)}
       <button type="button" className="b2p-summary-more" onClick={onInfo}>Mais informações da operação<ArrowRight size={18} aria-hidden="true" /></button>
     </section>
+    {s?.goalMissed ? <p className="b2p-alert" role="alert"><b>Meta não atingida.</b> A operação foi concluída, mas os ganhos das viagens ({money(s.earningsCents || r.earningsCents)}) ficaram abaixo da meta ({money(s.goalCents || 0)}). Sem a meta, <b>não há pagamento</b> pelo trabalho.</p> : null}
     <PixSection p={p} me={me} busy={busy} onSave={onSavePix} />
     {role === "contractor" && s && pay?.status === "pending" ? <section className="nvu-central-section b2p-sec"><div className="b2p-form">
       <ReceiptAttach scope="partnership-receipt" refId={p.id} expectedCents={s.finalCents} busy={busy} onConfirm={async proof => { await onPay("paid", proof); }} /></div></section> : null}

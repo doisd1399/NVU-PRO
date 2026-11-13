@@ -6,7 +6,8 @@
 export type PartnershipStatus = "pending" | "declined" | "cancelled" | "accepted" | "active" | "completed";
 export type PartnershipRole = "contractor" | "executor";
 export type PaymentStatus = "pending" | "paid" | "settled";
-export type Settlement = { agreedCents: number; late: boolean; penaltyPercent: number; discountCents: number; finalCents: number; deadlineMs: number; completedAtMs: number };
+export type Settlement = { agreedCents: number; late: boolean; penaltyPercent: number; discountCents: number; finalCents: number; deadlineMs: number; completedAtMs: number;
+  /** Concluída sem atingir a meta de ganhos: não há pagamento pelo trabalho (`finalCents` = 0). */ goalMissed?: boolean; goalCents?: number; earningsCents?: number };
 export type PartnershipLedgerEntry = { n: number; at: number; cents: number; tripId: string };
 
 export type Partnership = {
@@ -76,7 +77,7 @@ export function normalizePartnership(id: string, raw: Record<string, any>): Part
     trailerRequirement: text(raw.trailerRequirement) || null,
     durationDays: Math.max(0, Math.round(num(raw.durationDays))) || (num(raw.deadlineMs) && ms(raw.createdAt) ? Math.max(1, Math.round((num(raw.deadlineMs) - ms(raw.createdAt)) / 86_400_000)) : 0),
     agreedAmountCents: Number.isSafeInteger(raw.agreedAmountCents) && raw.agreedAmountCents > 0 ? raw.agreedAmountCents : null, completedAtMs: num(raw.completedAtMs),
-    settlement: raw.settlement && Number.isSafeInteger(raw.settlement.finalCents) ? { agreedCents: num(raw.settlement.agreedCents), late: Boolean(raw.settlement.late), penaltyPercent: num(raw.settlement.penaltyPercent), discountCents: num(raw.settlement.discountCents), finalCents: num(raw.settlement.finalCents), deadlineMs: num(raw.settlement.deadlineMs), completedAtMs: num(raw.settlement.completedAtMs) } : null,
+    settlement: raw.settlement && Number.isSafeInteger(raw.settlement.finalCents) ? { agreedCents: num(raw.settlement.agreedCents), late: Boolean(raw.settlement.late), penaltyPercent: num(raw.settlement.penaltyPercent), discountCents: num(raw.settlement.discountCents), finalCents: num(raw.settlement.finalCents), deadlineMs: num(raw.settlement.deadlineMs), completedAtMs: num(raw.settlement.completedAtMs), ...(raw.settlement.goalMissed === true ? { goalMissed: true, goalCents: num(raw.settlement.goalCents), earningsCents: num(raw.settlement.earningsCents) } : {}) } : null,
     payment: raw.payment && ["pending", "paid", "settled"].includes(raw.payment.status) ? { status: raw.payment.status, paidAtMs: ms(raw.payment.paidAt), settledAtMs: ms(raw.payment.settledAt), proof: raw.payment.proof && typeof raw.payment.proof.url === "string" && raw.payment.proof.url ? { url: String(raw.payment.proof.url), check: raw.payment.proof.check === "verified" || raw.payment.proof.check === "override" ? raw.payment.proof.check : "unverified", readCents: raw.payment.proof.readCents === null || raw.payment.proof.readCents === undefined ? null : Number(raw.payment.proof.readCents) } : null } : null,
     acceptedAtMs: ms(raw.acceptedAt), deadlineAt: text(raw.deadlineAt), deadlineMs: num(raw.deadlineMs) || ms(raw.deadlineAt),
     conditions: text(raw.conditions), goalAmountCents: Number.isSafeInteger(raw.goalAmountCents) && raw.goalAmountCents > 0 ? raw.goalAmountCents : null,
@@ -330,9 +331,12 @@ export function partnershipAlerts(rows: Pick<Partnership, "status" | "jobId" | "
 // ───────────── valor do acordo, liquidação e carteira ─────────────
 /** Mesma regra do servidor: concluída depois do prazo = valor combinado menos 25%. */
 export const LATE_PENALTY_PERCENT = 25;
-export function computeSettlement(agreedCents: number | null | undefined, deadlineMs: number, completedAtMs: number): Settlement | null {
+export function computeSettlement(agreedCents: number | null | undefined, deadlineMs: number, completedAtMs: number, goal?: { required: boolean; goalCents: number; earningsCents: number }): Settlement | null {
   if (!Number.isSafeInteger(agreedCents) || (agreedCents as number) < 1) return null;
   const agreed = agreedCents as number, late = Number.isFinite(deadlineMs) && deadlineMs > 0 && completedAtMs > deadlineMs;
+  // Regra da meta (parcerias novas): concluída sem atingir a meta de ganhos = sem pagamento pelo trabalho.
+  if (goal?.required && goal.goalCents > 0 && goal.earningsCents < goal.goalCents)
+    return { agreedCents: agreed, late, penaltyPercent: 0, discountCents: agreed, finalCents: 0, deadlineMs: deadlineMs || 0, completedAtMs, goalMissed: true, goalCents: goal.goalCents, earningsCents: goal.earningsCents };
   const finalCents = late ? Math.round(agreed * (100 - LATE_PENALTY_PERCENT) / 100) : agreed;
   return { agreedCents: agreed, late, penaltyPercent: late ? LATE_PENALTY_PERCENT : 0, discountCents: agreed - finalCents, finalCents, deadlineMs: deadlineMs || 0, completedAtMs };
 }

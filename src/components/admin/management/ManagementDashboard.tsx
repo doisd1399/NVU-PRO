@@ -1,18 +1,18 @@
-import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ArrowRight, BellRing, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, Wallet, List, MapPinned, Pencil, UsersRound, Warehouse } from "lucide-react";
-import { ManagementOperationCard, type ManagementOperation } from "./ManagementOperationCard";
+import React, { useId, useLayoutEffect, useRef } from "react";
+import { ArrowRight, BellRing, CalendarDays, ChevronDown, ClipboardPaste, Handshake, Headset, Wallet, List, MapPinned, Pencil, Truck, UsersRound, Warehouse } from "lucide-react";
 import "./ManagementDashboard.css";
 
-export type ManagementAction = "operations" | "assign" | "teams" | "hr" | "fleet" | "trips" | "partnerships" | "rewards";
+export type ManagementAction = "operations" | "assign" | "activeJobs" | "teams" | "hr" | "fleet" | "trips" | "partnerships" | "rewards";
 const actions = [
   { id: "operations", label: "Operações", icon: List },
   { id: "assign", label: "Designar Trabalhos", icon: ClipboardPaste },
+  { id: "activeJobs", label: "Trabalhos ativos", icon: Truck },
   { id: "teams", label: "Equipes", icon: UsersRound },
   { id: "hr", label: "Recursos Humanos", icon: Headset },
   { id: "fleet", label: "Frota", icon: Warehouse },
   { id: "trips", label: "Viagens", icon: MapPinned },
   { id: "partnerships", label: "Parcerias B2P", icon: Handshake },
-  { id: "rewards", label: "Pagamentos", icon: Wallet },
+  { id: "rewards", label: "Carteira", icon: Wallet },
 ] as const;
 
 /** Keep a full currency amount on one line, also with large real totals. */
@@ -39,30 +39,17 @@ function FittedAmount({ children }: { children: string }) {
 }
 
 export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, earnings, tripCount,
-  goal, onGoal, operations, totalOperations, onAction, onInfo, onDriver, loading, refreshing, active = true, partnershipAlert,
+  goal, onGoal, activeJobsCount, onAction, loading, refreshing, partnershipAlert,
 }: {
   periodLabel: string; periodDescription: string; onPeriod: () => void;
   earnings: string[]; tripCount: number;
   goal: { amount: string; progress: number | null; loading: boolean; error: string; canEdit: boolean; onRetry?: () => void };
-  onGoal: () => void; operations: ManagementOperation[]; totalOperations: number;
-  onAction: (value: ManagementAction) => void; onInfo: (value: ManagementOperation) => void;
-  onDriver: (value: ManagementOperation) => void; loading: boolean; refreshing: boolean; active?: boolean;
+  onGoal: () => void; /** Quantidade na opção "Trabalhos ativos" (a lista agora é uma página própria). */ activeJobsCount: number;
+  onAction: (value: ManagementAction) => void; loading: boolean; refreshing: boolean; active?: boolean;
   /** Parcerias B2P: indicador do botão (oferta para responder, aceite, recusa, conclusão). Sem itens = sem indicador. */
   partnershipAlert?: { toAnswer: number; news: number; total: number; label: string };
 }) {
   const id = useId();
-  const [jobsOpen, setJobsOpen] = useState(true);
-  // Smartphones in landscape show one scrolling column: a hint announces the jobs card until it comes into view.
-  const jobsRef = useRef<HTMLElement>(null);
-  const [jobsBelow, setJobsBelow] = useState(false);
-  useEffect(() => {
-    const node = jobsRef.current;
-    if (!node || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(([entry]) => setJobsBelow(!entry.isIntersecting), { rootMargin: "0px 0px -110px 0px" });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-  const disclosure = (open: boolean) => <span className="nvu-central-disclosure-icon" data-expanded={open}><ChevronDown size={19} strokeWidth={2.2} aria-hidden="true" /></span>;
   return <div className="nvu-central-dashboard" data-testid="management-dashboard">
     <section className="nvu-central-section nvu-central-summary" aria-labelledby={`${id}-summary`}>
       <div className="nvu-central-section-heading nvu-central-summary-heading">
@@ -90,24 +77,11 @@ export function ManagementDashboard({ periodLabel, periodDescription, onPeriod, 
       <div className="nvu-central-section-heading"><h2 id={`${id}-actions`}>Gerenciar empresa</h2></div>
       <div id={`${id}-actions-body`} className="nvu-central-action-list">
         {actions.map(({ id: actionId, label, icon: Icon }) => <button type="button" key={actionId} className="nvu-central-action" onClick={() => onAction(actionId)}>
-          <Icon className="nvu-central-action-icon" size={24} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>{actionId === "partnerships" && partnershipAlert?.total ? <span className="nvu-central-action-alert" data-tone={partnershipAlert.toAnswer ? "warn" : "info"} role="status" title={partnershipAlert.label}
+          <Icon className="nvu-central-action-icon" size={24} strokeWidth={1.7} aria-hidden="true" /><span>{label}</span>{actionId === "activeJobs" && activeJobsCount > 0 ? <span className="nvu-central-count" aria-label={`${activeJobsCount} em andamento`}>{activeJobsCount}</span> : null}{actionId === "partnerships" && partnershipAlert?.total ? <span className="nvu-central-action-alert" data-tone={partnershipAlert.toAnswer ? "warn" : "info"} role="status" title={partnershipAlert.label}
             aria-label={`Parcerias B2P: ${partnershipAlert.label}`}><BellRing size={13} strokeWidth={2.2} aria-hidden="true" /><b>{partnershipAlert.total > 9 ? "9+" : partnershipAlert.total}</b></span> : null}<span className="nvu-central-action-arrow"><ArrowRight size={20} strokeWidth={1.8} /></span>
         </button>)}
       </div>
     </section>
-    <section ref={jobsRef} className="nvu-central-section nvu-central-jobs" aria-labelledby={`${id}-jobs`}>
-      <div className="nvu-central-jobs-header">
-        <button type="button" className="nvu-central-section-toggle" aria-expanded={jobsOpen} aria-controls={`${id}-jobs-body`} onClick={() => setJobsOpen(!jobsOpen)}>
-          <span><span className="nvu-central-title-count"><h2 id={`${id}-jobs`}>Trabalhos ativos</h2><span className="nvu-central-count">{totalOperations}</span></span><span className="nvu-central-subtitle">Operações em andamento</span></span>{disclosure(jobsOpen)}
-        </button>
-
-      </div>
-      {jobsOpen && <div id={`${id}-jobs-body`} className="nvu-central-job-list">
-        {operations.length ? operations.map(operation => <ManagementOperationCard key={operation.id} operation={operation} active={active} onInfo={() => onInfo(operation)} onDriver={() => onDriver(operation)} />)
-          : <p className="nvu-central-empty" role="status">{loading ? "Carregando trabalhos…" : "Nenhum trabalho ativo."}</p>}
-      </div>}
-    </section>
-    {active && jobsBelow && <div className="nvu-central-more-hint"><button type="button" onClick={() => jobsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>Trabalhos ativos · deslize para ver<ChevronDown size={14} strokeWidth={2.4} aria-hidden="true" /></button></div>}
     {(loading || refreshing) && <p role="status" className="nvu-central-sync-status">Atualizando dados da empresa…</p>}
   </div>;
 }

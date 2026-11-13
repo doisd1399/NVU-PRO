@@ -172,6 +172,19 @@ try {
     await rewards.cancelRewardCampaign.run({ campaignId }, ctx("owner-a"));
     const statuses = await Promise.all(jobs.map(async id => (await get(`trabalhos/${id}`)).get("status"))); assert.deepEqual(statuses.sort(), ["cancelled", "pending"], "a oferta aceita segue; a sem resposta saiu da fila");
   });
+  await test("regra da meta: concluir a operação abaixo da meta de ganhos não paga o trabalho (fora da folha, aviso ao motorista e ao gestor); campanha sem meta paga como antes", async () => {
+    const { campaignId } = await create({ contractId: "ct-2", goalCents: 90_000_000, budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), offerId = `${campaignId}_drv-1`;
+    assert.equal((await get(`rewardOffers/${offerId}`)).get("goalRequired"), true, "ofertas novas com meta nascem com a regra");
+    await respond(offerId, "accept", "drv-1");
+    await trip("g1", "drv-1", "a", 1000, { contractId: "ct-2" }); await trip("g2", "drv-1", "a", 1100, { contractId: "ct-2" }); await fire("g2");
+    const row = (await get(`rewardOffers/${offerId}`)).data();
+    assert.deepEqual([row.trips, row.goalMissed, row.totalCents, row.goalReached], [2, true, 0, false]); assert.ok(row.lostCents > 0, "o que seria pago vira 'perdido'");
+    const missed = await db.collection("notifications").where("type", "==", "REWARD_GOAL_MISSED").get(); assert.ok(missed.size >= 2, "motorista e gestor"); assert.match(missed.docs[0].get("message"), /meta/i);
+    const completedFor = (await db.collection("notifications").where("type", "==", "REWARD_COMPLETED").get()).docs.filter(row => String(row.get("message")).includes(offerId));
+    assert.equal(completedFor.length, 0, "não é 'concluiu no prazo'");
+    const noGoal = await create({ contractId: "ct-2", goalCents: 0, budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 });
+    assert.equal((await get(`rewardOffers/${noGoal.campaignId}_drv-1`)).get("goalRequired"), false, "sem meta definida, nada a atingir");
+  });
   await test("excluir do histórico: só campanha cancelada e só o gestor; some das listas mas os dados ficam; repetir é inofensivo", async () => {
     const { campaignId } = await create({ contractId: "ct-2", budgetCents: undefined, bonusCents: 0, bonusGoalTrips: 0 }), hide = (uid = "owner-a") => rewards.hideRewardCampaign.run({ campaignId }, ctx(uid));
     await failsWith(() => hide("drv-1"), "permission-denied"); await failsWith(() => hide("owner-b"), "permission-denied"); await failsWith(() => rewards.hideRewardCampaign.run({ campaignId: "rc_nada" }, ctx("owner-a")), "not-found");

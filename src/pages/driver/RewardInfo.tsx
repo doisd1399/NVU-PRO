@@ -5,7 +5,7 @@ import { WEEKDAYS, type RewardPayment } from "../../lib/rewardPayments";
 import { goalOf, offerPhase, type RewardOffer } from "../../lib/rewards";
 import { Section } from "../../components/partnerships/shared";
 
-const STEPS = ["O trabalho chega na sua fila. Ao iniciar, aceite as condições.", "Conclua a operação dentro do prazo.", "Ao concluir, informe sua chave Pix.", "Entra na folha do dia de pagamento (se perder o dia, na semana seguinte).", "Receba por Pix e confirme."];
+const STEPS = ["O trabalho chega na sua fila. Ao iniciar, aceite as condições.", "Conclua a operação dentro do prazo e atinja a meta de ganhos.", "Ao concluir, informe sua chave Pix.", "Entra na folha do dia de pagamento (se perder o dia, na semana seguinte).", "Receba por Pix e confirme."];
 
 /** Seção exclusiva do motorista: ganhos, trabalho, dia de pagamento e como funciona, em resumo. */
 export function InfoTab({ offers, payments }: { offers: RewardOffer[]; payments: RewardPayment[] }) {
@@ -36,7 +36,7 @@ export function InfoTab({ offers, payments }: { offers: RewardOffer[]; payments:
     </Section>
     <Section title="Como funciona">
       <ol className="b2p-steps">{STEPS.map((step, index) => <li key={step}><span aria-hidden="true">{index + 1}</span>{step}</li>)}</ol>
-      <p className="b2p-note-box" data-tone="warn" role="note">Prazo vencido sem concluir: você perde o pagamento.</p>
+      <p className="b2p-note-box" data-tone="warn" role="note">Prazo vencido sem concluir: você perde o pagamento. Concluir sem atingir a meta de ganhos da operação também não paga o trabalho.</p>
       <p className="b2p-hint" style={{ display: "flex", gap: 6, alignItems: "center" }}><Wallet size={14} aria-hidden="true" />O NVU só registra: a empresa paga.</p>
     </Section>
   </>;

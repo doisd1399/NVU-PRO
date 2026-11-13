@@ -105,6 +105,7 @@ export function NewOfferScreen({ me, ownCompany, candidates, catalog, initial, t
         {" "}Fora do prazo: <b>{formatMoney(lateCents ?? 0)}</b> (−{LATE_PENALTY_PERCENT}%). O pagamento é combinado entre as empresas; o app só registra e calcula.</p> : null}
 
       <label className="b2p-input"><span className="b2p-pre">{draft.goal ? "Meta R$" : "R$"}</span><input inputMode="numeric" aria-label="Meta de ganhos" value={draft.goal} placeholder="Meta de ganhos (opcional)" onChange={event => set({ goal: maskMoney(event.target.value) })} /></label>
+      {draft.goal ? <p className="b2p-hint">Com meta, a empresa que executa só recebe se os ganhos das viagens chegarem a ela. Concluindo abaixo da meta, <b>não há pagamento</b> pelo trabalho.</p> : null}
 
       {error || pending ? <p className={error ? "b2p-alert" : "b2p-hint"} role={error ? "alert" : undefined}>{error || pending}</p> : null}
       <div className="b2p-actions">

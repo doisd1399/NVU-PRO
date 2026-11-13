@@ -83,7 +83,7 @@ export const createRewardCampaign = functions.region(...CALLABLE_REGIONS).runWit
     for (const driverId of driverIds) tx.create(db.collection(REWARD_OFFERS).doc(`${campaignId}_${driverId}`), {
       schemaVersion: 1, campaignId, companyId, companyName: companyLabel(manager.company), driverId, driverName: names.get(driverId) || "Motorista", status: "pending",
       name: input.name, startMs: input.startMs, endMs: input.endMs, perTripCents: input.perTripCents, bonusCents: input.bonusCents, bonusGoalTrips: input.bonusGoalTrips, contractId: input.contractId, contractName, vehicleId, vehicleName: text(vehicle.name), maxTripsPerDriver: input.maxTripsPerDriver, goalCents: input.goalCents, openEnded: input.openEnded, deadlineDays: Math.max(0, Math.floor(Number(contract.deadlineDays) || 0)),
-      revision: 1, payDay, trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, simCents: 0, goalReached: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
+      revision: 1, payDay, trips: 0, tripCents: 0, bonusEarnedCents: 0, totalCents: 0, simCents: 0, goalReached: false, goalRequired: input.goalCents > 0, goalMissed: false, acceptedAtMs: 0, createdAt: now, updatedAt: now });
     return { replayed: false, company: manager.company, contractName };
   });
   // Cada motorista recebe o trabalho na fila (mesmo comando de "Encaminhar trabalho"). Quem não puder receber (suspensão, vínculo, cadastro) sai da campanha com o motivo.
@@ -124,21 +124,22 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
     }
   }
   const result = accrueRewards({ startMs: campaign.startMs, endMs: campaign.endMs, perTripCents: campaign.perTripCents, bonusCents: campaign.bonusCents, bonusGoalTrips: campaign.bonusGoalTrips, budgetCents: campaign.budgetCents, contractId: text(campaign.contractId), maxTripsPerDriver: Number(campaign.maxTripsPerDriver) || 0, goalCents: Number(campaign.goalCents) || 0 },
-    offers.docs.map(offer => ({ driverId: text(offer.get("driverId")), acceptedAtMs: Number(offer.get("acceptedAtMs")) || 0, deadlineMs: Number(offer.get("deadlineMs")) || 0 })), trips, Date.now());
+    offers.docs.map(offer => ({ driverId: text(offer.get("driverId")), acceptedAtMs: Number(offer.get("acceptedAtMs")) || 0, deadlineMs: Number(offer.get("deadlineMs")) || 0, goalRequired: offer.get("goalRequired") === true })), trips, Date.now());
   const batch = db.batch(); let writes = 0;
-  const expiredNow: { offer: FirebaseFirestore.QueryDocumentSnapshot; lost: number }[] = [], completedNow: FirebaseFirestore.QueryDocumentSnapshot[] = [];
+  const expiredNow: { offer: FirebaseFirestore.QueryDocumentSnapshot; lost: number }[] = [], missedNow: { offer: FirebaseFirestore.QueryDocumentSnapshot; lost: number }[] = [], completedNow: FirebaseFirestore.QueryDocumentSnapshot[] = [];
   for (const offer of offers.docs) {
     const row = result.drivers.get(text(offer.get("driverId")));
     if (!row) continue;
     const completed = Number(campaign.maxTripsPerDriver) > 0 && row.trips >= Number(campaign.maxTripsPerDriver);
-    const same = offer.get("trips") === row.trips && offer.get("totalCents") === row.totalCents && offer.get("goalReached") === row.goalReached && (Number(offer.get("simCents")) || 0) === row.simCents && (offer.get("expired") === true) === row.expired && (Number(offer.get("lostCents")) || 0) === row.lostCents;
-    const closeDeadline = (completed || row.expired) && offer.get("openDeadlineMs") !== undefined;
+    const same = offer.get("trips") === row.trips && offer.get("totalCents") === row.totalCents && offer.get("goalReached") === row.goalReached && (Number(offer.get("simCents")) || 0) === row.simCents && (offer.get("expired") === true) === row.expired && (offer.get("goalMissed") === true) === row.goalMissed && (Number(offer.get("lostCents")) || 0) === row.lostCents;
+    const closeDeadline = (completed || row.expired || row.goalMissed) && offer.get("openDeadlineMs") !== undefined;
     if (same && !closeDeadline) continue;
-    batch.update(offer.ref, { trips: row.trips, tripCents: row.tripCents, bonusEarnedCents: row.bonusCents, totalCents: row.totalCents, goalReached: row.goalReached, simCents: row.simCents, expired: row.expired, lostCents: row.lostCents,
+    batch.update(offer.ref, { trips: row.trips, tripCents: row.tripCents, bonusEarnedCents: row.bonusCents, totalCents: row.totalCents, goalReached: row.goalReached, simCents: row.simCents, expired: row.expired, goalMissed: row.goalMissed, lostCents: row.lostCents,
       ...(row.expired && offer.get("expired") !== true ? { expiredAtMs: Date.now() } : {}), ...(completed && offer.get("completedAtMs") === undefined ? { completedAtMs: Date.now() } : {}),
       ...(closeDeadline ? { openDeadlineMs: admin.firestore.FieldValue.delete() } : {}), updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
     if (row.expired && offer.get("expired") !== true) expiredNow.push({ offer, lost: row.lostCents });
-    if (completed && !row.expired && offer.get("completedAtMs") === undefined) completedNow.push(offer);
+    if (row.goalMissed && offer.get("goalMissed") !== true) missedNow.push({ offer, lost: row.lostCents });
+    if (completed && !row.expired && !row.goalMissed && offer.get("completedAtMs") === undefined) completedNow.push(offer);
   }
   if (campaign.accruedCents !== result.accruedCents || campaign.tripsCount !== result.tripsCount || campaign.capped !== result.capped) {
     batch.update(campaignSnap.ref, { accruedCents: result.accruedCents, tripsCount: result.tripsCount, capped: result.capped, updatedAt: admin.firestore.FieldValue.serverTimestamp() }); writes++;
@@ -146,6 +147,12 @@ export async function recomputeRewardCampaign(db: DB, campaignId: string) {
   if (writes) await batch.commit();
   for (const { offer, lost } of expiredNow) await notifyUsers(db, [text(offer.get("driverId"))], { type: "REWARD_EXPIRED", refId: offer.id, companyId: text(campaign.companyId), title: "Prazo encerrado",
     message: `Você não concluiu a operação ${text(offer.get("contractName")) || text(offer.get("name"))} no prazo e perdeu o pagamento${lost ? ` de ${money(lost)}` : ""}.` });
+  for (const { offer, lost } of missedNow) {
+    const goal = Number(campaign.goalCents) || 0, name = text(offer.get("contractName")) || text(offer.get("name"));
+    await notifyUsers(db, [text(offer.get("driverId"))], { type: "REWARD_GOAL_MISSED", refId: offer.id, companyId: text(campaign.companyId), title: "Meta não atingida",
+      message: `Você concluiu a operação ${name}, mas os ganhos ficaram abaixo da meta${goal ? ` de ${money(goal)}` : ""}. Sem a meta, não há pagamento pelo trabalho${lost ? ` (${money(lost)})` : ""}.` });
+    await notifyManagers(db, String(campaign.companyId), `${text(offer.get("driverName"))} concluiu a operação ${name} sem atingir a meta de ganhos${goal ? ` de ${money(goal)}` : ""}. Não há pagamento pelo trabalho.`, `${offer.id}_goal`, { type: "REWARD_GOAL_MISSED", title: "Meta não atingida" });
+  }
   for (const offer of completedNow) await notifyManagers(db, String(campaign.companyId), `${text(offer.get("driverName"))} concluiu a operação ${text(offer.get("contractName")) || text(campaign.name)} no prazo. O pagamento entra na próxima folha.`, `${offer.id}_done`, { type: "REWARD_COMPLETED", title: "Operação concluída" });
   if (result.capped && !campaign.capped) await notifyManagers(db, String(campaign.companyId), `A campanha ${campaign.name} chegou ao teto de ${money(campaign.budgetCents)} e parou de creditar novas viagens.`, campaignId);
 }

@@ -34,7 +34,7 @@ export function partnershipOperation(p: Partnership, ctx: PartnershipOperationCo
     : p.status === "completed" ? "Concluída" : p.status === "accepted" && !p.jobId ? "Aguardando motorista" : undefined;
   const timeLabel = open ? undefined : "Prazo:";
   const timeRemaining = open ? operationClock(due, ctx.now)
-    : p.status === "completed" ? (p.settlement ? (p.settlement.late ? "Concluída fora do prazo" : "Concluída no prazo") : "Concluída")
+    : p.status === "completed" ? (p.settlement ? (p.settlement.goalMissed ? "Concluída sem a meta" : p.settlement.late ? "Concluída fora do prazo" : "Concluída no prazo") : "Concluída")
     : p.status === "pending" ? (p.durationDays ? `${formatDays(p.durationDays)} após o aceite` : "Não definido") : "Encerrada";
   const trailerName = p.trailerName || p.trailerRequirement || undefined;
   return {

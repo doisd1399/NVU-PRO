@@ -7,7 +7,7 @@ export type RewardCampaign = {
 export type RewardOfferStatus = "pending" | "accepted" | "declined" | "cancelled";
 export type RewardOffer = {
   id: string; campaignId: string; companyId: string; companyName: string; driverId: string; driverName: string; status: RewardOfferStatus; name: string;
-  startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; payDay: number | null; deadlineMs: number; expired: boolean; lostCents: number; expiredAtMs: number; completedAtMs: number;
+  startMs: number; endMs: number; perTripCents: number; bonusCents: number; bonusGoalTrips: number; contractId: string; contractName: string; maxTripsPerDriver: number; goalCents: number; openEnded: boolean; deadlineDays: number; payDay: number | null; deadlineMs: number; expired: boolean; goalMissed: boolean; goalRequired: boolean; lostCents: number; expiredAtMs: number; completedAtMs: number;
   trips: number; tripCents: number; bonusEarnedCents: number; totalCents: number; settledCents: number; simCents: number; goalReached: boolean; acceptedAtMs: number; createdAtMs: number;
   jobId: string; vehicleId: string; vehicleName: string; vehiclePlate: string; revision: number; changedAtMs: number; changeNote: string;
 };
@@ -24,7 +24,7 @@ export function normalizeOffer(id: string, raw: Record<string, any>): RewardOffe
   const status = (["pending", "accepted", "declined", "cancelled"] as const).find(item => item === raw.status) || "pending";
   return { id, campaignId: text(raw.campaignId), companyId: text(raw.companyId), companyName: text(raw.companyName) || "Empresa", driverId: text(raw.driverId), driverName: text(raw.driverName) || "Motorista", status, name: text(raw.name) || "Campanha",
     startMs: num(raw.startMs), endMs: num(raw.endMs), perTripCents: num(raw.perTripCents), bonusCents: num(raw.bonusCents), bonusGoalTrips: num(raw.bonusGoalTrips), contractId: text(raw.contractId), contractName: text(raw.contractName), maxTripsPerDriver: num(raw.maxTripsPerDriver), goalCents: num(raw.goalCents), openEnded: raw.openEnded === true, deadlineDays: num(raw.deadlineDays), payDay: Number.isInteger(raw.payDay) && raw.payDay >= 0 && raw.payDay <= 6 ? raw.payDay : null,
-    deadlineMs: num(raw.deadlineMs), expired: raw.expired === true, lostCents: num(raw.lostCents), expiredAtMs: num(raw.expiredAtMs), completedAtMs: num(raw.completedAtMs),
+    deadlineMs: num(raw.deadlineMs), expired: raw.expired === true, goalMissed: raw.goalMissed === true, goalRequired: raw.goalRequired === true, lostCents: num(raw.lostCents), expiredAtMs: num(raw.expiredAtMs), completedAtMs: num(raw.completedAtMs),
     trips: num(raw.trips), tripCents: num(raw.tripCents), bonusEarnedCents: num(raw.bonusEarnedCents), totalCents: num(raw.totalCents), settledCents: num(raw.settledCents), simCents: num(raw.simCents), goalReached: raw.goalReached === true, acceptedAtMs: num(raw.acceptedAtMs), createdAtMs: ms(raw.createdAt),
     jobId: text(raw.jobId), vehicleId: text(raw.vehicleId), vehicleName: text(raw.vehicleName), vehiclePlate: text(raw.vehiclePlate), revision: num(raw.revision) || 1, changedAtMs: num(raw.changedAtMs), changeNote: text(raw.changeNote) };
 }
@@ -51,8 +51,8 @@ export const goalEstimate = (goalCents: number, drivers: number) => Math.max(0, 
 /** Meta de ganhos da operação do motorista (total dos ganhos de todas as viagens da operação) (0 = campanha sem meta). Não tem relação com o salário por viagem. */
 export const goalOf = (c: { goalCents: number }) => c.goalCents || 0;
 /** O motorista concluiu a operação (fez todas as viagens dela): só então o salário entra na folha. Igual ao servidor; campanhas antigas contam o que foi ganho. */
-export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number; expired?: boolean }) => {
-  if (offer.expired) return false; // prazo perdido: não recebe
+export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number; expired?: boolean; goalMissed?: boolean }) => {
+  if (offer.expired || offer.goalMissed) return false; // prazo perdido ou meta de ganhos não atingida: não recebe
   const max = Number(offer.maxTripsPerDriver) || 0;
   return max > 0 ? (Number(offer.trips) || 0) >= max : (Number(offer.totalCents) || 0) > 0;
 };
@@ -76,8 +76,10 @@ export type OfferPhase = "pending" | "active" | "done" | "expired" | "declined" 
 /** Em que pé está a oferta para o motorista: para responder, em andamento, concluída, prazo perdido, recusada ou cancelada. */
 export const offerPhase = (offer: RewardOffer): OfferPhase => {
   if (offer.status === "pending") return "pending"; if (offer.status === "declined") return "declined"; if (offer.status === "cancelled") return "cancelled";
-  if (offer.expired) return "expired"; return offerCompleted(offer) ? "done" : "active";
+  if (offer.expired || offer.goalMissed) return "expired"; return offerCompleted(offer) ? "done" : "active";
 };
+/** Texto do motivo da perda do pagamento: prazo vencido ou meta de ganhos não atingida. */
+export const lostLabel = (offer: { goalMissed?: boolean }) => offer.goalMissed ? "Meta não atingida" : "Prazo perdido";
 export const PHASE_LABEL: Record<OfferPhase, string> = { pending: "Responder", active: "Em andamento", done: "Concluída", expired: "Prazo perdido", declined: "Recusada", cancelled: "Cancelada" };
 export const PHASE_TONE: Record<OfferPhase, string> = { pending: "warn", active: "warn", done: "good", expired: "late", declined: "muted", cancelled: "muted" };
 /** Tempo que falta para o prazo: "3 dias", "5 h", "menos de 1 h" ou "encerrado". */

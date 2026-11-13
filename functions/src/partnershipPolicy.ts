@@ -163,11 +163,16 @@ export function partnershipTripFields(job: Record<string, any>): Record<string, 
 
 /** Atraso na entrega: o valor final do acordo cai 25% (calculado pelo app e informado às duas empresas). */
 export const LATE_PENALTY_PERCENT = 25;
-export type Settlement = { agreedCents: number; late: boolean; penaltyPercent: number; discountCents: number; finalCents: number; deadlineMs: number; completedAtMs: number };
+export type Settlement = { agreedCents: number; late: boolean; penaltyPercent: number; discountCents: number; finalCents: number; deadlineMs: number; completedAtMs: number;
+  /** Meta de ganhos não atingida: a operação foi concluída, mas sem a meta não há pagamento pelo trabalho (`finalCents` = 0). */
+  goalMissed?: boolean; goalCents?: number; earningsCents?: number };
 /** Valor final do acordo: concluída depois do prazo = valor combinado menos 25%. Sem valor combinado não há liquidação. */
-export function computeSettlement(agreedCents: number | null | undefined, deadlineMs: number, completedAtMs: number): Settlement | null {
+export function computeSettlement(agreedCents: number | null | undefined, deadlineMs: number, completedAtMs: number, goal?: { required: boolean; goalCents: number; earningsCents: number }): Settlement | null {
   if (!Number.isSafeInteger(agreedCents) || (agreedCents as number) < 1) return null;
   const agreed = agreedCents as number, late = Number.isFinite(deadlineMs) && deadlineMs > 0 && completedAtMs > deadlineMs;
+  // Regra da meta (parcerias novas): concluída sem atingir a meta de ganhos = sem pagamento pelo trabalho.
+  if (goal?.required && goal.goalCents > 0 && goal.earningsCents < goal.goalCents)
+    return { agreedCents: agreed, late, penaltyPercent: 0, discountCents: agreed, finalCents: 0, deadlineMs: deadlineMs || 0, completedAtMs, goalMissed: true, goalCents: goal.goalCents, earningsCents: goal.earningsCents };
   const finalCents = late ? Math.round(agreed * (100 - LATE_PENALTY_PERCENT) / 100) : agreed;
   return { agreedCents: agreed, late, penaltyPercent: late ? LATE_PENALTY_PERCENT : 0, discountCents: agreed - finalCents, finalCents, deadlineMs: deadlineMs || 0, completedAtMs };
 }

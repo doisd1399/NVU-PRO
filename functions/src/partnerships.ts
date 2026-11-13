@@ -70,7 +70,7 @@ export const createPartnershipOffer = functions.region(...CALLABLE_REGIONS).http
       contractorName: companyLabel(contractor.company), executorName: companyLabel(executor), simulatorId: key, currency,
       operationName: offer.operationName, totalTrips: offer.totalTrips,
       trailerRequirement: offer.trailerRequirement, durationDays: offer.durationDays, deadlineAt: null, deadlineMs: null, acceptedAt: null,
-      conditions: offer.conditions, goalAmountCents: offer.goalAmountCents, agreedAmountCents: offer.agreedAmountCents, settlement: null, payment: null, createdBy: uid,
+      conditions: offer.conditions, goalAmountCents: offer.goalAmountCents, agreedAmountCents: offer.agreedAmountCents, goalRule: 1, settlement: null, payment: null, createdBy: uid,
       progress: 0, earningsCents: 0, bestCents: 0, averageCents: 0, ledger: [], jobId: null, driverId: null,
       createdAt: admin.firestore.FieldValue.serverTimestamp(), updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -237,9 +237,18 @@ async function projectJob(db: DB, partnershipId: string, jobId: string, job: Dat
     if (next && mayTransition(p.status as PartnershipStatus, next)) patch.status = next;
     // Ao concluir, o app calcula o valor final (−25% fora do prazo) e abre a liquidação: a pagar (contratante) e a receber (executora).
     if (next === "completed" && p.status !== "completed" && !p.settlement) {
-      const completedAtMs = toMillis(job.completedAt) || Date.now(), settlement = computeSettlement(p.agreedAmountCents, Number(p.deadlineMs) || 0, completedAtMs);
+      const completedAtMs = toMillis(job.completedAt) || Date.now();
+      // Regra da meta (parcerias criadas a partir da v86): os ganhos são conferidos nas viagens confirmadas no momento da conclusão.
+      let earningsCents = Number(p.earningsCents) || 0;
+      if (p.goalRule === 1 && Number(p.goalAmountCents) > 0 && p.driverId) {
+        const rows = await tx.get(db.collection("historico_viagens").where("partnershipId", "==", partnershipId));
+        earningsCents = Math.max(earningsCents, buildLedger(rows.docs.map(row => ({ id: row.id, data: row.data() })),
+          { operationId: text(p.jobId), driverId: text(p.driverId), companyId: text(p.executorCompanyId), contractId: partnershipContractId(partnershipId) }).earningsCents);
+      }
+      const settlement = computeSettlement(p.agreedAmountCents, Number(p.deadlineMs) || 0, completedAtMs, { required: p.goalRule === 1, goalCents: Number(p.goalAmountCents) || 0, earningsCents });
       patch.completedAtMs = completedAtMs;
-      if (settlement) { patch.settlement = settlement; patch.payment = { status: "pending" as PaymentStatus }; }
+      if (settlement?.goalMissed) { patch.settlement = settlement; patch.payment = null; if (earningsCents !== Number(p.earningsCents)) patch.earningsCents = earningsCents; }
+      else if (settlement) { patch.settlement = settlement; patch.payment = { status: "pending" as PaymentStatus }; }
     }
     patch.updatedAt = admin.firestore.FieldValue.serverTimestamp();
     tx.update(ref, patch);
@@ -247,6 +256,13 @@ async function projectJob(db: DB, partnershipId: string, jobId: string, job: Dat
   });
   // Conclusão com valor: a pagadora recebe o valor e a chave Pix da recebedora (se já informada); a recebedora é lembrada de informar a chave.
   if (done) {
+    if ((done.settlement as { goalMissed?: boolean }).goalMissed) {
+      const { p, settlement } = done as { p: Data; settlement: { goalCents?: number; earningsCents?: number } }, money = (cents: number) => `R$ ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const detail = `${text(p.operationName)} foi concluída, mas os ganhos (${money(settlement.earningsCents || 0)}) ficaram abaixo da meta de ${money(settlement.goalCents || 0)}. Sem a meta, não há pagamento pelo trabalho.`;
+      await notifyCompany(db, text(p.contractorCompanyId), { type: "PARTNERSHIP_GOAL_MISSED", partnershipId, title: "Meta não atingida", message: detail });
+      await notifyCompany(db, text(p.executorCompanyId), { type: "PARTNERSHIP_GOAL_MISSED", partnershipId, title: "Meta não atingida", message: detail });
+      return;
+    }
     const { p, settlement } = done, pix = p.payeePix as { key?: string } | undefined, value = `R$ ${(settlement.finalCents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     await notifyCompany(db, text(p.contractorCompanyId), { type: "PARTNERSHIP_PAYMENT_DUE", partnershipId, title: "Pagamento da parceria",
       message: `${text(p.operationName)} foi concluída. Pague ${value} a ${text(p.executorName)}. ${pix?.key ? `Chave Pix: ${pix.key}.` : "A chave Pix será informada por eles."}` });

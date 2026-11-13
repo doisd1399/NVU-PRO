@@ -69,14 +69,15 @@ export function estimateMaxCost(terms: Pick<RewardTerms, "perTripCents" | "bonus
 }
 
 export type AccrualTrip = { id: string; driverId: string; at: number; contractId?: string; valueCents?: number };
-export type AccrualOffer = { driverId: string; acceptedAtMs: number; deadlineMs?: number };
-export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean; simCents: number; expired: boolean; lostCents: number };
+/** `goalRequired`: oferta criada com a regra da meta (a partir da v86) — concluir a operação sem atingir a meta de ganhos não paga o trabalho. Ofertas antigas seguem a regra de antes. */
+export type AccrualOffer = { driverId: string; acceptedAtMs: number; deadlineMs?: number; goalRequired?: boolean };
+export type DriverAccrual = { trips: number; tripCents: number; bonusCents: number; totalCents: number; goalReached: boolean; simCents: number; expired: boolean; goalMissed: boolean; lostCents: number };
 /**
  * Ganho por viagem confirmada dentro do período e depois do aceite de cada motorista (cada viagem conta uma vez, em ordem de conclusão).
  * O bônus entra quando o motorista completa a meta. Ao chegar no teto a campanha para: nada além do teto é creditado.
  */
 export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips: AccrualTrip[], nowMs = Date.now()) {
-  const accepted = new Map(offers.map(offer => [offer.driverId, offer.acceptedAtMs])), deadlines = new Map(offers.map(offer => [offer.driverId, Number(offer.deadlineMs) || 0]));
+  const goalRequired = new Map(offers.map(offer => [offer.driverId, offer.goalRequired === true])), accepted = new Map(offers.map(offer => [offer.driverId, offer.acceptedAtMs])), deadlines = new Map(offers.map(offer => [offer.driverId, Number(offer.deadlineMs) || 0]));
   const seen = new Set<string>();
   const eligible = trips.filter(trip => {
     if (seen.has(trip.id)) return false; seen.add(trip.id);
@@ -85,7 +86,7 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
     const limit = deadlines.get(trip.driverId) || 0; // prazo do motorista: viagem depois do prazo não conta
     return from !== undefined && trip.at > 0 && trip.at >= Math.max(terms.startMs, from) && trip.at <= terms.endMs && (!limit || trip.at <= limit);
   }).sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
-  const drivers = new Map<string, DriverAccrual>(offers.map(offer => [offer.driverId, { trips: 0, tripCents: 0, bonusCents: 0, totalCents: 0, goalReached: false, simCents: 0, expired: false, lostCents: 0 }]));
+  const drivers = new Map<string, DriverAccrual>(offers.map(offer => [offer.driverId, { trips: 0, tripCents: 0, bonusCents: 0, totalCents: 0, goalReached: false, simCents: 0, expired: false, goalMissed: false, lostCents: 0 }]));
   let accruedCents = 0, tripsCount = 0, capped = false;
   for (const trip of eligible) {
     const row = drivers.get(trip.driverId)!;
@@ -104,6 +105,8 @@ export function accrueRewards(terms: RewardTerms, offers: AccrualOffer[], trips:
     row.totalCents = row.tripCents + row.bonusCents; if (terms.goalCents && row.simCents >= terms.goalCents) row.goalReached = true;
     // Prazo vencido sem concluir a operação: perde o pagamento (o que já tinha ganho vira "perdido" e não entra na folha).
     const deadline = deadlines.get(driverId) || 0, completed = Boolean(terms.maxTripsPerDriver) && row.trips >= (terms.maxTripsPerDriver || 0);
+    // Concluiu a operação, mas os ganhos das viagens ficaram abaixo da meta: não recebe pelo trabalho (evita viagens de valor baixo só para somar o salário por viagem).
+    if (completed && goalRequired.get(driverId) && terms.goalCents && row.simCents < terms.goalCents) { row.goalMissed = true; row.lostCents = row.totalCents; accruedCents -= row.totalCents; row.tripCents = 0; row.bonusCents = 0; row.totalCents = 0; row.goalReached = false; return; }
     if (deadline && nowMs > deadline && !completed) { row.expired = true; row.lostCents = row.totalCents; accruedCents -= row.totalCents; row.tripCents = 0; row.bonusCents = 0; row.totalCents = 0; }
   });
   return { drivers, accruedCents, tripsCount, capped };
@@ -134,8 +137,8 @@ export const normalizePayDay = (value: unknown): number => {
  * O motorista concluiu a operação: fez todas as viagens dela. Só então o salário entra na folha.
  * Campanhas antigas (sem operação) contam o que foi ganho, como antes.
  */
-export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number; expired?: boolean }): boolean => {
-  if (offer.expired) return false; // prazo perdido: não recebe
+export const offerCompleted = (offer: { totalCents: number; trips?: number; maxTripsPerDriver?: number; expired?: boolean; goalMissed?: boolean }): boolean => {
+  if (offer.expired || offer.goalMissed) return false; // prazo perdido ou meta de ganhos não atingida: não recebe
   const max = Number(offer.maxTripsPerDriver) || 0;
   return max > 0 ? (Number(offer.trips) || 0) >= max : (Number(offer.totalCents) || 0) > 0;
 };
