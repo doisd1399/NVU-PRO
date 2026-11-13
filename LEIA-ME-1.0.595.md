@@ -1,6 +1,12 @@
-# NVU PRO 1.0.594 (Android) / Web 2.3.251 / Windows 0.2.20
+# NVU PRO 1.0.595 (Android) / Web 2.3.252 / Windows 0.2.20 (sem rebuild)
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 594 — instala como atualização da 593/592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 595 — instala como atualização da 594/593/592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.595 — Modo print (GTO): "Não foi possível ler o valor recebido" com print legível
+Causa raiz (reproduzida com o print real, `Valor a receber: R$ 10.656,00`, no OCR do app):
+1. O extrator engolia a palavra seguinte ao valor (`RS 10.656,00 obrar` virava `10.656,0008`, pois O/B/S contam como dígitos parecidos) e descartava uma leitura correta.
+2. Outra região leu `10.658,00` (6→8). O contrato de evidência (cliente e servidor) trata dois valores diferentes como CONFLICT, mesmo com a maioria certa → valor nulo → aviso amarelo.
+Correção (só cliente; o servidor atual aceita sem deploy): valor bem formado logo após "Valor a receber" tem prioridade; votação por maioria entre as leituras, descartando a leitura minoritária da evidência enviada; empate continua conflito (não adivinha). Teste: `scripts/test-gto-ocr-value-extraction.mjs`.
 
 ## 1.0.594 — Windows / desktop: menu lateral, Central centralizada, fotos e acabamentos
 - **Menu lateral:** o menu flutuante vira um **menu lateral** fixo à esquerda (da barra do topo à base), com a conta, as seções e o rodapé organizados e rolagem própria; desliza para dentro. **Abre também na página de Ranking** (antes ele abria por trás da tela do Ranking).

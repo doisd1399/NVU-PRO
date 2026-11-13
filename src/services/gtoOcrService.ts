@@ -1,5 +1,5 @@
 import { withTimeout } from "../lib/asyncTimeout";
-import { hasAppliedGtoBonus, readGtoPrintEvidence, type GtoPrintEvidence } from "../../functions/src/gtoPrintEvidence";
+import { contextualGtoAmounts, hasAppliedGtoBonus, readGtoPrintEvidence, type GtoPrintEvidence } from "../../functions/src/gtoPrintEvidence";
 
 const LOCAL_TESSDATA_PATH = "/tessdata";
 const LOCAL_TESSERACT_WORKER_PATH = "/tesseract/worker.min.js";
@@ -67,6 +67,11 @@ interface DecodedImage {
 
 const MONEY_TOKEN_PATTERN =
   /[0-9OoQIl|!SsBb][0-9OoQIl|!SsBb.,\s]{1,32}[0-9OoQIl|!SsBb]/g;
+
+// Digits-only integer part (with optional thousands separators) followed by two
+// decimals; the cents may carry a look-alike letter (0→O, 5→S, 8→B...).
+const STRICT_AMOUNT_PATTERN =
+  /(?<!\d)(?:\d{1,3}(?:[., ]\d{3})+|\d+)[.,][0-9OoQIl|!SsBb]{2}(?!\d)/;
 
 const replaceLikelyDigitConfusions = (value: string): string =>
   value
@@ -178,6 +183,15 @@ const extractValueFromText = (
       /^\s*[:=\-]?\s*(?:r\s*[$s5]?|rs)?\s*/i,
       "",
     );
+    // A well-formed amount right after the label wins over the loose token
+    // pattern. The loose pattern also accepts O/B/S as digit look-alikes, so in
+    // "R$ 10.656,00 obrar valor" it swallowed the trailing "ob" of the next word
+    // ("10.656,0008") and a perfectly read amount was thrown away.
+    const strictAmount = amountContext.match(STRICT_AMOUNT_PATTERN);
+    if (strictAmount) {
+      const strictValue = normalizeMonetaryCandidate(strictAmount[0], true);
+      if (strictValue) return strictValue;
+    }
     const contextualCandidates = amountContext.match(MONEY_TOKEN_PATTERN);
 
     for (const candidate of contextualCandidates || []) {
@@ -605,6 +619,29 @@ const recognizeValueBand = async (
   return recognizeWithWorker(worker, image, 12_000);
 };
 
+/**
+ * Votes per distinct "Valor a receber" amount (one vote per transcript). When a
+ * single amount leads strictly, returns the transcripts that name a different
+ * amount so they can be excluded; returns an empty set on agreement or a tie.
+ */
+export function resolveDissentingTranscripts(transcripts: string[]): Set<string> {
+  const votes = new Map<number, number>();
+  const perText = transcripts.map((text) => {
+    const amounts = contextualGtoAmounts(text);
+    for (const amount of new Set(amounts)) votes.set(amount, (votes.get(amount) || 0) + 1);
+    return { text, amounts };
+  });
+  if (votes.size < 2) return new Set();
+  const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+  if (ranked[0][1] === ranked[1][1]) return new Set();
+  const winner = ranked[0][0];
+  const dissent = new Set<string>();
+  for (const item of perText) {
+    if (item.amounts.length && !item.amounts.includes(winner)) dissent.add(item.text);
+  }
+  return dissent;
+}
+
 export async function analyzeGtoTripReceipt(
   file: File,
   options: GtoReceiptAnalysisOptions = {},
@@ -624,6 +661,9 @@ export async function analyzeGtoTripReceipt(
       contextual: boolean;
     }> = [];
     let combinedText = "";
+    // Every OCR transcript (value crops and the broad pass) kept separately so
+    // a single misread crop (6→8, 3→8...) can be outvoted by the others.
+    const segments: string[] = [];
 
     const hasEarningsContext = (text: string): boolean => {
       const normalized = normalizeEvidenceText(text);
@@ -684,6 +724,7 @@ export async function analyzeGtoTripReceipt(
             }
           }
           combinedText = `${combinedText} ${normalizedValueText}`.trim();
+          segments.push(normalizedValueText);
         } catch (error) {
           console.warn("[NVU GTO OCR] value crop warning", valueCrop.name, threshold, error);
         }
@@ -721,14 +762,25 @@ export async function analyzeGtoTripReceipt(
         options.onValueDetected?.(value);
       }
       combinedText = `${combinedText} ${normalizedResultText}`.trim();
+      segments.push(normalizedResultText);
     } catch (error) {
       console.warn("[NVU GTO OCR] broad diagnostic warning", error);
     }
 
+    // Majority vote over the "Valor a receber" readings. Evidence is submitted
+    // to the server, which refuses any text set that names two different
+    // amounts. A lone misread crop is therefore dropped when the other readings
+    // agree on one amount; a real tie stays a conflict (never guess).
+    const dissent = resolveDissentingTranscripts(segments);
+    const keep = (text: string) => !dissent.has(text.replace(/\s+/g, " ").trim());
+    if (dissent.size) {
+      combinedText = segments.filter(keep).join(" ").trim();
+      console.log("[NVU GTO OCR] dropped dissenting transcripts", dissent.size);
+    }
     const printEvidence: GtoPrintEvidence = {
       version: 1,
-      crops: numericCandidates.map(candidate => ({ cropId: candidate.crop, text: candidate.text })),
-      resultText: broadText,
+      crops: numericCandidates.filter(candidate => keep(candidate.text)).map(candidate => ({ cropId: candidate.crop, text: candidate.text })),
+      resultText: keep(broadText) ? broadText : "",
     };
     // The displayed final amount and the server now use the same evidence
     // contract. A stale overlay's "Ganhos" cannot override "Valor a receber".
@@ -798,4 +850,5 @@ export const __gtoOcrTestUtils = {
   detectDoubledByAdEvidence,
   detectResultScreenEvidence,
   selectValidatedValueCandidate,
+  resolveDissentingTranscripts,
 };

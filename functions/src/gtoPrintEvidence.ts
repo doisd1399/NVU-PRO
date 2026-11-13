@@ -17,6 +17,14 @@ function amounts(raw: string): number[] {
   const tokens = raw.match(/(?<![\w.,])(?:\d{1,3}(?:[., ]\d{3})+|\d+)[.,]\d{2}(?!\d)/g) || [];
   return tokens.map(value => readReceiptAmountCents(value.replace(/\s/g, ""))).filter((v): v is number => v !== null && v > 0 && v <= 1_000_000_000);
 }
+/** Amounts printed right after "Valor a receber" in one OCR transcript. */
+export function contextualGtoAmounts(text: string): number[] {
+  const found = new Set<number>();
+  for (const match of normalize(text).matchAll(/valor\s*(?:a\s*)?receber\s*[:=\-]?\s*(?:r\s*[$s5]?\s*)?([^a-z]{0,60})/g)) {
+    amounts(match[1]).forEach(amount => found.add(amount));
+  }
+  return [...found];
+}
 export function hasAppliedGtoBonus(raw: string): boolean {
   const t = normalize(raw);
   if (/\b(?:valor|ganhos?) (?:foi |foram |ja )?(?:dobrad[oa]s?|duplicad[oa]s?)\b/.test(t)) return true;
@@ -54,13 +62,7 @@ export function readGtoPrintEvidence(raw: unknown, evidence?: unknown): GtoPrint
     return { amountCents, reason, ...(currencies.size === 1 ? { currency: [...currencies][0] } : currencies.size > 1 ? { currencyConflict: true } : {}) };
   };
   const contextual = new Set<number>();
-  for (const text of texts) {
-    const t = normalize(text);
-    for (const match of t.matchAll(/valor\s*(?:a\s*)?receber\s*[:=\-]?\s*(?:r\s*[$s5]?\s*)?([^a-z]{0,60})/g)) {
-      const found = amounts(match[1]);
-      found.forEach(amount => contextual.add(amount));
-    }
-  }
+  for (const text of texts) contextualGtoAmounts(text).forEach(amount => contextual.add(amount));
   if (contextual.size > 1) return fail("CONFLICT");
   if (contextual.size === 1) return accept([...contextual][0], "CONTEXT");
   const result = normalize(resultText || raw);
