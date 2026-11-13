@@ -95,3 +95,9 @@
   .nvu-senior-submission { font-size:11px; }
   .nvu-senior-simulator { font-size:12px; padding-inline:16px; }
 }
+
+/* Windows / desktop: os cards do Painel Sênior não usam traçado ao redor (como os cards da Central) e o cabeçalho não tem linha divisória. */
+@media (min-width: 768px) {
+  .nvu-senior-summary, .nvu-senior-registration-row, .nvu-senior-empty { border-color: transparent; }
+  .nvu-senior-review-header { border-bottom-color: transparent; }
+}

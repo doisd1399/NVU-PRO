@@ -3,6 +3,7 @@ import React, { useEffect, useId, useState } from "react";
 import { ChartNoAxesColumnIncreasing, ChevronDown, Clock3, Copy, Download, ExternalLink, Info, Truck } from "lucide-react";
 import { StableImage } from "../../common/StableImage";
 import { useVehiclePhoto } from "../../../hooks/useVehiclePhoto";
+import { useNaturalPhotoRatio } from "../../../hooks/useNaturalPhotoRatio";
 import { shortName } from "../../../lib/partnerships";
 import { ManagementDialog } from "./ManagementDialog";
 
@@ -80,6 +81,7 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, onResults
   const [paintsOpen, setPaintsOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const photoId = useId();
+  const natural = useNaturalPhotoRatio(1.4, 2.6);
   const { currentUser } = useSessionStore();
   useEffect(() => { if (!active) setPaintsOpen(false); }, [active]);
   const asContractor = operation.partnership?.role === "contractor";
@@ -103,8 +105,8 @@ export function ManagementOperationCard({ operation, onInfo, onDriver, onResults
     </div>
     {operation.partnership && <p className="nvu-central-partnership-strip"><span className="nvu-partnership-tag">Parceria</span>
       <span>{asContractor ? <>Executada por <strong>{shortName(operation.partnership.executorName)}</strong></> : <>Contratada por <strong>{shortName(operation.partnership.contractorName)}</strong></>}</span></p>}
-    {expanded && <div id={photoId} className="nvu-central-vehicle-photo">
-      <StableImage src={asContractor ? photo.src || operation.partnership?.photoUrl : photo.src} onLoad={asContractor && !photo.src ? undefined : photo.onImageLoad} onError={asContractor && !photo.src ? undefined : photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
+    {expanded && <div id={photoId} className="nvu-central-vehicle-photo" style={natural.style}>
+      <StableImage src={asContractor ? photo.src || operation.partnership?.photoUrl : photo.src} onLoad={event => { natural.onLoad(event); if (!(asContractor && !photo.src)) photo.onImageLoad?.(); }} onError={asContractor && !photo.src ? undefined : photo.onImageError} alt={`Foto de ${operation.vehicleName}`} wrapperClassName="nvu-central-photo-frame" className="object-cover"
         loading="lazy" fallback={<div className="nvu-central-photo-empty"><Truck size={30} /><span>{photo.remoteStatus === "loading" && !photo.src ? "Carregando foto do veículo…" : asContractor ? "Este veículo ainda não tem foto cadastrada" : "Foto do veículo indisponível"}</span></div>} />
     </div>}
     <div className="nvu-central-vehicle-line">

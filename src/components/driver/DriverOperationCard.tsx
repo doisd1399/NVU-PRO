@@ -3,6 +3,7 @@ import { Download, ImagePlus, Info } from "lucide-react";
 import "../admin/management/ManagementDashboard.css";
 import "./DriverOperationCard.css";
 import { CachedImage } from "../common/CachedImage";
+import { useNaturalPhotoRatio } from "../../hooks/useNaturalPhotoRatio";
 import { OperationProgressBar } from "../common/OperationProgressBar";
 import { DriverOperationTiming } from "./DriverOperationTiming";
 import { DriverStatusRow } from "./DriverStatusRow";
@@ -31,11 +32,12 @@ export type DriverOperationCardProps = {
  * progress, start button, remaining time, availability.
  */
 export function DriverOperationCard({ photo, info, finish, notice, partnership, vehicle, progress, sync, timing, status }: DriverOperationCardProps) {
+  const natural = useNaturalPhotoRatio(2.0, 2.63);
   return <section className="order-3 nvu-driver-op-card nvu-central-palette nvu-central-operation mb-3 sm:mb-4 mt-0" aria-label="Operação atual" data-testid="driver-operation-card">
     <input ref={photo.inputRef} type="file" accept="image/*" className="hidden" onChange={photo.onFileSelected} />
-    <button type="button" className="nvu-central-vehicle-photo nvu-driver-op-photo nvu-driver-vehicle-photo" disabled={photo.busy || !photo.canEdit}
+    <button type="button" className="nvu-central-vehicle-photo nvu-driver-op-photo nvu-driver-vehicle-photo" style={natural.style} disabled={photo.busy || !photo.canEdit}
       aria-label={photo.src ? "Substituir foto do veículo" : "Adicionar foto do veículo"} onClick={photo.onPick}>
-      {photo.src ? <CachedImage src={photo.src} alt="Fotografia cadastrada do veículo" className="h-full w-full object-cover" />
+      {photo.src ? <CachedImage src={photo.src} alt="Fotografia cadastrada do veículo" className="h-full w-full object-cover" onLoad={natural.onLoad} />
         : <span className="nvu-driver-op-photo-empty"><ImagePlus size={20} aria-hidden="true" /> Adicionar foto do veículo</span>}
       {photo.busy && <span className="nvu-driver-op-photo-busy">Salvando…</span>}
     </button>

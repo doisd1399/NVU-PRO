@@ -252,11 +252,12 @@ body .nvu-central-shell .nvu-admin-shell-content > main > div:first-child { padd
 .nvu-landscape-central .nvu-central-stack {
   display: grid;
   /* 1 title | 2 offline note | 3 company | 4 summary | 5 management (spare height) | 6 requests | 7 sync status */
-  grid-template-columns: clamp(300px, 38%, 355px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
   column-gap: 16px;
   width: 100%;
-  max-width: 912px;
+  max-width: 560px;
+  margin-inline: auto;
   height: min(var(--central-avail), 880px);
   min-height: var(--central-min);
   padding: var(--central-top) 14px var(--central-bottom);
@@ -452,19 +453,14 @@ body .nvu-landscape-central .nvu-central-company-row { grid-column: 1; grid-row:
 .nvu-partnership-tag { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase;
   background: var(--central-highlight, #e0f7fa); color: var(--central-accent, #00899a); vertical-align: 1px; }
 
-/* Desktop / janela larga (Windows): a foto do veículo aparece inteira, sem cortar, sem faixas cinzas ao redor e com as bordas levemente arredondadas.
-   A caixa se ajusta à proporção da própria foto (sem letterbox); onde a altura é fixa (painel horizontal), a foto é centralizada em tamanho proporcional
-   — nos dois casos o arredondamento fica na foto, não numa caixa maior. Em celular segue o enquadramento compacto de sempre. */
+/* Desktop / janela larga (Windows): a foto do veículo aparece inteira, sem faixas cinzas ao redor e com as bordas levemente arredondadas.
+   A caixa adota a proporção real da foto (medida ao carregar: --central-photo-natural) e a imagem a preenche por completo; o arredondamento
+   fica na caixa, que tem a mesma forma da foto. Antes de carregar (e sem foto) vale a proporção padrão. Em celular segue o enquadramento compacto. */
 @media (min-width: 768px) {
-  .nvu-central-vehicle-photo { background: transparent; }
-  .nvu-central-vehicle-photo .nvu-central-photo-frame { display: flex; align-items: center; justify-content: center; }
-  .nvu-central-vehicle-photo img { width: auto; height: auto; max-width: 100%; max-height: 100%; }
-  .nvu-central-stack .nvu-central-vehicle-photo { aspect-ratio: auto; }
-  .nvu-central-stack .nvu-central-vehicle-photo .nvu-central-photo-frame { display: block; height: auto; }
-  .nvu-central-stack .nvu-central-vehicle-photo img { width: 100%; height: auto; max-height: 560px; }
-  .nvu-central-stack .nvu-central-vehicle-photo:has(.nvu-central-photo-empty) { aspect-ratio: 1.9; background: var(--central-soft); }
-  .nvu-central-vehicle-photo.nvu-driver-op-photo img { width: auto; height: auto; max-width: 100%; max-height: 100%; }
-  .nvu-central-vehicle-photo img, .nvu-central-photo-frame img { object-fit: contain !important; border-radius: 12px; }
+  .nvu-central-vehicle-photo { background: transparent; border-radius: 12px; overflow: hidden; aspect-ratio: var(--central-photo-natural, var(--central-photo-ratio, 2.3)); }
+  .nvu-central-stack .nvu-central-vehicle-photo { aspect-ratio: var(--central-photo-natural, 1.9); }
+  .nvu-central-vehicle-photo:has(.nvu-central-photo-empty, .nvu-driver-op-photo-empty) { background: var(--central-soft); }
+  .nvu-central-vehicle-photo img, .nvu-central-photo-frame img { object-fit: cover !important; border-radius: 0; }
 }
 
 /* "Dados salvos · data/hora" não empurra a página: aparece como uma etiqueta flutuante acima da dock (a Central abre já na posição final). */

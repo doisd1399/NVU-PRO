@@ -356,8 +356,10 @@ test("Central: Carteira (era Pagamentos), página própria de Trabalhos ativos a
   assert.match(tab, /OperationResultsPage/); assert.doesNotMatch(tab, /OperationResultModal/, "o ícone abre a página de resultados, não a janela de informações");
   assert.match(readFileSync("src/pages/admin/ActiveJobs.tsx", "utf8"), /resultsId \? "Resultados" : "Trabalhos ativos"/);
   assert.match(css, /\.nvu-central-cache-status \{ position: fixed;/, "Dados salvos não empurra a Central para baixo");
-  const desktop = css.slice(css.indexOf("@media (min-width: 768px) {\n  .nvu-central-vehicle-photo { background: transparent; }"));
-  assert.match(desktop, /aspect-ratio: auto/); assert.match(desktop, /border-radius: 12px/); assert.match(desktop, /background: transparent/);
+  const desktop = css.slice(css.indexOf("@media (min-width: 768px) {\n  .nvu-central-vehicle-photo { background: transparent;"));
+  assert.match(desktop, /--central-photo-natural/, "a caixa adota a proporção real da foto"); assert.match(desktop, /border-radius: 12px/); assert.match(desktop, /background: transparent/); assert.match(desktop, /object-fit: cover !important/, "a foto preenche a caixa: sem faixas cinzas");
+  assert.match(card, /useNaturalPhotoRatio/); assert.match(readFileSync("src/components/driver/DriverOperationCard.tsx", "utf8"), /useNaturalPhotoRatio/, "o painel do motorista usa a mesma foto ajustada ao card");
+  assert.doesNotMatch(css, /nvu-central-stack \.nvu-central-vehicle-photo \{ aspect-ratio: auto/, "a caixa da foto nunca colapsa (as imagens são absolutas): foto some");
 });
 test("Parcerias: o pagamento usa o mesmo método da Carteira (chave, valor, Pix copia e cola e QR Code do valor exato)", () => {
   const pix = readFileSync("src/components/partnerships/PixSection.tsx", "utf8"), parts = readFileSync("src/components/rewards/PaymentParts.tsx", "utf8");
@@ -373,5 +375,15 @@ test("Resultados da operação comum: % = viagens feitas ÷ previstas (sem meta)
   assert.equal(buildOperationResults([trip("2026-11-10T10:00:00Z", 10), trip("2026-11-10T11:00:00Z", 10)], 1).percent, 100, "nunca passa de 100%");
   assert.equal(buildOperationResults([], 5).percent, 0); assert.equal(buildOperationResults([trip("2026-11-10T10:00:00Z", 10)], 0).percent, 0, "sem total previsto, não inventa porcentagem");
   const mixed = buildOperationResults([trip("2026-11-10T10:00:00Z", 10, "BRL"), trip("2026-11-10T11:00:00Z", 20, "BRL"), trip("2026-11-10T12:00:00Z", 5, "USD")], 3); assert.deepEqual([mixed.currency, mixed.earningsCents, mixed.outsideTotals], ["BRL", 3000, 1], "outra moeda não entra nos ganhos");
+});
+test("Windows: menu lateral, Central centralizada, dock mais estreita, sem divisória do cabeçalho, respiro no histórico e Painel Sênior sem traçado", () => {
+  const index = readFileSync("src/index.css", "utf8"), dash = readFileSync("src/components/admin/management/ManagementDashboard.css", "utf8");
+  assert.match(index, /@media \(min-width: 821px\) \{\n  \.nvu-desktop-shell \[data-nvu-unified-profile-menu\]\.nvu-floating-menu-card \{\n    top: 3rem; bottom: 0; left: 0;/, "menu lateral encostado à esquerda, da barra à base");
+  assert.match(index, /nvu-native-sidebar-open \{ transform: translateX\(0\)/); assert.match(index, /body:has\(\.nvu-ranking-overlay\) \.nvu-native-menu-overlay \{ z-index: 2090/, "o menu abre também por cima do Ranking");
+  assert.match(dash, /\.nvu-landscape-central \.nvu-central-stack \{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*max-width: 560px;[^}]*margin-inline: auto;/, "Gerenciar empresa e Resumo operacional centralizados");
+  assert.match(readFileSync("src/components/WorkspaceDock.css", "utf8"), /nvu-driver-dock \{ max-width: 360px; \}/);
+  for (const file of ["src/layouts/DriverLayout.tsx", "src/layouts/AdminLayout.tsx", "src/pages/RankingGlobal.tsx"]) assert.match(readFileSync(file, "utf8"), /md:border-b-0/, `${file}: sem a linha fina do cabeçalho`);
+  assert.match(readFileSync("src/pages/driver/TripHistory.tsx", "utf8"), /"flex flex-col gap-3 md:gap-5 w-full"/);
+  assert.match(readFileSync("src/pages/admin/SeniorPanel.css", "utf8"), /\.nvu-senior-summary, \.nvu-senior-registration-row, \.nvu-senior-empty \{ border-color: transparent; \}/); assert.match(readFileSync("src/pages/admin/SeniorPanel.tsx", "utf8"), /md:border-transparent/);
 });
 console.log(`${checks} verificações de Recompensas passaram.`);

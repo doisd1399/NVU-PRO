@@ -447,7 +447,7 @@ export default function AdminLayout() {
         isCompanyProfileRoute && "nvu-profile-chrome-header",
         nativeAndroid && isCompanyProfileRoute
           ? "bg-transparent border-transparent text-white"
-          : "bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line",
+          : "bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line md:border-b-0",
       )}
         ref={headerRef}
         data-nvu-hero-chrome={isCompanyProfileRoute ? (heroChromeActive ? "active" : "settled") : undefined}

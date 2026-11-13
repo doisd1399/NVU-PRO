@@ -1560,7 +1560,7 @@ export default function SeniorPanel() {
   if (!unlocked || catalogViewer !== currentUid) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] p-4">
-        <Card className="w-full max-w-sm rounded-[24px] overflow-hidden border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface shadow-xl dark:shadow-none">
+        <Card className="w-full max-w-sm rounded-[24px] overflow-hidden border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent bg-white dark:bg-nvu-surface shadow-xl dark:shadow-none">
           <CardContent className="p-8">
             <h2 className="text-xl font-bold text-gray-900 dark:text-nvu-text mb-2 text-center">
               Painel Senior
@@ -1647,7 +1647,7 @@ export default function SeniorPanel() {
   return (
     <div className="nvu-senior-page max-w-[1000px] mx-auto px-3 sm:px-5 lg:px-6 pt-1 sm:pt-2 pb-6 space-y-2.5 sm:space-y-4">
       {/* Corporate Banner Header */}
-      <div className="relative overflow-hidden bg-white/70 dark:bg-nvu-surface/70 backdrop-blur-xl border border-slate-200/60 dark:border-nvu-line/60 rounded-[18px] sm:rounded-[22px] px-5 sm:px-8 py-5 sm:py-6 shadow-[0_4px_24px_-12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.5)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="relative overflow-hidden bg-white/70 dark:bg-nvu-surface/70 backdrop-blur-xl border border-slate-200/60 dark:border-nvu-line/60 md:border-transparent md:dark:border-transparent rounded-[18px] sm:rounded-[22px] px-5 sm:px-8 py-5 sm:py-6 shadow-[0_4px_24px_-12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_24px_-12px_rgba(0,0,0,0.5)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-50/50 to-slate-100/30 dark:from-white/[0.02] dark:to-transparent pointer-events-none" />
         
         <div className="absolute top-4 right-4 sm:top-5 sm:right-5 z-20">
@@ -1694,7 +1694,7 @@ export default function SeniorPanel() {
 
       {activeTab === "settings" && (
         <div className="space-y-6 animate-in fade-in duration-300">
-          <Card className="rounded-[24px] overflow-hidden border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface shadow-sm dark:shadow-none">
+          <Card className="rounded-[24px] overflow-hidden border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent bg-white dark:bg-nvu-surface shadow-sm dark:shadow-none">
             <CardContent className="p-8 space-y-6">
               <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-nvu-text flex items-center gap-2 mb-2">
@@ -1706,7 +1706,7 @@ export default function SeniorPanel() {
                 </p>
     </div>
 
-              <div className="bg-gray-50 dark:bg-nvu-page border border-gray-100 dark:border-nvu-line rounded-2xl p-6 flex flex-col gap-6 justify-between items-start">
+              <div className="bg-gray-50 dark:bg-nvu-page border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent rounded-2xl p-6 flex flex-col gap-6 justify-between items-start">
                 <div className="w-full flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 dark:border-nvu-line bg-white dark:bg-nvu-page/40 p-4">
                   <div>
                     <h3 className="font-bold text-gray-900 dark:text-white text-[16px]">Controle de envio de viagens</h3>
@@ -1744,10 +1744,10 @@ export default function SeniorPanel() {
             <ChevronLeft size={18} className="mr-2" /> Voltar para Lista
           </Button>
 
-          <Card className="rounded-[24px] overflow-hidden border border-gray-100 dark:border-nvu-line bg-white dark:bg-nvu-surface shadow-sm dark:shadow-none">
+          <Card className="rounded-[24px] overflow-hidden border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent bg-white dark:bg-nvu-surface shadow-sm dark:shadow-none">
             <CardContent className="p-8">
               <div className="flex items-center gap-6 mb-8">
-                <div className="w-20 h-20 bg-blue-50 dark:bg-nvu-strip rounded-2xl flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-nvu-line">
+                <div className="w-20 h-20 bg-blue-50 dark:bg-nvu-strip rounded-2xl flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                   {selectedCompany.logoUrl ? (
                     <CachedImage
                       src={selectedCompany.logoUrl}
@@ -1777,7 +1777,7 @@ export default function SeniorPanel() {
     </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line">
+                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                   <p className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium flex items-center gap-2">
                     <Users size={14} className="text-blue-500" /> Equipe
                     Registrada
@@ -1786,7 +1786,7 @@ export default function SeniorPanel() {
                     {selectedCompany.totalEmployees}
                   </p>
     </div>
-                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line">
+                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                   <p className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium flex items-center gap-2">
                     <Navigation size={14} className="text-green-500" /> Operações
                     Carregadas
@@ -1795,7 +1795,7 @@ export default function SeniorPanel() {
                     {selectedCompany.totalOperations}
                   </p>
     </div>
-                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line">
+                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                   <p className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium flex items-center gap-2">
                     <FileText size={14} className="text-purple-500" /> Total
                     Contratos
@@ -1804,7 +1804,7 @@ export default function SeniorPanel() {
                     {selectedCompany.totalContracts}
                   </p>
     </div>
-                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line">
+                <div className="bg-gray-50 dark:bg-nvu-page p-4 rounded-2xl border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                   <p className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium flex items-center gap-2">
                     <Truck size={14} className="text-orange-500" /> Veículos na
                     Frota
@@ -1906,7 +1906,7 @@ export default function SeniorPanel() {
                       const user = allUsers.find(u => u.id === member.userId);
                       const name = user ? `${user.firstName || ""} ${user.lastName || ""}`.trim() : "Usuário Desconhecido";
                       return (
-                        <div key={member.id} className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between bg-gray-50 dark:bg-nvu-page p-3 rounded-xl border border-gray-100 dark:border-nvu-line">
+                        <div key={member.id} className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between bg-gray-50 dark:bg-nvu-page p-3 rounded-xl border border-gray-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                           <div>
                             <p className="text-[13px] font-bold text-gray-900 dark:text-white">{name}</p>
                             <p className="text-[11px] text-gray-500 dark:text-nvu-muted font-mono mt-0.5">{user?.email || "Sem e-mail"} • ID: {member.userId}</p>
@@ -1958,12 +1958,12 @@ export default function SeniorPanel() {
             </p>
           )}
           {loadingCompanies && allCompanies.length === 0 ? (
-            <div className="bg-white dark:bg-nvu-surface border border-slate-100 dark:border-nvu-line rounded-[24px] p-10 text-center shadow-sm">
+            <div className="bg-white dark:bg-nvu-surface border border-slate-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent rounded-[24px] p-10 text-center shadow-sm">
               <Building2 size={44} className="mx-auto text-slate-300 dark:text-slate-700 mb-3 animate-pulse" />
               <p className="text-slate-500 font-medium">Carregando empresas...</p>
             </div>
           ) : filteredCompanies.length === 0 ? (
-            <div className="bg-white dark:bg-nvu-surface border border-slate-100 dark:border-nvu-line rounded-[24px] p-10 text-center shadow-sm">
+            <div className="bg-white dark:bg-nvu-surface border border-slate-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent rounded-[24px] p-10 text-center shadow-sm">
               <Building2 size={44} className="mx-auto text-slate-300 dark:text-slate-700 mb-3" />
               <p className="text-slate-500 font-medium">Nenhuma empresa encontrada para este filtro.</p>
     </div>
@@ -1979,11 +1979,11 @@ export default function SeniorPanel() {
               return (
               <article
                 key={company.id}
-                className="bg-white/95 dark:bg-nvu-surface/95 border border-slate-100 dark:border-nvu-line rounded-[20px] sm:rounded-[22px] px-3 py-3 sm:p-5 shadow-[0_10px_35px_-26px_rgba(15,23,42,0.55)] overflow-hidden"
+                className="bg-white/95 dark:bg-nvu-surface/95 border border-slate-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent rounded-[20px] sm:rounded-[22px] px-3 py-3 sm:p-5 shadow-[0_10px_35px_-26px_rgba(15,23,42,0.55)] overflow-hidden"
               >
                 <div className="grid grid-cols-[minmax(0,1.28fr)_minmax(128px,.72fr)] sm:grid-cols-[minmax(0,1fr)_300px] gap-2.5 sm:gap-5 items-stretch">
                   <div className="flex gap-2.5 sm:gap-4 min-w-0">
-                    <div className="w-12 h-12 sm:w-[76px] sm:h-[76px] rounded-[14px] sm:rounded-[18px] bg-slate-100 dark:bg-nvu-surface overflow-hidden flex items-center justify-center shrink-0 border border-slate-100 dark:border-nvu-line">
+                    <div className="w-12 h-12 sm:w-[76px] sm:h-[76px] rounded-[14px] sm:rounded-[18px] bg-slate-100 dark:bg-nvu-surface overflow-hidden flex items-center justify-center shrink-0 border border-slate-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent">
                       {company.logoUrl ? (
                         <CachedImage src={company.logoUrl} alt={`Logo de ${company.companyName}`} className="w-full h-full object-cover" />
                       ) : (
@@ -2084,7 +2084,7 @@ export default function SeniorPanel() {
                           return (
                             <div
                               key={`${company.id}:${member.userId}`}
-                              className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-nvu-line bg-slate-50/80 dark:bg-nvu-page/50 px-3 py-2.5"
+                              className="relative flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-xl border border-slate-100 dark:border-nvu-line md:border-transparent md:dark:border-transparent bg-slate-50/80 dark:bg-nvu-page/50 px-3 py-2.5"
                             >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2 min-w-0">
@@ -2186,7 +2186,7 @@ export default function SeniorPanel() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-nvu-surface rounded-[24px] p-6 w-full max-w-sm shadow-xl flex flex-col gap-4 animate-in zoom-in-95 duration-200">
             <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white pb-2 border-b border-gray-100 dark:border-nvu-line mb-3">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white pb-2 border-b border-gray-100 dark:border-nvu-line md:border-b-0 mb-3">
                 Remover Empresa
               </h3>
               <p className="text-[14px] text-gray-500 dark:text-nvu-muted">
@@ -2220,7 +2220,7 @@ export default function SeniorPanel() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-nvu-surface rounded-[24px] p-6 w-full max-w-sm shadow-xl flex flex-col gap-4 animate-in zoom-in-95 duration-200">
             <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white pb-2 border-b border-gray-100 dark:border-nvu-line mb-3">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white pb-2 border-b border-gray-100 dark:border-nvu-line md:border-b-0 mb-3">
                 Remover Solicitação
               </h3>
               <p className="text-[14px] text-gray-500 dark:text-nvu-muted">

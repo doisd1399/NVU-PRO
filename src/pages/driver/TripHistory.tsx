@@ -2473,7 +2473,7 @@ export default function TripHistory({
       )}
       <div
         className={cn(
-          "flex flex-col gap-3 w-full",
+          "flex flex-col gap-3 md:gap-5 w-full",
           compactDriverView || hideFloatingSummary ? "pb-0 px-0" : "pb-4 px-0",
           !compactDriverView && "nvu-trip-history-list nvu-company-fill"
         )}

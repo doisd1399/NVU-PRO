@@ -1,7 +1,7 @@
 {
   "name": "nvu-operacional",
   "private": true,
-  "version": "2.3.250",
+  "version": "2.3.251",
   "stableReleaseName": "NVU PRO Auditoria 2026-10-27 (candidata)",
   "officialStableRelease": false,
   "selfHostedOtaEnabled": false,

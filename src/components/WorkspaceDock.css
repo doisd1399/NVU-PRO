@@ -29,7 +29,7 @@
 
 /* Tablets and desktops: the bottom pill does not need the phone's full width. */
 @media (min-width: 768px) {
-  .nvu-workspace-dock-region > nav.nvu-driver-dock { max-width: 440px; }
+  .nvu-workspace-dock-region > nav.nvu-driver-dock { max-width: 360px; }
 }
 
 .nvu-workspace-dock-space {

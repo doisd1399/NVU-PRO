@@ -1271,7 +1271,7 @@ export default function RankingGlobal() {
 
   return (
     <div className="nvu-ranking-page nvu-gamer-ranking min-h-screen bg-gray-50 dark:bg-nvu-surface text-gray-900 dark:text-nvu-text font-sans pb-10">
-      <header className="nvu-ranking-app-header flex items-center justify-between px-4 z-30 bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line text-gray-900 dark:text-white">
+      <header className="nvu-ranking-app-header flex items-center justify-between px-4 z-30 bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line md:border-b-0 text-gray-900 dark:text-white">
         <div className="flex items-center gap-3">
           <button
             type="button"

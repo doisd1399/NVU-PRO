@@ -1,6 +1,15 @@
-# NVU PRO 1.0.593 (Android) / Web 2.3.250 / Windows 0.2.19
+# NVU PRO 1.0.594 (Android) / Web 2.3.251 / Windows 0.2.20
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 593 — instala como atualização da 592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 594 — instala como atualização da 593/592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.594 — Windows / desktop: menu lateral, Central centralizada, fotos e acabamentos
+- **Menu lateral:** o menu flutuante vira um **menu lateral** fixo à esquerda (da barra do topo à base), com a conta, as seções e o rodapé organizados e rolagem própria; desliza para dentro. **Abre também na página de Ranking** (antes ele abria por trás da tela do Ranking).
+- **Central de gestão:** **Resumo operacional e Gerenciar empresa centralizados** na página (uma coluna no meio; a coluna da direita era a lista de trabalhos, que agora tem página própria).
+- **Fotos dos veículos:** voltaram a aparecer em **Trabalhos ativos** (a caixa da foto tinha colapsado). A caixa agora adota a **proporção real da foto** e a imagem a preenche inteira: **sem faixas cinzas**, bordas arredondadas, e **no painel do motorista a foto se ajusta ao card** (não fica mais pequena).
+- **Dock** mais estreita no desktop (pílula de 360 px).
+- **Sem a linha fina de divisória** do cabeçalho (páginas, Ranking e Painel Sênior); **Painel Sênior sem traçado ao redor dos cards**.
+- **Histórico de viagens** com **mais respiro** entre cada viagem no desktop.
+- Sem mudança no servidor (nada a publicar).
 
 ## 1.0.593 — Resultados da operação como página; “Dados salvos” não empurra a Central
 - **Ícone de resultados nas operações da empresa** agora abre a **página “Resultados”** (a mesma dos resultados da parceria: anel, ganho em viagens, média, melhor viagem, gráfico por viagem e lista das viagens), no lugar da janela de informações. **Adaptada:** operação comum não tem meta, então a **porcentagem é a execução das viagens** (feitas ÷ previstas). Botão “Trabalhos ativos” volta para a lista.

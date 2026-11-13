@@ -49,11 +49,11 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p dist-apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist-apk/NVU-PRO-2.3.250-debug.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-apk/NVU-PRO-2.3.251-debug.apk
           ls -lh dist-apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: NVU-PRO-2.3.250-debug-apk
-          path: dist-apk/NVU-PRO-2.3.250-debug.apk
+          name: NVU-PRO-2.3.251-debug-apk
+          path: dist-apk/NVU-PRO-2.3.251-debug.apk
           if-no-files-found: error

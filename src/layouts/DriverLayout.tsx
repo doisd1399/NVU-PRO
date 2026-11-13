@@ -455,7 +455,7 @@ export default function DriverLayout() {
               "nvu-native-header nvu-profile-native-header nvu-profile-chrome-header fixed top-0 left-0 right-0 h-11 md:h-12 flex items-center px-4 md:px-6 justify-between z-50",
               isDriverHeroRoute
                 ? "bg-transparent border-transparent text-white"
-                : "bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line",
+                : "bg-white dark:bg-nvu-page border-b border-gray-100 dark:border-nvu-line md:border-b-0",
             )}
             ref={headerRef}
             data-nvu-hero-chrome={isDriverHeroRoute ? (heroChromeActive ? "active" : "settled") : undefined}
