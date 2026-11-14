@@ -71,6 +71,8 @@
       "voice-native",
       "voice-ui",
       "desktop-side-menu",
+      "scs-summary-words",
+      "scs-bus-ocr",
       "voice-bridge"
     ],
     "release": [
@@ -112,6 +114,8 @@
       "voice-native",
       "voice-ui",
       "desktop-side-menu",
+      "scs-summary-words",
+      "scs-bus-ocr",
       "voice-bridge"
     ]
   },
@@ -463,6 +467,24 @@
         "scripts/test-voice-native.mjs"
       ],
       "timeoutMs": 60000
+    },
+    "scs-summary-words": {
+      "label": "ETS2/ATS: leitura por palavras do resumo (rota, km por votação, Total conferido pela soma)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-scs-summary-words.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "scs-bus-ocr": {
+      "label": "ETS2: OCR real do print do ônibus (Porto → Gijon, 618 km, 10.595) em Chromium",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-scs-bus-ocr.mjs"
+      ],
+      "timeoutMs": 240000
     },
     "desktop-side-menu": {
       "label": "Windows: menu lateral medido em Chromium (19rem, da barra à base)",
