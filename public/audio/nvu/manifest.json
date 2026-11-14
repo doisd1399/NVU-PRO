@@ -1,0 +1,504 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "voiceApproval": "approved",
+  "voices": {
+    "female": {
+      "label": "Feminina",
+      "tempo": 1.12
+    },
+    "male": {
+      "label": "Masculina",
+      "tempo": 1.24
+    }
+  },
+  "clips": [
+    {
+      "id": "driver_greeting_1",
+      "voice": "female",
+      "text": "Bem-vindo de volta. Vamos à próxima viagem.",
+      "path": "female/driver_greeting_1.mp3",
+      "durationSeconds": 3.553,
+      "sizeBytes": 57567,
+      "sha256": "a7e8f65267700073afba15a13fb9cf10c89b94cbccbdc6a0d5fdcac8a1e352cf"
+    },
+    {
+      "id": "driver_greeting_1",
+      "voice": "male",
+      "text": "Bem-vindo de volta. Vamos à próxima viagem.",
+      "path": "male/driver_greeting_1.mp3",
+      "durationSeconds": 3.736,
+      "sizeBytes": 60491,
+      "sha256": "04971bd0f411f16d273af0afd4b45b72ea988b5803d079861f5bb76992552184"
+    },
+    {
+      "id": "driver_greeting_2",
+      "voice": "female",
+      "text": "Bom ter você por aqui. Vamos seguir viagem.",
+      "path": "female/driver_greeting_2.mp3",
+      "durationSeconds": 3.474,
+      "sizeBytes": 56312,
+      "sha256": "2d3224e0003e5e498430898729d8b73eb562b7af28786fbbf4bfcf0c7bc33ba0"
+    },
+    {
+      "id": "driver_greeting_2",
+      "voice": "male",
+      "text": "Bom ter você por aqui. Vamos seguir viagem.",
+      "path": "male/driver_greeting_2.mp3",
+      "durationSeconds": 3.657,
+      "sizeBytes": 59236,
+      "sha256": "34ab7cd96416b8cfe8ff9e432224b9adb699b4ee2fac0ce2c5b8099419f53cda"
+    },
+    {
+      "id": "driver_greeting_3",
+      "voice": "female",
+      "text": "Ao seu lado, em cada viagem. Podemos começar.",
+      "path": "female/driver_greeting_3.mp3",
+      "durationSeconds": 3.657,
+      "sizeBytes": 59240,
+      "sha256": "14286614f84749b748bb122c8a650b83142421deef702712e6245b89f1009ef4"
+    },
+    {
+      "id": "driver_greeting_3",
+      "voice": "male",
+      "text": "Ao seu lado, em cada viagem. Podemos começar.",
+      "path": "male/driver_greeting_3.mp3",
+      "durationSeconds": 3.997,
+      "sizeBytes": 64671,
+      "sha256": "523d436f564a26a7fefc96aa3531a36a16f9a884d2605a4fda3dfd4c3fd7f217"
+    },
+    {
+      "id": "driver_greeting_4",
+      "voice": "female",
+      "text": "Bem-vindo. Vamos conferir seu próximo trabalho.",
+      "path": "female/driver_greeting_4.mp3",
+      "durationSeconds": 3.605,
+      "sizeBytes": 58406,
+      "sha256": "7cf5822d014619621498f229f0af77f0b13eb9d189cd05ad33030c261aea2ea5"
+    },
+    {
+      "id": "driver_greeting_4",
+      "voice": "male",
+      "text": "Bem-vindo. Vamos conferir seu próximo trabalho.",
+      "path": "male/driver_greeting_4.mp3",
+      "durationSeconds": 3.709,
+      "sizeBytes": 60076,
+      "sha256": "74c65aa2bece41136df4745e4ca7bd08c6112860a3ba2de18295770a6f2764ab"
+    },
+    {
+      "id": "driver_greeting_5",
+      "voice": "female",
+      "text": "A próxima etapa começa aqui. Vamos em frente.",
+      "path": "female/driver_greeting_5.mp3",
+      "durationSeconds": 3.579,
+      "sizeBytes": 57987,
+      "sha256": "a7527ef7d7b4527f870fef8aba6caae1017c1ba3306ea6696972212ed02a64d0"
+    },
+    {
+      "id": "driver_greeting_5",
+      "voice": "male",
+      "text": "A próxima etapa começa aqui. Vamos em frente.",
+      "path": "male/driver_greeting_5.mp3",
+      "durationSeconds": 3.683,
+      "sizeBytes": 59657,
+      "sha256": "0a8bd44c33566ad0660d59b269a14cc6bd20e83bce1b6be9b33751db6814d5a2"
+    },
+    {
+      "id": "admin_greeting_1",
+      "voice": "female",
+      "text": "Bem-vindo de volta. A central de gestão está à sua disposição.",
+      "path": "female/admin_greeting_1.mp3",
+      "durationSeconds": 4.467,
+      "sizeBytes": 90641,
+      "sha256": "0f9e65a123d376dd7304bcc32e65ffd362f09c838c20711c8950f3bef08aef90"
+    },
+    {
+      "id": "admin_greeting_1",
+      "voice": "male",
+      "text": "Bem-vindo de volta. A central de gestão está à sua disposição.",
+      "path": "male/admin_greeting_1.mp3",
+      "durationSeconds": 4.598,
+      "sizeBytes": 93333,
+      "sha256": "cad18bbb8ba93ee0d1e15f1ce256410635e1acfbcfe6f69adc8a3b502c609e35"
+    },
+    {
+      "id": "admin_greeting_2",
+      "voice": "female",
+      "text": "Bom ter você por aqui. Vamos acompanhar sua empresa.",
+      "path": "female/admin_greeting_2.mp3",
+      "durationSeconds": 3.814,
+      "sizeBytes": 61753,
+      "sha256": "c75c8937180b64d9d1645ad0b8e58d1224888a420872f8c40f25a70b449eb398"
+    },
+    {
+      "id": "admin_greeting_2",
+      "voice": "male",
+      "text": "Bom ter você por aqui. Vamos acompanhar sua empresa.",
+      "path": "male/admin_greeting_2.mp3",
+      "durationSeconds": 3.944,
+      "sizeBytes": 63840,
+      "sha256": "68989e38687f92177cbf7a1dc78a54c2352d91df3f1c64760954bbe9e703a416"
+    },
+    {
+      "id": "admin_greeting_3",
+      "voice": "female",
+      "text": "Bem-vindo. Vamos conferir o andamento da operação.",
+      "path": "female/admin_greeting_3.mp3",
+      "durationSeconds": 3.736,
+      "sizeBytes": 60498,
+      "sha256": "aee7a1427c484e941651971de2cfb693a0bdafa9214dbf1e0399bd5b896f41a1"
+    },
+    {
+      "id": "admin_greeting_3",
+      "voice": "male",
+      "text": "Bem-vindo. Vamos conferir o andamento da operação.",
+      "path": "male/admin_greeting_3.mp3",
+      "durationSeconds": 3.866,
+      "sizeBytes": 62585,
+      "sha256": "8ff399a2bd31c9db1df8c94134be158fd647bab739152eb4985d7a18c3e8ce1a"
+    },
+    {
+      "id": "admin_greeting_4",
+      "voice": "female",
+      "text": "À sua disposição. Vamos organizar os próximos passos.",
+      "path": "female/admin_greeting_4.mp3",
+      "durationSeconds": 4.153,
+      "sizeBytes": 67190,
+      "sha256": "43c001e651d060eb22211a9154d140f20a3188c83e00722be865ae02db4e5e3c"
+    },
+    {
+      "id": "admin_greeting_4",
+      "voice": "male",
+      "text": "À sua disposição. Vamos organizar os próximos passos.",
+      "path": "male/admin_greeting_4.mp3",
+      "durationSeconds": 4.31,
+      "sizeBytes": 69696,
+      "sha256": "1cb9897b76c069af92d8d092ce772c562c5105181e808737e7d2e4796be899f4"
+    },
+    {
+      "id": "admin_greeting_5",
+      "voice": "female",
+      "text": "Bem-vindo à central. Vamos cuidar da sua operação.",
+      "path": "female/admin_greeting_5.mp3",
+      "durationSeconds": 3.631,
+      "sizeBytes": 58827,
+      "sha256": "8e843406b6e8d0b47663e18003b5d15a4bddc3813f3e37c623c2f22f35f8dcfd"
+    },
+    {
+      "id": "admin_greeting_5",
+      "voice": "male",
+      "text": "Bem-vindo à central. Vamos cuidar da sua operação.",
+      "path": "male/admin_greeting_5.mp3",
+      "durationSeconds": 3.944,
+      "sizeBytes": 63840,
+      "sha256": "5f7da15286ddafef81af9f8e87554c7d3c6235126556939efb8eda94d8a79b16"
+    },
+    {
+      "id": "page_operations",
+      "voice": "female",
+      "text": "Vamos planejar as próximas operações.",
+      "path": "female/page_operations.mp3",
+      "durationSeconds": 2.952,
+      "sizeBytes": 47945,
+      "sha256": "b09fb8af4139695c7fbf8a6701bc69e1eb8221a711917db6f2ea43dff264058f"
+    },
+    {
+      "id": "page_operations",
+      "voice": "male",
+      "text": "Vamos planejar as próximas operações.",
+      "path": "male/page_operations.mp3",
+      "durationSeconds": 2.769,
+      "sizeBytes": 45017,
+      "sha256": "674c43eedb9988e9ff80499ed7fe91445ec99d7a60606ef533aa0469d4da8069"
+    },
+    {
+      "id": "page_assign",
+      "voice": "female",
+      "text": "Escolha a operação e quem vai assumir o trabalho.",
+      "path": "female/page_assign.mp3",
+      "durationSeconds": 3.265,
+      "sizeBytes": 52963,
+      "sha256": "d535499a9df300c526240666a4adbac8f70338b7dca177c0e3226109f62f2b88"
+    },
+    {
+      "id": "page_assign",
+      "voice": "male",
+      "text": "Escolha a operação e quem vai assumir o trabalho.",
+      "path": "male/page_assign.mp3",
+      "durationSeconds": 2.9,
+      "sizeBytes": 47110,
+      "sha256": "093f61c18ab12f77371e91272f9b133a97cb51c121806fb48e03d264227a7781"
+    },
+    {
+      "id": "page_active_jobs",
+      "voice": "female",
+      "text": "Acompanhe os trabalhos em andamento.",
+      "path": "female/page_active_jobs.mp3",
+      "durationSeconds": 2.638,
+      "sizeBytes": 42927,
+      "sha256": "ebfe6253026012d5bfc86b5362a050eef37072398e31a6bc9c98fe7b7cfde863"
+    },
+    {
+      "id": "page_active_jobs",
+      "voice": "male",
+      "text": "Acompanhe os trabalhos em andamento.",
+      "path": "male/page_active_jobs.mp3",
+      "durationSeconds": 2.429,
+      "sizeBytes": 39582,
+      "sha256": "4304cec97a93a03f362ebecadbe00545024eb4aba486e64b1ceb78f8eb633c58"
+    },
+    {
+      "id": "page_team",
+      "voice": "female",
+      "text": "Sua equipe, em um só lugar.",
+      "path": "female/page_team.mp3",
+      "durationSeconds": 2.377,
+      "sizeBytes": 38726,
+      "sha256": "f6b5dc9fb96a48a41caaf947c8e2101738086419ed3ad68ece90ea559e25ec34"
+    },
+    {
+      "id": "page_team",
+      "voice": "male",
+      "text": "Sua equipe, em um só lugar.",
+      "path": "male/page_team.mp3",
+      "durationSeconds": 2.194,
+      "sizeBytes": 35798,
+      "sha256": "0bd7875d1d05aefdc519ad73cee40a56cbc4a70d3718f5ec12b83c46ea3d8b69"
+    },
+    {
+      "id": "page_recruitment",
+      "voice": "female",
+      "text": "Vamos acompanhar as candidaturas.",
+      "path": "female/page_recruitment.mp3",
+      "durationSeconds": 2.638,
+      "sizeBytes": 42924,
+      "sha256": "b24213b2c7d5778e5c2ee8a56da74551213f0092c7e2269b626db63845d21cc4"
+    },
+    {
+      "id": "page_recruitment",
+      "voice": "male",
+      "text": "Vamos acompanhar as candidaturas.",
+      "path": "male/page_recruitment.mp3",
+      "durationSeconds": 2.403,
+      "sizeBytes": 39161,
+      "sha256": "78f41ab86fc3813299a90cf76a6278fcd05f49277de631db476e18709519f8e4"
+    },
+    {
+      "id": "page_fleet",
+      "voice": "female",
+      "text": "Vamos cuidar da sua frota.",
+      "path": "female/page_fleet.mp3",
+      "durationSeconds": 2.325,
+      "sizeBytes": 37890,
+      "sha256": "9abf383e574059cf99113f92241ce0f87063346fc91ec88e36d80ae19aaedb22"
+    },
+    {
+      "id": "page_fleet",
+      "voice": "male",
+      "text": "Vamos cuidar da sua frota.",
+      "path": "male/page_fleet.mp3",
+      "durationSeconds": 2.142,
+      "sizeBytes": 34962,
+      "sha256": "9baf5494798ee583abd23f88b8f0059134b43af5f203baba7e6381e688104659"
+    },
+    {
+      "id": "page_trips",
+      "voice": "female",
+      "text": "Confira o histórico de viagens.",
+      "path": "female/page_trips.mp3",
+      "durationSeconds": 2.534,
+      "sizeBytes": 41240,
+      "sha256": "02034e693bce169cd64fbdc5e7fb6a489edfaed0f584d5e8e8457a03fb8fac54"
+    },
+    {
+      "id": "page_trips",
+      "voice": "male",
+      "text": "Confira o histórico de viagens.",
+      "path": "male/page_trips.mp3",
+      "durationSeconds": 2.325,
+      "sizeBytes": 37894,
+      "sha256": "aab201f4bd8f916b11209da7dba70bd2a78576129f7db93c76cc215003f98abe"
+    },
+    {
+      "id": "page_partnerships",
+      "voice": "female",
+      "text": "Vamos acompanhar suas parcerias.",
+      "path": "female/page_partnerships.mp3",
+      "durationSeconds": 2.717,
+      "sizeBytes": 44179,
+      "sha256": "a4aeb515e319b6246bd1eb500e9f536752c26fd349518a9da03c55e9636d666b"
+    },
+    {
+      "id": "page_partnerships",
+      "voice": "male",
+      "text": "Vamos acompanhar suas parcerias.",
+      "path": "male/page_partnerships.mp3",
+      "durationSeconds": 2.429,
+      "sizeBytes": 39580,
+      "sha256": "da7801bb530a61c8324e815978478d67db8129287ab7968074ab66fd72963900"
+    },
+    {
+      "id": "page_wallet",
+      "voice": "female",
+      "text": "Confira as movimentações da empresa.",
+      "path": "female/page_wallet.mp3",
+      "durationSeconds": 2.691,
+      "sizeBytes": 43755,
+      "sha256": "9b4082979c4a679a45e80e785fe0389da056f62e2edd7c761fb78edeed14436f"
+    },
+    {
+      "id": "page_wallet",
+      "voice": "male",
+      "text": "Confira as movimentações da empresa.",
+      "path": "male/page_wallet.mp3",
+      "durationSeconds": 2.482,
+      "sizeBytes": 40410,
+      "sha256": "ed2f91762e81b9b6dccf53e633823a665a14525f02817ffeca05c85d6237d752"
+    },
+    {
+      "id": "event_new_job",
+      "voice": "female",
+      "text": "Você recebeu um novo trabalho.",
+      "path": "female/event_new_job.mp3",
+      "durationSeconds": 2.377,
+      "sizeBytes": 38737,
+      "sha256": "b0fa44bd8c161c9d8ab2c66b7d7660167dab9c5bbaf34143a2eac0df4cfb09f9"
+    },
+    {
+      "id": "event_new_job",
+      "voice": "male",
+      "text": "Você recebeu um novo trabalho.",
+      "path": "male/event_new_job.mp3",
+      "durationSeconds": 2.273,
+      "sizeBytes": 37063,
+      "sha256": "8c47b4efdc9eb9e4d605bf68c7413debe42e5a948e0cd499112d0e26b0f25479"
+    },
+    {
+      "id": "event_job_started",
+      "voice": "female",
+      "text": "Trabalho iniciado. Boa viagem.",
+      "path": "female/event_job_started.mp3",
+      "durationSeconds": 2.926,
+      "sizeBytes": 47521,
+      "sha256": "e391aebd200ddf3fc47a42440ddf786b657e330323db18bd744de73a3738d428"
+    },
+    {
+      "id": "event_job_started",
+      "voice": "male",
+      "text": "Trabalho iniciado. Boa viagem.",
+      "path": "male/event_job_started.mp3",
+      "durationSeconds": 3.161,
+      "sizeBytes": 51281,
+      "sha256": "64532afc0cf0224623add1c931f65efa26f93964cf4c034b75a1c4f67f67ac95"
+    },
+    {
+      "id": "event_pro_ready",
+      "voice": "female",
+      "text": "Tudo pronto. Boa viagem.",
+      "path": "female/event_pro_ready.mp3",
+      "durationSeconds": 2.56,
+      "sizeBytes": 41660,
+      "sha256": "b438db5a92b6d6da2e72bc689dd4df00c8bb49dc16bdf6bfe486b1c126756c34"
+    },
+    {
+      "id": "event_pro_ready",
+      "voice": "male",
+      "text": "Tudo pronto. Boa viagem.",
+      "path": "male/event_pro_ready.mp3",
+      "durationSeconds": 2.847,
+      "sizeBytes": 46255,
+      "sha256": "29ca54db7aa36c6fbfd5b9ac5c63c6d8c15a3cc6b1ec9d42590afe54fe9ef140"
+    },
+    {
+      "id": "event_trip_saved",
+      "voice": "female",
+      "text": "Viagem registrada.",
+      "path": "female/event_trip_saved.mp3",
+      "durationSeconds": 2.09,
+      "sizeBytes": 34132,
+      "sha256": "7c720e4873220d261bfb2cc571dd07d0e3d0be1757a9505be5f7348018e41f3e"
+    },
+    {
+      "id": "event_trip_saved",
+      "voice": "male",
+      "text": "Viagem registrada.",
+      "path": "male/event_trip_saved.mp3",
+      "durationSeconds": 1.855,
+      "sizeBytes": 30369,
+      "sha256": "68abb2d6abbf57902cd74e64c1e7ae6be077adc714a107f0ba0b84ed56ce402d"
+    },
+    {
+      "id": "event_job_completed",
+      "voice": "female",
+      "text": "Operação concluída. Bom trabalho.",
+      "path": "female/event_job_completed.mp3",
+      "durationSeconds": 3.004,
+      "sizeBytes": 48785,
+      "sha256": "922c609534b2597d5efaa434a852874bb1fd755164ca40c8b91d25997db614c9"
+    },
+    {
+      "id": "event_job_completed",
+      "voice": "male",
+      "text": "Operação concluída. Bom trabalho.",
+      "path": "male/event_job_completed.mp3",
+      "durationSeconds": 3.239,
+      "sizeBytes": 52544,
+      "sha256": "eae2c75bcfe6f08268d56cd0d8d45ddd4b3a3cf001dabc1dbf859fb0d8ea0d14"
+    },
+    {
+      "id": "event_trip_failed",
+      "voice": "female",
+      "text": "Não foi possível registrar a viagem. Confira o aviso.",
+      "path": "female/event_trip_failed.mp3",
+      "durationSeconds": 3.866,
+      "sizeBytes": 62592,
+      "sha256": "c277b86ba9baf4de09d80ab1334872ea174bed854c02d81159b0431a9b954d6b"
+    },
+    {
+      "id": "event_trip_failed",
+      "voice": "male",
+      "text": "Não foi possível registrar a viagem. Confira o aviso.",
+      "path": "male/event_trip_failed.mp3",
+      "durationSeconds": 3.997,
+      "sizeBytes": 64680,
+      "sha256": "c8f63757f2e8ae61e90fb6f9aa214f7e69f4a8428d125145fcf6407d94753d91"
+    },
+    {
+      "id": "event_trip_detected",
+      "voice": "female",
+      "text": "Viagem concluída. Preparando o registro.",
+      "path": "female/event_trip_detected.mp3",
+      "durationSeconds": 3.396,
+      "sizeBytes": 55059,
+      "sha256": "89a9350083c957d4500045823c20036bb6fe40fd801523d8bdf68dce81e13b36"
+    },
+    {
+      "id": "event_trip_detected",
+      "voice": "male",
+      "text": "Viagem concluída. Preparando o registro.",
+      "path": "male/event_trip_detected.mp3",
+      "durationSeconds": 3.553,
+      "sizeBytes": 57565,
+      "sha256": "96e2ed93b08cb19d4d675abeefc5b584df996b75e8b16c5c938e2dd12f7244f6"
+    },
+    {
+      "id": "event_pause_needed",
+      "voice": "female",
+      "text": "Abra o menu de pausa para continuar.",
+      "path": "female/event_pause_needed.mp3",
+      "durationSeconds": 2.743,
+      "sizeBytes": 44603,
+      "sha256": "8b018d1d3de895572585676e96d9cb2b44f0839b8046046667c1d571dca90ac3"
+    },
+    {
+      "id": "event_pause_needed",
+      "voice": "male",
+      "text": "Abra o menu de pausa para continuar.",
+      "path": "male/event_pause_needed.mp3",
+      "durationSeconds": 2.403,
+      "sizeBytes": 39168,
+      "sha256": "e24bf84fb16b009cd8bf7fe0252218178fc75891def905ceb3188cad595a2c2c"
+    }
+  ],
+  "failures": []
+}

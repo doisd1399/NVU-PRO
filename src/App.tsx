@@ -1,3 +1,4 @@
+import { VoiceAssistantBridge } from "./components/VoiceAssistantBridge";
 import { WindowsAutomationBridge } from "./components/WindowsAutomationBridge";
 import { WorkspaceSwipeNavigation } from "./components/WorkspaceSwipeNavigation";
 import { cacheProfileCover, startProfileCoverSync } from "./services/profileCoverService";
@@ -776,6 +777,7 @@ function AppRouteContent() {
   return (
     <>
       <WindowsAutomationBridge />
+      <VoiceAssistantBridge />
       <NvuStatusBarController />
       <SessionRouteMemory />
       <RouteWarmup pathname={location.pathname} />

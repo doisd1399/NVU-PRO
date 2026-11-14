@@ -33,6 +33,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SimpleAutomationPlugin.class);
         registerPlugin(ProOverlayProbePlugin.class);
         registerPlugin(PrintDiagnosticsPlugin.class);
+        registerPlugin(NvuVoicePlugin.class);
         super.onCreate(savedInstanceState);
         invalidateWebAssetCacheForCurrentRelease();
         if (getBridge() != null) {

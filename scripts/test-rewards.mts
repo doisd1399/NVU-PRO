@@ -378,8 +378,8 @@ test("Resultados da operação comum: % = viagens feitas ÷ previstas (sem meta)
 });
 test("Windows: menu lateral, Central centralizada, dock mais estreita, sem divisória do cabeçalho, respiro no histórico e Painel Sênior sem traçado", () => {
   const index = readFileSync("src/index.css", "utf8"), dash = readFileSync("src/components/admin/management/ManagementDashboard.css", "utf8");
-  assert.match(index, /@media \(min-width: 821px\) \{\n  \.nvu-desktop-shell \[data-nvu-unified-profile-menu\]\.nvu-floating-menu-card \{\n    top: 3rem; bottom: 0; left: 0;/, "menu lateral encostado à esquerda, da barra à base");
-  assert.match(index, /nvu-native-sidebar-open \{ transform: translateX\(0\)/); assert.match(index, /body:has\(\.nvu-ranking-overlay\) \.nvu-native-menu-overlay \{ z-index: 2090/, "o menu abre também por cima do Ranking");
+  assert.match(index, /body \.nvu-desktop-shell \[data-nvu-unified-profile-menu\]\.nvu-floating-menu-card \{\n    top: 3rem !important; bottom: 0 !important; left: 0 !important;/, "menu lateral encostado à esquerda, da barra à base, acima das regras antigas");
+  assert.match(index, /nvu-native-sidebar-open \{ transform: none !important/); assert.match(index, /body:has\(\.nvu-ranking-overlay\) \.nvu-native-menu-overlay \{ z-index: 2090/, "o menu abre também por cima do Ranking");
   assert.match(dash, /\.nvu-landscape-central \.nvu-central-stack \{[^}]*grid-template-columns: minmax\(0, 1fr\);[^}]*max-width: 560px;[^}]*margin-inline: auto;/, "Gerenciar empresa e Resumo operacional centralizados");
   assert.match(readFileSync("src/components/WorkspaceDock.css", "utf8"), /nvu-driver-dock \{ max-width: 360px; \}/);
   for (const file of ["src/layouts/DriverLayout.tsx", "src/layouts/AdminLayout.tsx", "src/pages/RankingGlobal.tsx"]) assert.match(readFileSync(file, "utf8"), /md:border-b-0/, `${file}: sem a linha fina do cabeçalho`);

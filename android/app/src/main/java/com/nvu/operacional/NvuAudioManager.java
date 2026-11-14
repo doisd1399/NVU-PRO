@@ -8,6 +8,8 @@ import android.media.MediaPlayer;
 import java.util.ArrayDeque;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.ArrayList;
 
 /**
  * Small, local-only voice layer for NVU automation events.
@@ -20,6 +22,8 @@ import java.util.Set;
  * an audio failure is diagnosed but can never block the GTO state machine.
  */
 public final class NvuAudioManager {
+    private static final WeakHashMap<NvuAudioManager, Boolean> LEGACY_INSTANCES = new WeakHashMap<>();
+    private final String voiceOwner = "automation:" + System.identityHashCode(this);
     private static final String PREFS_NAME = "nvu_audio_events";
     private static final String KEY_LAST_READY_EVENT_ID = "lastReadyVoiceEventId";
     private static final String KEY_LAST_READY_PLAYED_AT = "lastReadyVoicePlayedAt";
@@ -64,7 +68,7 @@ public final class NvuAudioManager {
     private MediaPlayer tripCompletedPlayer;
     private MediaPlayer pauseActionPlayer;
     private MediaPlayer gtoAutomatedStartPlayer;
-    private MediaPlayer activePlayer;
+    private volatile MediaPlayer activePlayer;
     private String activeEventId = "";
     private boolean released = false;
 
@@ -72,7 +76,9 @@ public final class NvuAudioManager {
         appContext = context.getApplicationContext();
         prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         errorReporter = reporter;
+        synchronized (LEGACY_INSTANCES) { LEGACY_INSTANCES.put(this, Boolean.TRUE); }
         synchronized (lock) {
+            if (NvuVoicePlayback.isConfigured(appContext)) return;
             preparePlayerLocked(VoiceKind.READY);
             preparePlayerLocked(VoiceKind.TRIP_COMPLETED);
             preparePlayerLocked(VoiceKind.PAUSE_ACTION);
@@ -112,6 +118,20 @@ public final class NvuAudioManager {
     private boolean enqueueOrPlay(VoiceKind kind, String eventId) {
         String safeEventId = eventId == null ? "" : eventId.trim();
         if (safeEventId.isEmpty()) return false;
+        if (NvuVoicePlayback.isConfigured(appContext)) {
+            synchronized (lock) { if (released) return false; if (wasAlreadyPlayedLocked(kind, safeEventId)) return true; }
+            String cue = kind == VoiceKind.TRIP_COMPLETED ? "event_trip_detected" : kind == VoiceKind.PAUSE_ACTION ? "event_pause_needed" : "event_pro_ready";
+            NvuVoicePlayback.get(appContext).enqueue(cue, kind.name() + ":" + safeEventId, voiceOwner, 3,
+                System.currentTimeMillis() + 20000L, new NvuVoicePlayback.Callback() {
+                    public void started() {
+                        String key = kind == VoiceKind.READY ? KEY_LAST_READY_EVENT_ID : kind == VoiceKind.TRIP_COMPLETED ? KEY_LAST_COMPLETED_EVENT_ID : kind == VoiceKind.PAUSE_ACTION ? KEY_LAST_PAUSE_EVENT_ID : KEY_LAST_GTO_START_EVENT_ID;
+                        prefs.edit().putString(key, safeEventId).apply();
+                    }
+                    public void finished(boolean played, boolean failed) { if (failed && errorReporter != null) errorReporter.onAudioError("Áudio do assistente indisponível."); }
+                });
+            return true;
+        }
+
 
         synchronized (lock) {
             if (released) return false;
@@ -133,6 +153,8 @@ public final class NvuAudioManager {
     }
 
     public void release() {
+        NvuVoicePlayback.get(appContext).cancelOwner(voiceOwner);
+        synchronized (LEGACY_INSTANCES) { LEGACY_INSTANCES.remove(this); }
         synchronized (lock) {
             released = true;
             pendingVoices.clear();
@@ -143,6 +165,24 @@ public final class NvuAudioManager {
             releasePlayerLocked(VoiceKind.TRIP_COMPLETED);
             releasePlayerLocked(VoiceKind.PAUSE_ACTION);
             releasePlayerLocked(VoiceKind.GTO_AUTOMATED_START);
+        }
+    }
+
+
+    public static boolean isLegacyVoicePlaying() {
+        synchronized (LEGACY_INSTANCES) { for (NvuAudioManager manager : LEGACY_INSTANCES.keySet()) if (manager != null && manager.activePlayer != null) return true; }
+        return false;
+    }
+    public static void silenceLegacyVoices() {
+        ArrayList<NvuAudioManager> managers;
+        synchronized (LEGACY_INSTANCES) { managers = new ArrayList<>(LEGACY_INSTANCES.keySet()); }
+        for (NvuAudioManager manager : managers) {
+            if (manager == null) continue;
+            synchronized (manager.lock) {
+                manager.pendingVoices.clear(); manager.queuedOrPlayingEventIds.clear();
+                if (manager.activePlayer != null) { try { manager.activePlayer.pause(); manager.activePlayer.seekTo(0); } catch (RuntimeException ignored) { } }
+                manager.activePlayer = null; manager.activeEventId = "";
+            }
         }
     }
 

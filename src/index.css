@@ -3430,16 +3430,21 @@ body:has(.nvu-ranking-overlay) .nvu-native-android .nvu-admin-sidebar {
    preferências e Sair) mantém a organização de sempre, com rolagem própria e o rodapé colado embaixo. Fica acima da dock e, no Ranking
    (que abre por cima das páginas), acima da própria tela do Ranking. Celular/Android seguem com o menu de sempre. */
 @media (min-width: 821px) {
-  .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card {
-    top: 3rem; bottom: 0; left: 0; right: auto; width: 19rem; max-height: none; height: auto;
-    display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
-    border: 0; border-right: 1px solid rgba(148, 163, 184, 0.2); border-radius: 0;
-    box-shadow: 18px 0 48px rgba(15, 23, 42, 0.14);
-    transform-origin: left center; transition: transform .2s ease, opacity .16s ease;
+  /* As camadas antigas do menu desktop (cartão de 24rem centralizado, com !important) continuam no arquivo; o menu lateral
+     precisa vencê-las em largura, altura, posição e transform, por isso o prefixo `body` e o !important. */
+  body .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card {
+    top: 3rem !important; bottom: 0 !important; left: 0 !important; right: auto !important;
+    width: 19rem !important; min-height: 0 !important; max-height: none !important; height: auto !important; margin: 0 !important;
+    display: flex !important; flex-direction: column !important; overflow-x: hidden !important; overflow-y: auto !important; overscroll-behavior: contain;
+    border: 0 !important; border-right: 1px solid rgba(148, 163, 184, 0.2) !important; border-radius: 0 !important;
+    box-shadow: 18px 0 48px rgba(15, 23, 42, 0.14) !important;
+    transform-origin: left center !important; transition: transform .2s ease, opacity .16s ease !important;
   }
-  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card { border-right-color: rgba(255, 255, 255, 0.1); box-shadow: 18px 0 52px rgba(0, 0, 0, 0.5); }
-  .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card.nvu-native-sidebar-closed { transform: translateX(-102%); opacity: 0; visibility: hidden; pointer-events: none; }
-  .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card.nvu-native-sidebar-open { transform: translateX(0); opacity: 1; visibility: visible; pointer-events: auto; z-index: 2100; }
+  .dark body .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card,
+  body.dark .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card,
+  .dark .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card { border-right-color: rgba(255, 255, 255, 0.1) !important; box-shadow: 18px 0 52px rgba(0, 0, 0, 0.5) !important; }
+  body .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card.nvu-native-sidebar-closed { transform: translateX(-102%) !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+  body .nvu-desktop-shell [data-nvu-unified-profile-menu].nvu-floating-menu-card.nvu-native-sidebar-open { transform: none !important; opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; z-index: 2100 !important; }
   .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-intro { padding: 1.25rem 1.25rem 0.9rem; }
   .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-menu-nav,
   .nvu-desktop-shell [data-nvu-unified-profile-menu] .nvu-profile-profile-actions { flex: 0 0 auto; padding: 0 0.9rem 0.9rem; }

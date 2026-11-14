@@ -1,6 +1,11 @@
-# NVU PRO 1.0.595 (Android) / Web 2.3.252 / Windows 0.2.20 (sem rebuild)
+# NVU PRO 1.0.596 (Android) / Web 2.3.253 / Windows 0.2.20 (sem rebuild)
 
-Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 595 — instala como atualização da 594/593/592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+Base atual do projeto (branch `dist-build`). **Uma única base**: Web (`src/`), Android (`android/`, `versionCode` 596 — instala como atualização da 595/594/593/592/591/590/589/588/587/586/585/584/583/582/581/580/579/578/577/576/575/574/573/572/571/570/569/568/567/566/565/564/563/562/561/560/559/558/557/556/555/554/553/552/551/550, sem limpar dados), Windows (`desktop/windows/`, 0.2.9, carrega o mesmo web) e servidor (`functions/`, `firestore.rules`, `storage.rules`).
+
+## 1.0.596 — Assistente de voz (vozes GPS masculina/feminina) + correção do menu lateral do Windows
+- **Assistente de voz** (patch recebido sobre a 1.0.595; detalhes em `docs/ASSISTENTE-DE-VOZ-596.md` e `README-ATUALIZACAO-VOZ.md`): 54 MP3 locais (27 frases × 2 vozes), controles no menu flutuante e no menu lateral (ativar/silenciar, voz, volume, frequência, Ouvir exemplo), saudação por papel, fila de um áudio por vez, confirmações só com evento confirmado, integração nativa Android (`NvuVoicePlugin`/`NvuVoicePlayback`). Falha de áudio não bloqueia telas nem viagens.
+- **Menu lateral do Windows (correção da 1.0.594):** as regras antigas do menu desktop (cartão de 24rem centralizado, com `!important`) venciam a gaveta lateral, e o menu abria deslocado para fora da tela. A gaveta agora vence essas regras (19rem, da barra do topo à base) e há teste medindo o menu real em Chromium (`scripts/test-desktop-side-menu.mjs`). **O Windows 0.2.20 já entregue tem esse defeito; precisa de novo instalador.**
+- Correção só do teste `scripts/test-voice-ui.mjs` (faltava envolver a cena no `MemoryRouter`).
 
 ## 1.0.595 — Modo print (GTO): "Não foi possível ler o valor recebido" com print legível
 Causa raiz (reproduzida com o print real, `Valor a receber: R$ 10.656,00`, no OCR do app):

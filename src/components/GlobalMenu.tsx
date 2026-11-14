@@ -1,3 +1,4 @@
+import { VoiceAssistantSettings } from "./VoiceAssistantSettings";
 import { preloadRoute } from "../lib/routePreload";
 import { registerOptionModal } from "../lib/optionModalStack";
 import React, { useEffect, useRef } from "react";
@@ -387,6 +388,7 @@ export function GlobalMenu({
         )}
 
         <div className={cn("nvu-profile-menu-footer p-4 border-t border-gray-100 dark:border-nvu-line flex flex-col gap-2 relative", isCompany && "nvu-admin-menu-footer")}>
+          <VoiceAssistantSettings />
           <div className="nvu-profile-menu-theme mx-2 mb-1 p-3 bg-white dark:bg-nvu-page border border-gray-100 dark:border-nvu-line/80 shadow-sm dark:shadow-none rounded-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-nvu-strip border border-gray-100 dark:border-nvu-line flex items-center justify-center text-gray-500 dark:text-nvu-muted">

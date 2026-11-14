@@ -27,7 +27,11 @@
       "partnerships",
       "rewards",
       "vehicle-photo-prepare",
-      "durable-outbox"
+      "durable-outbox",
+      "voice-core",
+      "voice-assets",
+      "voice-controls",
+      "voice-bridge"
     ],
     "web": [
       "harness",
@@ -60,7 +64,14 @@
       "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
-      "windows-settings"
+      "windows-settings",
+      "voice-core",
+      "voice-assets",
+      "voice-controls",
+      "voice-native",
+      "voice-ui",
+      "desktop-side-menu",
+      "voice-bridge"
     ],
     "release": [
       "harness",
@@ -94,7 +105,14 @@
       "durable-outbox",
       "senior-sheets-ui",
       "windows-overlay",
-      "windows-settings"
+      "windows-settings",
+      "voice-core",
+      "voice-assets",
+      "voice-controls",
+      "voice-native",
+      "voice-ui",
+      "desktop-side-menu",
+      "voice-bridge"
     ]
   },
   "steps": {
@@ -410,6 +428,65 @@
         "scripts/test-vehicle-photo-prepare.mjs"
       ],
       "timeoutMs": 240000
+    },
+    "voice-core": {
+      "label": "Voz: sessões, repetição, intervalos, fila e isolamento",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "--test",
+        "scripts/test-voice-assistant.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "voice-assets": {
+      "label": "Voz: 54 MP3 locais, duração, hashes e catálogo nativo",
+      "kind": "static",
+      "args": [
+        "scripts/test-voice-assets.mjs"
+      ],
+      "timeoutMs": 30000
+    },
+    "voice-controls": {
+      "label": "Voz: controles reais dos menus flutuante e lateral (React DOM)",
+      "kind": "react-controlled",
+      "args": [
+        "scripts/test-voice-controls.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "voice-native": {
+      "label": "Voz: canal Android compartilhado (Java real, portas Android controladas)",
+      "kind": "native-jvm-controlled",
+      "args": [
+        "scripts/test-voice-native.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "desktop-side-menu": {
+      "label": "Windows: menu lateral medido em Chromium (19rem, da barra à base)",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-desktop-side-menu.mjs"
+      ],
+      "timeoutMs": 90000
+    },
+    "voice-ui": {
+      "label": "Voz: interação e layout em Chromium",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-voice-ui.mjs"
+      ],
+      "timeoutMs": 90000
+    },
+    "voice-bridge": {
+      "label": "Voz: confirmações reais, hidratação e recuperação de sessão",
+      "kind": "react-controlled",
+      "args": [
+        "scripts/test-voice-bridge.mjs"
+      ],
+      "timeoutMs": 60000
     }
   },
   "auditBlockersFile": "qa/audit-blockers.json"

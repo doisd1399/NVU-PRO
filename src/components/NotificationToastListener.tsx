@@ -1,3 +1,4 @@
+import { emitVoiceCue } from "../lib/voiceAssistant";
 import { useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
@@ -66,6 +67,10 @@ export default function NotificationToastListener() {
 
       const title = notification.title ?? notification.titulo ?? "Nova notificação";
       const message = notification.message ?? notification.mensagem ?? "";
+
+      if (activeRole === "driver" && currentUser?.id && activeCompanyId && ["NEW_OPERATION", "NEW_JOB", "JOB_ASSIGNED"].includes(String(notification.type || ""))) {
+        emitVoiceCue({ cue: "event_new_job", eventId: notification.id, userId: currentUser.id, companyId: activeCompanyId });
+      }
 
       toast(title, {
         description: message,

@@ -1,7 +1,7 @@
 {
   "name": "nvu-operacional",
   "private": true,
-  "version": "2.3.252",
+  "version": "2.3.253",
   "stableReleaseName": "NVU PRO Auditoria 2026-10-27 (candidata)",
   "officialStableRelease": false,
   "selfHostedOtaEnabled": false,
@@ -391,7 +391,13 @@
     "windows:portable": "npm run build && npm --prefix desktop/windows run portable",
     "test:windows": "npm --prefix desktop/windows test",
     "test:role-matrix": "npm --prefix functions run build && node --import ./scripts/guard-loopback-network.mjs ./node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --only firestore,storage --project demo-nvu-v36-4-staging \"node --import ./scripts/guard-loopback-network.mjs scripts/test-role-matrix-emulator.mjs\"",
-    "windows:verify": "node desktop/windows/tools/verify-release.cjs artifacts/windows"
+    "windows:verify": "node desktop/windows/tools/verify-release.cjs artifacts/windows",
+    "test:voice-assistant": "node --import tsx --test scripts/test-voice-assistant.mts",
+    "test:voice-ui": "node scripts/test-voice-ui.mjs",
+    "test:voice-native": "node scripts/test-voice-native.mjs",
+    "test:voice-assets": "node scripts/test-voice-assets.mjs",
+    "test:voice-controls": "node scripts/test-voice-controls.mjs",
+    "test:voice-bridge": "node scripts/test-voice-bridge.mjs"
   },
   "dependencies": {
     "@capacitor-firebase/authentication": "^8.5.1",

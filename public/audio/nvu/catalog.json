@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "language": "pt-BR",
+  "voices": {
+    "female": {
+      "label": "Feminina",
+      "providerVoice": "pt-BR-FranciscaNeural",
+      "tempo": 1.12
+    },
+    "male": {
+      "label": "Masculina",
+      "providerVoice": "pt-BR-AntonioNeural",
+      "tempo": 1.24
+    }
+  },
+  "clips": [
+    {
+      "id": "driver_greeting_1",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Bem-vindo de volta. Vamos à próxima viagem."
+    },
+    {
+      "id": "driver_greeting_2",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Bom ter você por aqui. Vamos seguir viagem."
+    },
+    {
+      "id": "driver_greeting_3",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Ao seu lado, em cada viagem. Podemos começar."
+    },
+    {
+      "id": "driver_greeting_4",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Bem-vindo. Vamos conferir seu próximo trabalho."
+    },
+    {
+      "id": "driver_greeting_5",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "A próxima etapa começa aqui. Vamos em frente."
+    },
+    {
+      "id": "admin_greeting_1",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bem-vindo de volta. A central de gestão está à sua disposição."
+    },
+    {
+      "id": "admin_greeting_2",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bom ter você por aqui. Vamos acompanhar sua empresa."
+    },
+    {
+      "id": "admin_greeting_3",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bem-vindo. Vamos conferir o andamento da operação."
+    },
+    {
+      "id": "admin_greeting_4",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "À sua disposição. Vamos organizar os próximos passos."
+    },
+    {
+      "id": "admin_greeting_5",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bem-vindo à central. Vamos cuidar da sua operação."
+    },
+    {
+      "id": "page_operations",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Vamos planejar as próximas operações."
+    },
+    {
+      "id": "page_assign",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Escolha a operação e quem vai assumir o trabalho."
+    },
+    {
+      "id": "page_active_jobs",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Acompanhe os trabalhos em andamento."
+    },
+    {
+      "id": "page_team",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Sua equipe, em um só lugar."
+    },
+    {
+      "id": "page_recruitment",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Vamos acompanhar as candidaturas."
+    },
+    {
+      "id": "page_fleet",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Vamos cuidar da sua frota."
+    },
+    {
+      "id": "page_trips",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Confira o histórico de viagens."
+    },
+    {
+      "id": "page_partnerships",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Vamos acompanhar suas parcerias."
+    },
+    {
+      "id": "page_wallet",
+      "kind": "navigation",
+      "role": "all",
+      "text": "Confira as movimentações da empresa."
+    },
+    {
+      "id": "event_new_job",
+      "kind": "event",
+      "role": "driver",
+      "text": "Você recebeu um novo trabalho."
+    },
+    {
+      "id": "event_job_started",
+      "kind": "event",
+      "role": "driver",
+      "text": "Trabalho iniciado. Boa viagem."
+    },
+    {
+      "id": "event_pro_ready",
+      "kind": "event",
+      "role": "driver",
+      "text": "Tudo pronto. Boa viagem."
+    },
+    {
+      "id": "event_trip_saved",
+      "kind": "event",
+      "role": "driver",
+      "text": "Viagem registrada."
+    },
+    {
+      "id": "event_job_completed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Operação concluída. Bom trabalho."
+    },
+    {
+      "id": "event_trip_failed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Não foi possível registrar a viagem. Confira o aviso."
+    },
+    {
+      "id": "event_trip_detected",
+      "kind": "event",
+      "role": "driver",
+      "text": "Viagem concluída. Preparando o registro."
+    },
+    {
+      "id": "event_pause_needed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Abra o menu de pausa para continuar."
+    }
+  ]
+}
