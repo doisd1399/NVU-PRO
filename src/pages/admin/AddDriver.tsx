@@ -1,3 +1,4 @@
+import { CachedImage } from "../../components/common/CachedImage";
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOperationalStore } from "../../context/AppContext";
@@ -81,20 +82,20 @@ export default function AddDriver() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-[#09090b] font-sans pb-8 px-4 pt-4 sm:pt-6 w-full box-border">
+    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-nvu-page font-sans pb-8 px-4 pt-4 sm:pt-6 w-full box-border">
       <div className="max-w-2xl mx-auto flex flex-col">
-        <div className="bg-white dark:bg-[#1A1F26] rounded-[16px] border border-gray-200 dark:border-[#2A2F3A] shadow-sm w-full flex flex-col relative overflow-hidden">
+        <div className="bg-white dark:bg-nvu-surface rounded-[16px] border border-gray-200 dark:border-nvu-line shadow-sm w-full flex flex-col relative overflow-hidden">
           <div className="h-1.5 w-full shrink-0 bg-blue-500"></div>
 
           {/* Header */}
-          <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 dark:border-[#2A2F3A] flex items-center justify-between bg-white dark:bg-[#1A1F26] z-10">
-            <h2 className="text-[19px] font-semibold tracking-tight text-gray-900 dark:text-[#fafafa]">
+          <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 dark:border-nvu-line flex items-center justify-between bg-white dark:bg-nvu-surface z-10">
+            <h2 className="text-[19px] font-semibold tracking-tight text-gray-900 dark:text-nvu-text">
               Novo Motorista
             </h2>
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="w-8 h-8 rounded-full bg-gray-100 dark:bg-[#18181b] text-gray-500 dark:text-[#a1a1aa] flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/10 transition-colors shrink-0"
+              className="w-8 h-8 rounded-full bg-gray-100 dark:bg-nvu-surface text-gray-500 dark:text-nvu-muted flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/10 transition-colors shrink-0"
             >
               <X size={18} />
             </button>
@@ -114,9 +115,9 @@ export default function AddDriver() {
               )}
 
               <div className="flex flex-col items-center mb-8">
-                <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-[#18181b] border-2 border-dashed border-gray-300 dark:border-[#52525b] flex items-center justify-center overflow-hidden relative group">
+                <div className="w-24 h-24 rounded-full bg-gray-100 dark:bg-nvu-surface border-2 border-dashed border-gray-300 dark:border-nvu-line flex items-center justify-center overflow-hidden relative group">
                   {newDriverPhoto ? (
-                    <img
+                    <CachedImage
                       src={newDriverPhoto}
                       alt="Preview"
                       className="w-full h-full object-cover"
@@ -135,14 +136,14 @@ export default function AddDriver() {
                     />
                   </label>
                 </div>
-                <p className="text-[12px] text-gray-500 dark:text-[#a1a1aa] mt-2">
+                <p className="text-[12px] text-gray-500 dark:text-nvu-muted mt-2">
                   Foto opcional (Máx: 2MB)
                 </p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Nome Completo <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -151,11 +152,11 @@ export default function AddDriver() {
                     value={newDriverName}
                     onChange={(e) => setNewDriverName(e.target.value)}
                     placeholder="Ex: João da Silva"
-                    className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
+                    className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Email Corporativo / Login <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -164,11 +165,11 @@ export default function AddDriver() {
                     value={newDriverEmail}
                     onChange={(e) => setNewDriverEmail(e.target.value)}
                     placeholder="joao@transportes.com"
-                    className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
+                    className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     WhatsApp (Opcional)
                   </label>
                   <input
@@ -176,18 +177,18 @@ export default function AddDriver() {
                     value={newDriverWhatsapp}
                     onChange={(e) => setNewDriverWhatsapp(e.target.value)}
                     placeholder="+55 11 99999-9999"
-                    className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
+                    className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
                   />
                 </div>
               </div>
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 p-4 border-t border-gray-100 dark:border-[#2A2F3A] bg-gray-50/50 dark:bg-[#1A1F26] flex justify-end gap-3 z-10">
+            <div className="shrink-0 p-4 border-t border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-surface flex justify-end gap-3 z-10">
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:w-auto h-10 px-5 text-[14px] bg-white dark:bg-[#1A1F26] border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#d4d4d8]"
+                className="w-full sm:w-auto h-10 px-5 text-[14px] bg-white dark:bg-nvu-surface border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text-soft"
                 onClick={() => navigate(-1)}
                 disabled={addDriverLoading}
               >

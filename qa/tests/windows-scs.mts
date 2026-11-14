@@ -1,0 +1,65 @@
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
+assert.equal(process.env.GCLOUD_PROJECT, 'demo-nvu-v36-4-staging');
+assert.match(process.env.FIRESTORE_EMULATOR_HOST || '', /^127\.0\.0\.1:\d+$/);
+const require = createRequire(path.resolve('functions/package.json'));
+const admin = require(path.resolve('functions/lib/firebaseAdmin.js'));
+admin.initializeApp({ projectId: 'demo-nvu-v36-4-staging' });
+const db = admin.firestore();
+const { registerCanonicalSimpleTrip } = require(path.resolve('functions/lib/registerCanonicalSimpleTrip.js'));
+const { updateWorkModeAvailability } = require(path.resolve('functions/lib/workModeAvailability.js'));
+const uid = 'qa-windows-driver', actor = { auth: { uid, token: { auth_time: Math.floor(Date.now() / 1000) } } };
+await db.doc('users/' + uid).set({ name: 'QA Windows', status: 'active', role: 'driver', roles: ['driver'] });
+const senior = { auth: { uid: 'qa-windows-senior', token: { senior: true } } };
+await db.doc('settings/system').set({ workModeAvailability: { version: 0 }, retainedSetting: 'qa-preserved' });
+await assert.rejects(updateWorkModeAvailability.run({ expectedVersion: 0, availability: { version: 0 } }, actor), (e: any) => e.code === 'permission-denied');
+await updateWorkModeAvailability.run({ expectedVersion: 0, availability: { version: 0, pro: { enabled: false, simulators: { ets2: false, ats: false } } } }, senior);
+let settings = (await db.doc('settings/system').get()).data().workModeAvailability;
+assert.equal(settings.pro.simulators.ets2, false); assert.equal(settings.pro.simulators.ats, false);
+await updateWorkModeAvailability.run({ expectedVersion: 1, availability: { version: 1, pro: { simulators: { gto: true } } } }, senior);
+settings = (await db.doc('settings/system').get()).data().workModeAvailability;
+assert.equal(settings.pro.enabled, false); assert.equal(settings.pro.simulators.ets2, false); assert.equal(settings.pro.simulators.ats, false);
+await assert.rejects(updateWorkModeAvailability.run({ expectedVersion: 1, availability: { version: 1 } }, senior), (e: any) => e.code === 'failed-precondition');
+await assert.rejects(updateWorkModeAvailability.run({ expectedVersion: 2, availability: { version: 2, pro: { simulators: { ats: 'true' } } } }, senior), (e: any) => e.code === 'invalid-argument');
+await updateWorkModeAvailability.run({ expectedVersion: 2, availability: { version: 2, pro: { enabled: true, simulators: { ets2: true, ats: true } } } }, senior);
+settings = (await db.doc('settings/system').get()).data().workModeAvailability;
+assert.equal(settings.pro.simulators.ets2, true); assert.equal(settings.pro.simulators.ats, true);
+assert.deepEqual(Object.keys(settings.max.simulators), ['gto']);
+assert.equal((await db.doc('settings/system').get()).get('retainedSetting'), 'qa-preserved');
+assert.equal((await db.collection('audit_work_mode_availability').where('actorUid', '==', senior.auth.uid).get()).size, 3);
+console.log('PASS Senior Windows mode controls: persistence, legacy-client omissions, version conflict, authorization and audit');
+for (const simulatorKey of ['ets2', 'ats']) {
+  const companyId = 'qa-windows-' + simulatorKey, contractId = companyId + '-contract', jobId = companyId + '-job';
+  const catalogId = simulatorKey === 'ats' ? 'qa-opaque-scs-catalog' : simulatorKey;
+  if (catalogId !== simulatorKey) await db.doc('simulators/' + catalogId).set({ name: 'American Truck Simulator', code: 'ATS', key: 'ats', active: true });
+  await db.doc('frotas/' + companyId).set({ ownerId: uid, userId: uid, companyName: companyId, simulatorId: catalogId, status: 'active' });
+  await db.doc('contratos/' + contractId).set({ companyId, simulatorId: catalogId, name: 'QA SCS', totalDeliveries: 2, status: 'active' });
+  await db.doc('trabalhos/' + jobId).set({ driverId: uid, companyId, contractId, simulatorId: catalogId, status: 'active', totalDeliveries: 2, progress: 0, operationReconciliationVersion: 4 });
+  const make = () => {
+    const eventId = randomUUID(), id = `scs_${uid}_${simulatorKey}_${eventId}`, currency = simulatorKey === 'ets2' ? 'EUR' : 'USD';
+    const scsTelemetry = { version: 1, type: 'job.delivered', eventId, simulatorKey, capturedAt: Date.now(), origin: 'QA origem', destination: 'QA destino', amountCents: 120000, currency, distanceKm: 123.4 };
+    return { tripId: id, canonicalTripId: id, idempotencyKey: id, driverId: uid, companyId, contractId, jobId,
+      simulatorKey, simulatorCode: simulatorKey.toUpperCase(), origem: scsTelemetry.origin, destino: scsTelemetry.destination,
+      valor: 1200, valorCents: 120000, currency, distanciaPercorrida: 123.4, source: 'PRO_WINDOWS_SCS', scsTelemetry };
+  };
+  const first = make();
+  const both = await Promise.all([registerCanonicalSimpleTrip.run({ trip: first }, actor), registerCanonicalSimpleTrip.run({ trip: first }, actor)]);
+  assert(both.every((r: any) => r.registered));
+  assert.equal((await db.collection('historico_viagens').where('jobId', '==', jobId).get()).size, 1);
+  assert.equal((await db.doc('trabalhos/' + jobId).get()).get('progress'), 1);
+  assert.equal((await db.doc('historico_viagens/' + first.tripId).get()).get('currency'), first.currency);
+  assert.equal((await db.doc('historico_viagens/' + first.tripId).get()).get('telemetryEvidenceTrust'), 'client_reported_sdk');
+  await assert.rejects(registerCanonicalSimpleTrip.run({ trip: { ...first, valor: 1300, valorCents: 130000 } }, actor));
+  await assert.rejects(registerCanonicalSimpleTrip.run({ trip: { ...first, currency: 'BRL' } }, actor));
+  await assert.rejects(registerCanonicalSimpleTrip.run({ trip: { ...first, jobId: jobId + '-other' } }, actor));
+  await assert.rejects(registerCanonicalSimpleTrip.run({ trip: first }, { auth: { uid: 'qa-outsider', token: {} } }));
+  const second = make(); await registerCanonicalSimpleTrip.run({ trip: second }, actor);
+  assert.equal((await db.doc('trabalhos/' + jobId).get()).get('status'), 'awaiting_completion');
+  await assert.rejects(registerCanonicalSimpleTrip.run({ trip: make() }, actor));
+  const replay = await registerCanonicalSimpleTrip.run({ trip: first }, actor); assert.equal(replay.duplicate, true);
+  console.log('PASS', simulatorKey, 'concorrência, replay, moeda, identidade, capacidade e awaiting_completion');
+}
+console.log('SCS_WINDOWS_EMULATOR_PASS');
+await Promise.all(admin.apps.map((a: any) => a.delete()));

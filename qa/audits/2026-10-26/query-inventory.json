@@ -1,0 +1,2682 @@
+{
+  "schema": 1,
+  "filesInspected": 452,
+  "counts": {
+    "query": 75,
+    "onSnapshot": 36,
+    "getDoc": 28,
+    "getDocs": 30,
+    "getDocFromServer": 10,
+    "getDocsFromServer": 10,
+    "setDoc": 18,
+    "addDoc": 9,
+    "updateDoc": 21,
+    "deleteDoc": 12,
+    "writeBatch": 9,
+    "runTransaction": 8
+  },
+  "productionAccess": false,
+  "method": "Direct named imports of the Firebase Firestore Web SDK, parsed with the TypeScript AST. Wrappers, dynamic calls, backend/native code and runtime request counts are outside this inventory.",
+  "calls": [
+    {
+      "file": "src/App.tsx",
+      "line": 887,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/App.tsx",
+      "line": 992,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/operation/CanonicalOperationCommandService.ts",
+      "line": 39,
+      "api": "runTransaction",
+      "code": "runTransaction(this.firestore, async transaction => {\n      const ref = doc(this.firestore, 'trabalhos', scope.id), row = await transaction.get(ref), job = row.data();\n      if (!row.exists() || job?.driverId !== scope.driverId || job.companyId !== scope.companyId || job.contractId !== scope.contractId || job.vehicleId !== scope.vehicleId)\n        throw new Error('Esta operação não está atribuída ao usuário e veículo",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/operation/CanonicalOperationCommandService.ts",
+      "line": 57,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(this.firestore, 'trabalhos', id), patch as any)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripDuplicateService.ts",
+      "line": 38,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(query(\n      collection(db, \"historico_viagens\"),\n      where(\"driverId\", \"==\", driverId),\n      where(\"jobId\", \"==\", jobId),\n    ))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripDuplicateService.ts",
+      "line": 38,
+      "api": "query",
+      "code": "query(\n      collection(db, \"historico_viagens\"),\n      where(\"driverId\", \"==\", driverId),\n      where(\"jobId\", \"==\", jobId),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripOperationService.ts",
+      "line": 39,
+      "api": "query",
+      "code": "query(tripsCollection, where(\"jobId\", \"==\", jobId), where(\"driverId\", \"==\", uid))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripOperationService.ts",
+      "line": 41,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(jobRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripOperationService.ts",
+      "line": 41,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(canonicalQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripOperationService.ts",
+      "line": 56,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(query(tripsCollection,\n            where(operationField, \"==\", jobId), where(driverField, \"==\", uid)))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripOperationService.ts",
+      "line": 56,
+      "api": "query",
+      "code": "query(tripsCollection,\n            where(operationField, \"==\", jobId), where(driverField, \"==\", uid))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts",
+      "line": 235,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          query(\n            collection(firestore, \"historico_viagens\"),\n            where(driverField, \"==\", driverId),\n          ),\n            { includeMetadataChanges: true },\n            (snapshot) => handle(`driver:${driverField}:${driverId}`, snapshot),\n            (error) => fail(`driver:${driverField}:${driverId}`, error),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts",
+      "line": 236,
+      "api": "query",
+      "code": "query(\n            collection(firestore, \"historico_viagens\"),\n            where(driverField, \"==\", driverId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts",
+      "line": 250,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          query(\n            collection(firestore, \"historico_viagens\"),\n            where(companyField, \"==\", companyId),\n          ),\n          { includeMetadataChanges: true },\n            (snapshot) =>\n            handle(`company:${companyField}:${companyId}`, snapshot),\n            (error) => fail(`company:${companyField}:${companyId}`, error),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts",
+      "line": 251,
+      "api": "query",
+      "code": "query(\n            collection(firestore, \"historico_viagens\"),\n            where(companyField, \"==\", companyId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/CompactProfileEditorModal.tsx",
+      "line": 149,
+      "api": "setDoc",
+      "code": "setDoc(doc(db, \"users\", uid), {\n          name: trimmedName,\n          whatsapp,\n          profilePhotoURL: persistedPhoto,\n          authPhotoURL: currentUser.authPhotoURL || null,\n          profileNameSource: \"user_edit\",\n          profileNameUpdatedAt: profileUpdatedAt,\n          profilePhotoSource: \"user_edit\",\n          profilePhotoUpdatedAt: profileUpdatedAt,\n          updatedAt: profileUpdatedAt,\n        }, { ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/ProfileModal.tsx",
+      "line": 96,
+      "api": "setDoc",
+      "code": "setDoc(doc(db, \"users\", uid), {\n        name: trimmedName,\n        whatsapp,\n        profilePhotoURL: persistedPhoto,\n        authPhotoURL: currentUser.authPhotoURL || null,\n        profileNameSource: \"user_edit\",\n        profileNameUpdatedAt: profileUpdatedAt,\n        profilePhotoSource: \"user_edit\",\n        profilePhotoUpdatedAt: profileUpdatedAt,\n        updatedAt: profileUpdatedAt,\n      }, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/CreateNewsModal.tsx",
+      "line": 200,
+      "api": "getDocs",
+      "code": "getDocs(query(collection(db, \"nvu_comunicados\"), ...constraints))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/CreateNewsModal.tsx",
+      "line": 200,
+      "api": "query",
+      "code": "query(collection(db, \"nvu_comunicados\"), ...constraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/CreateNewsModal.tsx",
+      "line": 351,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"nvu_comunicados\", editingCommunication.id), {\n          ...commonPayload,\n          editadoEm: serverTimestamp(),\n          editadoPorId: currentUser?.id || \"\",\n          editadoPorNome: currentUser?.name || \"Painel Sênior NVU\",\n        })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/CreateNewsModal.tsx",
+      "line": 359,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"nvu_comunicados\"), {\n          schemaVersion: \"nvu_news_compact_v1\",\n          secao: \"comunicados\",\n          tipo: \"comunicado\",\n          categoria: \"comunicado\",\n          ...commonPayload,\n          origem: \"senior\",\n          status: \"publicado\",\n          visibilidade: \"publico\",\n          autorId: currentUser?.id || \"\",\n          autorNome: currentUser?.name || \"Painel Sênior NVU\",\n    ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/CreateNewsModal.tsx",
+      "line": 396,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"nvu_comunicados\", deleteTarget.id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/SeniorMemberActions.tsx",
+      "line": 49,
+      "api": "onSnapshot",
+      "code": "onSnapshot(doc(db, \"users\", member.userId), snapshot => {\n      const latest = snapshot.data();\n      if (!latest || latest.accountActionState !== \"COMPLETED\" || latest.pendingAccountCommand) return;\n      onUpdatedRef.current?.({ accountStatus: latest.accountStatus, suspension: latest.suspension || { active: false },\n        deleted: latest.deleted === true, accountActionState: \"COMPLETED\" });\n      setPendingAction",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/SimpleCityManagerModal.tsx",
+      "line": 56,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, CITIES_COLLECTION, selectedKey))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/SimpleCityManagerModal.tsx",
+      "line": 100,
+      "api": "setDoc",
+      "code": "setDoc(doc(db, CITIES_COLLECTION, selectedKey), {\n        simulatorKey: selectedKey,\n        simulatorLabel: selectedSimulator.label,\n        cities: normalized.map((city) => city.name),\n        version: loadedVersion + 1,\n        active: true,\n        updatedAt: serverTimestamp(),\n        updatedBy: auth.currentUser.uid,\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/SimulatorManagerModal.tsx",
+      "line": 37,
+      "api": "setDoc",
+      "code": "setDoc(doc(db, \"simulators\", id), {\n        id,\n        name: clean,\n        active: true,\n        createdAt: new Date().toISOString(),\n        updatedAt: new Date().toISOString(),\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/components/admin/SimulatorManagerModal.tsx",
+      "line": 58,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"simulators\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1198,
+      "api": "getDocs",
+      "code": "getDocs(\n    query(\n      collection(db, \"recruitment_applications\"),\n      where(\"userId\", \"==\", userId),\n    ),\n  )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1199,
+      "api": "query",
+      "code": "query(\n      collection(db, \"recruitment_applications\"),\n      where(\"userId\", \"==\", userId),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1212,
+      "api": "getDocs",
+      "code": "getDocs(\n        query(\n          collection(db, \"recruitment_applications\"),\n          where(\"email\", \"==\", normalizedEmail),\n        ),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1213,
+      "api": "query",
+      "code": "query(\n          collection(db, \"recruitment_applications\"),\n          where(\"email\", \"==\", normalizedEmail),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1231,
+      "api": "setDoc",
+      "code": "setDoc(\n    doc(db, \"users\", userId),\n    {\n      profilePhotoURL: ownerPhoto,\n      profilePhotoRecoveredAt: new Date().toISOString(),\n    },\n    { merge: true },\n  )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1707,
+      "api": "query",
+      "code": "query(\n      collection(db, \"companyMembers\"),\n      where(\"userId\", \"==\", uid),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1713,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(canonicalQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 1845,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"users\", firebaseUser.uid))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 2083,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n            doc(db, \"users\", firebaseUser.uid),\n            (userDocument) => {\n              if (!isCurrentGeneration(firebaseUser.uid, sessionGeneration)) return;\n              listenerHydrated = true;\n              if (fallbackTimer !== undefined) {\n                window.clearTimeout(fallbackTimer);\n                fallbackTimer = undefined;\n              }\n              if (userDocument.exists()) {\n ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 2363,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      collection(db, \"simulators\"),\n      (snap) => {\n        const simulatorsData = normalizeSimulatorDocuments(\n          snap.docs.map((simulatorDoc) => ({\n            id: simulatorDoc.id,\n            data: simulatorDoc.data(),\n          })),\n        ) as Simulator[];\n\n        // An offline Firestore listener may emit an empty cache snapshot before\n        // connectivity is known. Never let that trans",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3135,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"contratos\", contractId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3194,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, collection, id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3364,
+      "api": "query",
+      "code": "query(\n            collection(db, \"veiculos\"),\n            where(\"companyId\", \"==\", activeCompanyId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3371,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          vehicleQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            const nextVehicles = snap.docs.map(\n              (doc) => ({ ...doc.data(), id: doc.id }) as Vehicle,\n            );\n            const cachedVehicles = readOperationalScopeSnapshot(operationalScopeKey)?.vehicles || [];\n            const preserveCachedVehicles =\n              snap.metadata.fromC",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3397,
+      "api": "query",
+      "code": "query(\n            collection(db, \"reboques\"),\n            where(\"companyId\", \"==\", activeCompanyId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3404,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          trailerQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            const nextTrailers = snap.docs.map(\n              (doc) => ({ ...doc.data(), id: doc.id }) as Trailer,\n            );\n            const cachedTrailers = readOperationalScopeSnapshot(operationalScopeKey)?.trailers || [];\n            const preserveCachedTrailers =\n              snap.metadata.fromC",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3430,
+      "api": "query",
+      "code": "query(\n            collection(db, \"contratos\"),\n            where(\"companyId\", \"==\", activeCompanyId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3437,
+      "api": "query",
+      "code": "query(\n            collection(db, \"sequencias\"),\n            where(\"companyId\", \"==\", activeCompanyId)\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3444,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          sequenceQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            const nextSequences = snap.docs\n              .map((doc) => ({ ...doc.data(), id: doc.id }) as Sequence)\n              .filter((sequence) => !sequence.deleted);\n            setSequences(nextSequences);\n            mergeOperationalScopeSnapshot(operationalScopeKey, {\n              sequences: nex",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3464,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          contractQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            const nextContracts = snap.docs\n              .map((doc) => ({ ...doc.data(), id: doc.id }) as Contract)\n              .filter((contract) => !contract.deleted);\n            const cachedContracts = readOperationalScopeSnapshot(operationalScopeKey)?.contracts || [];\n            const preserveCach",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3492,
+      "api": "query",
+      "code": "query(\n              collection(db, \"trabalhos\"),\n              where(\"companyId\", \"==\", activeCompanyId),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3496,
+      "api": "query",
+      "code": "query(\n              collection(db, \"trabalhos\"),\n              where(\"companyId\", \"==\", activeCompanyId),\n              where(\"driverId\", \"==\", uid),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3504,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          jobQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            const nextJobs = snap.docs.map(\n              (doc) => ({ ...doc.data(), id: doc.id }) as Job,\n            ).map(mergeManagedConfirmedJob).filter(job => !job.archived);\n            if (activeRole === \"driver\" && !snap.metadata.fromCache) operationOutbox.observe(uid, targetCompanyId, nextJobs);\n     ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3539,
+      "api": "query",
+      "code": "query(\n                collection(db, \"jobDemands\"),\n                where(\"companyId\", \"==\", targetCompanyId),\n                where(\"status\", \"==\", \"pending\"),\n                limit(MAX_PENDING_REQUESTS),\n              )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3546,
+      "api": "query",
+      "code": "query(\n              collection(db, \"jobDemands\"),\n              where(\"driverId\", \"==\", uid),\n              where(\"status\", \"==\", \"pending\"),\n              limit(20),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3554,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          demandsQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            const nextJobDemands = snap.docs.map(\n              (doc) => ({ ...doc.data(), id: doc.id }) as JobDemand,\n            );\n            setJobDemands(nextJobDemands);\n            mergeOperationalScopeSnapshot(operationalScopeKey, {\n              jobDemands: nextJobDemands,\n            });\n        ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3574,
+      "api": "query",
+      "code": "query(\n            collection(db, \"users\"),\n            where(\"companyId\", \"==\", targetCompanyId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3581,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          usersQuery,\n          (snap) => {\n            if (!canPublishPrivateSnapshot()) return;\n            let mappedUsers = snap.docs.map(\n              (doc) => ({ ...doc.data(), id: doc.id }) as User,\n            );\n\n            mappedUsers = mappedUsers.map((u) => {\n              if (!u.roles) u.roles = [u.role || \"driver\"];\n              if (u.roles.includes(\"admin\") && !u.roles.includes(\"driver\")",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3665,
+      "api": "query",
+      "code": "query(\n            collection(db, \"users\"),\n            where(\"__name__\", \"in\", chunk),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3669,
+      "api": "getDocs",
+      "code": "getDocs(q)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3748,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"frotas\", companyId), {\n        recruitmentSettings: settings,\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3787,
+      "api": "getDocs",
+      "code": "getDocs(\n              query(collection(db, \"users\"), where(\"email\", \"==\", normalizedEmail)),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3788,
+      "api": "query",
+      "code": "query(collection(db, \"users\"), where(\"email\", \"==\", normalizedEmail))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3799,
+      "api": "getDocs",
+      "code": "getDocs(\n                query(\n                  collection(db, \"companyMembers\"),\n                  where(\"userId\", \"==\", userId),\n                  where(\"companyId\", \"==\", data.companyId),\n                  where(\"status\", \"==\", \"active\"),\n                ),\n              )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3800,
+      "api": "query",
+      "code": "query(\n                  collection(db, \"companyMembers\"),\n                  where(\"userId\", \"==\", userId),\n                  where(\"companyId\", \"==\", data.companyId),\n                  where(\"status\", \"==\", \"active\"),\n                )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3826,
+      "api": "query",
+      "code": "query(\n                  collection(db, \"recruitment_applications\"),\n                  where(\"userId\", \"==\", data.userId),\n                )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3832,
+      "api": "query",
+      "code": "query(\n                  collection(db, \"recruitment_applications\"),\n                  where(\"email\", \"==\", normalizedEmail),\n                )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3839,
+      "api": "getDocs",
+      "code": "getDocs(previousQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3860,
+      "api": "updateDoc",
+      "code": "updateDoc(previousRef, {\n                isCurrent: false,\n                supersededAt: createdAt,\n              })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3875,
+      "api": "setDoc",
+      "code": "setDoc(applicationRef, {\n          ...data,\n          type: \"driver_application\",\n          email: normalizedEmail,\n          status: \"pending\",\n          flowVersion: 2,\n          isCurrent: true,\n          createdAt,\n        })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 3908,
+      "api": "setDoc",
+      "code": "setDoc(\n            doc(db, \"users\", auth.currentUser.uid),\n            {\n              applicationSubmitted: true,\n              currentRecruitmentApplicationId: applicationRef.id,\n              currentRecruitmentCompanyId: data.companyId,\n              currentRecruitmentSimulatorId: resolveSimulatorId(data, simulators) || data.simulatorId || \"\",\n              currentRecruitmentStatus: \"pending\",\n              curre",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4012,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"recruitment_applications\", applicationId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4040,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4096,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"frotas\", id), editableUpdates)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4159,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"contratos\"), cleanPayload)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4169,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"sequencias\"), {\n        ...sequence,\n        createdAt: new Date().toISOString(),\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4188,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"sequencias\", id), cleanUpdates)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4198,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4250,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"contratos\", id), cleanUpdates)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4261,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"contratos\", id), {\n        deleted: true,\n        deletedAt: new Date().toISOString(),\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4345,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4422,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(doc(db, \"trabalhos\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4456,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(doc(db, \"contratos\", next.contractId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4532,
+      "api": "getDoc",
+      "code": "getDoc(docRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4566,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"veiculos\", job.vehicleId), {\n              status: \"available\",\n            })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4575,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"reboques\", job.trailerId), {\n              status: \"available\",\n            })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4646,
+      "api": "getDoc",
+      "code": "getDoc(docRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4660,
+      "api": "deleteDoc",
+      "code": "deleteDoc(docRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4705,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"solicitacoes_motoristas\"), {\n        motoristaId: uid,\n        empresaId: companyId,\n        simulatorId: (activeCompany as any)?.simulatorId || (activeCompany ? resolveSimulatorId(activeCompany as any) : \"\"),\n        adminId: activeCompany?.userId || \"\", // Adiciona adminId para regras de segurança\n        status: \"pending\",\n        createdAt: new Date().toISOString(),\n        updatedAt: new D",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4744,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"solicitacoes_motoristas\", requestId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4850,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"users\", currentUser.id), {\n      role,\n      companyId: targetCompanyId,\n    })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4877,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"users\", uid), { isOnline })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4916,
+      "api": "query",
+      "code": "query(\n        collection(db, \"users\"),\n        where(\"email\", \"==\", email.trim().toLowerCase()),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4920,
+      "api": "getDocs",
+      "code": "getDocs(q)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4943,
+      "api": "setDoc",
+      "code": "setDoc(newDocRef, payload)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4946,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"companyMembers\"), {\n        userId: newUserId,\n        companyId: activeCompanyId,\n        roles: [\"driver\"],\n        status: \"active\",\n        permissions: [],\n        joinedAt: new Date().toISOString(),\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 4993,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"jobDemands\"), payload)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5030,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"jobDemands\", existing.id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5040,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"jobDemands\", demandId), { status: \"rejected\" })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5074,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"veiculos\"), {\n        ...data,\n        userId: uid,\n        companyId: activeCompanyId,\n        plate: data.plate || \"---\",\n        status: \"available\",\n        createdAt: new Date().toISOString(),\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5094,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"veiculos\", id), updates)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5104,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"veiculos\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5117,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"reboques\"), {\n        ...data,\n        userId: uid,\n        companyId: activeCompanyId,\n        plate: data.plate || \"---\",\n        status: \"available\",\n        createdAt: new Date().toISOString(),\n      })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5137,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"reboques\", id), updates)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/AppContext.tsx",
+      "line": 5147,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"reboques\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 362,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(companyRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 371,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"public_companies\", companyId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 440,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(collection(db, \"public_companies\"))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 551,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      doc(db, \"frotas\", companyId),\n      (companySnapshot) => {\n        if (isAuthTeardownActive()) return;\n        // Firestore can emit a cache miss (exists=false) while the device is\n        // offline. That is not proof that the company was deleted and must not\n        // erase the profile/simulator identity required for offline work.\n        if (companySnapshot.metadata.fromCache && !companySnapshot",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 667,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      query(\n        collection(db, \"companyMembers\"),\n        where(\"companyId\", \"==\", targetCompanyId),\n      ),\n      (snapshot) => {\n        if (!canPublish()) return;\n        setAllCompanyMembers(\n          snapshot.docs.map((membershipDocument) => {\n            const raw = membershipDocument.data() as Record<string, unknown>;\n            const companyId = String(raw.companyId || targetCompanyId);\n  ",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 668,
+      "api": "query",
+      "code": "query(\n        collection(db, \"companyMembers\"),\n        where(\"companyId\", \"==\", targetCompanyId),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 793,
+      "api": "query",
+      "code": "query(\n          collection(db, \"recruitment_applications\"),\n          or(\n            where(\"userId\", \"==\", userId),\n            where(\"email\", \"==\", normalizedEmail),\n          ),\n          limit(100),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 801,
+      "api": "query",
+      "code": "query(\n          collection(db, \"recruitment_applications\"),\n          where(\"userId\", \"==\", userId),\n          limit(100),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 815,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n        query(\n          collection(db, \"solicitacoes_motoristas\"),\n          where(\"empresaId\", \"==\", targetCompanyId),\n          where(\"status\", \"==\", \"pending\"),\n          limit(MAX_PENDING_REQUESTS),\n        ),\n        (snapshot) => {\n          if (!canPublish()) return;\n          setDriverRequests(\n            snapshot.docs.map(\n              (requestDocument) =>\n                ({\n                  ",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 816,
+      "api": "query",
+      "code": "query(\n          collection(db, \"solicitacoes_motoristas\"),\n          where(\"empresaId\", \"==\", targetCompanyId),\n          where(\"status\", \"==\", \"pending\"),\n          limit(MAX_PENDING_REQUESTS),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 837,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n        query(\n          collection(db, \"recruitment_applications\"),\n          where(\"companyId\", \"==\", targetCompanyId),\n          where(\"status\", \"==\", \"pending\"),\n          limit(MAX_PENDING_REQUESTS),\n        ),\n        { includeMetadataChanges: true },\n        publishApplications,\n        applicationsError,\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 838,
+      "api": "query",
+      "code": "query(\n          collection(db, \"recruitment_applications\"),\n          where(\"companyId\", \"==\", targetCompanyId),\n          where(\"status\", \"==\", \"pending\"),\n          limit(MAX_PENDING_REQUESTS),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 850,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          query(\n            collection(db, \"solicitacoes_motoristas\"),\n            where(\"motoristaId\", \"==\", userId),\n            where(\"status\", \"==\", \"pending\"),\n            limit(20),\n          ),\n          (snapshot) => {\n            if (!canPublish()) return;\n            setDriverRequests(\n              snapshot.docs.map(\n                (requestDocument) =>\n                  ({\n                   ",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 851,
+      "api": "query",
+      "code": "query(\n            collection(db, \"solicitacoes_motoristas\"),\n            where(\"motoristaId\", \"==\", userId),\n            where(\"status\", \"==\", \"pending\"),\n            limit(20),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/CompanyContext.tsx",
+      "line": 873,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n        userApplicationsQuery,\n        { includeMetadataChanges: true },\n        publishApplications,\n        applicationsError,\n      )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 254,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      query(\n        collection(db, \"notifications\"),\n        where(\"userId\", \"==\", userId),\n        where(\"read\", \"==\", false),\n        limit(MAX_LIVE_NOTIFICATIONS),\n      ),\n      publishModernSnapshot,\n      (error) => {\n        if (modernFallbackStarted || !canPublish()) return;\n        modernFallbackStarted = true;\n        console.warn(\n          \"[NVU Notifications] Consulta otimizada indisponível;",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 255,
+      "api": "query",
+      "code": "query(\n        collection(db, \"notifications\"),\n        where(\"userId\", \"==\", userId),\n        where(\"read\", \"==\", false),\n        limit(MAX_LIVE_NOTIFICATIONS),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 269,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          query(\n            collection(db, \"notifications\"),\n            where(\"userId\", \"==\", userId),\n            limit(MAX_LIVE_NOTIFICATIONS),\n          ),\n          publishModernSnapshot,\n          (fallbackError) => {\n            if (canPublish()) {\n              console.error(\n                \"[NVU Notifications] Falha ao ler notifications:\",\n                fallbackError,\n              );\n       ",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 270,
+      "api": "query",
+      "code": "query(\n            collection(db, \"notifications\"),\n            where(\"userId\", \"==\", userId),\n            limit(MAX_LIVE_NOTIFICATIONS),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 308,
+      "api": "query",
+      "code": "query(\n          collection(db, \"notificacoes\"),\n          where(\"userId\", \"==\", userId),\n          where(\"lida\", \"==\", false),\n          limit(MAX_LEGACY_NOTIFICATIONS),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 314,
+      "api": "query",
+      "code": "query(\n          collection(db, \"notificacoes\"),\n          where(\"userId\", \"==\", userId),\n          limit(MAX_LEGACY_NOTIFICATIONS),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 324,
+      "api": "getDocs",
+      "code": "getDocs(legacyHistoryQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 330,
+      "api": "getDocs",
+      "code": "getDocs(legacyHistoryFallbackQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 357,
+      "api": "query",
+      "code": "query(\n          collection(db, \"notificacoes\"),\n          where(\"userId\", \"==\", userId),\n          where(\"createdAt\", \">=\", legacyLiveStartAt),\n          limit(MAX_RECENT_LEGACY_NOTIFICATIONS),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 364,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          legacyLiveQuery,\n          (snap) => {\n            if (!canPublish()) return;\n            liveLegacyNotifications.clear();\n            normalizeDocuments(\"notificacoes\", snap.docs).forEach((notification) =>\n              liveLegacyNotifications.set(notification.id, notification),\n            );\n            mergeLegacyNotifications();\n            // A capacidade de histórico pode estar ativa sem ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 427,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, sourceCollection, notificationId), {\n          read: true,\n          lida: true,\n        })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/context/NotificationsContext.tsx",
+      "line": 464,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, sourceCollection, notificationId), {\n          popupShownAt: serverTimestamp(),\n          popupShownAtIso,\n        })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/contexts/AutomaticOperationsProvider.tsx",
+      "line": 244,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      doc(db, \"operationalQueueSignals\", companyId),\n      snapshot => {\n        fallback.stop();\n        const revision = snapshot.data()?.revision;\n        if (typeof revision === \"number\" && revision === lastSignalRevision) return;\n        lastSignalRevision = revision;\n        schedule();\n      },\n      (e) => {\n        if (disposed || scope.current !== scopeKey) return;\n        if (e.code === \"permis",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useCompanyDescription.ts",
+      "line": 20,
+      "api": "onSnapshot",
+      "code": "onSnapshot(doc(db, \"frotas\", companyId), { includeMetadataChanges: true }, snapshot => {\n      const { fromCache, hasPendingWrites } = snapshot.metadata;\n      if (active && !hasPendingWrites && (snapshot.exists() || !fromCache)) {\n        setRemote({ key, text: normalizeCompanyDescription(snapshot.data()?.profileDescription), confirmed: !fromCache });\n      }\n    }, () => { /* Preserve the known identity on temporar",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useCurrentUserPendingApplications.ts",
+      "line": 50,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"public_companies\", companyId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useCurrentUserPendingApplications.ts",
+      "line": 239,
+      "api": "query",
+      "code": "query(\n        collection(db, \"recruitment_applications\"),\n        where(\"userId\", \"==\", normalizedUserId),\n        where(\"status\", \"==\", \"pending\"),\n        limit(MAX_PENDING_PER_IDENTITY),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useCurrentUserPendingApplications.ts",
+      "line": 246,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          userPendingQuery,\n          (snapshot) => {\n            userApplications.clear();\n            snapshot.docs.forEach((applicationDocument) => {\n              userApplications.set(applicationDocument.id, {\n                ...applicationDocument.data(),\n                id: applicationDocument.id,\n              } as RecruitmentApplication);\n            });\n            userSucceeded = true;\n         ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useCurrentUserPendingApplications.ts",
+      "line": 273,
+      "api": "query",
+      "code": "query(\n        collection(db, \"recruitment_applications\"),\n        where(\"email\", \"==\", normalizedEmail),\n        where(\"status\", \"==\", \"pending\"),\n        limit(MAX_PENDING_PER_IDENTITY),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useCurrentUserPendingApplications.ts",
+      "line": 280,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n          emailPendingQuery,\n          (snapshot) => {\n            emailApplications.clear();\n            snapshot.docs.forEach((applicationDocument) => {\n              emailApplications.set(applicationDocument.id, {\n                ...applicationDocument.data(),\n                id: applicationDocument.id,\n              } as RecruitmentApplication);\n            });\n            emailSucceeded = true;\n     ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useDriverDisplayProfiles.ts",
+      "line": 28,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"recruitment_applications\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useMissingOperationTrip.ts",
+      "line": 96,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(doc(db, \"historico_viagens\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useOperationalGoal.ts",
+      "line": 70,
+      "api": "setDoc",
+      "code": "setDoc(doc(db, \"operationalGoals\", entry.documentId), {\n          companyId: entry.scope.companyId, simulatorId: entry.scope.simulatorId, periodKey: record.periodKey,\n          targetAmount: record.targetAmount, currency: \"BRL\", updatedBy: entry.scope.viewerId, updatedAt: serverTimestamp(),\n        }, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useOperationalGoal.ts",
+      "line": 100,
+      "api": "onSnapshot",
+      "code": "onSnapshot(doc(db, \"operationalGoals\", entry.documentId), { includeMetadataChanges: true }, snapshot => {\n    if (entry.closed) return;\n    if (entry.record?.pending) { publish(entry, { loading: false }); return; }\n    // An empty SDK memory cache does not prove the server has no goal.\n    const fromCache = snapshot.metadata.fromCache;\n    if (fromCache && (entry.state.cached || !snapshot.exists())) { publish(entry, ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingCompaniesByIds.ts",
+      "line": 249,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(\n        query(collection(db, \"public_companies\"), where(documentId(), \"in\", ids)),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingCompaniesByIds.ts",
+      "line": 250,
+      "api": "query",
+      "code": "query(collection(db, \"public_companies\"), where(documentId(), \"in\", ids))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingParticipantVehicle.ts",
+      "line": 45,
+      "api": "getDocs",
+      "code": "getDocs(cursor\n      ? query(collection(db, \"trabalhos\"), ...constraints, startAfter(cursor))\n      : query(collection(db, \"trabalhos\"), ...constraints))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": true
+    },
+    {
+      "file": "src/hooks/useRankingParticipantVehicle.ts",
+      "line": 46,
+      "api": "query",
+      "code": "query(collection(db, \"trabalhos\"), ...constraints, startAfter(cursor))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": true
+    },
+    {
+      "file": "src/hooks/useRankingParticipantVehicle.ts",
+      "line": 47,
+      "api": "query",
+      "code": "query(collection(db, \"trabalhos\"), ...constraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingParticipantVehicle.ts",
+      "line": 97,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"veiculos\", vehicleId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingParticipantVehicle.ts",
+      "line": 147,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"veiculos\", vehicleId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingUsersRealtime.ts",
+      "line": 229,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      query(\n        collection(db, \"users\"),\n        where(documentId(), \"in\", ids),\n      ),\n      (snapshot) => {\n        if (isAuthTeardownActive()) return;\n        const mappedUsers = snapshot.docs.map((document) => ({\n          ...document.data(),\n          id: document.id,\n        }));\n        entry.sourceMaps.set(\n          sourceIndex,\n          new Map(mappedUsers.map((user) => [String(user.id),",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useRankingUsersRealtime.ts",
+      "line": 230,
+      "api": "query",
+      "code": "query(\n        collection(db, \"users\"),\n        where(documentId(), \"in\", ids),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useVehiclePhoto.ts",
+      "line": 102,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      doc(db, \"rankingVehiclePhotos\", rankingVehiclePhotoDocumentKey(identity)),\n      (snapshot) => {\n        if (cancelled || snapshot.metadata.fromCache || navigator.onLine === false) return;\n        const data = snapshot.data();\n        const version = JSON.stringify([data?.url || \"\", data?.revision || \"\", data?.updatedAt || \"\"]);\n        // The first server snapshot may already contain a photo which ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useVisibleDriverIdentity.ts",
+      "line": 19,
+      "api": "onSnapshot",
+      "code": "onSnapshot(query(collection(db, \"users\"), where(documentId(), \"in\", ids.slice(offset, offset + 30))), rows => {\n        if (!active) return;\n        batches[batch] = Object.fromEntries(rows.docs.map(row => [row.id, driverDisplayIdentity({ ...row.data(), id: row.id })]));\n        setSnapshot({ key, rows: Object.assign({}, ...Object.values(batches)) });\n      }, () => { /* Keep trip data visible; never import the provi",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/hooks/useVisibleDriverIdentity.ts",
+      "line": 19,
+      "api": "query",
+      "code": "query(collection(db, \"users\"), where(documentId(), \"in\", ids.slice(offset, offset + 30)))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/lib/syncSimulatorMembers.ts",
+      "line": 23,
+      "api": "deleteDoc",
+      "code": "deleteDoc(docRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/lib/syncSimulatorMembers.ts",
+      "line": 34,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"frotas\", companyId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/lib/syncSimulatorMembers.ts",
+      "line": 47,
+      "api": "setDoc",
+      "code": "setDoc(docRef, {\n      userId,\n      companyId,\n      simulatorId,\n      status,\n      role,\n      roles: Array.from(new Set(roles)),\n      isEligible\n    }, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/lib/syncSimulatorMembers.ts",
+      "line": 69,
+      "api": "deleteDoc",
+      "code": "deleteDoc(docRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/ApplicationStatus.tsx",
+      "line": 130,
+      "api": "setDoc",
+      "code": "setDoc(\n      doc(db, \"users\", currentUser.id),\n      {\n        applicationSubmitted: true,\n        currentRecruitmentApplicationId: companyRegistration.id,\n        currentRecruitmentStatus: companyRegistration.status,\n        currentRecruitmentType: \"company_registration\",\n        currentRecruitmentSimulatorId: companyRegistration.simulatorId || \"\",\n      },\n      { merge: true },\n    )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 147,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(newsQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 636,
+      "api": "query",
+      "code": "query(\n          collection(db, COLLECTIONS[section]),\n          ...buildFeedConstraints(section, \"all\", simulator, simulatorAliases),\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 817,
+      "api": "getDoc",
+      "code": "getDoc(stateRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 829,
+      "api": "setDoc",
+      "code": "setDoc(stateRef, {\n            userId,\n            simulatorKey,\n            noticiasSeenAtMs: localSeen.noticias,\n            comunicadosSeenAtMs: localSeen.comunicados,\n            createdAt: serverTimestamp(),\n            updatedAt: serverTimestamp(),\n          })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 953,
+      "api": "setDoc",
+      "code": "setDoc(stateRef, {\n      userId,\n      simulatorKey,\n      [`${section}SeenAtMs`]: resolvedTimestamp,\n      updatedAt: serverTimestamp(),\n    }, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 998,
+      "api": "query",
+      "code": "query(\n              collection(db, COLLECTIONS[section]),\n              ...simulatorConstraints,\n              where(\"status\", \"==\", \"publicado\"),\n              where(\"sortAt\", \">\", Timestamp.fromMillis(seenAtMs)),\n              orderBy(\"sortAt\", \"desc\"),\n            )",
+      "hasWhere": true,
+      "hasOrder": true,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1018,
+      "api": "query",
+      "code": "query(collection(db, COLLECTIONS[section]), ...fallbackConstraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1072,
+      "api": "query",
+      "code": "query(\n          collection(db, COLLECTIONS[section]),\n          ...buildFeedConstraints(section, period, simulator, simulatorAliases, cursor),\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1168,
+      "api": "query",
+      "code": "query(\n        collection(db, COLLECTIONS[activeSection]),\n        ...buildFeedConstraints(\n          activeSection,\n          periodFilter,\n          selectedSimulator,\n          selectedSimulatorAliases,\n          loadMore ? cursorRef.current : null,\n        ),\n      )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1277,
+      "api": "query",
+      "code": "query(\n        collection(db, COLLECTIONS[section]),\n        ...buildFeedConstraints(section, period, selectedSimulator, selectedSimulatorAliases),\n      )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1421,
+      "api": "query",
+      "code": "query(\n      collection(db, COLLECTIONS[activeSection]),\n      ...buildFeedConstraints(\n        activeSection,\n        periodFilter,\n        selectedSimulator,\n        selectedSimulatorAliases,\n      ),\n    )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1435,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      liveQuery,\n      { includeMetadataChanges: true },\n      (snapshot) => {\n        if (stopped || lastQueryKeyRef.current !== activeQueryKey || remoteSearchActiveRef.current || snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;\n        setFeedError(null);\n        const firstPage = processDocuments(\n          snapshot.docs,\n          activeSection,\n          selectedSimulator,\n ",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/NewsFeed.tsx",
+      "line": 1568,
+      "api": "query",
+      "code": "query(\n          collection(db, COLLECTIONS[activeSection]),\n          where(\"searchTokens\", \"array-contains\", token),\n          limit(SEARCH_LIMIT),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 155,
+      "api": "getDocs",
+      "code": "getDocs(cursor\n        ? query(collection(db, \"historico_viagens\"), ...constraints, startAfter(cursor))\n        : query(collection(db, \"historico_viagens\"), ...constraints))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": true
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 156,
+      "api": "query",
+      "code": "query(collection(db, \"historico_viagens\"), ...constraints, startAfter(cursor))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": true
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 157,
+      "api": "query",
+      "code": "query(collection(db, \"historico_viagens\"), ...constraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 177,
+      "api": "getDocs",
+      "code": "getDocs(legacyCursor\n            ? query(collection(db, \"historico_viagens\"), ...constraints, startAfter(legacyCursor))\n            : query(collection(db, \"historico_viagens\"), ...constraints))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": true
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 178,
+      "api": "query",
+      "code": "query(collection(db, \"historico_viagens\"), ...constraints, startAfter(legacyCursor))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": true
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 179,
+      "api": "query",
+      "code": "query(collection(db, \"historico_viagens\"), ...constraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 195,
+      "api": "getDocs",
+      "code": "getDocs(query(collection(db, \"historico_viagens\"), where(field, \"==\", id), orderBy(\"timestamp\", \"desc\"), limit(1)))",
+      "hasWhere": true,
+      "hasOrder": true,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 195,
+      "api": "query",
+      "code": "query(collection(db, \"historico_viagens\"), where(field, \"==\", id), orderBy(\"timestamp\", \"desc\"), limit(1))",
+      "hasWhere": true,
+      "hasOrder": true,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 253,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"public_companies\", companyId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/PublicProfile.tsx",
+      "line": 391,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"public_companies\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/RegisterCompany.tsx",
+      "line": 319,
+      "api": "addDoc",
+      "code": "addDoc(collection(db, \"recruitment_applications\"), {\n        ...formData,\n        email: normalizedEmail,\n        userId: authenticatedUid || \"\",\n        type: \"company_registration\",\n        registrationType: \"company_registration\",\n        companyLogoURL: companyLogo.value,\n        ownerPhotoUrl: ownerPhoto.value,\n        companyLogoStoragePath: companyLogo.storagePath,\n        ownerPhotoStoragePath: ownerPhoto.sto",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/RegisterCompany.tsx",
+      "line": 354,
+      "api": "setDoc",
+      "code": "setDoc(\n          doc(db, \"users\", authenticatedUid),\n          {\n            applicationSubmitted: true,\n            currentRecruitmentApplicationId: applicationRef.id,\n            currentRecruitmentStatus: \"pending\",\n            currentRecruitmentType: \"company_registration\",\n            currentRecruitmentSimulatorId: formData.simulatorId || \"\",\n          },\n          { merge: true },\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 380,
+      "api": "getDocs",
+      "code": "getDocs(\n          query(\n            collection(db, \"companyMembers\"),\n            where(\"companyId\", \"in\", ids),\n          ),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 381,
+      "api": "query",
+      "code": "query(\n            collection(db, \"companyMembers\"),\n            where(\"companyId\", \"in\", ids),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 407,
+      "api": "getDocs",
+      "code": "getDocs(\n          query(collection(db, \"users\"), where(documentId(), \"in\", ids)),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 408,
+      "api": "query",
+      "code": "query(collection(db, \"users\"), where(documentId(), \"in\", ids))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 435,
+      "api": "query",
+      "code": "query(\n              collection(db, \"frotas\"),\n              orderBy(documentId()),\n              startAfter(cursor),\n              limit(SENIOR_COMPANY_PAGE_SIZE),\n            )",
+      "hasWhere": false,
+      "hasOrder": true,
+      "hasLimit": true,
+      "hasCursor": true
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 441,
+      "api": "query",
+      "code": "query(\n              collection(db, \"frotas\"),\n              orderBy(documentId()),\n              limit(SENIOR_COMPANY_PAGE_SIZE),\n            )",
+      "hasWhere": false,
+      "hasOrder": true,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 446,
+      "api": "getDocs",
+      "code": "getDocs(pageQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 583,
+      "api": "query",
+      "code": "query(\n              collection(db, \"frotas\"),\n              where(\"status\", \"in\", [\"active\", \"approved\", \"ativo\"]),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 600,
+      "api": "query",
+      "code": "query(\n      collection(db, \"recruitment_applications\"),\n      where(\"status\", \"in\", [\"pending\", \"rejected\"]),\n      limit(100),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 606,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n        registrationsQuery,\n        (snapshot) => {\n          if (stopped || isAuthTeardownActive()) return;\n          const version = ++registrationHydrationVersion;\n          const normalized = snapshot.docs\n            .map((document) =>\n              normalizeRegistrationImages({\n                id: document.id,\n                ...document.data(),\n              }),\n            )\n            .filter((r",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 648,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n        doc(db, \"settings\", \"system\"),\n        (snapshot) => {\n          if (stopped || isAuthTeardownActive()) return;\n          if (snapshot.exists()) setSystemSettings(snapshot.data());\n        },\n        snapshotError(\"Falha ao ler configurações\"),\n      )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 677,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"frotas\", selectedCompanyId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 722,
+      "api": "query",
+      "code": "query(\n        collection(db, collectionName),\n        where(\"companyId\", \"==\", companyId),\n      )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 728,
+      "api": "getDocs",
+      "code": "getDocs(scopedQuery(\"contratos\"))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 729,
+      "api": "getDocs",
+      "code": "getDocs(scopedQuery(\"trabalhos\"))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 730,
+      "api": "getDocs",
+      "code": "getDocs(scopedQuery(\"veiculos\"))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 731,
+      "api": "getDocs",
+      "code": "getDocs(scopedQuery(\"reboques\"))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 870,
+      "api": "runTransaction",
+      "code": "runTransaction(db, async (transaction) => {\n        const snapshot = await transaction.get(regRef);\n        if (!snapshot.exists()) throw new Error(\"Solicitação não encontrada.\");\n        const current = snapshot.data() as Record<string, any>;\n        if (current.status === \"approved\") return { alreadyApproved: true, data: current };\n        if (current.status !== \"pending\") {\n          throw new Error(\"Esta solicita",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 941,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 976,
+      "api": "getDoc",
+      "code": "getDoc(\n          doc(db, \"users\", submittedUserId),\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1030,
+      "api": "query",
+      "code": "query(\n          collection(db, \"users\"),\n          where(\"email\", \"==\", registrationEmail),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1034,
+      "api": "getDocs",
+      "code": "getDocs(userQ)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1210,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"users\", finalUserId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1211,
+      "api": "getDocs",
+      "code": "getDocs(\n              query(\n                collection(db, \"companyMembers\"),\n                where(\"companyId\", \"==\", newCompanyRef.id),\n              ),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1212,
+      "api": "query",
+      "code": "query(\n                collection(db, \"companyMembers\"),\n                where(\"companyId\", \"==\", newCompanyRef.id),\n              )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1280,
+      "api": "updateDoc",
+      "code": "updateDoc(regRef, {\n            approvalInProgressBy: deleteField(),\n            approvalStartedAt: deleteField(),\n          })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1299,
+      "api": "runTransaction",
+      "code": "runTransaction(db, async (transaction) => {\n        const snapshot = await transaction.get(regRef);\n        if (!snapshot.exists()) throw new Error(\"Solicitação não encontrada.\");\n        const current = snapshot.data() as Record<string, any>;\n        if (current.status === \"approved\") {\n          throw new Error(\"Esta solicitação já foi aprovada e não pode ser recusada.\");\n        }\n        transaction.update(regRef",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1313,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1324,
+      "api": "getDoc",
+      "code": "getDoc(\n          doc(db, \"users\", submittedUserId),\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1346,
+      "api": "getDocs",
+      "code": "getDocs(\n          query(\n            collection(db, \"users\"),\n            where(\"email\", \"==\", registrationEmail),\n            limit(1),\n          ),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1347,
+      "api": "query",
+      "code": "query(\n            collection(db, \"users\"),\n            where(\"email\", \"==\", registrationEmail),\n            limit(1),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/SeniorPanel.tsx",
+      "line": 1471,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"recruitment_applications\", id))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/CompanyTab.tsx",
+      "line": 224,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"users\", ownerId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/CompanyTab.tsx",
+      "line": 227,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"recruitment_applications\", sourceRegistrationId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/RecruitmentTab.tsx",
+      "line": 284,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(\n            query(collection(db, \"recruitment_applications\"), ...constraints),\n          )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/RecruitmentTab.tsx",
+      "line": 285,
+      "api": "query",
+      "code": "query(collection(db, \"recruitment_applications\"), ...constraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/RecruitmentTab.tsx",
+      "line": 297,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(\n            query(\n              collection(db, \"recruitment_applications\"),\n              where(\"companyId\", \"==\", activeCompanyId),\n              limit(100),\n            ),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/RecruitmentTab.tsx",
+      "line": 298,
+      "api": "query",
+      "code": "query(\n              collection(db, \"recruitment_applications\"),\n              where(\"companyId\", \"==\", activeCompanyId),\n              limit(100),\n            )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": true,
+      "hasCursor": false
+    },
+    {
+      "file": "src/pages/admin/fleet/RecruitmentTab.tsx",
+      "line": 539,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"users\", app.userId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/repositories/RankingAggregateRepository.ts",
+      "line": 103,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(\n        doc(db, RANKING_AGGREGATES_COLLECTION, documentId),\n      )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/repositories/RankingAggregateRepository.ts",
+      "line": 137,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, RANKING_AGGREGATES_COLLECTION, documentId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/repositories/RankingAggregateRepository.ts",
+      "line": 182,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n      doc(db, RANKING_AGGREGATES_COLLECTION, documentId),\n      (snapshot) => {\n        const aggregate = snapshot.exists()\n          ? parseRankingAggregateDocument(snapshot.data())\n          : null;\n        snapshots.set(documentId, { ready: true, aggregate });\n        errors.delete(documentId);\n        publish();\n      },\n      (error) => {\n        snapshots.set(documentId, { ready: true, aggregate: nu",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/companyDescriptionService.ts",
+      "line": 12,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, \"frotas\", record.companyId), {\n    profileDescription: record.text, profileDescriptionRevision: record.revision, profileDescriptionUpdatedAt: serverTimestamp(),\n  })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/gtoCanonicalState.ts",
+      "line": 43,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n    doc(db, \"gto_active_gto_sessions\", driverId),\n    snapshot => onState(snapshot.exists() ? snapshot.data() : null),\n    onError,\n  )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/membershipRepository.ts",
+      "line": 96,
+      "api": "query",
+      "code": "query(\n    collection(db, \"companyMembers\"),\n    where(\"userId\", \"==\", uid),\n  )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/membershipRepository.ts",
+      "line": 113,
+      "api": "getDocsFromServer",
+      "code": "getDocsFromServer(membershipQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/membershipRepository.ts",
+      "line": 139,
+      "api": "onSnapshot",
+      "code": "onSnapshot(\n        membershipQuery,\n        (snapshot) => {\n          handleSnapshot(mapSnapshot(snapshot), snapshot.metadata.fromCache);\n        },\n        onError,\n      )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 127,
+      "api": "setDoc",
+      "code": "setDoc(modernRef, payload, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 131,
+      "api": "setDoc",
+      "code": "setDoc(legacyRef, payload, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 163,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"frotas\", companyId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 174,
+      "api": "getDocs",
+      "code": "getDocs(\n    query(collection(db, \"companyMembers\"), where(\"companyId\", \"==\", companyId)),\n  )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 175,
+      "api": "query",
+      "code": "query(collection(db, \"companyMembers\"), where(\"companyId\", \"==\", companyId))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 238,
+      "api": "getDocs",
+      "code": "getDocs(\n          query(collection(db, collectionName), ...constraints),\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 239,
+      "api": "query",
+      "code": "query(collection(db, collectionName), ...constraints)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/notificationService.ts",
+      "line": 257,
+      "api": "updateDoc",
+      "code": "updateDoc(notificationDocument.ref, {\n              read: true,\n              lida: true,\n              resolvedAt: serverTimestamp(),\n              resolvedAtIso,\n            })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/profileCoverService.ts",
+      "line": 28,
+      "api": "updateDoc",
+      "code": "updateDoc(doc(db, collection(record), record.profileId), {\n    profileCoverURL: record.removed ? \"\" : url,\n    profileCoverRevision: record.revision,\n    profileCoverUpdatedAt: serverTimestamp(),\n  })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/profileCoverService.ts",
+      "line": 98,
+      "api": "onSnapshot",
+      "code": "onSnapshot(doc(db, collection(target), target.profileId), { includeMetadataChanges: true }, snapshot => {\n    // Never erase the last durable image using an unconfirmed memory-cache miss.\n    if (snapshot.metadata.fromCache || snapshot.metadata.hasPendingWrites) return;\n    if (snapshot.exists()) onChange(resolveProfileCover(snapshot.data()));\n  }, onError)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/simpleAutomationCityService.ts",
+      "line": 40,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, CITIES_COLLECTION, simulatorKey))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/sync/FirebaseTripSyncAdapter.ts",
+      "line": 116,
+      "api": "runTransaction",
+      "code": "runTransaction(this.firestore, async (transaction) => {\n      const snapshot = await transaction.get(tripRef);\n      if (!snapshot.exists()) throw new Error(\"CANONICAL_TRIP_NOT_FOUND\");\n      const current = snapshot.data() as Record<string, unknown>;\n      if (current.deleted === true || current.status === \"DELETED\") {\n        throw Object.assign(new Error(\"CANONICAL_TRIP_CONFLICT\"), { code: \"CANONICAL_TRIP_CONFLICT",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/sync/FirebaseTripSyncAdapter.ts",
+      "line": 152,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(tripRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/sync/FirebaseTripSyncAdapter.ts",
+      "line": 249,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(acknowledgedId === tripId\n          ? tripRef : doc(this.firestore, \"historico_viagens\", acknowledgedId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/sync/FirebaseTripSyncAdapter.ts",
+      "line": 306,
+      "api": "runTransaction",
+      "code": "runTransaction(this.firestore, async (transaction) => {\n      const existing = await transaction.get(tripRef);\n      if (!existing.exists()) return;\n      const current = existing.data() as Record<string, unknown>;\n      const ownerId = readText(current.driverId || current.motoristaId || current.criadoPor);\n      // Firestore rules are the final authorization boundary. Do not require\n      // the actor to be the driv",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/sync/FirebaseTripSyncAdapter.ts",
+      "line": 375,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(tripRef)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/tripModerationService.ts",
+      "line": 186,
+      "api": "runTransaction",
+      "code": "runTransaction(db, async (transaction) => {\n    const userSnapshot = await transaction.get(userRef);\n    const tripSnapshot = tripRef ? await transaction.get(tripRef) : null;\n\n    if (!userSnapshot.exists()) {\n      throw new Error(\"Cadastro do motorista não encontrado.\");\n    }\n    if (tripRef && (!tripSnapshot || !tripSnapshot.exists())) {\n      throw new Error(\"A viagem usada como referência não está mais disponív",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/tripModerationService.ts",
+      "line": 312,
+      "api": "runTransaction",
+      "code": "runTransaction(db, async (transaction) => {\n    const tripSnapshot = await transaction.get(tripRef);\n    const slotSnapshot = await transaction.get(slotRef);\n    const jobId = String(tripSnapshot.data()?.jobId || \"\").trim();\n    const jobRef = jobId ? doc(db, \"trabalhos\", jobId) : null;\n    const jobSnapshot = jobRef ? await transaction.get(jobRef) : null;\n    const userSnapshot = userRef ? await transaction.get(user",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 121,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 130,
+      "api": "getDocs",
+      "code": "getDocs(\n    query(collection(db, \"simulator_members\"), where(\"userId\", \"==\", oldUserId)),\n  )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 131,
+      "api": "query",
+      "code": "query(collection(db, \"simulator_members\"), where(\"userId\", \"==\", oldUserId))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 152,
+      "api": "writeBatch",
+      "code": "writeBatch(db)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 173,
+      "api": "getDocs",
+      "code": "getDocs(\n          query(\n            collection(db, migration.collectionName),\n            where(field, \"==\", oldUserId),\n          ),\n        )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 174,
+      "api": "query",
+      "code": "query(\n            collection(db, migration.collectionName),\n            where(field, \"==\", oldUserId),\n          )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 242,
+      "api": "query",
+      "code": "query(\n      collection(db, \"recruitment_applications\"),\n      where(\"userId\", \"==\", userId),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 246,
+      "api": "query",
+      "code": "query(\n      collection(db, \"recruitment_applications\"),\n      where(\"email\", \"==\", normalizedEmail),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 253,
+      "api": "getDocs",
+      "code": "getDocs(identityQuery)",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 281,
+      "api": "getDocs",
+      "code": "getDocs(\n      query(collection(db, \"users\"), where(\"email\", \"==\", emailCandidate)),\n    )",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 282,
+      "api": "query",
+      "code": "query(collection(db, \"users\"), where(\"email\", \"==\", emailCandidate))",
+      "hasWhere": true,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 292,
+      "api": "getDoc",
+      "code": "getDoc(doc(db, \"users\", user.uid))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 430,
+      "api": "runTransaction",
+      "code": "runTransaction(db, async tx => {\n    const userRef = doc(db, \"users\", user.uid);\n    const latest = await tx.get(userRef);\n    const current = latest.data() || {};\n    const patch = { ...canonicalWriteData };\n    if (latest.exists()) {\n      delete patch.role; delete patch.roles; delete patch.status;\n      if (typeof current.name === \"string\" && current.name.trim()) patch.name = current.name.trim();\n      const lates",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 477,
+      "api": "deleteDoc",
+      "code": "deleteDoc(doc(db, \"users\", oldUserId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/userIdentityService.ts",
+      "line": 487,
+      "api": "setDoc",
+      "code": "setDoc(\n          doc(db, \"users\", oldUserId),\n          {\n            mergedInto: user.uid,\n            canonicalUserId: user.uid,\n            mergePending: true,\n            updatedAt: new Date().toISOString(),\n          },\n          { merge: true },\n        )",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/vehiclePhotoRepository.ts",
+      "line": 60,
+      "api": "getDoc",
+      "code": "getDoc(doc(database, \"rankingVehiclePhotos\", identityKey))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/vehiclePhotoRepository.ts",
+      "line": 64,
+      "api": "getDoc",
+      "code": "getDoc(doc(database, \"users\", identity.userId))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/vehiclePhotoRepository.ts",
+      "line": 88,
+      "api": "setDoc",
+      "code": "setDoc(doc(database, \"rankingVehiclePhotos\", rankingVehiclePhotoDocumentKey(identity)), {\n    userId: identity.userId, simulatorId: identity.simulatorId, vehicleId: identity.vehicleId,\n    vehicleName: identity.vehicleName || \"\", url, ...(revision ? { revision } : {}), updatedAt: serverTimestamp(),\n  }, { merge: true })",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    },
+    {
+      "file": "src/services/workModeAvailabilityService.ts",
+      "line": 60,
+      "api": "getDocFromServer",
+      "code": "getDocFromServer(doc(db, \"settings\", \"system\"))",
+      "hasWhere": false,
+      "hasOrder": false,
+      "hasLimit": false,
+      "hasCursor": false
+    }
+  ]
+}

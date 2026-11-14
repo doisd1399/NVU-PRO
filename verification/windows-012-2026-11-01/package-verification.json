@@ -1,0 +1,46 @@
+{
+  "version": "0.1.2",
+  "qaRunId": "2026-11-02T02-37-04-315Z",
+  "sourceFingerprint": "244fcf5e2636eb160dfca4740cb7ee4d78b681cb93650d29619c8c35dcab63b7",
+  "sourceMatchesFinalQA": true,
+  "runtimeFilesMatchSource": 15,
+  "webFilesMatchSource": 148,
+  "googleDesktopConfigurationMatchesOwnerSuppliedFile": true,
+  "googleLoginRealTestedByBuildHost": false,
+  "plugin": {
+    "bytes": 3156310,
+    "machine": "x64",
+    "sha256": "564f871d0da471b5a349bb11488881b55975468fade68a23e954cd6e49a493ee"
+  },
+  "installer": {
+    "bytes": 125735121,
+    "firstHeaderOffset": 51712,
+    "dataLength": 125683409,
+    "crcEnabled": true,
+    "crc32": "0b7f22a6",
+    "sha256": "0af3ba87b50f22a41db62c031d49a9f99f9004135b1e794a239c44b541507275"
+  },
+  "installerApplicationMatchesUnpackedBuild": true,
+  "installerRuntimeFilesMatchUnpacked": 222,
+  "appAsarSha256": "406e18bf44a73458c1790d2834f6f88b3fd673b40041915463e5f4375bbd1351",
+  "pe": {
+    "installer": {
+      "machine": "14c",
+      "certificateTableAddress": 0,
+      "certificateTableSize": 0
+    },
+    "application": {
+      "machine": "8664",
+      "certificateTableAddress": 0,
+      "certificateTableSize": 0
+    },
+    "plugin": {
+      "machine": "8664",
+      "certificateTableAddress": 0,
+      "certificateTableSize": 0
+    }
+  },
+  "nativeWindowsExecutionTestedByBuildHost": false,
+  "realETS2OrATSTestedByBuildHost": false,
+  "authenticodeSigned": false
+}

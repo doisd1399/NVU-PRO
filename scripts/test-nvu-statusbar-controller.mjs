@@ -33,7 +33,20 @@ assert(controller.includes('location.pathname.replace(/\\/+$/, "")'), "Controlad
 assert(controller.includes("location.key"), "Controlador não reaplica o estilo em retornos/overlays");
 assert(controller.includes("const isProfileBannerRoute"), "Exceção de perfil não está centralizada");
 assert(controller.includes('normalizedPathname === "/driver/profile"'), "Perfil Driver não está no escopo da exceção");
-assert(controller.includes('normalizedPathname === "/admin/fleet"'), "Perfil Admin não está no escopo da exceção");
+assert(controller.includes('(normalizedPathname === "/admin/fleet" && (location.state as { activeTab?: string } | null)?.activeTab === "company")'), "Exceção Admin deve exigir a aba company e não alcançar Central, Frota ou outras abas");
+const profileRouteMatch = controller.match(/const isProfileBannerRoute =([\s\S]*?);/);
+assert(Boolean(profileRouteMatch), "Predicado de banner ausente");
+const expression = profileRouteMatch[1].trim().replace('(location.state as { activeTab?: string } | null)', '(location.state)');
+const isProfileCoverPage = (pathname, state) => {
+  const navigation = state || {};
+  if (["/admin/history", "/admin/reports", "/driver/history", "/driver/reports"].includes(pathname)) return true;
+  if (pathname === "/driver/profile") return ["activity", "operations", "results", "profile"].includes(String(navigation.profileTab));
+  return pathname === "/admin/fleet" && ["company", "history", "reports"].includes(String(navigation.activeTab));
+};
+const isBanner = new Function('normalizedPathname', 'location', 'isProfileCoverPage', `return ${expression}`);
+for (const [route, tab, expected] of [["/admin/fleet",undefined,false],["/admin/fleet","operations",false],["/admin/fleet","fleet",false],["/admin/fleet","hr",false],["/admin/fleet","history",false],["/admin/fleet","company",true],["/driver/profile",undefined,true],["/ranking",undefined,false],["/driver/trip",undefined,false]]) {
+  assert(isBanner(route,{state:tab?{activeTab:tab}:null},isProfileCoverPage)===expected, `Escopo incorreto do banner: ${route}/${tab}`);
+}
 assert(controller.includes("data-nvu-hero-chrome"), "Controlador não observa a transição do cabeçalho de perfil");
 assert(controller.includes("MutationObserver"), "Transição do cabeçalho não é observada após a rolagem");
 assert(controller.includes("profileChromeSettled"), "Estado settled do banner não chega ao controlador");
@@ -62,7 +75,7 @@ assert((androidStyles.match(/android:windowLightStatusBar">true/g) || []).length
 assert(!androidStyles.includes('android:windowLightStatusBar">false'), "Tema Android ainda força ícones brancos");
 assert((androidStyles.match(/android:windowLightNavigationBar">true/g) || []).length >= 2, "Tema Android de lançamento não garante navegação clara");
 
-assert(driverLayout.includes('data-nvu-hero-chrome={isDriverProfileRoute ? (heroChromeActive ? "active" : "settled") : undefined}'), "DriverLayout não expõe o estado da transição do banner");
-assert(adminLayout.includes('data-nvu-hero-chrome={isAdminCompanyRoute ? (heroChromeActive ? "active" : "settled") : undefined}'), "AdminLayout não expõe o estado da transição do banner");
+assert(driverLayout.includes('data-nvu-hero-chrome={isDriverHeroRoute ? (heroChromeActive ? "active" : "settled") : undefined}'), "DriverLayout não expõe o estado da transição do banner");
+assert(adminLayout.includes('data-nvu-hero-chrome={isCompanyProfileRoute ? (heroChromeActive ? "active" : "settled") : undefined}'), "AdminLayout deve expor o estado do banner somente no perfil da empresa, sem alcançar a Central de gestão");
 
 console.log("PASS: status bar segue tema NVU; perfis alternam branco/dark somente após a transição do banner");

@@ -4,12 +4,14 @@ import path from "node:path";
 const root = process.cwd();
 const read = (relativePath) =>
   fs.readFileSync(path.join(root, relativePath), "utf8");
+const readOptional = (relativePath) =>
+  fs.existsSync(path.join(root, relativePath)) ? read(relativePath) : "";
 
 const findings = [];
 const add = (severity, code, file, message) =>
   findings.push({ severity, code, file, message });
 
-const tripsRepository = read("src/repositories/TripsRepository.ts");
+const canonicalTripReadAdapter = read("src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts");
 const appContext = read("src/context/AppContext.tsx");
 const appEntry = read("src/App.tsx");
 const notificationsContext = read("src/context/NotificationsContext.tsx");
@@ -30,21 +32,23 @@ const rankingUsersHook = read("src/hooks/useRankingUsersRealtime.ts");
 const driverTripsHook = read("src/hooks/useDriverTrips.ts");
 const tripHistoryHook = read("src/hooks/useTripHistory.ts");
 const tripHistoryPage = read("src/pages/driver/TripHistory.tsx");
-const rankingAggregateFunctions = read("functions/src/rankingAggregates.ts");
-const nvuNewsBackfillFunctions = read("functions/src/nvuNewsBackfill.ts");
-const storageCleanupFunctions = read("functions/src/storageCleanupAudit.ts");
-const functionIndex = read("functions/src/index.ts");
+const rankingAggregateFunctions = readOptional("functions/src/rankingAggregates.ts");
+const nvuNewsBackfillFunctions = readOptional("functions/src/nvuNewsBackfill.ts");
+const storageCleanupFunctions = readOptional("functions/src/storageCleanupAudit.ts");
+const functionIndex = readOptional("functions/src/index.ts");
 const firestoreRules = read("firestore.rules");
 const indexes = JSON.parse(read("firestore.indexes.json"));
 const packageJson = JSON.parse(read("package.json"));
-const metadata = JSON.parse(read("metadata.json"));
+const metadata = fs.existsSync(path.join(root, "metadata.json"))
+  ? JSON.parse(read("metadata.json"))
+  : {};
 const envExample = fs.existsSync(path.join(root, ".env.example"))
   ? read(".env.example")
   : "";
 const gtoObserverService = read("android/app/src/main/java/com/nvu/operacional/GtoObserverService.java");
 const gtoAutoTripSync = read("android/app/src/main/java/com/nvu/operacional/GtoAutoTripSync.java");
-const gtoStateFunctions = read("functions/src/gtoState.ts");
-const gtoTripFunctions = read("functions/src/gtoTrips.ts");
+const gtoStateFunctions = readOptional("functions/src/gtoState.ts");
+const gtoTripFunctions = readOptional("functions/src/gtoTrips.ts");
 
 if (packageJson.dependencies?.["@google/genai"]) {
   add(
@@ -176,30 +180,23 @@ if (
 }
 
 const unboundedTripRead = /(?:getDocs|getDocsFromServer|onSnapshot)\s*\(\s*collection\(db,\s*["']historico_viagens["']\s*\)/m;
-if (unboundedTripRead.test(tripsRepository)) {
+if (unboundedTripRead.test(canonicalTripReadAdapter)) {
   add(
     "critical",
     "TRIPS_GLOBAL_READ",
-    "src/repositories/TripsRepository.ts",
+    "src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts",
     "Existe leitura/listener direto da coleção historico_viagens sem query explícita.",
   );
 }
 
-if (!tripsRepository.includes("Leitura legada sem companyId/driverId bloqueada")) {
+if (!canonicalTripReadAdapter.includes('where("companyId", "==", companyId)') ||
+    !canonicalTripReadAdapter.includes('where("driverId", "==", driverId)') ||
+    canonicalTripReadAdapter.includes('collection(db, "trips")')) {
   add(
     "critical",
-    "LEGACY_SCOPE_GUARD",
-    "src/repositories/TripsRepository.ts",
-    "A proteção contra carregamento legado sem companyId/driverId não foi encontrada.",
-  );
-}
-
-if (!tripsRepository.includes("Promise.allSettled")) {
-  add(
-    "warning",
-    "LEGACY_PARTIAL_FAILURE",
-    "src/repositories/TripsRepository.ts",
-    "Consultas de aliases legados não estão protegidas contra falha parcial.",
+    "CANONICAL_TRIP_SCOPE_GUARD",
+    "src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts",
+    "A leitura canônica precisa usar historico_viagens filtrada por companyId/driverId, sem coleção global trips.",
   );
 }
 
@@ -318,7 +315,7 @@ if (
 }
 
 if (
-  tripHistoryPage.includes("TripsRepository.runBackfill(activeCompanyId)") &&
+  tripHistoryPage.includes("runBackfill(") &&
   !tripHistoryPage.includes("needsLegacyEnrichment")
 ) {
   add(

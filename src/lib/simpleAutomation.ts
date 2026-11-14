@@ -1,12 +1,15 @@
+import { isWindowsDesktop } from "./windowsAutomation";
 import { collectSimulatorAliases } from "./resolveSimulator";
 
 export type SimpleAutomationSimulatorKey =
   | "wtds"
   | "wbds"
   | "toe-3"
-  | "global-truck";
+  | "global-truck"
+  | "ets2"
+  | "ats";
 
-export type SimpleAutomationSimulatorCode = "GTO" | "TOE3" | "WTDS" | "WBDS";
+export type SimpleAutomationSimulatorCode = "GTO" | "TOE3" | "WTDS" | "WBDS" | "ETS2" | "ATS";
 
 export type SimpleAutomationSimulator = {
   key: SimpleAutomationSimulatorKey;
@@ -73,6 +76,10 @@ export function getSimpleAutomationSimulator(
   value: unknown,
   simulatorCatalog: readonly unknown[] = [],
 ): SimpleAutomationSimulator | undefined {
+  const registry: readonly SimpleAutomationSimulator[] = isWindowsDesktop() ? [
+    { key: "ets2", simulatorCode: "ETS2", shortLabel: "ETS2", label: "Euro Truck Simulator 2", packageId: "steam:227300", aliases: ["ets2", "ets-2", "ets 2", "euro truck simulator 2", "euro-truck-simulator-2"] },
+    { key: "ats", simulatorCode: "ATS", shortLabel: "ATS", label: "American Truck Simulator", packageId: "steam:270880", aliases: ["ats", "american truck simulator", "american-truck-simulator"] },
+  ] : SIMPLE_AUTOMATION_SIMULATORS;
   const candidates =
     value && typeof value === "object"
       ? [
@@ -93,7 +100,7 @@ export function getSimpleAutomationSimulator(
     .filter(Boolean)
     .reduce<SimpleAutomationSimulator | undefined>((found, candidate) => {
       if (found) return found;
-      return SIMPLE_AUTOMATION_SIMULATORS.find((simulator) => {
+      return registry.find((simulator) => {
         const aliases = aliasesFor(simulator);
         return simulator.key === candidate || aliases.has(candidate);
       });
@@ -109,7 +116,11 @@ export function getSimpleAutomationSimulator(
     if (!catalogAliases.size) continue;
     const sharesIdentity = Array.from(valueAliases).some((alias) => catalogAliases.has(alias));
     if (!sharesIdentity) continue;
-    const resolved = getSimpleAutomationSimulator(catalogEntry);
+    const entry = catalogEntry as Record<string, unknown>;
+    const resolved = isWindowsDesktop()
+      ? [entry.key, entry.code, entry.name, entry.simulatorName, entry.nome]
+        .map(alias => getSimpleAutomationSimulator(alias)).find(Boolean)
+      : getSimpleAutomationSimulator(catalogEntry);
     if (resolved) return resolved;
   }
 

@@ -1,0 +1,22 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 windows:plugin
+> npm --prefix desktop/windows run plugin:build
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-windows@0.1.4 plugin:build
+> node build-plugin.cjs
+
+-- The CXX compiler identification is GNU 13.0.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /workspace/scratch/4e5e4b265ca9/toolchain014/usr/bin/x86_64-w64-mingw32-g++-posix - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Configuring done (0.2s)
+-- Generating done (0.0s)
+-- Build files have been written to: /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/desktop/windows/plugin/build
+[ 50%] Building CXX object CMakeFiles/nvu_scs_telemetry.dir/nvu_scs_telemetry.cpp.obj
+[100%] Linking CXX shared library /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/desktop/windows/plugin/bin/nvu_scs_telemetry.dll
+[100%] Built target nvu_scs_telemetry

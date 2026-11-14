@@ -22,9 +22,10 @@ export type ProLaunchAvailability = {
 export type ProLaunchContext = {
   job?: {
     status?: unknown;
-    progress?: unknown;
+    operationSyncState?: unknown;
   } | null;
   totalDeliveries?: unknown;
+  confirmedTripCount?: unknown;
   hasContract: boolean;
   hasUser: boolean;
   hasCompany: boolean;
@@ -35,7 +36,7 @@ const messages: Record<ProLaunchAvailabilityState, string> = {
   pending:
     "Operação atribuída, aguardando início. O Modo Pro será liberado quando a operação for iniciada.",
   ready: "",
-  "awaiting-completion": "",
+  "awaiting-completion": "Todas as viagens foram registradas. Finalize a operação no painel para continuar.",
   closed: "Esta operação foi concluída ou encerrada. Solicite uma nova operação.",
   "invalid-context":
     "Não foi possível confirmar o contexto da operação. Aguarde a sincronização e tente novamente.",
@@ -60,10 +61,22 @@ export function getProLaunchAvailability(
     };
   }
 
+  if (context.job.operationSyncState === "pending_finish" || context.job.operationSyncState === "start_rejected") {
+    return { state: "invalid-context", canLaunch: false,
+      message: context.job.operationSyncState === "pending_finish"
+        ? "A finalização está salva neste aparelho e aguarda sincronização."
+        : "O início desta operação precisa de conferência. Os registros locais foram preservados." };
+  }
+
   const status = normalizeJobStatus(context.job.status);
-  const progress = Number.isFinite(Number(context.job.progress))
-    ? Math.max(0, Number(context.job.progress))
-    : 0;
+  if (!Number.isFinite(Number(context.confirmedTripCount))) {
+    return {
+      state: "invalid-context",
+      canLaunch: false,
+      message: messages["invalid-context"],
+    };
+  }
+  const progress = Math.max(0, Number(context.confirmedTripCount));
   const totalDeliveries = Number.isFinite(Number(context.totalDeliveries))
     ? Math.max(0, Number(context.totalDeliveries))
     : 0;
@@ -76,10 +89,17 @@ export function getProLaunchAvailability(
     };
   }
 
-  if (status === "awaiting_completion" && hasRemainingDeliveries(status, progress, totalDeliveries)) {
+  if (status === "awaiting_completion") {
+    if (hasRemainingDeliveries(status, progress, totalDeliveries)) {
+      return {
+        state: "awaiting-completion",
+        canLaunch: true,
+        message: "",
+      };
+    }
     return {
       state: "awaiting-completion",
-      canLaunch: true,
+      canLaunch: false,
       message: messages["awaiting-completion"],
     };
   }

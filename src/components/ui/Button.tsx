@@ -19,11 +19,11 @@ export function Button({
     primary:
       "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700",
     secondary:
-      "bg-gray-100 dark:bg-[#1A1F26] text-gray-900 dark:text-[#fafafa] hover:bg-gray-200 dark:hover:bg-[#2A2F3A]",
+      "bg-gray-100 dark:bg-nvu-surface text-gray-900 dark:text-nvu-text hover:bg-gray-200 dark:hover:bg-nvu-strip",
     outline:
-      "border border-gray-200 dark:border-[#2A2F3A] bg-transparent hover:bg-gray-50 dark:hover:bg-[#1A1F26] text-gray-900 dark:text-[#fafafa]",
+      "border border-gray-200 dark:border-nvu-line bg-transparent hover:bg-gray-50 dark:hover:bg-nvu-surface text-gray-900 dark:text-nvu-text",
     ghost:
-      "bg-transparent hover:bg-gray-100 dark:hover:bg-[#1A1F26] text-gray-900 dark:text-[#fafafa]",
+      "bg-transparent hover:bg-gray-100 dark:hover:bg-nvu-surface text-gray-900 dark:text-nvu-text",
     danger:
       "bg-red-50 dark:bg-red-500/10 border border-transparent dark:border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20",
   };

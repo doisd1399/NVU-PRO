@@ -14,10 +14,66 @@ import {
   getCanonicalTripDriverId,
   getCanonicalTripDriverName,
 } from "./tripIdentity";
+import { isRankingEligibleCompany } from "./rankingAggregates";
+import { parseTripMoneyRecord } from "./tripNormalizer";
+import { summarizeTripMoney, type HistoryMoneyGroup } from "./tripMoneySummary";
 
 export { normalizeTrip };
 
 type EntityRecord = Record<string, unknown>;
+
+type RankingMoneyAccumulator = {
+  totals: Record<string, { value: number; tripCount: number; missingValueTrips: number; currencySourceCounts: Record<string, number> }>;
+  unresolvedTrips: Record<string, number>;
+  unresolvedSources: Record<string, number>;
+};
+
+function emptyRankingMoney(): RankingMoneyAccumulator {
+  return { totals: {}, unresolvedTrips: {}, unresolvedSources: {} };
+}
+
+function addRankingTripMoney(accumulator: RankingMoneyAccumulator, trip: NormalizedTrip) {
+  const money = parseTripMoneyRecord(trip);
+  if (money.currencyStatus !== "known" || !money.currency) {
+    const status = money.currencyStatus || "unknown";
+    accumulator.unresolvedTrips[status] = (accumulator.unresolvedTrips[status] || 0) + 1;
+    const source = money.currencySource || "UNKNOWN";
+    accumulator.unresolvedSources[source] = (accumulator.unresolvedSources[source] || 0) + 1;
+    return;
+  }
+  const total = accumulator.totals[money.currency] || { value: 0, tripCount: 0, missingValueTrips: 0, currencySourceCounts: {} };
+  total.tripCount += 1;
+  const source = money.currencySource || "UNKNOWN";
+  total.currencySourceCounts[source] = (total.currencySourceCounts[source] || 0) + 1;
+  if (money.amountCents === null) total.missingValueTrips += 1;
+  else total.value += money.amount;
+  accumulator.totals[money.currency] = total;
+}
+
+function finalizeRankingMoney<T extends { trips: number; name: string; id: string; _money: RankingMoneyAccumulator }>(items: T[]) {
+  const currencies = new Set(items.flatMap((item) => Object.keys(item._money.totals)));
+  const unresolvedTrips = items.reduce((sum, item) => sum + Object.values(item._money.unresolvedTrips).reduce((a, b) => a + b, 0), 0);
+  const missingValueTrips = items.reduce((sum, item) => sum + Object.values(item._money.totals).reduce((a, total) => a + total.missingValueTrips, 0), 0);
+  const comparableCurrency = currencies.size === 1 && unresolvedTrips === 0 && missingValueTrips === 0 ? [...currencies][0] : undefined;
+  return items.map((item) => {
+    const currencyBreakdown = Object.entries(item._money.totals).map(([currency, total]) => ({ currency, ...total }));
+    const currencyUnresolvedTrips = Object.values(item._money.unresolvedTrips).reduce((sum, count) => sum + count, 0);
+    const rankValue = comparableCurrency ? item._money.totals[comparableCurrency]?.value || 0 : 0;
+    const { _money, ...rest } = item;
+    return { ...rest, val: rankValue, currency: comparableCurrency, currencyBreakdown, currencyUnresolvedTrips, currencyUnresolvedSources: item._money.unresolvedSources };
+  }).sort((a, b) => {
+    if (comparableCurrency && b.val !== a.val) return b.val - a.val;
+    if (b.trips !== a.trips) return b.trips - a.trips;
+    const nameOrder = a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base", numeric: true });
+    return nameOrder || a.id.localeCompare(b.id);
+  });
+}
+
+export function safeSingleCurrencyRevenue(groups: HistoryMoneyGroup[]) {
+  const known = groups.filter((group) => group.currencyStatus === "known");
+  const unresolved = groups.some((group) => group.currencyStatus !== "known");
+  return known.length === 1 && !unresolved && known[0]?.value !== null ? known[0].value : 0;
+}
 
 const readEntityText = (record: EntityRecord | undefined, key: string): string => {
   const value = record?.[key];
@@ -58,6 +114,40 @@ function getTripCompany(trip: NormalizedTrip | Record<string, unknown>, companie
   const tripCompanyId = getCanonicalTripCompanyId(trip);
   if (!tripCompanyId) return undefined;
   return companies.find((company) => String(company?.id) === String(tripCompanyId));
+}
+
+export function applySimulatorCurrencyContext(
+  trip: NormalizedTrip,
+  companies: Record<string, unknown>[],
+  simulators: Record<string, unknown>[],
+): NormalizedTrip {
+  const simulatorId = getTripSimulatorId(trip, companies, simulators);
+  if (!simulatorId) return trip;
+  const simulator = simulators.find((item) => String(item?.id || "") === simulatorId);
+  const company = getTripCompany(trip, companies);
+  const contextAliases = [
+    readEntityText(simulator, "code"), readEntityText(simulator, "slug"), readEntityText(simulator, "key"),
+    readEntityText(simulator, "name"), readEntityText(simulator, "label"), readEntityText(simulator, "title"),
+    readEntityText(company, "simulatorCode"), readEntityText(company, "simuladorCodigo"),
+    readEntityText(company, "simulatorName"), readEntityText(company, "simuladorNome"),
+    readEntityText(company, "simulatorKey"), readEntityText(company, "simuladorKey"), simulatorId,
+  ].filter(Boolean);
+  if (!contextAliases.length) return trip;
+
+  const currencyRecord: Record<string, unknown> = { ...trip };
+  const simulatorFields = ["simulatorCode", "simulatorName", "simulatorKey", "simulator", "simulatorId", "simuladorCodigo", "simuladorNome", "simuladorKey", "simulador", "simuladorId", "gameCode", "packageId"];
+  contextAliases.forEach((alias) => {
+    const emptyField = simulatorFields.find((field) => !String(currencyRecord[field] ?? "").trim());
+    if (emptyField) currencyRecord[emptyField] = alias;
+  });
+  const money = parseTripMoneyRecord(currencyRecord);
+  return {
+    ...trip,
+    normalizedCurrency: money.currency,
+    currencyStatus: money.currencyStatus,
+    currencySource: money.currencySource,
+    ...Object.fromEntries(simulatorFields.filter((field) => currencyRecord[field] !== undefined).map((field) => [field, currencyRecord[field]])),
+  };
 }
 
 export function getTripSimulatorId(
@@ -144,7 +234,7 @@ export function filterTripsBySimulator(
     companies,
     simulators,
   );
-  return trips.filter(matchesSimulator);
+  return trips.filter(matchesSimulator).map((trip) => applySimulatorCurrencyContext(trip, companies, simulators));
 }
 
 export function getFilteredTrips(
@@ -188,7 +278,7 @@ export function getFilteredTrips(
     }
 
     return true;
-  });
+  }).map((trip) => applySimulatorCurrencyContext(trip, companies || [], simulators || []));
 }
 
 export function calculateWeeklyMetrics(
@@ -213,11 +303,13 @@ export function calculateWeeklyMetrics(
   );
 
   const tripsCount = filteredTrips.length;
-  const totalRevenue = filteredTrips.reduce((acc, trip) => acc + trip.normalizedValor, 0);
+  const moneyGroups = summarizeTripMoney(filteredTrips);
+  const totalRevenue = safeSingleCurrencyRevenue(moneyGroups);
 
   return {
     tripsCount,
     totalRevenue,
+    moneyGroups,
     filteredTrips,
   };
 }
@@ -333,7 +425,7 @@ export function groupMetricsByCompany(
     undefined,
     simulators,
   );
-  const stats: Record<string, { id: string; name: string; logo: string; trips: number; val: number }> = {};
+  const stats: Record<string, { id: string; name: string; logo: string; trips: number; _money: RankingMoneyAccumulator }> = {};
 
   const existingCompanies = companies || [];
   const companiesById = new Map(
@@ -347,6 +439,7 @@ export function groupMetricsByCompany(
   const eligibleCompanyIds = new Set(
     existingCompanies
       .filter((company) => {
+        if (!isRankingEligibleCompany(company)) return false;
         if (!simulatorId || isAllSimulatorSelection(simulatorId)) return true;
         return resolveSimulatorId(company, simulators || [], existingCompanies) === canonicalTargetId;
       })
@@ -354,43 +447,38 @@ export function groupMetricsByCompany(
       .filter(Boolean),
   );
 
+  eligibleCompanyIds.forEach((companyId) => {
+    const comp = companiesById.get(companyId);
+    if (!comp) return;
+    stats[companyId] = {
+      id: companyId,
+      name:
+        readEntityText(comp, "companyName") ||
+        readEntityText(comp, "name") ||
+        "Empresa Desconhecida",
+      logo:
+        readEntityText(comp, "logoUrl") ||
+        readEntityText(comp, "logoURL") ||
+        readEntityText(comp, "logo"),
+      trips: 0,
+      _money: emptyRankingMoney(),
+    };
+  });
+
   filteredTrips.forEach((trip) => {
     const cId = getCanonicalTripCompanyId(trip);
     if (!cId) return;
 
     const comp = companiesById.get(cId);
     // Trips from a hard-deleted company stay stored, but are not ranking data.
-    if (!comp || (!isAllSimulatorSelection(simulatorId || "") && !eligibleCompanyIds.has(cId))) return;
+    if (!comp || !eligibleCompanyIds.has(cId)) return;
 
-    if (!stats[cId]) {
-      stats[cId] = {
-        id: cId,
-        name:
-          readEntityText(comp, "companyName") ||
-          readEntityText(comp, "name") ||
-          trip.empresaNome ||
-          "Empresa Desconhecida",
-        logo:
-          readEntityText(comp, "logoUrl") ||
-          readEntityText(comp, "logoURL") ||
-          readEntityText(comp, "logo"),
-        trips: 0,
-        val: 0
-      };
-    }
+    if (!stats[cId].name && trip.empresaNome) stats[cId].name = trip.empresaNome;
     stats[cId].trips += 1;
-    stats[cId].val += trip.normalizedValor;
+    addRankingTripMoney(stats[cId]._money, trip);
   });
 
-  return Object.values(stats).sort((a, b) => {
-    if (b.val !== a.val) return b.val - a.val;
-    if (b.trips !== a.trips) return b.trips - a.trips;
-    const nameOrder = a.name.localeCompare(b.name, "pt-BR", {
-      sensitivity: "base",
-      numeric: true,
-    });
-    return nameOrder || a.id.localeCompare(b.id);
-  });
+  return finalizeRankingMoney(Object.values(stats));
 }
 
 export function groupMetricsByDriver(
@@ -414,7 +502,7 @@ export function groupMetricsByDriver(
     undefined,
     simulators,
   );
-  const stats: Record<string, { id: string; name: string; logo: string; trips: number; val: number }> = {};
+  const stats: Record<string, { id: string; name: string; logo: string; trips: number; _money: RankingMoneyAccumulator }> = {};
   
   // Preload company drivers (Internal Ranking Dynamic)
   if (companyDrivers && companyDrivers.length > 0) {
@@ -438,7 +526,7 @@ export function groupMetricsByDriver(
           name: driverName,
           logo: readEntityText(user, "profilePhotoURL"),
           trips: 0,
-          val: 0
+          _money: emptyRankingMoney()
         };
       }
     });
@@ -469,22 +557,14 @@ export function groupMetricsByDriver(
         name: driverName,
         logo: readEntityText(user, "profilePhotoURL"),
         trips: 0,
-        val: 0
+        _money: emptyRankingMoney()
       };
     }
     stats[mId].trips += 1;
-    stats[mId].val += trip.normalizedValor;
+    addRankingTripMoney(stats[mId]._money, trip);
   });
 
-  return Object.values(stats).sort((a, b) => {
-    if (b.val !== a.val) return b.val - a.val;
-    if (b.trips !== a.trips) return b.trips - a.trips;
-    const nameOrder = a.name.localeCompare(b.name, "pt-BR", {
-      sensitivity: "base",
-      numeric: true,
-    });
-    return nameOrder || a.id.localeCompare(b.id);
-  });
+  return finalizeRankingMoney(Object.values(stats));
 }
 
 // Ensure time boundaries for day-level filtering

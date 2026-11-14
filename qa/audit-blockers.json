@@ -1,0 +1,212 @@
+{
+  "schema": 1,
+  "reviewedAt": "2026-10-26",
+  "productionVerification": "partial-read-only-metadata",
+  "historicalEvidenceNotice": "O relatório original foi preservado. Resultados brutos da sessão temporária anterior não recuperados não foram recriados como se fossem evidência nova. A revisão reconstruída tem nova validação em verification/audit-2026-10-26.",
+  "issues": [
+    {
+      "id": "SEC-01",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Motorista autenticado pode alterar catálogo global de simuladores",
+      "evidence": [
+        "firestore.rules",
+        "qa/tests/security.mts",
+        "functions/src/userProfiles.ts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "SEC-02",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Atualização de userDevices permite troca do proprietário conhecido",
+      "evidence": [
+        "firestore.rules",
+        "qa/tests/security.mts",
+        "functions/src/userProfiles.ts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "SEC-03",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Leitura de users expõe o documento completo a outras contas autenticadas",
+      "evidence": [
+        "firestore.rules",
+        "qa/tests/security.mts",
+        "functions/src/userProfiles.ts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "SEC-04",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Cadastro pendente pode ativar a própria frota sem aprovação canônica",
+      "evidence": [
+        "firestore.rules",
+        "qa/tests/security.mts",
+        "functions/src/userProfiles.ts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "PUSH-01",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Promessa de registro push retida impede retry após falha ou permissão alterada",
+      "evidence": [
+        "src/lib/capacitorPushService.ts",
+        "qa/tests/push-client.mjs",
+        "qa/audits/2026-10-26/recovery/push-client.json"
+      ],
+      "resolutionScope": "source-only; deployment pending"
+    },
+    {
+      "id": "PUSH-02",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Falha transitória individual FCM é marcada como despacho concluído",
+      "evidence": [
+        "functions/src/pushDispatch.ts",
+        "qa/tests/push-backend.mts",
+        "qa/audits/2026-10-26/recovery/push-backend.json"
+      ],
+      "resolutionScope": "source-only; deployment pending"
+    },
+    {
+      "id": "PUSH-03",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Despacho processing sem expiração bloqueia reprocessamento",
+      "evidence": [
+        "functions/src/pushDispatch.ts",
+        "qa/tests/push-backend.mts",
+        "qa/audits/2026-10-26/recovery/push-backend.json"
+      ],
+      "resolutionScope": "source-only; deployment pending"
+    },
+    {
+      "id": "PUSH-04",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Logout não revoga associação anterior do token push",
+      "evidence": [
+        "src/lib/pushDeviceState.ts",
+        "src/lib/capacitorPushService.ts",
+        "src/context/AppContext.tsx",
+        "functions/src/pushDevices.ts",
+        "qa/tests/push-client.mjs",
+        "qa/tests/push-backend.mts"
+      ],
+      "resolutionScope": "source-only; deployment pending"
+    },
+    {
+      "id": "DEP-01",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Dependências com avisos graves precisam de análise de alcance e patches compatíveis",
+      "evidence": [
+        "package-lock.json",
+        "functions/package-lock.json",
+        "qa/audits/2026-10-26/recovery/npm-audit-runtime.json",
+        "qa/audits/2026-10-26/recovery/npm-audit-functions.json"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "NOT-01",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Hidratação bloqueava popups até abrir o sino",
+      "evidence": [
+        "qa/tests/notifications.mjs",
+        "src/context/NotificationsContext.tsx",
+        "verification/audit-2026-10-26/notifications.json"
+      ]
+    },
+    {
+      "id": "NOT-02",
+      "severity": "P2",
+      "status": "resolved",
+      "title": "Campos popupShownAt/popupShownAtIso não aceitos pelas regras",
+      "evidence": [
+        "firestore.rules",
+        "qa/tests/security.mts",
+        "functions/src/userProfiles.ts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "NOT-03",
+      "severity": "P2",
+      "status": "resolved",
+      "title": "Notificações modernas limitadas sem ordenar por recência",
+      "evidence": [
+        "src/context/NotificationsContext.tsx",
+        "firestore.indexes.json",
+        "qa/tests/security.mts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "PUSH-06",
+      "severity": "P2",
+      "status": "resolved",
+      "title": "Evento de abertura push não coincide com o evento dos layouts",
+      "evidence": [
+        "src/components/NotificationNavigationListener.tsx",
+        "src/lib/notificationNavigation.ts",
+        "qa/tests/app-shell.mts"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "QA-01",
+      "severity": "P2",
+      "status": "resolved",
+      "title": "Teste legado de storage interceptado pelo Web Lock experimental do Node",
+      "evidence": [
+        "scripts/test-offline-database-storage.mjs"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "QA-02",
+      "severity": "P2",
+      "status": "resolved",
+      "title": "Teste legado de fluidez assume estado transitório e serialização entre operações",
+      "evidence": [
+        "scripts/test-fluency-476.mjs"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "QA-03",
+      "severity": "P2",
+      "status": "resolved",
+      "title": "Fingerprint não cobre todos os insumos estáveis de testes e build",
+      "evidence": [
+        "scripts/qa/common.mjs",
+        "scripts/qa/self-test.mjs"
+      ],
+      "resolutionScope": "source-only; coordinated rollout pending"
+    },
+    {
+      "id": "ROLL-01",
+      "severity": "P1",
+      "status": "resolved",
+      "title": "Pré-requisitos do novo cliente ainda não publicados/verificados: backend aditivo, projeções públicas e índices",
+      "evidence": [
+        "verification/rollout-2026-10-27/REPORT.md",
+        "verification/rollout-2026-10-27/verification.json",
+        "verification/rollout-2026-10-27/migrations.json",
+        "verification/rollout-2026-10-27/backup-operation.json"
+      ],
+      "resolutionScope": "backend prerequisites verified in production; client adoption and restricted rules pending",
+      "resolvedAt": "2026-10-27T12:11:37.777Z"
+    }
+  ]
+}

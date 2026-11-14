@@ -1,0 +1,901 @@
+{
+  "schema": 2,
+  "language": "pt-BR",
+  "voices": {
+    "male": {
+      "label": "Masculina",
+      "providerVoice": "pt-BR-AntonioNeural",
+      "tempo": 1.24
+    },
+    "female": {
+      "label": "Feminina",
+      "providerVoice": "pt-BR-FranciscaNeural",
+      "tempo": 1.12
+    }
+  },
+  "clips": [
+    {
+      "id": "driver_greet_morning_idle",
+      "voice": "female",
+      "text": "Bom dia. Vamos buscar o próximo trabalho.",
+      "path": "female/driver_greet_morning_idle.mp3",
+      "durationSeconds": 3.396,
+      "sizeBytes": 55034,
+      "sha256": "bb95a7e46fc5d7a6fae09489eb5c23d25fbb4a4157ea36e9d667c632c30ea834"
+    },
+    {
+      "id": "driver_greet_morning_job",
+      "voice": "female",
+      "text": "Bom dia. Você tem um trabalho esperando.",
+      "path": "female/driver_greet_morning_job.mp3",
+      "durationSeconds": 3.187,
+      "sizeBytes": 51688,
+      "sha256": "4c2b097be382bf1d27e0742234ea8c0e3148e40185eb0c27961313644012532c"
+    },
+    {
+      "id": "driver_greet_morning_active",
+      "voice": "female",
+      "text": "Bom dia. Seu trabalho continua em andamento.",
+      "path": "female/driver_greet_morning_active.mp3",
+      "durationSeconds": 3.631,
+      "sizeBytes": 58802,
+      "sha256": "25a53fa6915db230e0afa3276ffe36f7a8f4d06ab42421cc520ed7222477edb6"
+    },
+    {
+      "id": "driver_greet_afternoon_idle",
+      "voice": "female",
+      "text": "Boa tarde. Vamos buscar o próximo trabalho.",
+      "path": "female/driver_greet_afternoon_idle.mp3",
+      "durationSeconds": 3.448,
+      "sizeBytes": 55876,
+      "sha256": "c88481d607fdbd150cb92b7155235a433a8818e61002224c7524abff654f0e08"
+    },
+    {
+      "id": "driver_greet_afternoon_job",
+      "voice": "female",
+      "text": "Boa tarde. Você tem um trabalho esperando.",
+      "path": "female/driver_greet_afternoon_job.mp3",
+      "durationSeconds": 3.265,
+      "sizeBytes": 52947,
+      "sha256": "eb671520b02afdacd3142a82250c3ecfe93567b0cb2fde7a6e2bf442625a35b0"
+    },
+    {
+      "id": "driver_greet_afternoon_active",
+      "voice": "female",
+      "text": "Boa tarde. Seu trabalho continua em andamento.",
+      "path": "female/driver_greet_afternoon_active.mp3",
+      "durationSeconds": 3.709,
+      "sizeBytes": 60062,
+      "sha256": "d3e35d54f6c8f594242eb4966bc6f9fdaad375bcd593d527fa7f43c9829f90f7"
+    },
+    {
+      "id": "driver_greet_night_idle",
+      "voice": "female",
+      "text": "Boa noite. Vamos buscar o próximo trabalho.",
+      "path": "female/driver_greet_night_idle.mp3",
+      "durationSeconds": 3.448,
+      "sizeBytes": 55868,
+      "sha256": "e3eccfec218a2a5a773e161bc896f76cf49314b40ea4c586d467ab388ecc046c"
+    },
+    {
+      "id": "driver_greet_night_job",
+      "voice": "female",
+      "text": "Boa noite. Você tem um trabalho esperando.",
+      "path": "female/driver_greet_night_job.mp3",
+      "durationSeconds": 3.265,
+      "sizeBytes": 52939,
+      "sha256": "8ac6848fd25edc8f03bbf11487739b920da810f70fd030e57c771847f481c158"
+    },
+    {
+      "id": "driver_greet_night_active",
+      "voice": "female",
+      "text": "Boa noite. Seu trabalho continua em andamento.",
+      "path": "female/driver_greet_night_active.mp3",
+      "durationSeconds": 3.709,
+      "sizeBytes": 60054,
+      "sha256": "7590f7c401668045a27fa674b721e8e2864f816f25a8eeead09d30849e70fafe"
+    },
+    {
+      "id": "admin_greet_morning_calm",
+      "voice": "female",
+      "text": "Bom dia. Sua operação está em ordem.",
+      "path": "female/admin_greet_morning_calm.mp3",
+      "durationSeconds": 3.318,
+      "sizeBytes": 53775,
+      "sha256": "e66e47ecf7a44a1514bf87062116bde8054de7668e2187412284307dcae072d6"
+    },
+    {
+      "id": "admin_greet_morning_active",
+      "voice": "female",
+      "text": "Bom dia. Sua frota está na estrada.",
+      "path": "female/admin_greet_morning_active.mp3",
+      "durationSeconds": 3.291,
+      "sizeBytes": 53358,
+      "sha256": "65c7aefca1009bf97a01d51d69a1768f418af2123e8510beb8b9271f523b8051"
+    },
+    {
+      "id": "admin_greet_morning_news",
+      "voice": "female",
+      "text": "Bom dia. Há novidades esperando por você.",
+      "path": "female/admin_greet_morning_news.mp3",
+      "durationSeconds": 3.474,
+      "sizeBytes": 56287,
+      "sha256": "ac30549dbdeba834a20033e2e213c1c959bb68b21c3599f2c04c59fc2cf4d500"
+    },
+    {
+      "id": "admin_greet_afternoon_calm",
+      "voice": "female",
+      "text": "Boa tarde. Sua operação está em ordem.",
+      "path": "female/admin_greet_afternoon_calm.mp3",
+      "durationSeconds": 3.37,
+      "sizeBytes": 54617,
+      "sha256": "305164f888685b781692895fe716fb01a8d5eca7158c8f0b45d4599a69ad8f7e"
+    },
+    {
+      "id": "admin_greet_afternoon_active",
+      "voice": "female",
+      "text": "Boa tarde. Sua frota está na estrada.",
+      "path": "female/admin_greet_afternoon_active.mp3",
+      "durationSeconds": 3.37,
+      "sizeBytes": 54618,
+      "sha256": "ef5d9667cf7b437565918a5068c6e0b01d8391f458ea8556003801b4c9d06778"
+    },
+    {
+      "id": "admin_greet_afternoon_news",
+      "voice": "female",
+      "text": "Boa tarde. Há novidades esperando por você.",
+      "path": "female/admin_greet_afternoon_news.mp3",
+      "durationSeconds": 3.527,
+      "sizeBytes": 57129,
+      "sha256": "baef390731569260bbd15e954b94057bedd56d8283e5b434560c4b76dc4c93a5"
+    },
+    {
+      "id": "admin_greet_night_calm",
+      "voice": "female",
+      "text": "Boa noite. Sua operação está em ordem.",
+      "path": "female/admin_greet_night_calm.mp3",
+      "durationSeconds": 3.396,
+      "sizeBytes": 55027,
+      "sha256": "2ed9f6073799eef5f3fdf9194967c522a07f7c1fc84869dafab7b385859edaa5"
+    },
+    {
+      "id": "admin_greet_night_active",
+      "voice": "female",
+      "text": "Boa noite. Sua frota está na estrada.",
+      "path": "female/admin_greet_night_active.mp3",
+      "durationSeconds": 3.37,
+      "sizeBytes": 54610,
+      "sha256": "3c83ebf4f6ef3c48269cf1a3e420d1c5265ac4859bcd558530e5c307b75e15bd"
+    },
+    {
+      "id": "admin_greet_night_news",
+      "voice": "female",
+      "text": "Boa noite. Há novidades esperando por você.",
+      "path": "female/admin_greet_night_news.mp3",
+      "durationSeconds": 3.527,
+      "sizeBytes": 57121,
+      "sha256": "114464f056ecadb384db178c68412cc7d2e64da8193ad67ef0e98af9f7e34e7e"
+    },
+    {
+      "id": "event_new_job",
+      "voice": "female",
+      "text": "Você recebeu um novo trabalho.",
+      "path": "female/event_new_job.mp3",
+      "durationSeconds": 2.377,
+      "sizeBytes": 38737,
+      "sha256": "b0fa44bd8c161c9d8ab2c66b7d7660167dab9c5bbaf34143a2eac0df4cfb09f9"
+    },
+    {
+      "id": "event_job_cancelled",
+      "voice": "female",
+      "text": "Atenção: este trabalho foi cancelado pela empresa.",
+      "path": "female/event_job_cancelled.mp3",
+      "durationSeconds": 3.709,
+      "sizeBytes": 60048,
+      "sha256": "ba4da03d5481c1bc0103d391c3357b7ee38158e2074fb24df7f21c9f9f1ccc54"
+    },
+    {
+      "id": "event_pro_ready",
+      "voice": "female",
+      "text": "Modo Pro pronto. Pode seguir viagem.",
+      "path": "female/event_pro_ready.mp3",
+      "durationSeconds": 3.135,
+      "sizeBytes": 50829,
+      "sha256": "079696d32c6bbc540ea1b6df5dc90c1d72c9a2a3a4e359f0ed7c11319aff366e"
+    },
+    {
+      "id": "event_job_started",
+      "voice": "female",
+      "text": "Trabalho iniciado. Boa viagem.",
+      "path": "female/event_job_started.mp3",
+      "durationSeconds": 2.926,
+      "sizeBytes": 47521,
+      "sha256": "e391aebd200ddf3fc47a42440ddf786b657e330323db18bd744de73a3738d428"
+    },
+    {
+      "id": "event_trip_detected",
+      "voice": "female",
+      "text": "Viagem concluída. Preparando o registro.",
+      "path": "female/event_trip_detected.mp3",
+      "durationSeconds": 3.396,
+      "sizeBytes": 55059,
+      "sha256": "89a9350083c957d4500045823c20036bb6fe40fd801523d8bdf68dce81e13b36"
+    },
+    {
+      "id": "event_trip_saved",
+      "voice": "female",
+      "text": "Viagem registrada.",
+      "path": "female/event_trip_saved.mp3",
+      "durationSeconds": 2.09,
+      "sizeBytes": 34132,
+      "sha256": "7c720e4873220d261bfb2cc571dd07d0e3d0be1757a9505be5f7348018e41f3e"
+    },
+    {
+      "id": "event_trip_saved_b",
+      "voice": "female",
+      "text": "Viagem registrada. Bom trabalho.",
+      "path": "female/event_trip_saved_b.mp3",
+      "durationSeconds": 3.056,
+      "sizeBytes": 49577,
+      "sha256": "d842cdbaa16a543a3ed40f32379cb4501164f6257f9e0304da334af277340de3"
+    },
+    {
+      "id": "event_trip_saved_c",
+      "voice": "female",
+      "text": "Registrado. Siga em frente.",
+      "path": "female/event_trip_saved_c.mp3",
+      "durationSeconds": 2.795,
+      "sizeBytes": 45392,
+      "sha256": "06aa76d056519fbc5ab62df15ff1a337bab2c4898ec9920122d180d9248c8ec4"
+    },
+    {
+      "id": "event_half_done",
+      "voice": "female",
+      "text": "Metade do trabalho concluída.",
+      "path": "female/event_half_done.mp3",
+      "durationSeconds": 2.534,
+      "sizeBytes": 41210,
+      "sha256": "fa39a2b23d7cd315a04ffa0ff986f3b4e74217ba41b3720aaf17d505ac65c6d4"
+    },
+    {
+      "id": "event_near_goal",
+      "voice": "female",
+      "text": "Você está perto da meta.",
+      "path": "female/event_near_goal.mp3",
+      "durationSeconds": 2.194,
+      "sizeBytes": 35772,
+      "sha256": "ec73886ee7b168fa894fba4868029bbf2a3b9b18abf03c62996ea22f199aedea"
+    },
+    {
+      "id": "event_last_trip",
+      "voice": "female",
+      "text": "Falta apenas uma viagem.",
+      "path": "female/event_last_trip.mp3",
+      "durationSeconds": 2.325,
+      "sizeBytes": 37860,
+      "sha256": "3e2c91e10e88654f2ee59df5e54ac906817969fe36cc93bee779aa1f7c98c4a1"
+    },
+    {
+      "id": "event_goal_reached",
+      "voice": "female",
+      "text": "Meta atingida. Excelente trabalho.",
+      "path": "female/event_goal_reached.mp3",
+      "durationSeconds": 2.978,
+      "sizeBytes": 48325,
+      "sha256": "2f0af5c3fcc8b73eaa6c80bf2cc44bc380e6db2db587722a85e969ddf9252c9b"
+    },
+    {
+      "id": "event_pause_needed",
+      "voice": "female",
+      "text": "Abra o menu de pausa para continuar.",
+      "path": "female/event_pause_needed.mp3",
+      "durationSeconds": 2.743,
+      "sizeBytes": 44603,
+      "sha256": "8b018d1d3de895572585676e96d9cb2b44f0839b8046046667c1d571dca90ac3"
+    },
+    {
+      "id": "event_trip_failed",
+      "voice": "female",
+      "text": "Atenção: não foi possível registrar a viagem. Confira o aviso.",
+      "path": "female/event_trip_failed.mp3",
+      "durationSeconds": 4.571,
+      "sizeBytes": 73850,
+      "sha256": "50bf0aa69fb014f0f2df6468f2e3560a62b509cf0823012698e666855a6a7a2d"
+    },
+    {
+      "id": "event_offline",
+      "voice": "female",
+      "text": "Sem internet. Suas viagens ficam salvas e serão enviadas depois.",
+      "path": "female/event_offline.mp3",
+      "durationSeconds": 4.989,
+      "sizeBytes": 80529,
+      "sha256": "b1b569d3367f148a942d1402eb8dd368339fd2dc9c84528b307e7697627d7e24"
+    },
+    {
+      "id": "event_back_online",
+      "voice": "female",
+      "text": "Conexão restabelecida. Suas viagens foram enviadas.",
+      "path": "female/event_back_online.mp3",
+      "durationSeconds": 4.232,
+      "sizeBytes": 68403,
+      "sha256": "c4ed69594b3b1ad1bc7c9a0878f690eaf1057e7d253127eec2c4d9757a7c4a05"
+    },
+    {
+      "id": "event_deadline_near",
+      "voice": "female",
+      "text": "O prazo desta operação está acabando.",
+      "path": "female/event_deadline_near.mp3",
+      "durationSeconds": 2.873,
+      "sizeBytes": 46661,
+      "sha256": "46abc262c2d1bbe213cbeef03ac31e8b98623df49dddf30f337037c85b8d53c0"
+    },
+    {
+      "id": "event_deadline_goal_risk",
+      "voice": "female",
+      "text": "Atenção: a meta ainda não foi atingida e o prazo está curto.",
+      "path": "female/event_deadline_goal_risk.mp3",
+      "durationSeconds": 4.232,
+      "sizeBytes": 68429,
+      "sha256": "bc2827fbf389fc6b256932da958ebebec268e59fa68aa3c3833efbea9d2673f2"
+    },
+    {
+      "id": "event_deadline_passed",
+      "voice": "female",
+      "text": "Atenção: o prazo desta operação terminou.",
+      "path": "female/event_deadline_passed.mp3",
+      "durationSeconds": 3.422,
+      "sizeBytes": 55447,
+      "sha256": "d932efc7b225e3957eb62c7ce7c64aba6311c1261a78e60d77ca9d7b052bb475"
+    },
+    {
+      "id": "event_job_completed",
+      "voice": "female",
+      "text": "Operação concluída. Bom trabalho.",
+      "path": "female/event_job_completed.mp3",
+      "durationSeconds": 3.004,
+      "sizeBytes": 48785,
+      "sha256": "922c609534b2597d5efaa434a852874bb1fd755164ca40c8b91d25997db614c9"
+    },
+    {
+      "id": "event_payment_confirmed",
+      "voice": "female",
+      "text": "Pagamento confirmado.",
+      "path": "female/event_payment_confirmed.mp3",
+      "durationSeconds": 2.064,
+      "sizeBytes": 33693,
+      "sha256": "d817c1059005a6964d33df5714eead4525909d2da0daa21c10eb0650ece3f116"
+    },
+    {
+      "id": "admin_late",
+      "voice": "female",
+      "text": "Atenção: uma operação passou do prazo.",
+      "path": "female/admin_late.mp3",
+      "durationSeconds": 3.161,
+      "sizeBytes": 51243,
+      "sha256": "2ee0b492a223feeeb56a37ae0406319340be2e329fd4e8b5bf4769ebed537bc1"
+    },
+    {
+      "id": "admin_driver_completed",
+      "voice": "female",
+      "text": "Um motorista concluiu uma operação.",
+      "path": "female/admin_driver_completed.mp3",
+      "durationSeconds": 2.717,
+      "sizeBytes": 44156,
+      "sha256": "6552ae2b3aaafd1309d529b9fb7cdc3eb8d4b8b04025276b8615afc63af91363"
+    },
+    {
+      "id": "admin_goal_reached",
+      "voice": "female",
+      "text": "Uma operação atingiu a meta.",
+      "path": "female/admin_goal_reached.mp3",
+      "durationSeconds": 2.429,
+      "sizeBytes": 39544,
+      "sha256": "a46450c30089be9e897a21e377bdd05d8ea69fc22811b1c74f9489571958d5ad"
+    },
+    {
+      "id": "admin_driver_started",
+      "voice": "female",
+      "text": "Um motorista iniciou uma operação.",
+      "path": "female/admin_driver_started.mp3",
+      "durationSeconds": 2.664,
+      "sizeBytes": 43315,
+      "sha256": "8cfd749ead974e8a07273eab400aa96074bdaf82cb6dfd14f7a08d333feb7669"
+    },
+    {
+      "id": "admin_trips_batch",
+      "voice": "female",
+      "text": "Novas viagens registradas.",
+      "path": "female/admin_trips_batch.mp3",
+      "durationSeconds": 2.534,
+      "sizeBytes": 41210,
+      "sha256": "209ebb0d6ea8c6190aa45aad1fa736fb0b7acbfde8174a534c018f01f25793b3"
+    },
+    {
+      "id": "admin_job_declined",
+      "voice": "female",
+      "text": "Um motorista recusou um trabalho.",
+      "path": "female/admin_job_declined.mp3",
+      "durationSeconds": 2.508,
+      "sizeBytes": 40801,
+      "sha256": "f823ec8ded82dd6b959812d75e1057638560579b338601e3161193ae2c2899ca"
+    },
+    {
+      "id": "admin_payments_due",
+      "voice": "female",
+      "text": "Você tem pagamentos para fazer.",
+      "path": "female/admin_payments_due.mp3",
+      "durationSeconds": 2.351,
+      "sizeBytes": 38292,
+      "sha256": "f5a22a6174c267566ffa3d1ff79414f89378560274f8aadfab040433df31844d"
+    },
+    {
+      "id": "admin_payment_received",
+      "voice": "female",
+      "text": "Você recebeu um pagamento.",
+      "path": "female/admin_payment_received.mp3",
+      "durationSeconds": 2.194,
+      "sizeBytes": 35787,
+      "sha256": "846da51cae7678fde451d45cfb74bd8df48add4c78bc7b2203070665246f7fd5"
+    },
+    {
+      "id": "admin_new_candidate",
+      "voice": "female",
+      "text": "Nova candidatura na sua equipe.",
+      "path": "female/admin_new_candidate.mp3",
+      "durationSeconds": 2.56,
+      "sizeBytes": 41637,
+      "sha256": "d7cff225911b1b0a9d078b32523e9ea8d5f3ef826b4b2313e96e5678011d82b6"
+    },
+    {
+      "id": "admin_partnership_offer",
+      "voice": "female",
+      "text": "Você recebeu uma proposta de parceria.",
+      "path": "female/admin_partnership_offer.mp3",
+      "durationSeconds": 2.873,
+      "sizeBytes": 46668,
+      "sha256": "f5c758c866acf8dbdf79e22af9da0d04bf6cb0e0f459cf0a6fcb32f7a76696d7"
+    },
+    {
+      "id": "driver_greet_morning_idle",
+      "voice": "male",
+      "text": "Bom dia. Vamos buscar o próximo trabalho.",
+      "path": "male/driver_greet_morning_idle.mp3",
+      "durationSeconds": 3.5,
+      "sizeBytes": 56704,
+      "sha256": "b038f78e26429e4e70f493aec0b3a6dfb6f359dc458cdb18b608a66dcf541146"
+    },
+    {
+      "id": "driver_greet_morning_job",
+      "voice": "male",
+      "text": "Bom dia. Você tem um trabalho esperando.",
+      "path": "male/driver_greet_morning_job.mp3",
+      "durationSeconds": 3.396,
+      "sizeBytes": 55029,
+      "sha256": "eea9b143cea2fe72e6f59105e5f6a750ec266eb7bd34a77b5976d4731a59de35"
+    },
+    {
+      "id": "driver_greet_morning_active",
+      "voice": "male",
+      "text": "Bom dia. Seu trabalho continua em andamento.",
+      "path": "male/driver_greet_morning_active.mp3",
+      "durationSeconds": 3.631,
+      "sizeBytes": 58800,
+      "sha256": "2170adf018e2ddd0739ce95623891c407bbdc3943ebc955e5ef58e719b597bc5"
+    },
+    {
+      "id": "driver_greet_afternoon_idle",
+      "voice": "male",
+      "text": "Boa tarde. Vamos buscar o próximo trabalho.",
+      "path": "male/driver_greet_afternoon_idle.mp3",
+      "durationSeconds": 3.631,
+      "sizeBytes": 58800,
+      "sha256": "b3c584cb18914c7c90c02a4c8836461d74f4a4eefd22bfca5ff44bba0a8ac3af"
+    },
+    {
+      "id": "driver_greet_afternoon_job",
+      "voice": "male",
+      "text": "Boa tarde. Você tem um trabalho esperando.",
+      "path": "male/driver_greet_afternoon_job.mp3",
+      "durationSeconds": 3.527,
+      "sizeBytes": 57125,
+      "sha256": "ae099cd3bc814dc04ae685d5fd4859e8d97a60eb6cd4308f46aa96313c84088d"
+    },
+    {
+      "id": "driver_greet_afternoon_active",
+      "voice": "male",
+      "text": "Boa tarde. Seu trabalho continua em andamento.",
+      "path": "male/driver_greet_afternoon_active.mp3",
+      "durationSeconds": 3.762,
+      "sizeBytes": 60896,
+      "sha256": "dbe29f27e51eb2f2c67391af1269291e2de15876afcd2d940d38f0181c560b65"
+    },
+    {
+      "id": "driver_greet_night_idle",
+      "voice": "male",
+      "text": "Boa noite. Vamos buscar o próximo trabalho.",
+      "path": "male/driver_greet_night_idle.mp3",
+      "durationSeconds": 3.579,
+      "sizeBytes": 57956,
+      "sha256": "b26f5558c2e236885b9860b3771106dbb53b4d149cfa800ea1a81d401e38e036"
+    },
+    {
+      "id": "driver_greet_night_job",
+      "voice": "male",
+      "text": "Boa noite. Você tem um trabalho esperando.",
+      "path": "male/driver_greet_night_job.mp3",
+      "durationSeconds": 3.474,
+      "sizeBytes": 56281,
+      "sha256": "a10eac3aad0320d9384a738ee0543b67a557916968493fa24ed00953d404f483"
+    },
+    {
+      "id": "driver_greet_night_active",
+      "voice": "male",
+      "text": "Boa noite. Seu trabalho continua em andamento.",
+      "path": "male/driver_greet_night_active.mp3",
+      "durationSeconds": 3.709,
+      "sizeBytes": 60052,
+      "sha256": "9bdbf82c28064e31b26a946e1ef67cfdcb09ad1d7d6d63857fd2709de1d09f21"
+    },
+    {
+      "id": "admin_greet_morning_calm",
+      "voice": "male",
+      "text": "Bom dia. Sua operação está em ordem.",
+      "path": "male/admin_greet_morning_calm.mp3",
+      "durationSeconds": 3.37,
+      "sizeBytes": 54609,
+      "sha256": "ffb0550399dfbef1e5323d9019f6af080404797a317e691c10f6d0b704366d75"
+    },
+    {
+      "id": "admin_greet_morning_active",
+      "voice": "male",
+      "text": "Bom dia. Sua frota está na estrada.",
+      "path": "male/admin_greet_morning_active.mp3",
+      "durationSeconds": 3.265,
+      "sizeBytes": 52938,
+      "sha256": "91f5b0c06047262965fc9bb13b253ec8f3c1cb944e036592d6544bf85920a787"
+    },
+    {
+      "id": "admin_greet_morning_news",
+      "voice": "male",
+      "text": "Bom dia. Há novidades esperando por você.",
+      "path": "male/admin_greet_morning_news.mp3",
+      "durationSeconds": 3.605,
+      "sizeBytes": 58375,
+      "sha256": "144b5a82b5b6f37a36cd3ce7ec742e97c5dd90a842f72c451d22a460b3682a73"
+    },
+    {
+      "id": "admin_greet_afternoon_calm",
+      "voice": "male",
+      "text": "Boa tarde. Sua operação está em ordem.",
+      "path": "male/admin_greet_afternoon_calm.mp3",
+      "durationSeconds": 3.5,
+      "sizeBytes": 56705,
+      "sha256": "a7d63d4a68ec7cee0b41c321537c74ebc939be9de946660fa4040e80052e7e6e"
+    },
+    {
+      "id": "admin_greet_afternoon_active",
+      "voice": "male",
+      "text": "Boa tarde. Sua frota está na estrada.",
+      "path": "male/admin_greet_afternoon_active.mp3",
+      "durationSeconds": 3.396,
+      "sizeBytes": 55034,
+      "sha256": "d78b5ac0114e12437e78c65d0fbafeb40113137405b8e6114d17644a0a524856"
+    },
+    {
+      "id": "admin_greet_afternoon_news",
+      "voice": "male",
+      "text": "Boa tarde. Há novidades esperando por você.",
+      "path": "male/admin_greet_afternoon_news.mp3",
+      "durationSeconds": 3.736,
+      "sizeBytes": 60471,
+      "sha256": "0b12b71e3cd2343faf85cc398b54147af36725eea262cda27d6c548e7f941ea9"
+    },
+    {
+      "id": "admin_greet_night_calm",
+      "voice": "male",
+      "text": "Boa noite. Sua operação está em ordem.",
+      "path": "male/admin_greet_night_calm.mp3",
+      "durationSeconds": 3.448,
+      "sizeBytes": 55861,
+      "sha256": "0d416c181b4fb8f7c59ee3f6fbd87fb730e5ba70538d4cad841578591872f609"
+    },
+    {
+      "id": "admin_greet_night_active",
+      "voice": "male",
+      "text": "Boa noite. Sua frota está na estrada.",
+      "path": "male/admin_greet_night_active.mp3",
+      "durationSeconds": 3.344,
+      "sizeBytes": 54190,
+      "sha256": "a6345bec9a78468f66c0a62bc04c113f4cd95e68db889247bb37c89b26b52321"
+    },
+    {
+      "id": "admin_greet_night_news",
+      "voice": "male",
+      "text": "Boa noite. Há novidades esperando por você.",
+      "path": "male/admin_greet_night_news.mp3",
+      "durationSeconds": 3.683,
+      "sizeBytes": 59627,
+      "sha256": "ea47071061c38afee3b3432a7e2090ecc81d08e2172345958573139ea3a088f2"
+    },
+    {
+      "id": "event_new_job",
+      "voice": "male",
+      "text": "Você recebeu um novo trabalho.",
+      "path": "male/event_new_job.mp3",
+      "durationSeconds": 2.273,
+      "sizeBytes": 37063,
+      "sha256": "8c47b4efdc9eb9e4d605bf68c7413debe42e5a948e0cd499112d0e26b0f25479"
+    },
+    {
+      "id": "event_job_cancelled",
+      "voice": "male",
+      "text": "Atenção: este trabalho foi cancelado pela empresa.",
+      "path": "male/event_job_cancelled.mp3",
+      "durationSeconds": 3.344,
+      "sizeBytes": 54194,
+      "sha256": "2541576474204308e9273a233299f5debae28eaa30fdb72e366d484ff4e879fd"
+    },
+    {
+      "id": "event_pro_ready",
+      "voice": "male",
+      "text": "Modo Pro pronto. Pode seguir viagem.",
+      "path": "male/event_pro_ready.mp3",
+      "durationSeconds": 3.265,
+      "sizeBytes": 52916,
+      "sha256": "92fbb446ad37e8c53152fcf860dcc9b3322369cd5c1039655b35aade1ba9e391"
+    },
+    {
+      "id": "event_job_started",
+      "voice": "male",
+      "text": "Trabalho iniciado. Boa viagem.",
+      "path": "male/event_job_started.mp3",
+      "durationSeconds": 3.161,
+      "sizeBytes": 51281,
+      "sha256": "64532afc0cf0224623add1c931f65efa26f93964cf4c034b75a1c4f67f67ac95"
+    },
+    {
+      "id": "event_trip_detected",
+      "voice": "male",
+      "text": "Viagem concluída. Preparando o registro.",
+      "path": "male/event_trip_detected.mp3",
+      "durationSeconds": 3.553,
+      "sizeBytes": 57565,
+      "sha256": "96e2ed93b08cb19d4d675abeefc5b584df996b75e8b16c5c938e2dd12f7244f6"
+    },
+    {
+      "id": "event_trip_saved",
+      "voice": "male",
+      "text": "Viagem registrada.",
+      "path": "male/event_trip_saved.mp3",
+      "durationSeconds": 1.855,
+      "sizeBytes": 30369,
+      "sha256": "68abb2d6abbf57902cd74e64c1e7ae6be077adc714a107f0ba0b84ed56ce402d"
+    },
+    {
+      "id": "event_trip_saved_b",
+      "voice": "male",
+      "text": "Viagem registrada. Bom trabalho.",
+      "path": "male/event_trip_saved_b.mp3",
+      "durationSeconds": 3.161,
+      "sizeBytes": 51247,
+      "sha256": "62fc15a2482d68e4d40bf67a614e6ac4db953b3f453858bb3f37b886bce2dea6"
+    },
+    {
+      "id": "event_trip_saved_c",
+      "voice": "male",
+      "text": "Registrado. Siga em frente.",
+      "path": "male/event_trip_saved_c.mp3",
+      "durationSeconds": 2.9,
+      "sizeBytes": 47062,
+      "sha256": "331e44fbc9de67c07a7b24ed8b7ab6382d86d6c5356f349457d4d0e2b12db9bd"
+    },
+    {
+      "id": "event_half_done",
+      "voice": "male",
+      "text": "Metade do trabalho concluída.",
+      "path": "male/event_half_done.mp3",
+      "durationSeconds": 2.22,
+      "sizeBytes": 36192,
+      "sha256": "246981b0c71981d2d0c18b4d06884caa05b17df9ad70c6da0e29d7bcfbee2585"
+    },
+    {
+      "id": "event_near_goal",
+      "voice": "male",
+      "text": "Você está perto da meta.",
+      "path": "male/event_near_goal.mp3",
+      "durationSeconds": 2.011,
+      "sizeBytes": 32844,
+      "sha256": "d977de999ffedd25cd018cc1f220dbfa6ccf543f66687d2ac34233537c3870c9"
+    },
+    {
+      "id": "event_last_trip",
+      "voice": "male",
+      "text": "Falta apenas uma viagem.",
+      "path": "male/event_last_trip.mp3",
+      "durationSeconds": 2.011,
+      "sizeBytes": 32842,
+      "sha256": "bb3203787d30677004709e928faa273331a968a9da22364c73bd7251ea63448f"
+    },
+    {
+      "id": "event_goal_reached",
+      "voice": "male",
+      "text": "Meta atingida. Excelente trabalho.",
+      "path": "male/event_goal_reached.mp3",
+      "durationSeconds": 3.187,
+      "sizeBytes": 51667,
+      "sha256": "00d355f152ce7cb4f37e6831afd01baf509bcb447f2757d13b8cee27ae6ae76e"
+    },
+    {
+      "id": "event_pause_needed",
+      "voice": "male",
+      "text": "Abra o menu de pausa para continuar.",
+      "path": "male/event_pause_needed.mp3",
+      "durationSeconds": 2.403,
+      "sizeBytes": 39168,
+      "sha256": "e24bf84fb16b009cd8bf7fe0252218178fc75891def905ceb3188cad595a2c2c"
+    },
+    {
+      "id": "event_trip_failed",
+      "voice": "male",
+      "text": "Atenção: não foi possível registrar a viagem. Confira o aviso.",
+      "path": "male/event_trip_failed.mp3",
+      "durationSeconds": 4.754,
+      "sizeBytes": 76774,
+      "sha256": "9af84abde6d981a87cc0eb99ef9d0317b3b15f9150b6fe12d1a13c3bfbde3cf5"
+    },
+    {
+      "id": "event_offline",
+      "voice": "male",
+      "text": "Sem internet. Suas viagens ficam salvas e serão enviadas depois.",
+      "path": "male/event_offline.mp3",
+      "durationSeconds": 4.963,
+      "sizeBytes": 80109,
+      "sha256": "3ce14979c5842f4712c6de3bf474f7c42f89679fdb777c41a4a330432f662aa0"
+    },
+    {
+      "id": "event_back_online",
+      "voice": "male",
+      "text": "Conexão restabelecida. Suas viagens foram enviadas.",
+      "path": "male/event_back_online.mp3",
+      "durationSeconds": 4.31,
+      "sizeBytes": 69655,
+      "sha256": "26db1668edaf7ca0635e0fb232a325e8b66b1e473ae5b690834b1eb6e2b1d794"
+    },
+    {
+      "id": "event_deadline_near",
+      "voice": "male",
+      "text": "O prazo desta operação está acabando.",
+      "path": "male/event_deadline_near.mp3",
+      "durationSeconds": 2.612,
+      "sizeBytes": 42479,
+      "sha256": "061e5e416f735d4b1be3ecc087c83386db9e9418dd9ade4efd59bd4c64c82c3f"
+    },
+    {
+      "id": "event_deadline_goal_risk",
+      "voice": "male",
+      "text": "Atenção: a meta ainda não foi atingida e o prazo está curto.",
+      "path": "male/event_deadline_goal_risk.mp3",
+      "durationSeconds": 3.736,
+      "sizeBytes": 60486,
+      "sha256": "81fab0eec253efc52f40ad9e79906636ee0a718be48ce9aefee87cb69660b8da"
+    },
+    {
+      "id": "event_deadline_passed",
+      "voice": "male",
+      "text": "Atenção: o prazo desta operação terminou.",
+      "path": "male/event_deadline_passed.mp3",
+      "durationSeconds": 3.082,
+      "sizeBytes": 50012,
+      "sha256": "ba6f7b2a2e72a0023abbc3da295a75c2e66e8ab3a66023e9acc59f846577884b"
+    },
+    {
+      "id": "event_job_completed",
+      "voice": "male",
+      "text": "Operação concluída. Bom trabalho.",
+      "path": "male/event_job_completed.mp3",
+      "durationSeconds": 3.239,
+      "sizeBytes": 52544,
+      "sha256": "eae2c75bcfe6f08268d56cd0d8d45ddd4b3a3cf001dabc1dbf859fb0d8ea0d14"
+    },
+    {
+      "id": "event_payment_confirmed",
+      "voice": "male",
+      "text": "Pagamento confirmado.",
+      "path": "male/event_payment_confirmed.mp3",
+      "durationSeconds": 1.829,
+      "sizeBytes": 29930,
+      "sha256": "dd0d3f832bb669883c4c0e7f9439902f396fe524ea4e90029da852e7a79c3815"
+    },
+    {
+      "id": "admin_late",
+      "voice": "male",
+      "text": "Atenção: uma operação passou do prazo.",
+      "path": "male/admin_late.mp3",
+      "durationSeconds": 3.004,
+      "sizeBytes": 48733,
+      "sha256": "e378deb33066d95b210eb189930d585343d281f5e7aea5b14121b507a7bcd5b0"
+    },
+    {
+      "id": "admin_driver_completed",
+      "voice": "male",
+      "text": "Um motorista concluiu uma operação.",
+      "path": "male/admin_driver_completed.mp3",
+      "durationSeconds": 2.403,
+      "sizeBytes": 39139,
+      "sha256": "6a9e4d8bda8b3aa8a8f648f54549d35dccf9e4e75e11ed9ca8238d51711edaae"
+    },
+    {
+      "id": "admin_goal_reached",
+      "voice": "male",
+      "text": "Uma operação atingiu a meta.",
+      "path": "male/admin_goal_reached.mp3",
+      "durationSeconds": 2.273,
+      "sizeBytes": 37034,
+      "sha256": "7a743312f56b17c14624f05769bf252a8167b2ed9aceaa75215a712ffd69e57c"
+    },
+    {
+      "id": "admin_driver_started",
+      "voice": "male",
+      "text": "Um motorista iniciou uma operação.",
+      "path": "male/admin_driver_started.mp3",
+      "durationSeconds": 2.403,
+      "sizeBytes": 39134,
+      "sha256": "63b11bcf108e4370fdc6ac8383d3ea451a826ebe4c533fb6c4c9d371e656b893"
+    },
+    {
+      "id": "admin_trips_batch",
+      "voice": "male",
+      "text": "Novas viagens registradas.",
+      "path": "male/admin_trips_batch.mp3",
+      "durationSeconds": 2.194,
+      "sizeBytes": 35774,
+      "sha256": "7da4708199622262f014c553ddf3b1cf25b5e804a5aab7a77eab4c93ae3f2859"
+    },
+    {
+      "id": "admin_job_declined",
+      "voice": "male",
+      "text": "Um motorista recusou um trabalho.",
+      "path": "male/admin_job_declined.mp3",
+      "durationSeconds": 2.22,
+      "sizeBytes": 36201,
+      "sha256": "bdf73e1c3cf73b8d23a5ddbe503f86b4b812cc344974c535b84b186770297bc7"
+    },
+    {
+      "id": "admin_payments_due",
+      "voice": "male",
+      "text": "Você tem pagamentos para fazer.",
+      "path": "male/admin_payments_due.mp3",
+      "durationSeconds": 2.22,
+      "sizeBytes": 36200,
+      "sha256": "ac51bad1767e4f700ddae60e60e11783e1544536b76e29105f793c699336a420"
+    },
+    {
+      "id": "admin_payment_received",
+      "voice": "male",
+      "text": "Você recebeu um pagamento.",
+      "path": "male/admin_payment_received.mp3",
+      "durationSeconds": 2.038,
+      "sizeBytes": 33277,
+      "sha256": "fdc89ec397e1c2b8da784f2c96d5e1130303f94ec3793346921e77da72a67ab9"
+    },
+    {
+      "id": "admin_new_candidate",
+      "voice": "male",
+      "text": "Nova candidatura na sua equipe.",
+      "path": "male/admin_new_candidate.mp3",
+      "durationSeconds": 2.403,
+      "sizeBytes": 39127,
+      "sha256": "427dbb0f680b2dfa648a134ccd27b2b1f0ac29e3882dc9f8df4574d4364f58bc"
+    },
+    {
+      "id": "admin_partnership_offer",
+      "voice": "male",
+      "text": "Você recebeu uma proposta de parceria.",
+      "path": "male/admin_partnership_offer.mp3",
+      "durationSeconds": 2.638,
+      "sizeBytes": 42904,
+      "sha256": "d940c6a7dabd0b23ca5fb2e7aea3ae59b778a022e42efdd4280c09f1830c327a"
+    }
+  ],
+  "failures": []
+}

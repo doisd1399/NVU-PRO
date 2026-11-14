@@ -127,9 +127,9 @@ export function DesempenhoOperacionalCard({
       badgeText: "Operação Iniciada",
       message: "O período está em andamento. Cada viagem registrada contribui para o avanço da operação.",
       effectClass: "shadow-[0_0_15px_rgba(100,116,139,0.3)] dark:shadow-[0_0_15px_rgba(100,116,139,0.15)]",
-      textColor: "text-[#64748b] dark:text-[#94a3b8]",
-      iconColor: "text-[#64748b] dark:text-[#94a3b8]",
-      bgHover: "hover:bg-slate-50 dark:hover:bg-slate-900/10",
+      textColor: "text-[#64748b] dark:text-nvu-muted",
+      iconColor: "text-[#64748b] dark:text-nvu-muted",
+      bgHover: "hover:bg-slate-50 dark:hover:bg-nvu-page/10",
       indicatorColor: "bg-[#64748b]",
       barGradient: "from-slate-400 to-slate-500",
       dotColor: "bg-[#64748b]",
@@ -144,17 +144,17 @@ export function DesempenhoOperacionalCard({
       <div
         onClick={() => setIsModalOpen(true)}
         className={cn(
-          "bg-white dark:bg-[#1A1F26] rounded-2xl p-4 sm:p-5 border border-slate-100 dark:border-[#2A2F3A] font-sans w-full flex items-center justify-between cursor-pointer transition-all duration-300 shadow-sm hover:shadow",
+          "bg-white dark:bg-nvu-surface rounded-2xl p-4 sm:p-5 border border-slate-100 dark:border-nvu-line font-sans w-full flex items-center justify-between cursor-pointer transition-all duration-300 shadow-sm hover:shadow",
           cls.bgHover,
           className,
         )}
       >
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-[#2A2F3A] flex items-center justify-center shrink-0 shadow-sm border border-slate-100 dark:border-[#3A3F4A]">
+          <div className="w-10 h-10 rounded-full bg-slate-50 dark:bg-nvu-strip flex items-center justify-center shrink-0 shadow-sm border border-slate-100 dark:border-nvu-line">
             <TrendingUp size={20} className={cls.iconColor} strokeWidth={2.5} />
           </div>
           <div className="flex flex-col">
-            <h2 className="text-slate-500 dark:text-slate-400 font-bold text-[11px] sm:text-[12px] tracking-wider uppercase mb-0.5">
+            <h2 className="text-slate-500 dark:text-nvu-muted font-bold text-[11px] sm:text-[12px] tracking-wider uppercase mb-0.5">
               Desempenho Operacional
             </h2>
             <div className="flex items-center gap-2">
@@ -170,16 +170,16 @@ export function DesempenhoOperacionalCard({
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 text-slate-400 dark:text-slate-500 font-medium text-[13px]">
+          <div className="hidden sm:flex items-center gap-2 text-slate-400 dark:text-nvu-muted font-medium text-[13px]">
             Ver detalhes
           </div>
           <div
             className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center bg-slate-50 dark:bg-[#2A2F3A] transition-transform duration-300",
+              "w-8 h-8 rounded-full flex items-center justify-center bg-slate-50 dark:bg-nvu-strip transition-transform duration-300",
               "group-hover:translate-x-1",
             )}
           >
-            <ChevronRight size={18} className="text-slate-400 dark:text-slate-500" />
+            <ChevronRight size={18} className="text-slate-400 dark:text-nvu-muted" />
           </div>
         </div>
       </div>
@@ -192,15 +192,15 @@ export function DesempenhoOperacionalCard({
             onClick={() => setIsModalOpen(false)}
           >
             <div
-              className="w-full md:max-w-4xl bg-gray-50 dark:bg-[#12161b] md:rounded-[32px] rounded-t-[32px] shadow-2xl relative flex flex-col md:h-auto overflow-hidden animate-in slide-in-from-bottom-10 md:slide-in-from-bottom-0 md:zoom-in-95 duration-200"
+              className="w-full md:max-w-4xl bg-gray-50 dark:bg-nvu-page md:rounded-[32px] rounded-t-[32px] shadow-2xl relative flex flex-col md:h-auto overflow-hidden animate-in slide-in-from-bottom-10 md:slide-in-from-bottom-0 md:zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
               style={{ maxHeight: "95vh" }}
             >
               {/* Mobile handle */}
-              <div className="md:hidden w-10 h-1 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mt-3 mb-1 relative z-20"></div>
+              <div className="md:hidden w-10 h-1 bg-gray-300 dark:bg-nvu-strip rounded-full mx-auto mt-3 mb-1 relative z-20"></div>
 
               {/* Modal Header */}
-              <div className="flex items-center justify-between px-6 py-5 relative w-full bg-white dark:bg-[#161B22] border-b border-gray-100 dark:border-[#2A2F3A] overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 relative w-full bg-white dark:bg-nvu-surface border-b border-gray-100 dark:border-nvu-line overflow-hidden">
                 {/* Header background flair now contained inside the header */}
                 <div className={cn("absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-current via-current/5 to-transparent opacity-10 -mr-16 -mt-16 rounded-full pointer-events-none z-0", cls.textColor)} />
 
@@ -225,7 +225,7 @@ export function DesempenhoOperacionalCard({
                 </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-[#2A2F3A] transition-colors text-gray-400 dark:text-gray-500 z-10 relative"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 dark:hover:bg-nvu-strip transition-colors text-gray-400 dark:text-nvu-muted z-10 relative"
                 >
                   <X size={20} />
                 </button>
@@ -235,14 +235,14 @@ export function DesempenhoOperacionalCard({
               <div className="w-full px-6 py-5 overflow-y-auto z-10 custom-scrollbar flex flex-col gap-5">
                 
                 {setPeriodPreset && (
-                  <div className="flex items-center p-1 bg-gray-100 dark:bg-[#1A1F26] rounded-lg w-full max-w-[280px] mx-auto border border-gray-200/50 dark:border-[#2A2F3A]">
+                  <div className="flex items-center p-1 bg-gray-100 dark:bg-nvu-surface rounded-lg w-full max-w-[280px] mx-auto border border-gray-200/50 dark:border-nvu-line">
                     <button
                       onClick={() => setPeriodPreset("semana")}
                       className={cn(
                         "flex-1 px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200",
                         periodPreset === "semana"
-                          ? "bg-white dark:bg-[#2A2F3A] text-gray-900 dark:text-white shadow-sm"
-                          : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                          ? "bg-white dark:bg-nvu-strip text-gray-900 dark:text-white shadow-sm"
+                          : "text-gray-500 dark:text-nvu-muted hover:text-gray-700 dark:hover:text-nvu-text"
                       )}
                     >
                       Semana
@@ -252,8 +252,8 @@ export function DesempenhoOperacionalCard({
                       className={cn(
                         "flex-1 px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200",
                         periodPreset === "mes"
-                          ? "bg-white dark:bg-[#2A2F3A] text-gray-900 dark:text-white shadow-sm"
-                          : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                          ? "bg-white dark:bg-nvu-strip text-gray-900 dark:text-white shadow-sm"
+                          : "text-gray-500 dark:text-nvu-muted hover:text-gray-700 dark:hover:text-nvu-text"
                       )}
                     >
                       Mensal
@@ -270,40 +270,40 @@ export function DesempenhoOperacionalCard({
                 {/* Grid Responsivo e Mais Compacto */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                   {/* Bloco 1: Viagens realizadas */}
-                  <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-4 md:p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
-                    <span className="text-gray-500 dark:text-gray-400 text-[13px] font-medium mb-1.5 leading-none">Viagens Realizadas</span>
+                  <div className="bg-white dark:bg-nvu-surface rounded-xl p-4 md:p-5 border border-gray-100 dark:border-nvu-line shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
+                    <span className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 leading-none">Viagens Realizadas</span>
                     <span className="text-gray-900 dark:text-white text-2xl leading-none font-bold">{metrics.viagensRealizadas}</span>
                   </div>
 
                   {/* Bloco 2: Meta Operacional */}
-                  <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-4 md:p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
-                    <span className="text-gray-500 dark:text-gray-400 text-[13px] font-medium mb-1.5 leading-none">Meta Operacional</span>
+                  <div className="bg-white dark:bg-nvu-surface rounded-xl p-4 md:p-5 border border-gray-100 dark:border-nvu-line shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
+                    <span className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 leading-none">Meta Operacional</span>
                     <span className="text-gray-900 dark:text-white text-2xl leading-none font-bold">{metrics.metaOperacional}</span>
                   </div>
 
                   {/* Bloco 3: Faltam para a meta */}
-                  <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-4 md:p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
-                    <span className="text-gray-500 dark:text-gray-400 text-[13px] font-medium mb-1.5 leading-none">Faltam para Meta</span>
+                  <div className="bg-white dark:bg-nvu-surface rounded-xl p-4 md:p-5 border border-gray-100 dark:border-nvu-line shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
+                    <span className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 leading-none">Faltam para Meta</span>
                     <span className="text-gray-900 dark:text-white text-2xl leading-none font-bold">
                       {metrics.viagensRestantes > 0 ? metrics.viagensRestantes : "Atingida"}
                     </span>
                   </div>
 
                   {/* Bloco 4: Motoristas em operação */}
-                  <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-4 md:p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
-                    <span className="text-gray-500 dark:text-gray-400 text-[13px] font-medium mb-1.5 leading-none">Motoristas Ativos</span>
+                  <div className="bg-white dark:bg-nvu-surface rounded-xl p-4 md:p-5 border border-gray-100 dark:border-nvu-line shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
+                    <span className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 leading-none">Motoristas Ativos</span>
                     <span className="text-gray-900 dark:text-white text-2xl leading-none font-bold">{metrics.motoristasAtivos}</span>
                   </div>
 
                   {/* Bloco 5: Meta por motorista */}
-                  <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-4 md:p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
-                    <span className="text-gray-500 dark:text-gray-400 text-[13px] font-medium mb-1.5 leading-none">Meta p/ Motorista</span>
+                  <div className="bg-white dark:bg-nvu-surface rounded-xl p-4 md:p-5 border border-gray-100 dark:border-nvu-line shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
+                    <span className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 leading-none">Meta p/ Motorista</span>
                     <span className="text-gray-900 dark:text-white text-2xl leading-none font-bold">{metrics.metaPorMotorista}</span>
                   </div>
 
                   {/* Bloco 6: Média operacional */}
-                  <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-4 md:p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
-                    <span className="text-gray-500 dark:text-gray-400 text-[13px] font-medium mb-1.5 leading-none">Média Operacional</span>
+                  <div className="bg-white dark:bg-nvu-surface rounded-xl p-4 md:p-5 border border-gray-100 dark:border-nvu-line shadow-sm flex flex-col justify-center hover:shadow-md transition-shadow">
+                    <span className="text-gray-500 dark:text-nvu-muted text-[13px] font-medium mb-1.5 leading-none">Média Operacional</span>
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-gray-900 dark:text-white text-2xl leading-none font-bold">{metrics.mediaOperacional.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                       <span className="text-xs font-medium text-gray-400">viagens/mot</span>
@@ -312,7 +312,7 @@ export function DesempenhoOperacionalCard({
                 </div>
 
                 {/* Bloco 7 & 8: Capacidade Operacional */}
-                <div className="bg-white dark:bg-[#1A1F26] rounded-xl p-5 border border-gray-100 dark:border-[#2A2F3A] shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3">
+                <div className="bg-white dark:bg-nvu-surface rounded-xl p-5 border border-gray-100 dark:border-nvu-line shadow-sm hover:shadow-md transition-shadow flex flex-col gap-3">
                   <div className="flex flex-col gap-2.5">
                     <span className="text-gray-900 dark:text-white font-bold text-[14px]">Capacidade Operacional</span>
                     <div className="flex">
@@ -322,7 +322,7 @@ export function DesempenhoOperacionalCard({
                     </div>
                   </div>
                   
-                  <div className="h-1.5 bg-gray-100 dark:bg-[#2A2F3A] rounded-full overflow-hidden relative">
+                  <div className="h-1.5 bg-gray-100 dark:bg-nvu-strip rounded-full overflow-hidden relative">
                     <div 
                       className={cn("h-full rounded-full bg-gradient-to-r transition-all duration-1000", cls.barGradient)}
                       style={{ width: `${Math.min(100, metrics.capacidadeOperacional)}%` }}
@@ -330,7 +330,7 @@ export function DesempenhoOperacionalCard({
                   </div>
                   
                   <div className="flex justify-between items-center text-xs">
-                    <span className="text-gray-500 dark:text-gray-400 font-medium">{metrics.viagensRealizadas} / {metrics.metaOperacional} viagens</span>
+                    <span className="text-gray-500 dark:text-nvu-muted font-medium">{metrics.viagensRealizadas} / {metrics.metaOperacional} viagens</span>
                     <span className="text-gray-900 dark:text-white font-bold tracking-tight">{metrics.capacidadeOperacional.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
                   </div>
                 </div>

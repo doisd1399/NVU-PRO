@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-11-02T00:47:57.981623+00:00",
+  "method": "POST callable with empty data, no Authorization header",
+  "productionTripsCreated": false,
+  "expectationCorrection": "The initial smoke expected 403 for updateWorkModeAvailability without login. Source line 70 explicitly requires authentication and correctly returns 401. Authenticated non-Senior permission denial is covered separately in the demo emulator. Initial result retained.",
+  "results": [
+    {
+      "function": "registerCanonicalSimpleTrip",
+      "httpStatus": 401,
+      "errorStatus": "UNAUTHENTICATED",
+      "expectedHttpStatus": 401,
+      "expectedErrorStatus": "UNAUTHENTICATED",
+      "passed": true
+    },
+    {
+      "function": "operationalCommand",
+      "httpStatus": 401,
+      "errorStatus": "UNAUTHENTICATED",
+      "expectedHttpStatus": 401,
+      "expectedErrorStatus": "UNAUTHENTICATED",
+      "passed": true
+    },
+    {
+      "function": "updateWorkModeAvailability",
+      "httpStatus": 401,
+      "errorStatus": "UNAUTHENTICATED",
+      "expectedHttpStatus": 401,
+      "expectedErrorStatus": "UNAUTHENTICATED",
+      "passed": true
+    }
+  ]
+}

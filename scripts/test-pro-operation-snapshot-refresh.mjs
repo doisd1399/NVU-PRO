@@ -11,16 +11,17 @@ const bridge = fs.readFileSync(`${root}/src/components/SimpleAutomationCompletio
 const driverLayout = fs.readFileSync(`${root}/src/layouts/DriverLayout.tsx`, "utf8");
 
 assert.match(service, /public static void refreshOperationSnapshot\(/);
-for (const field of ["operationName", "jobProgress", "jobTotalDeliveries", "vehicleName", "trailerName", "operationClosed"]) {
+for (const field of ["operationName", "confirmedTripCount", "jobProgress", "jobTotalDeliveries", "vehicleName", "trailerName", "operationClosed"]) {
   assert.match(service, new RegExp(`put(?:String|Int|Boolean)\\(\\"${field}\\"`), `native snapshot must persist ${field}`);
 }
 assert.match(plugin, /public void refreshOperationSnapshot\(PluginCall call\)/);
 assert.match(nativeContract, /refreshOperationSnapshot\(input:/);
 assert.match(completion, /SimpleAutomation\.refreshOperationSnapshot\(\{/);
 assert.match(bridge, /currentOperationProgress\?: number/);
-assert.match(bridge, /Number\(currentOperationProgress \?\? currentJob\.progress \?\? 0\)/);
+assert.match(bridge, /Number\(currentOperationProgress\)/);
 assert.match(driverLayout, /deriveCurrentOperationProgress\(driverOperation, driverTripState\.trips/);
-assert.match(coordinator, /refreshNativeOperationSnapshot\(context, prefs, job, contract, progress \+ 1, total\)/);
+assert.match(coordinator, /confirmedCount, Math\.max\(confirmedCount, total\)/);
+assert.doesNotMatch(coordinator, /confirmedCount \+ \(created \? 1 : 0\)/);
 assert.match(coordinator, /SimpleAutomationService\.refreshOperationSnapshot\(/);
 const durableSection = completion.slice(completion.indexOf("trace.addTripMs"));
 assert.match(durableSection, /SimpleAutomation\.refreshOperationSnapshot\(\{/);

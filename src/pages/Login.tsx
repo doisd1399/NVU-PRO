@@ -92,20 +92,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] flex flex-col justify-center items-center p-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-nvu-page flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-[#fafafa] tracking-tight mb-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-nvu-text tracking-tight mb-2">
             NVU
           </h1>
-          <p className="text-slate-500 dark:text-[#a1a1aa] text-sm font-medium">
+          <p className="text-slate-500 dark:text-nvu-muted text-sm font-medium">
             Gestão Operacional de Logística
           </p>
         </div>
 
-        <Card className="rounded-3xl border border-slate-200/60 dark:border-[#2A2F3A] shadow-xl dark:shadow-none overflow-hidden bg-white dark:bg-[#1A1F26]">
+        <Card className="rounded-3xl border border-slate-200/60 dark:border-nvu-line shadow-xl dark:shadow-none overflow-hidden bg-white dark:bg-nvu-surface">
           <CardContent className="p-8">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-[#fafafa] mb-6 text-center">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-nvu-text mb-6 text-center">
               Fazer Login
             </h2>
 
@@ -119,7 +119,7 @@ export default function Login() {
               <Button
                 onClick={handleGoogleLogin}
                 disabled={loading}
-                className="w-full h-12 bg-white dark:bg-[#27272a]/50 hover:bg-slate-50 dark:hover:bg-[#27272a] text-slate-700 dark:text-[#e4e4e7] border border-slate-200 dark:border-[#2A2F3A]/50 shadow-sm dark:shadow-none transition-all rounded-xl relative flex justify-center items-center"
+                className="w-full h-12 bg-white dark:bg-nvu-strip/50 hover:bg-slate-50 dark:hover:bg-nvu-strip text-slate-700 dark:text-nvu-text-soft border border-slate-200 dark:border-nvu-line/50 shadow-sm dark:shadow-none transition-all rounded-xl relative flex justify-center items-center"
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-slate-800 dark:border-slate-400"></div>
@@ -157,7 +157,7 @@ export default function Login() {
             <div className="mt-6 text-center">
               <button
                 onClick={() => navigate('/')}
-                className="text-sm font-semibold text-slate-500 hover:text-slate-700 dark:text-[#a1a1aa] dark:hover:text-[#e4e4e7] transition-colors"
+                className="text-sm font-semibold text-slate-500 hover:text-slate-700 dark:text-nvu-muted dark:hover:text-nvu-text-soft transition-colors"
               >
                 Voltar
               </button>
@@ -165,7 +165,7 @@ export default function Login() {
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs font-semibold text-slate-400 dark:text-[#71717a] mt-8">
+        <p className="text-center text-xs font-semibold text-slate-400 dark:text-nvu-muted mt-8">
           NVU © {new Date().getFullYear()} — Plataforma Operacional
         </p>
       </div>

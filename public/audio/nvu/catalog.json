@@ -1,0 +1,410 @@
+{
+  "schema": 2,
+  "language": "pt-BR",
+  "voices": {
+    "male": {
+      "label": "Masculina",
+      "providerVoice": "pt-BR-AntonioNeural",
+      "tempo": 1.24
+    },
+    "female": {
+      "label": "Feminina",
+      "providerVoice": "pt-BR-FranciscaNeural",
+      "tempo": 1.12
+    }
+  },
+  "clips": [
+    {
+      "id": "driver_greet_morning_idle",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Bom dia. Vamos buscar o próximo trabalho.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_morning_job",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Bom dia. Você tem um trabalho esperando.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_morning_active",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Bom dia. Seu trabalho continua em andamento.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_afternoon_idle",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Boa tarde. Vamos buscar o próximo trabalho.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_afternoon_job",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Boa tarde. Você tem um trabalho esperando.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_afternoon_active",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Boa tarde. Seu trabalho continua em andamento.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_night_idle",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Boa noite. Vamos buscar o próximo trabalho.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_night_job",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Boa noite. Você tem um trabalho esperando.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "driver_greet_night_active",
+      "kind": "greeting",
+      "role": "driver",
+      "text": "Boa noite. Seu trabalho continua em andamento.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_morning_calm",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bom dia. Sua operação está em ordem.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_morning_active",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bom dia. Sua frota está na estrada.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_morning_news",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Bom dia. Há novidades esperando por você.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_afternoon_calm",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Boa tarde. Sua operação está em ordem.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_afternoon_active",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Boa tarde. Sua frota está na estrada.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_afternoon_news",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Boa tarde. Há novidades esperando por você.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_night_calm",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Boa noite. Sua operação está em ordem.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_night_active",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Boa noite. Sua frota está na estrada.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "admin_greet_night_news",
+      "kind": "greeting",
+      "role": "admin",
+      "text": "Boa noite. Há novidades esperando por você.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_new_job",
+      "kind": "event",
+      "role": "driver",
+      "text": "Você recebeu um novo trabalho.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_job_cancelled",
+      "kind": "event",
+      "role": "driver",
+      "text": "Atenção: este trabalho foi cancelado pela empresa.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_pro_ready",
+      "kind": "event",
+      "role": "driver",
+      "text": "Modo Pro pronto. Pode seguir viagem.",
+      "important": false,
+      "phase": 1
+    },
+    {
+      "id": "event_job_started",
+      "kind": "event",
+      "role": "driver",
+      "text": "Trabalho iniciado. Boa viagem.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_trip_detected",
+      "kind": "event",
+      "role": "driver",
+      "text": "Viagem concluída. Preparando o registro.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_trip_saved",
+      "kind": "event",
+      "role": "driver",
+      "text": "Viagem registrada.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_trip_saved_b",
+      "kind": "event",
+      "role": "driver",
+      "text": "Viagem registrada. Bom trabalho.",
+      "important": false,
+      "phase": 2
+    },
+    {
+      "id": "event_trip_saved_c",
+      "kind": "event",
+      "role": "driver",
+      "text": "Registrado. Siga em frente.",
+      "important": false,
+      "phase": 2
+    },
+    {
+      "id": "event_half_done",
+      "kind": "event",
+      "role": "driver",
+      "text": "Metade do trabalho concluída.",
+      "important": false,
+      "phase": 2
+    },
+    {
+      "id": "event_near_goal",
+      "kind": "event",
+      "role": "driver",
+      "text": "Você está perto da meta.",
+      "important": false,
+      "phase": 2
+    },
+    {
+      "id": "event_last_trip",
+      "kind": "event",
+      "role": "driver",
+      "text": "Falta apenas uma viagem.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_goal_reached",
+      "kind": "event",
+      "role": "driver",
+      "text": "Meta atingida. Excelente trabalho.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_pause_needed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Abra o menu de pausa para continuar.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_trip_failed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Atenção: não foi possível registrar a viagem. Confira o aviso.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_offline",
+      "kind": "event",
+      "role": "driver",
+      "text": "Sem internet. Suas viagens ficam salvas e serão enviadas depois.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_back_online",
+      "kind": "event",
+      "role": "driver",
+      "text": "Conexão restabelecida. Suas viagens foram enviadas.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_deadline_near",
+      "kind": "event",
+      "role": "driver",
+      "text": "O prazo desta operação está acabando.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_deadline_goal_risk",
+      "kind": "event",
+      "role": "driver",
+      "text": "Atenção: a meta ainda não foi atingida e o prazo está curto.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_deadline_passed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Atenção: o prazo desta operação terminou.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "event_job_completed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Operação concluída. Bom trabalho.",
+      "important": true,
+      "phase": 1
+    },
+    {
+      "id": "event_payment_confirmed",
+      "kind": "event",
+      "role": "driver",
+      "text": "Pagamento confirmado.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_late",
+      "kind": "event",
+      "role": "admin",
+      "text": "Atenção: uma operação passou do prazo.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_driver_completed",
+      "kind": "event",
+      "role": "admin",
+      "text": "Um motorista concluiu uma operação.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_goal_reached",
+      "kind": "event",
+      "role": "admin",
+      "text": "Uma operação atingiu a meta.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_driver_started",
+      "kind": "event",
+      "role": "admin",
+      "text": "Um motorista iniciou uma operação.",
+      "important": false,
+      "phase": 2
+    },
+    {
+      "id": "admin_trips_batch",
+      "kind": "event",
+      "role": "admin",
+      "text": "Novas viagens registradas.",
+      "important": false,
+      "phase": 2
+    },
+    {
+      "id": "admin_job_declined",
+      "kind": "event",
+      "role": "admin",
+      "text": "Um motorista recusou um trabalho.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_payments_due",
+      "kind": "event",
+      "role": "admin",
+      "text": "Você tem pagamentos para fazer.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_payment_received",
+      "kind": "event",
+      "role": "admin",
+      "text": "Você recebeu um pagamento.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_new_candidate",
+      "kind": "event",
+      "role": "admin",
+      "text": "Nova candidatura na sua equipe.",
+      "important": true,
+      "phase": 2
+    },
+    {
+      "id": "admin_partnership_offer",
+      "kind": "event",
+      "role": "admin",
+      "text": "Você recebeu uma proposta de parceria.",
+      "important": true,
+      "phase": 2
+    }
+  ]
+}

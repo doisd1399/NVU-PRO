@@ -1,0 +1,19 @@
+/* Compact identity on the current-operation photo; no workspace/dock rules. */
+.nvu-operation-hero { --operation-identity-paper: rgb(255 255 255 / .94); --operation-identity-text: #182332; --operation-identity-muted: #65758a; --operation-identity-line: rgb(101 117 138 / .28); }
+.dark .nvu-operation-hero { --operation-identity-paper: rgb(12 22 28 / .78); --operation-identity-text: #f5f8fa; --operation-identity-muted: #e0e8ed; --operation-identity-line: rgb(188 205 215 / .3); }
+.nvu-operation-identity { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; width: 100%; min-height: 34px; padding: 0 0 0 10px; border: 1px solid rgb(188 205 215 / .3); border-radius: 10px; background: rgb(12 22 28 / .78); color: #f5f8fa; }
+.nvu-operation-driver { display: flex; align-items: center; flex: 1; gap: 9px; min-width: 0; }
+.nvu-operation-accent { width: 3px; height: 18px; flex-shrink: 0; border-radius: 3px; background: #13c9b4; }
+.nvu-operation-driver > svg { width: 17px; height: 17px; flex-shrink: 0; color: #e0e8ed; }
+.nvu-operation-driver h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; line-height: 1.3; letter-spacing: -.01em; color: inherit; }
+.nvu-operation-identity .nvu-operation-simulator { align-self: stretch; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 32px; min-width: 68px; max-width: 112px; gap: 12px; padding: 5px 10px; margin: 0; border: 0; border-left: 1px solid rgb(188 205 215 / .25); border-radius: 0 9px 9px 0; background: transparent; color: inherit; font-size: 12px; font-weight: 600; }
+.nvu-operation-simulator span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nvu-operation-simulator svg { flex-shrink: 0; }
+.nvu-operation-simulator:focus-visible { outline: 2px solid #24cfde; outline-offset: -3px; }
+@media (max-width: 359px) { .nvu-operation-driver { gap: 7px; } .nvu-operation-driver h2 { font-size: 12px; } .nvu-operation-identity .nvu-operation-simulator { min-width: 62px; padding-inline: 8px; gap: 8px; } }
+.nvu-operation-hero .nvu-operation-identity { background: var(--operation-identity-paper); color: var(--operation-identity-text); border-color: var(--operation-identity-line); }
+.nvu-operation-hero .nvu-operation-driver > svg { color: var(--operation-identity-muted); }
+body .nvu-operation-hero .nvu-operation-identity h2,
+body .nvu-operation-hero .nvu-operation-identity .nvu-operation-simulator { color: var(--operation-identity-text) !important; text-shadow: none; }
+.nvu-operation-hero .nvu-operation-identity .nvu-operation-simulator { border-left-color: var(--operation-identity-line); }
+body .nvu-workspace-shell .nvu-driver-workspace .nvu-profile-hero.nvu-operation-hero > .nvu-driver-hero-content { padding-bottom: calc(var(--driver-surface-radius, 16px) + 6px) !important; }

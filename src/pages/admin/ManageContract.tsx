@@ -1,3 +1,4 @@
+import { ModalSelect } from "../../components/ui/ModalSelect";
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useOperationalStore } from "../../context/AppContext";
@@ -143,20 +144,20 @@ export default function ManageContract() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-[#09090b] font-sans pb-8 px-4 pt-4 sm:pt-6 w-full box-border">
+    <div className="min-h-[calc(100vh-64px)] bg-slate-50 dark:bg-nvu-page font-sans pb-8 px-4 pt-4 sm:pt-6 w-full box-border">
       <div className="max-w-3xl mx-auto flex flex-col">
-        <div className="bg-white dark:bg-[#1A1F26] rounded-[16px] border border-gray-200 dark:border-[#2A2F3A] shadow-sm w-full flex flex-col relative overflow-hidden">
+        <div className="bg-white dark:bg-nvu-surface rounded-[16px] border border-gray-200 dark:border-nvu-line shadow-sm w-full flex flex-col relative overflow-hidden">
           <div className="h-1.5 w-full shrink-0 bg-blue-500"></div>
 
           {/* Header */}
-          <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 dark:border-[#2A2F3A] flex items-center justify-between bg-white dark:bg-[#1A1F26] z-10">
-            <h2 className="text-[19px] font-semibold tracking-tight text-gray-900 dark:text-[#fafafa]">
+          <div className="shrink-0 p-4 sm:p-5 border-b border-gray-100 dark:border-nvu-line flex items-center justify-between bg-white dark:bg-nvu-surface z-10">
+            <h2 className="text-[19px] font-semibold tracking-tight text-gray-900 dark:text-nvu-text">
               {id ? "Editar Operação" : "Nova Operação"}
             </h2>
             <button
               type="button"
               onClick={() => navigate("/admin/fleet", { state: { activeTab: "contracts" } })}
-              className="w-8 h-8 rounded-full bg-gray-100 dark:bg-[#18181b] text-gray-500 dark:text-[#a1a1aa] flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/10 transition-colors shrink-0"
+              className="w-8 h-8 rounded-full bg-gray-100 dark:bg-nvu-surface text-gray-500 dark:text-nvu-muted flex items-center justify-center hover:bg-gray-200 dark:hover:bg-white/10 transition-colors shrink-0"
             >
               <X size={18} />
             </button>
@@ -166,7 +167,7 @@ export default function ManageContract() {
             <div className="p-5 sm:p-6 space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Nome da Operação
                   </label>
                   <input
@@ -175,18 +176,18 @@ export default function ManageContract() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Ex: Entrega de Grãos Safra 2024"
-                    className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow transition-colors"
+                    className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Simulador Alvo (Automático)
                   </label>
                   <input
                     type="text"
                     value={simulator}
                     disabled
-                    className="w-full bg-gray-50 dark:bg-[#18181b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-500 dark:text-[#a1a1aa] cursor-not-allowed"
+                    className="w-full bg-gray-50 dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-500 dark:text-nvu-muted cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -194,13 +195,13 @@ export default function ManageContract() {
               <div className={`grid grid-cols-1 ${trailerlessSimulator ? "sm:grid-cols-1" : "sm:grid-cols-2"} gap-5`}>
                 {!trailerlessSimulator && (
                   <div>
-                    <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                    <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                       Reboque Padrão (Opcional)
                     </label>
-                    <select
+                    <ModalSelect title="Reboque padrão"
                       value={trailerId}
                       onChange={(e) => setTrailerId(e.target.value)}
-                      className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none transition-shadow transition-colors"
+                      className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none transition-shadow transition-colors"
                     >
                       <option value="">Nenhum reboque</option>
                       {trailers.map((t) => (
@@ -208,18 +209,18 @@ export default function ManageContract() {
                           {t.name}
                         </option>
                       ))}
-                    </select>
+                    </ModalSelect>
                   </div>
                 )}
                 
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Adicionar à pasta (Opcional)
                   </label>
-                  <select
+                  <ModalSelect title="Pasta da operação"
                     value={selectedSequenceId}
                     onChange={(e) => setSelectedSequenceId(e.target.value)}
-                    className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none transition-shadow transition-colors"
+                    className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 appearance-none transition-shadow transition-colors"
                   >
                     <option value="">Sem pasta</option>
                     {sequences.map((s) => (
@@ -227,10 +228,10 @@ export default function ManageContract() {
                         {s.name}
                       </option>
                     ))}
-                  </select>
+                  </ModalSelect>
                 </div>
                 <div>
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Prazo (Dias)
                   </label>
                   <input
@@ -239,35 +240,35 @@ export default function ManageContract() {
                     value={deadlineDays || ""}
                     onChange={(e) => setDeadlineDays(Number(e.target.value))}
                     min={1}
-                    className="w-full bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow transition-colors"
+                    className="w-full bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow transition-colors"
                   />
                 </div>
               </div>
 
               <div className="space-y-4 pt-2">
-                <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8]">
+                <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft">
                   Modo da Operação
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="flex items-center gap-3 cursor-pointer bg-white dark:bg-[#09090b] px-4 py-3 rounded-xl border border-gray-200 dark:border-[#2A2F3A] hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-colors shadow-sm dark:shadow-none">
+                  <label className="flex items-center gap-3 cursor-pointer bg-white dark:bg-nvu-page px-4 py-3 rounded-xl border border-gray-200 dark:border-nvu-line hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-colors shadow-sm dark:shadow-none">
                     <input
                       type="radio"
                       checked={mode === "simple"}
                       onChange={() => setMode("simple")}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 border-gray-300 dark:border-[#3f3f46] bg-gray-50 dark:bg-[#18181b]"
+                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 border-gray-300 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface"
                     />
-                    <span className="font-medium text-[14px] text-gray-900 dark:text-[#fafafa]">
+                    <span className="font-medium text-[14px] text-gray-900 dark:text-nvu-text">
                       Simples (Qtd)
                     </span>
                   </label>
-                  <label className="flex items-center gap-3 cursor-pointer bg-white dark:bg-[#09090b] px-4 py-3 rounded-xl border border-gray-200 dark:border-[#2A2F3A] hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-colors shadow-sm dark:shadow-none">
+                  <label className="flex items-center gap-3 cursor-pointer bg-white dark:bg-nvu-page px-4 py-3 rounded-xl border border-gray-200 dark:border-nvu-line hover:border-blue-500/50 dark:hover:border-blue-500/50 transition-colors shadow-sm dark:shadow-none">
                     <input
                       type="radio"
                       checked={mode === "detailed"}
                       onChange={() => setMode("detailed")}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 border-gray-300 dark:border-[#3f3f46] bg-gray-50 dark:bg-[#18181b]"
+                      className="w-4 h-4 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 border-gray-300 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface"
                     />
-                    <span className="font-medium text-[14px] text-gray-900 dark:text-[#fafafa]">
+                    <span className="font-medium text-[14px] text-gray-900 dark:text-nvu-text">
                       Detalhado
                     </span>
                   </label>
@@ -276,7 +277,7 @@ export default function ManageContract() {
 
               {mode === "simple" && (
                 <div className="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-xl border border-blue-100 dark:border-blue-900/20">
-                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-[#d4d4d8] mb-1.5">
+                  <label className="block text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft mb-1.5">
                     Quantidade de Entregas Exigidas
                   </label>
                   <input
@@ -284,9 +285,9 @@ export default function ManageContract() {
                     min={1}
                     value={totalDeliveries || ""}
                     onChange={(e) => setTotalDeliveries(Number(e.target.value))}
-                    className="w-full max-w-[200px] bg-white dark:bg-[#09090b] border border-gray-200 dark:border-[#2A2F3A] rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow transition-colors"
+                    className="w-full max-w-[200px] bg-white dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-xl px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow transition-colors"
                   />
-                  <p className="text-[12px] text-gray-500 dark:text-[#a1a1aa] mt-2">
+                  <p className="text-[12px] text-gray-500 dark:text-nvu-muted mt-2">
                     O motorista precisará completar este número de trabalhos
                     para finalizar a operação. Não há rotas predefinidas.
                   </p>
@@ -294,13 +295,13 @@ export default function ManageContract() {
               )}
 
               {mode === "detailed" && (
-                <div className="bg-gray-50/50 dark:bg-[#09090b] p-5 rounded-xl border border-gray-200 dark:border-[#2A2F3A] space-y-4">
+                <div className="bg-gray-50/50 dark:bg-nvu-page p-5 rounded-xl border border-gray-200 dark:border-nvu-line space-y-4">
                   <div className="flex flex-col gap-3 mb-2">
                     <div>
-                      <h4 className="text-[14px] font-semibold text-gray-900 dark:text-[#fafafa]">
+                      <h4 className="text-[14px] font-semibold text-gray-900 dark:text-nvu-text">
                         Rotas da Operação ({deliveries.length})
                       </h4>
-                      <p className="text-[12px] text-gray-500 dark:text-[#a1a1aa] mt-1">
+                      <p className="text-[12px] text-gray-500 dark:text-nvu-muted mt-1">
                         O motorista deverá completar estas viagens específicas.
                       </p>
                     </div>
@@ -310,7 +311,7 @@ export default function ManageContract() {
                         variant="outline"
                         size="sm"
                         onClick={handleAddDelivery}
-                        className="gap-1.5 text-[12px] h-8 px-4 bg-white dark:bg-[#18181b] border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#d4d4d8] hover:bg-gray-50 dark:hover:bg-[#27272a] shadow-sm w-full sm:w-auto flex justify-center"
+                        className="gap-1.5 text-[12px] h-8 px-4 bg-white dark:bg-nvu-surface border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text-soft hover:bg-gray-50 dark:hover:bg-nvu-strip shadow-sm w-full sm:w-auto flex justify-center"
                       >
                         <Plus size={14} /> Adicionar Rota
                       </Button>
@@ -321,10 +322,10 @@ export default function ManageContract() {
                     {deliveries.map((delivery, index) => (
                       <div
                         key={index}
-                        className="flex flex-col bg-white dark:bg-[#1A1F26] p-4 rounded-[12px] border border-gray-200 dark:border-[#2A2F3A] shadow-sm dark:shadow-none transition-all focus-within:ring-2 focus-within:ring-blue-500/20 relative"
+                        className="flex flex-col bg-white dark:bg-nvu-surface p-4 rounded-[12px] border border-gray-200 dark:border-nvu-line shadow-sm dark:shadow-none transition-all focus-within:ring-2 focus-within:ring-blue-500/20 relative"
                       >
-                        <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100 dark:border-[#2A2F3A]">
-                          <span className="text-[12px] font-bold text-gray-500 dark:text-[#a1a1aa] uppercase tracking-wider">
+                        <div className="flex items-center justify-between mb-3 pb-2 border-b border-gray-100 dark:border-nvu-line">
+                          <span className="text-[12px] font-bold text-gray-500 dark:text-nvu-muted uppercase tracking-wider">
                             {index + 1}. Viagem
                           </span>
                           {deliveries.length > 1 && (
@@ -346,7 +347,7 @@ export default function ManageContract() {
                               handleUpdateDelivery(index, "origin", e.target.value)
                             }
                             placeholder="Origem (Ex: São Paulo)"
-                            className="w-full bg-gray-50 dark:bg-[#09090b] border border-gray-200 dark:border-[#383E47] rounded-lg px-3 py-2 text-[13px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-400/80 dark:placeholder:text-[#71717a]"
+                            className="w-full bg-gray-50 dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-lg px-3 py-2 text-[13px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-400/80 dark:placeholder:text-nvu-muted"
                           />
                           <input
                             type="text"
@@ -359,7 +360,7 @@ export default function ManageContract() {
                               )
                             }
                             placeholder="Destino (Ex: Rio de Janeiro)"
-                            className="w-full bg-gray-50 dark:bg-[#09090b] border border-gray-200 dark:border-[#383E47] rounded-lg px-3 py-2 text-[13px] text-gray-900 dark:text-[#fafafa] focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-400/80 dark:placeholder:text-[#71717a]"
+                            className="w-full bg-gray-50 dark:bg-nvu-page border border-gray-200 dark:border-nvu-line rounded-lg px-3 py-2 text-[13px] text-gray-900 dark:text-nvu-text focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-gray-400/80 dark:placeholder:text-nvu-muted"
                           />
                         </div>
                       </div>
@@ -370,11 +371,11 @@ export default function ManageContract() {
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 p-4 border-t border-gray-100 dark:border-[#2A2F3A] bg-gray-50/50 dark:bg-[#1A1F26] flex justify-end gap-3 z-10">
+            <div className="shrink-0 p-4 border-t border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-surface flex justify-end gap-3 z-10">
               <Button
                 type="button"
                 variant="outline"
-                className="w-full sm:w-auto h-10 px-5 text-[14px] bg-white dark:bg-[#1A1F26] border-gray-200 dark:border-[#2A2F3A] text-gray-700 dark:text-[#d4d4d8]"
+                className="w-full sm:w-auto h-10 px-5 text-[14px] bg-white dark:bg-nvu-surface border-gray-200 dark:border-nvu-line text-gray-700 dark:text-nvu-text-soft"
                 onClick={() => navigate("/admin/fleet", { state: { activeTab: "contracts" } })}
                 disabled={isSubmitting}
               >

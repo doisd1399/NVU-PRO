@@ -1,0 +1,30 @@
+{
+  "name": "nvu-functions",
+  "version": "1.0.0",
+  "description": "NVU Cloud Functions",
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test:calendar": "npm run build && node scripts/test-nvu-news-backend.cjs",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "test:gto-low-value-policy": "npm run build && node scripts/test-gto-low-value-policy.mjs",
+    "test:repair-gto-replay": "npm run build && node scripts/test-repair-gto-replay.cjs",
+    "test:register-gto-pro-receipt": "npm run build && node scripts/test-register-gto-pro-receipt.cjs",
+    "test:reconcile-operation-trips": "npm run build && node scripts/test-reconcile-operation-trips.cjs",
+    "test:gto-r5": "npm run build && node scripts/test-gto-contract-capability.cjs && node scripts/test-currency-and-replay-guards.cjs && node scripts/test-register-gto-pro-receipt.cjs && node scripts/test-reconcile-operation-trips.cjs"
+  },
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

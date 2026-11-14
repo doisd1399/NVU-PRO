@@ -33,8 +33,8 @@ for (const [relativePath, label] of surfaces) {
 }
 
 const fleet = read("src/pages/admin/Fleet.tsx");
-assert(fleet.includes('option.id !== "trailers"'), "Fleet deve esconder a opção Reboques para WBDS/PBS");
-assert(fleet.includes("!trailerlessSimulator"), "Fleet deve impedir a montagem direta de TrailersTab");
+assert(fleet.includes('!trailerless && <button type="button" aria-pressed={activeFleetTab === "trailers"'), "Fleet deve esconder a opção Reboques para WBDS/PBS");
+assert(fleet.includes('!trailerless && visitedFleet.current.has("trailers")'), "Fleet deve impedir a montagem direta de TrailersTab");
 
 const manageContract = read("src/pages/admin/ManageContract.tsx");
 assert(manageContract.includes("trailerlessSimulator"), "ManageContract deve omitir Reboque Padrão e limpar trailerId");
@@ -47,7 +47,10 @@ for (const relativePath of [
   "src/pages/admin/ContractDetailsPage.tsx",
 ]) {
   const source = read(relativePath);
-  assert(source.includes("!job.trailerlessSimulator") || source.includes("!trailerlessSimulator"), `${relativePath} deve não renderizar trailer em trabalhos WBDS/PBS`);
+  const guarded = source.includes("!job.trailerlessSimulator") || source.includes("!trailerlessSimulator") ||
+    relativePath === "src/pages/admin/fleet/OperationsTab.tsx" &&
+      source.includes("const showTrailer = !isTrailerlessSimulator") && source.includes("info.showTrailer ?");
+  assert(guarded, `${relativePath} deve não renderizar trailer em trabalhos WBDS/PBS`);
 }
 
 const profile = read("src/pages/driver/Profile.tsx");

@@ -1,0 +1,11 @@
+import fs from "node:fs";
+import {spawnSync} from "node:child_process";
+const run=(name,args,cmd=process.execPath)=>{console.log("VALIDATE",name);const r=spawnSync(cmd,args,{stdio:"inherit",env:process.env});if(r.status!==0)throw Error(name+"_FAILED");};
+run("SOURCE_PROVENANCE",["scripts/verify-source-509.py"],"python3");
+run("FRONTEND_TYPESCRIPT",["node_modules/typescript/bin/tsc","--noEmit"]);
+run("FUNCTIONS_TYPESCRIPT",["functions/node_modules/typescript/bin/tsc","-p","functions/tsconfig.json"]);
+run("PRINT_RECOVERY_509",["--import","tsx","scripts/test-print-recovery-509.ts"]);
+run("WEB_BUILD",["run","build"],process.platform==="win32"?"npm.cmd":"npm");
+run("DIST_MANIFEST",["scripts/create-release-files-509.mjs"]);
+run("SOURCE_FINAL",["scripts/verify-source-509.py"],"python3");
+console.log("RELEASE_509_LOCAL_VERIFICATION_PASS");

@@ -1,4 +1,6 @@
-import { isClosedJobStatus, isRunningJobStatus } from "./jobStatus";
+import { isRunningJobStatus } from "./jobStatus";
+import { selectCurrentOperationJobs } from "./currentOperation";
+import { buildClientOperationProjection } from "../application/operation/operationProjectionSelectors";
 
 export type FleetAssetKind = "vehicle" | "trailer";
 
@@ -11,6 +13,7 @@ export interface FleetUsageMemberLike {
 }
 
 export interface FleetUsageJobLike {
+  operationalCommandVersion?: unknown;
   id?: unknown;
   companyId?: unknown;
   driverId?: unknown;
@@ -26,7 +29,6 @@ export interface FleetUsageJobLike {
   trailer?: { id?: unknown } | null;
   contractId?: unknown;
   status?: unknown;
-  progress?: unknown;
   totalDeliveries?: unknown;
   assignedAt?: unknown;
   startedAt?: unknown;
@@ -86,6 +88,8 @@ export const resolveFleetJobAssetId = (
     return firstId(job.vehicleId, job.vehicle_id, job.vehicle?.id);
   }
 
+  if (job.operationalCommandVersion === 1) return firstId(job.trailerId, job.trailer_id);
+
   const contract = resolveContract(job, contractsById);
   return firstId(
     job.trailerId,
@@ -116,65 +120,19 @@ export const isActiveFleetDriver = (
   return normalizeRoleValues(member).has("driver");
 };
 
-const toFiniteNumber = (value: unknown): number => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-};
-
-const parseTimestamp = (value: unknown): number => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (value instanceof Date) return value.getTime();
-  const raw = normalizeId(value);
-  if (!raw) return 0;
-  const parsed = Date.parse(raw);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const jobPriority = (job: FleetUsageJobLike): number => {
-  const status = normalizeId(job.status).toLowerCase();
-  if (status === "active") return 0;
-  if (status === "awaiting_completion") return 1;
-  if (status === "delayed") return 2;
-  if (status === "pending") return 3;
-  return 4;
-};
-
-const jobTimestamp = (job: FleetUsageJobLike): number =>
-  Math.max(
-    parseTimestamp(job.assignedAt),
-    parseTimestamp(job.startedAt),
-    parseTimestamp(job.createdAt),
-    parseTimestamp(job.updatedAt),
-  );
-
-const compareCurrentJobs = (
-  left: FleetUsageJobLike,
-  right: FleetUsageJobLike,
-): number => {
-  const priorityDiff = jobPriority(left) - jobPriority(right);
-  if (priorityDiff !== 0) return priorityDiff;
-  const timestampDiff = jobTimestamp(right) - jobTimestamp(left);
-  if (timestampDiff !== 0) return timestampDiff;
-  return normalizeId(right.id).localeCompare(normalizeId(left.id));
-};
-
 const isResourceOccupyingJob = (
   job: FleetUsageJobLike,
-  contractsById: Map<string, FleetUsageContractLike>,
+  confirmedTrips: readonly unknown[],
 ): boolean => {
   // A pending job is only an assignment waiting to start, not the current
   // operation reported by the employee. Fleet usage must follow the same
   // running-operation semantics as the operational dashboard.
   if (!isRunningJobStatus(job.status)) return false;
-  const contract = resolveContract(job, contractsById);
-  const totalDeliveries = toFiniteNumber(
-    job.totalDeliveries ?? contract?.totalDeliveries ?? 0,
-  );
-  return !isClosedJobStatus(
-    job.status,
-    toFiniteNumber(job.progress),
-    totalDeliveries,
-  );
+  const projection = buildClientOperationProjection(job as Record<string, unknown>, confirmedTrips);
+  // The assigned resources remain in use until the driver explicitly closes
+  // the operation, including the interval between the last trip and that ACK.
+  if (!projection) return true;
+  return projection.status !== "completed" && projection.status !== "cancelled";
 };
 
 export interface ResolveCurrentFleetUsageJobsOptions {
@@ -182,6 +140,7 @@ export interface ResolveCurrentFleetUsageJobsOptions {
   members: readonly FleetUsageMemberLike[];
   companyId?: unknown;
   contracts?: readonly FleetUsageContractLike[];
+  confirmedTrips?: readonly unknown[];
 }
 
 /**
@@ -193,14 +152,9 @@ export const resolveCurrentFleetUsageJobs = ({
   jobs,
   members,
   companyId,
-  contracts = [],
+  confirmedTrips = [],
 }: ResolveCurrentFleetUsageJobsOptions): FleetUsageJobLike[] => {
   const normalizedCompanyId = normalizeId(companyId);
-  const contractsById = new Map<string, FleetUsageContractLike>();
-  for (const contract of contracts) {
-    const id = normalizeId(contract.id);
-    if (id) contractsById.set(id, contract);
-  }
 
   const activeDriverIds = new Set(
     members
@@ -210,27 +164,19 @@ export const resolveCurrentFleetUsageJobs = ({
   );
   if (activeDriverIds.size === 0) return [];
 
-  const currentByDriver = new Map<string, FleetUsageJobLike>();
-  for (const job of jobs) {
-    const jobCompanyId = normalizeId(job.companyId);
-    if (normalizedCompanyId && jobCompanyId !== normalizedCompanyId) continue;
-    const driverId = resolveFleetJobDriverId(job);
-    if (!driverId || !activeDriverIds.has(driverId)) continue;
-    if (!isResourceOccupyingJob(job, contractsById)) continue;
-
-    const previous = currentByDriver.get(driverId);
-    if (!previous || compareCurrentJobs(job, previous) < 0) {
-      currentByDriver.set(driverId, job);
-    }
-  }
-
-  return Array.from(currentByDriver.values());
+  const scopedJobs = jobs.filter((job) => {
+    if (normalizedCompanyId && normalizeId(job.companyId) !== normalizedCompanyId) return false;
+    return activeDriverIds.has(resolveFleetJobDriverId(job));
+  });
+  return selectCurrentOperationJobs(scopedJobs, normalizedCompanyId)
+    .filter((job) => isResourceOccupyingJob(job, confirmedTrips));
 };
 
 export interface CountFleetAssetUsageOptions
   extends ResolveCurrentFleetUsageJobsOptions {
   assetId: unknown;
   kind: FleetAssetKind;
+  confirmedTrips?: readonly unknown[];
 }
 
 /**
@@ -246,6 +192,7 @@ export const countFleetAssetUsage = ({
   kind,
   companyId,
   contracts = [],
+  confirmedTrips = [],
 }: CountFleetAssetUsageOptions): number => {
   const normalizedAssetId = normalizeId(assetId);
   if (!normalizedAssetId) return 0;
@@ -262,6 +209,7 @@ export const countFleetAssetUsage = ({
     members,
     companyId,
     contracts,
+    confirmedTrips,
   })) {
     const jobAssetId = resolveFleetJobAssetId(job, kind, contractsById);
     if (jobAssetId === normalizedAssetId) {

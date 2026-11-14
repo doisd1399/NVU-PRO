@@ -1,0 +1,65 @@
+/* Color-only compatibility for the shared Android/desktop chrome. Keep the
+   overlay translucent and the menu opaque: page text must never show through. */
+:root.dark body :is(.nvu-native-android,.nvu-desktop-shell) [data-nvu-unified-profile-menu] {
+  background: var(--nvu-elevated) !important;
+  border-color: var(--nvu-line) !important;
+  color: var(--nvu-text);
+}
+:root.dark body [data-nvu-unified-profile-menu] :is(.nvu-profile-menu-intro,.nvu-profile-menu-footer) {
+  border-color: var(--nvu-line) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] :is(.nvu-profile-menu-title,.nvu-profile-menu-account-trigger) {
+  color: var(--nvu-text) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] :is(.nvu-profile-menu-description,.nvu-profile-menu-eyebrow,.nvu-profile-menu-section-label,.nvu-profile-action-caption,.nvu-profile-submenu-heading) {
+  color: var(--nvu-muted) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] :is(.nvu-profile-menu-account,.nvu-profile-menu-theme,.nvu-profile-role-group) {
+  background: var(--nvu-surface) !important;
+  border-color: var(--nvu-line) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] .nvu-profile-menu-account-trigger {
+  background: var(--nvu-surface) !important;
+  border-color: var(--nvu-line) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] :is(.nvu-profile-menu-item,.nvu-profile-menu-action) {
+  background: var(--nvu-strip) !important;
+  border-color: var(--nvu-line) !important;
+  color: var(--nvu-text) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] :is(.nvu-profile-menu-item,.nvu-profile-menu-action):is(:hover,:focus-visible,.is-selected,.is-active,[aria-current="page"]) {
+  background: var(--nvu-accent-soft) !important;
+  border-color: var(--nvu-accent) !important;
+  color: var(--nvu-accent) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] .nvu-profile-menu-intro-icon {
+  background: var(--nvu-accent-soft) !important;
+  color: var(--nvu-accent) !important;
+  border-color: var(--nvu-accent) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] .nvu-profile-logout-button {
+  background: var(--nvu-danger-soft) !important;
+  color: var(--nvu-danger) !important;
+  border-color: var(--nvu-danger) !important;
+}
+:root.dark body [data-nvu-unified-profile-menu] .nvu-profile-menu-theme-switch > div {
+  background: var(--nvu-text) !important;
+}
+/* Compatibility for neutral labels/surfaces that intentionally omit a dark
+   utility. Explicit semantic colors and text over photos retain precedence. */
+:root.dark :is(.nvu-workspace-shell,.nvu-ranking-page) [class~="bg-white"]:not([class*="dark:bg-"]) {
+  background-color: var(--nvu-surface);
+}
+:root.dark :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="bg-gray-50"],[class~="bg-slate-50"]):not([class*="dark:bg-"]) {
+  background-color: var(--nvu-page);
+}
+:root.dark :is(.nvu-workspace-shell,.nvu-ranking-page) :is([class~="text-gray-400"],[class~="text-gray-500"],[class~="text-slate-400"],[class~="text-slate-500"]):not([class*="dark:text-"]) {
+  color: var(--nvu-muted);
+}
+:root.dark :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),textarea,select,.nvu-modal-select) {
+  border-color: var(--nvu-control-line);
+}
+:root.dark :is(input,textarea)::placeholder { color: var(--nvu-muted); opacity: 1; }
+:root.dark :is(.nvu-options-overlay,.nvu-period-overlay,.nvu-ranking-profile-overlay,.nvu-central-overlay) {
+  background-color: rgb(4 10 15 / 64%);
+}

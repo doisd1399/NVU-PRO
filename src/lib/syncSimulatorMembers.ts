@@ -41,7 +41,7 @@ export async function syncSingleSimulatorMember(
 
     if (isAuthTeardownActive() || !auth.currentUser) return;
 
-    const role = roles.includes("driver") ? "driver" : (roles[0] || "driver");
+    const role = roles.includes("admin") ? "admin" : (roles.includes("driver") ? "driver" : (roles[0] || "driver"));
     const isEligible = status === "active";
 
     await setDoc(docRef, {
@@ -50,6 +50,7 @@ export async function syncSingleSimulatorMember(
       simulatorId,
       status,
       role,
+      roles: Array.from(new Set(roles)),
       isEligible
     }, { merge: true });
   } catch (error) {

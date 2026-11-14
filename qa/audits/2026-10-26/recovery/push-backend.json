@@ -1,0 +1,19 @@
+{
+  "checks": [
+    "Callables reject unauthenticated, malformed and oversized input",
+    "New association fences an older registration and another account cannot revoke it",
+    "Logout tombstone prevents delayed registration and legacy overwrite but allows a newer login",
+    "Logout removes owned pre-v2 rows without deleting another device or account",
+    "Partial transient response retries only the failed token and completion deduplicates replay",
+    "Expired processing lease recovers; active lease is busy and very old dispatch expires",
+    "An invalid-token response cannot delete the token newly associated with a different account",
+    "201 recipients preserve the first successful batch when the last recipient needs retry",
+    "A whole transport failure remains retryable and confirms only after recovery",
+    "Invalid legacy duplicates cannot overflow the transaction write limit",
+    "Both existing notification onCreate triggers enable platform retry"
+  ],
+  "project": "demo-nvu-v36-4-staging",
+  "productionAccess": false,
+  "realPushSent": false,
+  "method": "Compiled callable/dispatcher code, real Firestore emulator transactions and controlled FCM transport."
+}

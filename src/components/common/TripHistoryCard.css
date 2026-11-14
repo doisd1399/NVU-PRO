@@ -1,0 +1,11 @@
+/* Approved neutral utility icons. Logos, money values and moderation confirmations keep their semantics. */
+.nvu-trip-card svg { color: var(--nvu-muted, #637386); }
+.nvu-trip-card .nvu-trip-route-pin { fill: currentColor; }
+.nvu-trip-card .nvu-trip-money-icon { color: var(--nvu-muted, #637386); border-color: currentColor; }
+.nvu-trip-card .nvu-trip-action {
+  color: var(--nvu-muted, #637386);
+  background: var(--nvu-strip, #edf1f4);
+  border-color: var(--nvu-line, #d7e0e6);
+}
+.nvu-trip-card .nvu-trip-action:hover { background: var(--nvu-elevated, #e1e8ed); border-color: var(--nvu-control-line, #a7b7c2); }
+.nvu-trip-card .nvu-trip-action:focus-visible { outline: 2px solid var(--nvu-control-line, #a7b7c2); outline-offset: 2px; }

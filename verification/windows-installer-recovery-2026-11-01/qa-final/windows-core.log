@@ -1,0 +1,26 @@
+✔ Scripts de empacotamento passam pela análise sintática do Node (1.735032ms)
+✔ NSIS real compilado passa na verificação nativa de CRC (0.867526ms)
+✔ Alterar stub, conteúdo ou CRC do instalador bloqueia a entrega (0.911041ms)
+✔ Instalador truncado, com bytes extras ou CRC desligado é rejeitado (0.62501ms)
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (4.39704ms)
+✔ Entrega atrasada após reinício continua na operação original (2.056907ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.278871ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (2.539747ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (2.71783ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (2.922385ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.211462ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (3.51362ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (3.266327ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (2.11318ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (4.459472ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.236728ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (90.441712ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (14.912264ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 205.643655

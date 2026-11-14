@@ -20,7 +20,8 @@ assert.doesNotMatch(assignJob, /onChange=\{\(e\) => setSelectedTrailer\(e\.targe
 
 assert.match(profile, /!jobsReady && cachedOperationSnapshot\?\.job/);
 assert.match(profile, /isRunningJobStatus\(\s*String\(cachedOperationSnapshot\.job\.status/);
-assert.match(profile, /const activeOperationCardJob/);
+assert.match(profile, /const cachedOperationJob\s*=/);
+assert.match(profile, /const displayActiveJob = activeJob \|\| cachedOperationJob/);
 assert.match(profile, /if \(jobsReady\) \{[\s\S]{0,220}clearActiveOperationSnapshot/);
 
 console.log("assign-job-active-operation: PASS picker-derived trailer and stale active-card guard");

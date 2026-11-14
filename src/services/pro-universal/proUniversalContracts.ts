@@ -28,7 +28,8 @@ export type ProCaptureFailureCode =
   | "PROJECTION_DENIED"
   | "RESULT_SCREEN_UNCONFIRMED"
   | "RECEIPT_POLICY_REJECTED"
-  | "DUPLICATE_TRIP";
+  | "DUPLICATE_TRIP"
+  | "OCR_RETRYABLE";
 
 export type ProSimulatorCode = "GTO" | "TOE3" | "WTDS" | "WBDS";
 
@@ -72,7 +73,7 @@ export const PRO_SIMULATOR_REGISTRY: readonly ProSimulatorDefinition[] = [
       titleMarkers: ["resultados", "ganhos", "viagem"],
       amountLabels: ["ganhos da viagem", "total"],
       bonusLabels: ["bonus video ads", "bônus video ads"],
-      requiredMarkers: ["danos", "combustível"],
+      requiredMarkers: ["danos"],
     },
     locale: { decimalSeparator: ",", thousandsSeparator: ".", currency: "BRL" },
   },
@@ -87,7 +88,7 @@ export const PRO_SIMULATOR_REGISTRY: readonly ProSimulatorDefinition[] = [
       titleMarkers: ["resultados", "ganhos", "viagem"],
       amountLabels: ["ganhos da viagem", "total"],
       bonusLabels: ["bonus video ads", "bônus video ads"],
-      requiredMarkers: ["danos", "combustível"],
+      requiredMarkers: ["danos"],
     },
     locale: { decimalSeparator: ",", thousandsSeparator: ".", currency: "BRL" },
   },
@@ -152,7 +153,9 @@ export type ProSessionSnapshot = {
 export type ProReceiptEvidence = {
   simulatorKey: ProSimulatorKey;
   amountCents: number;
-  currency: "BRL" | "EUR";
+  // Unknown is safer than assigning the simulator's default currency to an
+  // OCR receipt which contains no conclusive currency evidence.
+  currency: "BRL" | "EUR" | "UNKNOWN";
   baseReceiptFound: boolean;
   resultScreenConfirmed: boolean;
   bonusEvidence: "NONE" | "ZERO_LABEL" | "POSITIVE" | "DUPLICATED" | "OFFER_ONLY";

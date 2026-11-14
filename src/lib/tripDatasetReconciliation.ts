@@ -8,7 +8,7 @@ function hasValue(value: unknown): boolean {
   return value !== undefined && value !== null && value !== "";
 }
 
-function getTripIdentity(trip: any, fallbackIndex: number): string {
+function getTripIdentity(trip: any): string {
   const explicitId = trip?.id || trip?.tripId || trip?.documentId;
   if (hasValue(explicitId)) return `id:${String(explicitId)}`;
 
@@ -25,8 +25,12 @@ function getTripIdentity(trip: any, fallbackIndex: number): string {
     trip?.contractId || trip?.contratoId || "",
     Number.isFinite(metricTime) ? metricTime : "no-date",
     trip?.valor ?? trip?.value ?? "",
-    fallbackIndex,
-  ].join(":");
+    trip?.valorCents ?? trip?.amountCents ?? trip?.earningsCents ?? "",
+    trip?.origem ?? trip?.origin ?? "",
+    trip?.destino ?? trip?.destination ?? "",
+    trip?.imageHash ?? trip?.simpleReceiptHash ?? trip?.comprovanteUrl ?? "",
+    trip?.simulatorKey ?? trip?.simulatorCode ?? trip?.simuladorCodigo ?? "",
+  ].map((part) => String(part).trim()).join(":");
 }
 
 function mergeDefinedFields(base: any, incoming: any) {
@@ -45,12 +49,11 @@ function mergeDefinedFields(base: any, incoming: any) {
  */
 export function mergeTripDatasets(...datasets: Array<any[] | null | undefined>) {
   const merged = new Map<string, any>();
-  let fallbackIndex = 0;
 
   datasets.forEach((dataset) => {
     (dataset || []).forEach((trip) => {
       if (!trip || typeof trip !== "object") return;
-      const key = getTripIdentity(trip, fallbackIndex++);
+      const key = getTripIdentity(trip);
       const current = merged.get(key);
       merged.set(key, current ? mergeDefinedFields(current, trip) : trip);
     });

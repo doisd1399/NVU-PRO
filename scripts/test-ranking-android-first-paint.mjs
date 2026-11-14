@@ -11,15 +11,15 @@ const checks = [];
 const check = (name, condition) => checks.push({ name, condition: Boolean(condition) });
 
 check(
-  "native boot mounts ranking warmup immediately",
-  app.includes("if (Capacitor.isNativePlatform())") &&
-    app.includes("enable();") &&
-    app.includes("return () => {\n        cancelled = true;\n      };")
+  "native warms local route code without mounting hidden ranking data on constrained boot",
+  app.includes("const nativeLocalCode = Capacitor.isNativePlatform();") &&
+    app.includes("preloadRoleRoutes(activeRole || \"driver\")") &&
+    app.includes("if (!runtime.allowRankingWarmup) { setEnabled(false); return; }")
 );
 check(
-  "ranking paints live projection before complete sources",
+  "ranking reuses confirmed snapshots and gates new comparative projections",
   ranking.includes("visibleRankingSnapshot.items.length > 0") &&
-    ranking.includes(": liveRankingData") &&
+    ranking.includes(": preparedLiveRanking ? liveRankingData : []") &&
     ranking.includes("const rankingReady = rankingData.length > 0 || preparedLiveRanking")
 );
 check(

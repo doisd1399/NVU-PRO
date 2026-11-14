@@ -1,3 +1,5 @@
+import { dismissTopOptionModal } from "./optionModalStack";
+
 type ReactRouterHistoryState = {
   usr?: Record<string, unknown> | null;
   key?: string;
@@ -37,6 +39,7 @@ const replaceAppLocation = (pathname: string, userState?: Record<string, unknown
  */
 export function handleSafeAppBack({ canGoBack = false, exitApp }: SafeBackOptions = {}) {
   if (typeof window === "undefined") return;
+  if (dismissTopOptionModal()) return;
 
   const pathname = window.location.pathname;
   const routerIndex = Number(window.history.state?.idx);

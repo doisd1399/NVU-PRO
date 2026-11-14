@@ -1,0 +1,6 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 qa
+> node scripts/qa/run.mjs web
+
+QA_LOCKED: outra execução está ativa. Confira qa/results/running.lock.

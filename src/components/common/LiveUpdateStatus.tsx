@@ -157,7 +157,7 @@ export default function LiveUpdateStatus() {
   return (
     <div
       data-nvu-live-update-status={status}
-      className="nvu-live-update-status pointer-events-none fixed left-1/2 z-[2200] flex w-[calc(100%-1.5rem)] max-w-[22rem] -translate-x-1/2 items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/95 px-3.5 py-2 text-center text-xs font-medium text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/95 dark:text-slate-100"
+      className="nvu-live-update-status pointer-events-none fixed left-1/2 z-[2200] flex w-[calc(100%-1.5rem)] max-w-[22rem] -translate-x-1/2 items-center justify-center gap-2 rounded-full border border-slate-200/80 bg-white/95 px-3.5 py-2 text-center text-xs font-medium text-slate-700 shadow-lg shadow-slate-900/10 backdrop-blur-sm dark:border-white/10 dark:bg-nvu-page/95 dark:text-nvu-text"
       role="status"
       aria-live="polite"
       aria-atomic="true"

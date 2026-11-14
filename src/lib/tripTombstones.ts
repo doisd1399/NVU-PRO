@@ -1,39 +1,28 @@
 import { onAuthTeardown } from "./authLifecycle";
 
-const STORAGE_KEY = "nvu.trips.tombstones.v1";
-const MAX_TOMBSTONES = 500;
-const MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const STORAGE_KEY = "nvu.trips.tombstones.v2";
+const LEGACY_STORAGE_KEY = "nvu.trips.tombstones.v1";
 
 let memoryTombstones = new Map<string, number>();
 let loaded = false;
 let teardownAttached = false;
 
-function normalizeId(value: unknown): string {
-  return String(value || "").trim();
-}
+function normalizeId(value: unknown): string { return String(value || "").trim(); }
 
 function load(): Map<string, number> {
   if (loaded || typeof window === "undefined") return memoryTombstones;
   loaded = true;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
-    const entries = Array.isArray(parsed)
-      ? parsed
-      : parsed && typeof parsed === "object"
-        ? Object.entries(parsed)
-        : [];
-    const now = Date.now();
+    const storage = window.localStorage;
+    const raw = storage.getItem(STORAGE_KEY) || storage.getItem(LEGACY_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    const entries = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? Object.entries(parsed) : [];
     const next = new Map<string, number>();
     for (const entry of entries) {
-      const [rawId, rawAt] = Array.isArray(entry)
-        ? entry
-        : [entry?.id, entry?.deletedAt];
+      const [rawId, rawAt] = Array.isArray(entry) ? entry : [entry?.id, entry?.deletedAt];
       const id = normalizeId(rawId);
       const deletedAt = Number(rawAt);
-      if (id && Number.isFinite(deletedAt) && now - deletedAt <= MAX_AGE_MS) {
-        next.set(id, deletedAt);
-      }
+      if (id) next.set(id, Number.isFinite(deletedAt) ? deletedAt : Date.now());
     }
     memoryTombstones = next;
   } catch {
@@ -45,12 +34,10 @@ function load(): Map<string, number> {
 function persist(): void {
   if (typeof window === "undefined") return;
   try {
-    const entries = Array.from(load().entries())
-      .sort((left, right) => right[1] - left[1])
-      .slice(0, MAX_TOMBSTONES);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(load().entries())));
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   } catch {
-    // Tombstones are a safety cache; Firestore remains authoritative.
+    // A tombstone is still held in memory for the current process.
   }
 }
 
@@ -58,8 +45,8 @@ function ensureTeardown(): void {
   if (teardownAttached || typeof window === "undefined") return;
   teardownAttached = true;
   onAuthTeardown(() => {
-    // Keep the persisted IDs across logout so a stale offline snapshot cannot
-    // resurrect a deleted document after the same account logs in again.
+    // Keep storage; only memory is reset. This is what prevents a stale cache
+    // from resurrecting a deleted trip after logout/login or process restart.
     memoryTombstones = new Map();
     loaded = false;
   });
@@ -75,21 +62,21 @@ export function markTripTombstoned(tripId: unknown): void {
   ensureTeardown();
   const id = normalizeId(tripId);
   if (!id) return;
+  if (load().has(id)) return;
   load().set(id, Date.now());
   persist();
 }
 
-export function filterTombstonedTrips<T extends { id?: unknown; tripId?: unknown }>(
-  trips: readonly T[],
-): T[] {
+export function filterTombstonedTrips<T extends { id?: unknown; tripId?: unknown; canonicalTripId?: unknown }>(trips: readonly T[]): T[] {
   ensureTeardown();
   const tombstones = load();
   return trips.filter((trip) => {
-    const id = normalizeId(trip.id || trip.tripId);
+    const id = normalizeId(trip.canonicalTripId || trip.id || trip.tripId);
     return !id || !tombstones.has(id);
   });
 }
 
+/** Explicit administrative compaction only; normal app flows never call this. */
 export function clearTripTombstone(tripId: unknown): void {
   ensureTeardown();
   const id = normalizeId(tripId);
@@ -99,6 +86,6 @@ export function clearTripTombstone(tripId: unknown): void {
 
 export const tripTombstoneContract = {
   storageKey: STORAGE_KEY,
-  maxTombstones: MAX_TOMBSTONES,
-  maxAgeMs: MAX_AGE_MS,
+  legacyStorageKey: LEGACY_STORAGE_KEY,
+  persistent: true,
 } as const;

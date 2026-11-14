@@ -1,0 +1,15 @@
+{
+  "checks": [
+    "App completo restaura uma sessão real do Auth local e resolve o seletor de perfis",
+    "Seleção de administrador abre a gestão com os providers reais e a empresa correta",
+    "Equipes mostra identidade pública do cadastro com users privado",
+    "Edição pública do nome aparece em Equipes sem alterar permissões",
+    "Toque push seleciona perfil motorista antes de abrir sua operação",
+    "Push antigo de outra conta não navega nem troca o perfil",
+    "Aviso interno seleciona perfil administrador antes de abrir a gestão",
+    "Push seleciona outra empresa na mesma conta sem reutilizar a empresa anterior",
+    "Identidade em tempo real também atualiza o vínculo secundário preservando a empresa primária"
+  ],
+  "errors": [],
+  "method": "App e providers reais; login de conta fictícia pelo SDK Auth local em entrada exclusiva de testes. Google OAuth e Android não são simulados como aprovados."
+}

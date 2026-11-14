@@ -1,3 +1,4 @@
+import { ModalSelect } from "../ui/ModalSelect";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -423,34 +424,34 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
         onClick={!isBusy ? resetAndClose : undefined}
       />
 
-      <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl dark:border-slate-800 dark:bg-[#18181b]">
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5 sm:px-5 sm:py-4 dark:border-slate-800/70">
+      <div className="relative flex max-h-[94vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl dark:border-nvu-line dark:bg-nvu-surface">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5 sm:px-5 sm:py-4 dark:border-nvu-line/70">
           <div className="flex min-w-0 items-center gap-2.5 text-slate-900 dark:text-white">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400">
               <Megaphone size={18} />
             </span>
             <div className="min-w-0">
               <h2 className="truncate text-base font-semibold">Comunicados da NVU</h2>
-              <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">Publicação e gerenciamento da NVU News</p>
+              <p className="truncate text-[11px] text-slate-500 dark:text-nvu-muted">Publicação e gerenciamento da NVU News</p>
             </div>
           </div>
           <button
             type="button"
             onClick={resetAndClose}
             disabled={isBusy}
-            className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 dark:hover:bg-nvu-surface dark:hover:text-nvu-text"
           >
             <X size={19} />
           </button>
         </div>
 
-        <div className="flex gap-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2 dark:border-slate-800/70 dark:bg-slate-900/20 sm:px-5">
+        <div className="flex gap-1 border-b border-slate-100 bg-slate-50/70 px-4 py-2 dark:border-nvu-line/70 dark:bg-nvu-page/20 sm:px-5">
           <button
             type="button"
             onClick={openCreateView}
             className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition-colors ${activeView === "create"
-              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white dark:ring-slate-700"
-              : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"}`}
+              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-nvu-surface dark:text-white dark:ring-slate-700"
+              : "text-slate-500 hover:text-slate-800 dark:text-nvu-muted dark:hover:text-nvu-text"}`}
           >
             <Plus size={14} />
             {editingCommunication ? "Editar" : "Novo comunicado"}
@@ -459,12 +460,12 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
             type="button"
             onClick={openPublishedView}
             className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold transition-colors ${activeView === "published"
-              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white dark:ring-slate-700"
-              : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"}`}
+              ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-nvu-surface dark:text-white dark:ring-slate-700"
+              : "text-slate-500 hover:text-slate-800 dark:text-nvu-muted dark:hover:text-nvu-text"}`}
           >
             <Megaphone size={14} />
             Publicados
-            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-200">
+            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-nvu-strip dark:text-nvu-text">
               {hasMoreCommunications ? `${communications.length}+` : communications.length}
             </span>
           </button>
@@ -496,7 +497,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
               )}
 
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-700 dark:text-nvu-text-soft">
                   Título
                 </label>
                 <input
@@ -505,13 +506,13 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Ex.: Atualização importante na plataforma"
                   maxLength={110}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-[#09090b] dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-page dark:text-white"
                 />
                 <p className="mt-1 text-right text-[10px] text-slate-400">{title.length}/110</p>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-700 dark:text-nvu-text-soft">
                   Comunicado
                 </label>
                 <textarea
@@ -520,25 +521,25 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                   placeholder="Escreva a informação de forma clara e objetiva."
                   rows={7}
                   maxLength={3000}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-[#09090b] dark:text-white"
+                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-slate-900 outline-none transition focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-page dark:text-white"
                 />
                 <p className="mt-1 text-right text-[10px] text-slate-400">{message.length}/3000</p>
               </div>
 
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-slate-700 dark:text-slate-300">
+                <label className="mb-1.5 block text-[12px] font-semibold text-slate-700 dark:text-nvu-text-soft">
                   Simulador
                 </label>
-                <select
+                <ModalSelect title="Simulador da publicação"
                   value={selectedSimulator}
                   onChange={(event) => setSelectedSimulator(event.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-[#09090b] dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-page dark:text-white"
                 >
                   <option value="all">Todos os simuladores</option>
                   {simulatorOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
-                </select>
+                </ModalSelect>
               </div>
             </form>
           ) : viewingCommunication ? (
@@ -546,14 +547,14 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
               <button
                 type="button"
                 onClick={() => setViewingCommunication(null)}
-                className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+                className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-slate-500 hover:text-slate-900 dark:text-nvu-muted dark:hover:text-white"
               >
                 <ChevronLeft size={15} />
                 Voltar aos comunicados
               </button>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-[#101014] sm:p-5">
-                <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800 sm:flex-row sm:items-start sm:justify-between">
+              <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-nvu-line dark:bg-nvu-page sm:p-5">
+                <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-nvu-line sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <span className="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-blue-700 dark:border-blue-500/25 dark:bg-blue-500/10 dark:text-blue-300">
                       Comunicado oficial
@@ -572,18 +573,18 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 dark:bg-slate-800">
+                <div className="mt-4 flex flex-wrap gap-2 text-[11px] text-slate-500 dark:text-nvu-muted">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 dark:bg-nvu-surface">
                     <CalendarDays size={13} />
                     {formatPublicationDate(viewingCommunication.sortAt || viewingCommunication.createdAt || viewingCommunication.dataReferencia)}
                   </span>
-                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 dark:bg-slate-800">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1.5 dark:bg-nvu-surface">
                     <Gamepad2 size={13} />
                     {communicationSimulatorLabel(viewingCommunication)}
                   </span>
                 </div>
 
-                <p className="mt-5 whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                <p className="mt-5 whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-nvu-text-soft">
                   {viewingCommunication.mensagem}
                 </p>
               </article>
@@ -599,20 +600,20 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Buscar título ou conteúdo"
-                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-[#09090b] dark:text-white"
+                    className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-page dark:text-white"
                   />
                 </label>
-                <select
+                <ModalSelect title="Filtrar publicações"
                   value={simulatorFilter}
                   onChange={(event) => setSimulatorFilter(event.target.value)}
                   aria-label="Filtrar por simulador"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-slate-700 dark:bg-[#09090b] dark:text-white"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 dark:border-nvu-line dark:bg-nvu-page dark:text-white"
                 >
                   <option value="all">Todos os simuladores</option>
                   {simulatorOptions.map((option) => (
                     <option key={option.value} value={option.value}>{option.label}</option>
                   ))}
-                </select>
+                </ModalSelect>
               </div>
 
               {communicationsError && (
@@ -622,22 +623,22 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
               )}
 
               {isLoadingCommunications ? (
-                <div className="flex items-center justify-center gap-2 py-14 text-sm text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-center gap-2 py-14 text-sm text-slate-500 dark:text-nvu-muted">
                   <Loader2 size={18} className="animate-spin" />
                   Carregando comunicados...
                 </div>
               ) : filteredCommunications.length === 0 ? (
-                <div className="mt-4 rounded-2xl border border-dashed border-slate-300 px-4 py-12 text-center dark:border-slate-700">
+                <div className="mt-4 rounded-2xl border border-dashed border-slate-300 px-4 py-12 text-center dark:border-nvu-line">
                   <Megaphone size={24} className="mx-auto text-slate-400" />
-                  <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Nenhum comunicado encontrado</p>
-                  <p className="mt-1 text-[12px] text-slate-500 dark:text-slate-400">Publique um novo comunicado ou ajuste os filtros.</p>
+                  <p className="mt-3 text-sm font-semibold text-slate-700 dark:text-nvu-text">Nenhum comunicado encontrado</p>
+                  <p className="mt-1 text-[12px] text-slate-500 dark:text-nvu-muted">Publique um novo comunicado ou ajuste os filtros.</p>
                   {hasMoreCommunications && (
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => void loadCommunications(false)}
                       disabled={isLoadingMoreCommunications}
-                      className="mt-4 min-w-[160px] border-slate-200 dark:border-slate-700"
+                      className="mt-4 min-w-[160px] border-slate-200 dark:border-nvu-line"
                     >
                       {isLoadingMoreCommunications
                         ? <Loader2 size={16} className="animate-spin" />
@@ -650,11 +651,11 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                   {filteredCommunications.map((communication) => (
                     <article
                       key={communication.id}
-                      className="rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-slate-700 dark:bg-[#101014] sm:p-4"
+                      className="rounded-2xl border border-slate-200 bg-white p-3.5 dark:border-nvu-line dark:bg-nvu-page sm:p-4"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-medium text-slate-500 dark:text-nvu-muted">
                             <span className="inline-flex items-center gap-1"><Gamepad2 size={11} /> {communicationSimulatorLabel(communication)}</span>
                             <span aria-hidden="true">•</span>
                             <span>{formatPublicationDate(communication.sortAt || communication.createdAt || communication.dataReferencia)}</span>
@@ -662,7 +663,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                           <h3 className="mt-1.5 line-clamp-1 text-sm font-semibold text-slate-950 dark:text-white">
                             {communication.titulo}
                           </h3>
-                          <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-slate-500 dark:text-slate-400">
+                          <p className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-slate-500 dark:text-nvu-muted">
                             {communication.mensagem}
                           </p>
                         </div>
@@ -670,7 +671,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                           <button
                             type="button"
                             onClick={() => setViewingCommunication(communication)}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 dark:border-nvu-line dark:text-nvu-text-soft dark:hover:bg-nvu-surface"
                           >
                             <Eye size={13} /> Visualizar
                           </button>
@@ -679,7 +680,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                             aria-label={`Editar ${communication.titulo}`}
                             title="Editar"
                             onClick={() => startEditing(communication)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900 dark:border-nvu-line dark:text-nvu-muted dark:hover:bg-nvu-surface dark:hover:text-white"
                           >
                             <Pencil size={13} />
                           </button>
@@ -703,7 +704,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                         variant="outline"
                         onClick={() => void loadCommunications(false)}
                         disabled={isLoadingMoreCommunications}
-                        className="min-w-[160px] border-slate-200 dark:border-slate-700"
+                        className="min-w-[160px] border-slate-200 dark:border-nvu-line"
                       >
                         {isLoadingMoreCommunications
                           ? <Loader2 size={16} className="animate-spin" />
@@ -717,7 +718,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
           )}
         </div>
 
-        <div className="flex min-h-[72px] items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800/70 dark:bg-slate-900/20 sm:p-5">
+        <div className="flex min-h-[72px] items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/70 p-4 dark:border-nvu-line/70 dark:bg-nvu-page/20 sm:p-5">
           {activeView === "create" ? (
             <>
               <Button
@@ -725,7 +726,7 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
                 variant="outline"
                 onClick={editingCommunication ? openPublishedView : resetAndClose}
                 disabled={isSubmitting}
-                className="border-slate-200 dark:border-slate-700"
+                className="border-slate-200 dark:border-nvu-line"
               >
                 {editingCommunication ? "Voltar" : "Cancelar"}
               </Button>
@@ -756,12 +757,12 @@ export function CreateNewsModal({ isOpen, onClose }: CreateNewsModalProps) {
             className="absolute inset-0 bg-slate-950/65"
             onClick={!isDeleting ? () => setDeleteTarget(null) : undefined}
           />
-          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-700 dark:bg-[#18181b]">
+          <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-nvu-line dark:bg-nvu-surface">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400">
               <AlertTriangle size={19} />
             </span>
             <h3 className="mt-4 text-base font-semibold text-slate-950 dark:text-white">Excluir comunicado?</h3>
-            <p className="mt-2 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-500 dark:text-nvu-muted">
               “{deleteTarget.titulo}” será removido permanentemente da página NVU News. Esta ação não pode ser desfeita.
             </p>
             <div className="mt-5 flex justify-end gap-2.5">

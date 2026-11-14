@@ -1,4 +1,5 @@
 import { withTimeout } from "../lib/asyncTimeout";
+import { contextualGtoAmounts, hasAppliedGtoBonus, readGtoPrintEvidence, type GtoPrintEvidence } from "../../functions/src/gtoPrintEvidence";
 
 const LOCAL_TESSDATA_PATH = "/tessdata";
 const LOCAL_TESSERACT_WORKER_PATH = "/tesseract/worker.min.js";
@@ -10,6 +11,17 @@ const VALUE_CROP = {
   height: 0.23,
 };
 
+// Primary GTO landscape ROI: isolate the "Valor a receber" line from the
+// buttons/HUD. The previous broad modal crop could repeatedly OCR unrelated
+// three-digit UI tokens and, with implicit cents enabled, promote e.g. 108 to
+// R$ 1,08. Coordinates are normalized so the ROI survives resolution changes.
+const LANDSCAPE_AMOUNT_CROP = {
+  x: 0.38,
+  y: 0.335,
+  width: 0.30,
+  height: 0.085,
+};
+
 // Android users often upload the complete portrait screen instead of a crop of
 // the landscape GTO modal. In that layout the received amount sits in the
 // lower half of the image preview, so the old centered crop never reached it.
@@ -19,6 +31,11 @@ const PORTRAIT_VALUE_CROP = {
   width: 0.84,
   height: 0.56,
 };
+
+// Additional regions cover a landscape result embedded in a portrait screenshot
+// and the lower portion of a compact modal. They are fallbacks only.
+const LANDSCAPE_NESTED_CROP = { x: 0.20, y: 0.29, width: 0.60, height: 0.40 };
+const PORTRAIT_PREVIEW_CROP = { x: 0.12, y: 0.48, width: 0.76, height: 0.36 };
 
 const RESULT_ANALYSIS_CROP = {
   x: 0.12,
@@ -33,6 +50,8 @@ export interface GtoReceiptAnalysis {
   evidence: string[];
   analysisOk: boolean;
   rawText: string;
+  printEvidence?: GtoPrintEvidence;
+  validationReason?: string;
 }
 
 export interface GtoReceiptAnalysisOptions {
@@ -48,6 +67,11 @@ interface DecodedImage {
 
 const MONEY_TOKEN_PATTERN =
   /[0-9OoQIl|!SsBb][0-9OoQIl|!SsBb.,\s]{1,32}[0-9OoQIl|!SsBb]/g;
+
+// Digits-only integer part (with optional thousands separators) followed by two
+// decimals; the cents may carry a look-alike letter (0→O, 5→S, 8→B...).
+const STRICT_AMOUNT_PATTERN =
+  /(?<!\d)(?:\d{1,3}(?:[., ]\d{3})+|\d+)[.,][0-9OoQIl|!SsBb]{2}(?!\d)/;
 
 const replaceLikelyDigitConfusions = (value: string): string =>
   value
@@ -66,8 +90,11 @@ const formatDigitsAsBrl = (digits: string): string | null => {
   if (!integerDigits) return null;
 
   const integerPart = Number(integerDigits);
-  if (!Number.isFinite(integerPart) || integerPart <= 0) return null;
+  if (!Number.isFinite(integerPart) || integerPart < 0) return null;
 
+  // A positive amount is valid regardless of magnitude. Truncation is checked
+  // against the result label/evidence, never against an arbitrary price floor.
+  if (integerPart === 0 && Number(cents) === 0) return null;
   return `${integerPart.toLocaleString("pt-BR")},${cents}`;
 };
 
@@ -102,6 +129,44 @@ type ValueExtractionOptions = {
   allowImplicitCentsInGeneric?: boolean;
 };
 
+type OcrValueCandidate = {
+  value: string;
+  text: string;
+  crop: string;
+  contextual: boolean;
+};
+
+const selectValidatedValueCandidate = (numericCandidates: OcrValueCandidate[]): string | null => {
+  if (!numericCandidates.length) return null;
+  const contextual = numericCandidates.filter((item) => item.contextual);
+  const pool = contextual.length ? contextual : numericCandidates;
+  const groups = new Map<string, { votes: number; crops: Set<string>; contextualVotes: number }>();
+  for (const item of pool) {
+    const group = groups.get(item.value) || { votes: 0, crops: new Set<string>(), contextualVotes: 0 };
+    group.votes += 1;
+    group.crops.add(item.crop);
+    if (item.contextual) group.contextualVotes += 1;
+    groups.set(item.value, group);
+  }
+  const ranked = [...groups.entries()].sort((a, b) => {
+    const ac = a[1].contextualVotes > 0 ? 1 : 0;
+    const bc = b[1].contextualVotes > 0 ? 1 : 0;
+    return bc - ac || b[1].crops.size - a[1].crops.size || b[1].votes - a[1].votes;
+  });
+  if (!ranked.length) return null;
+  const [winner, evidence] = ranked[0];
+  const runner = ranked[1];
+  if (evidence.contextualVotes > 0) {
+    if (runner && runner[1].contextualVotes > 0
+        && runner[1].crops.size >= evidence.crops.size
+        && runner[1].votes >= evidence.votes) return null;
+    return winner;
+  }
+  if (evidence.crops.size < 2) return null;
+  if (runner && runner[1].crops.size >= evidence.crops.size) return null;
+  return winner;
+};
+
 const extractValueFromText = (
   rawText: string,
   options: ValueExtractionOptions = {},
@@ -118,6 +183,15 @@ const extractValueFromText = (
       /^\s*[:=\-]?\s*(?:r\s*[$s5]?|rs)?\s*/i,
       "",
     );
+    // A well-formed amount right after the label wins over the loose token
+    // pattern. The loose pattern also accepts O/B/S as digit look-alikes, so in
+    // "R$ 10.656,00 obrar valor" it swallowed the trailing "ob" of the next word
+    // ("10.656,0008") and a perfectly read amount was thrown away.
+    const strictAmount = amountContext.match(STRICT_AMOUNT_PATTERN);
+    if (strictAmount) {
+      const strictValue = normalizeMonetaryCandidate(strictAmount[0], true);
+      if (strictValue) return strictValue;
+    }
     const contextualCandidates = amountContext.match(MONEY_TOKEN_PATTERN);
 
     for (const candidate of contextualCandidates || []) {
@@ -169,6 +243,7 @@ const detectDoubledByAdEvidence = (
 ): { detected: boolean; evidence: string[] } => {
   const normalized = normalizeEvidenceText(rawText);
   if (!normalized) return { detected: false, evidence: [] };
+  if (!hasAppliedGtoBonus(rawText)) return { detected: false, evidence: [] };
 
   const evidence: string[] = [];
   const pushEvidence = (label: string) => {
@@ -205,8 +280,8 @@ const detectDoubledByAdEvidence = (
   }
 
   return {
-    detected: evidence.length > 0,
-    evidence,
+    detected: true,
+    evidence: evidence.length ? evidence : ["bonus-ads-positivo"],
   };
 };
 
@@ -293,6 +368,7 @@ const percentile = (histogram: Uint32Array, total: number, ratio: number): numbe
 const buildValueBandCanvas = async (
   file: File,
   crop = VALUE_CROP,
+  threshold = true,
 ): Promise<HTMLCanvasElement> => {
   const decoded = await decodeImage(file);
 
@@ -329,6 +405,8 @@ const buildValueBandCanvas = async (
       targetWidth,
       targetHeight,
     );
+
+    if (!threshold) return canvas;
 
     const imageData = context.getImageData(border, border, targetWidth, targetHeight);
     const histogram = new Uint32Array(256);
@@ -541,6 +619,29 @@ const recognizeValueBand = async (
   return recognizeWithWorker(worker, image, 12_000);
 };
 
+/**
+ * Votes per distinct "Valor a receber" amount (one vote per transcript). When a
+ * single amount leads strictly, returns the transcripts that name a different
+ * amount so they can be excluded; returns an empty set on agreement or a tie.
+ */
+export function resolveDissentingTranscripts(transcripts: string[]): Set<string> {
+  const votes = new Map<number, number>();
+  const perText = transcripts.map((text) => {
+    const amounts = contextualGtoAmounts(text);
+    for (const amount of new Set(amounts)) votes.set(amount, (votes.get(amount) || 0) + 1);
+    return { text, amounts };
+  });
+  if (votes.size < 2) return new Set();
+  const ranked = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+  if (ranked[0][1] === ranked[1][1]) return new Set();
+  const winner = ranked[0][0];
+  const dissent = new Set<string>();
+  for (const item of perText) {
+    if (item.amounts.length && !item.amounts.includes(winner)) dissent.add(item.text);
+  }
+  return dissent;
+}
+
 export async function analyzeGtoTripReceipt(
   file: File,
   options: GtoReceiptAnalysisOptions = {},
@@ -553,64 +654,91 @@ export async function analyzeGtoTripReceipt(
 
     let value: string | null = null;
     let valueSource: "numeric-crop" | "broad-diagnostic" | null = null;
+    const numericCandidates: Array<{
+      value: string;
+      text: string;
+      crop: string;
+      contextual: boolean;
+    }> = [];
     let combinedText = "";
-    const promoteValue = (
-      candidate: string | null,
-      source: "numeric-crop" | "broad-diagnostic",
-    ): void => {
-      if (!candidate) return;
-      // The dedicated numeric crop is authoritative. Broad OCR is contextual
-      // evidence and may only be used as a fallback when every numeric crop
-      // failed; it must never replace a different crop value.
-      if (value && value !== candidate) {
-        console.warn("[NVU GTO OCR] conflicting value ignored", {
-          current: value,
-          currentSource: valueSource,
-          candidate,
-          candidateSource: source,
-        });
-        return;
-      }
-      if (value === candidate && valueSource === source) return;
-      value = candidate;
-      valueSource = source;
-      try {
-        // The numeric pass is authoritative for the amount. The callback lets
-        // Android paint it before any slower diagnostic OCR completes.
-        options.onValueDetected?.(candidate);
-      } catch (error) {
-        console.warn("[NVU GTO OCR] value promotion callback warning", error);
-      }
+    // Every OCR transcript (value crops and the broad pass) kept separately so
+    // a single misread crop (6→8, 3→8...) can be outvoted by the others.
+    const segments: string[] = [];
+
+    const hasEarningsContext = (text: string): boolean => {
+      const normalized = normalizeEvidenceText(text);
+      return /\bvalor.{0,22}(?:a )?receber\b/.test(normalized)
+        || /\b(?:ganhos?|renda total|total recebido)\b/.test(normalized);
     };
 
-    // Numeric OCR is the minimum required evidence and must run first. The
-    // old implementation ran the broad screen OCR first; on Android WebView
-    // that pass could time out and return before the amount crop was attempted.
-    const valueCrops = [
-      { name: "landscape-modal", crop: VALUE_CROP },
-      { name: "portrait-screen", crop: PORTRAIT_VALUE_CROP },
-    ];
-    for (const valueCrop of valueCrops) {
-      if (value) break;
-      try {
-        const valueCanvas = await buildValueBandCanvas(file, valueCrop.crop);
-        const valueText = await recognizeValueBand(worker, valueCanvas);
-        const normalizedValueText = valueText.replace(/\s+/g, " ").trim();
-        console.log("[NVU GTO OCR] value crop raw", valueCrop.name, valueText);
-        const candidate = extractValueFromText(normalizedValueText, {
-          allowImplicitCentsInGeneric: true,
-        });
-        console.log(
-          "[NVU GTO OCR] value crop",
-          valueCrop.name,
-          normalizedValueText,
-          candidate,
-        );
-        promoteValue(candidate, "numeric-crop");
-        combinedText = `${combinedText} ${normalizedValueText}`.trim();
-      } catch (error) {
-        console.warn("[NVU GTO OCR] value crop warning", valueCrop.name, error);
+
+
+    // Numeric OCR is the minimum required evidence and must run first.
+    // Android normally supplies the complete portrait screenshot. Trying the
+    // old landscape crop first made the app OCR several large, irrelevant
+    // regions before reaching the amount. Select the likely layout once and
+    // keep the remaining crops as fallbacks.
+    const layout = await decodeImage(file);
+    const isPortrait = layout.height > layout.width * 1.1;
+    layout.cleanup();
+    const valueCrops = isPortrait
+      ? [
+          { name: "portrait-screen", crop: PORTRAIT_VALUE_CROP },
+          { name: "portrait-preview", crop: PORTRAIT_PREVIEW_CROP },
+          { name: "landscape-nested", crop: LANDSCAPE_NESTED_CROP },
+          { name: "landscape-modal", crop: VALUE_CROP },
+        ]
+      : [
+          { name: "landscape-amount", crop: LANDSCAPE_AMOUNT_CROP },
+          { name: "landscape-modal", crop: VALUE_CROP },
+          { name: "landscape-nested", crop: LANDSCAPE_NESTED_CROP },
+          { name: "portrait-screen", crop: PORTRAIT_VALUE_CROP },
+          { name: "portrait-preview", crop: PORTRAIT_PREVIEW_CROP },
+        ];
+    let stopNumericScan = false;
+    for (const threshold of [true, false]) {
+      for (const valueCrop of valueCrops) {
+        try {
+          const valueCanvas = await buildValueBandCanvas(file, valueCrop.crop, threshold);
+          const valueText = await recognizeValueBand(worker, valueCanvas);
+          const normalizedValueText = valueText.replace(/\s+/g, " ").trim();
+          console.log("[NVU GTO OCR] value crop raw", valueCrop.name, threshold, valueText);
+          // Never invent cents for a context-free OCR token. GTO screens contain
+          // many unrelated integers (HUD, FPS, counters). Implicit cents are only
+          // safe inside the explicit "Valor a receber" targeted/context path.
+          const candidate = extractValueFromText(normalizedValueText, {
+            allowImplicitCentsInGeneric: false,
+          });
+          if (candidate) {
+            numericCandidates.push({
+              value: candidate,
+              text: normalizedValueText,
+              crop: valueCrop.name,
+              contextual: hasEarningsContext(normalizedValueText),
+            });
+            // A candidate tied to “valor a receber” is already stronger than
+            // a generic numeric consensus. Do not make a low-end Android wait
+            // for seven more OCR passes before showing the detected value.
+            if (hasEarningsContext(normalizedValueText) || selectValidatedValueCandidate(numericCandidates)) {
+              stopNumericScan = true;
+            }
+          }
+          combinedText = `${combinedText} ${normalizedValueText}`.trim();
+          segments.push(normalizedValueText);
+        } catch (error) {
+          console.warn("[NVU GTO OCR] value crop warning", valueCrop.name, threshold, error);
+        }
+        if (stopNumericScan) break;
       }
+      if (stopNumericScan) break;
+    }
+
+    value = selectValidatedValueCandidate(numericCandidates);
+    if (value) {
+      valueSource = "numeric-crop";
+      // Do not publish provisional first-hit OCR values. RecordTrip receives
+      // only the candidate that survived contextual/consensus validation.
+      options.onValueDetected?.(value);
     }
 
     // Broad OCR is deliberately best-effort. It is useful for explicit
@@ -627,12 +755,41 @@ export async function analyzeGtoTripReceipt(
       const resultCanvas = await buildResultAnalysisCanvas(file);
       broadText = await recognizeWithWorker(worker, resultCanvas, 12_000);
       const normalizedResultText = broadText.replace(/\s+/g, " ").trim();
-      promoteValue(extractValueFromText(normalizedResultText), "broad-diagnostic");
+      const broadCandidate = extractValueFromText(normalizedResultText);
+      if (!value && broadCandidate && hasEarningsContext(normalizedResultText)) {
+        value = broadCandidate;
+        valueSource = "broad-diagnostic";
+        options.onValueDetected?.(value);
+      }
       combinedText = `${combinedText} ${normalizedResultText}`.trim();
+      segments.push(normalizedResultText);
     } catch (error) {
       console.warn("[NVU GTO OCR] broad diagnostic warning", error);
     }
 
+    // Majority vote over the "Valor a receber" readings. Evidence is submitted
+    // to the server, which refuses any text set that names two different
+    // amounts. A lone misread crop is therefore dropped when the other readings
+    // agree on one amount; a real tie stays a conflict (never guess).
+    const dissent = resolveDissentingTranscripts(segments);
+    const keep = (text: string) => !dissent.has(text.replace(/\s+/g, " ").trim());
+    if (dissent.size) {
+      combinedText = segments.filter(keep).join(" ").trim();
+      console.log("[NVU GTO OCR] dropped dissenting transcripts", dissent.size);
+    }
+    const printEvidence: GtoPrintEvidence = {
+      version: 1,
+      crops: numericCandidates.filter(candidate => keep(candidate.text)).map(candidate => ({ cropId: candidate.crop, text: candidate.text })),
+      resultText: keep(broadText) ? broadText : "",
+    };
+    // The displayed final amount and the server now use the same evidence
+    // contract. A stale overlay's "Ganhos" cannot override "Valor a receber".
+    const reading = readGtoPrintEvidence(combinedText, printEvidence);
+    const priorValue = value;
+    value = reading.amountCents === null ? null : (reading.amountCents / 100).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
+    });
+    if (value && value !== priorValue) options.onValueDetected?.(value);
     const screenEvidence = detectResultScreenEvidence(combinedText, value);
     const finalAdEvidence = detectDoubledByAdEvidence(combinedText);
 
@@ -654,6 +811,8 @@ export async function analyzeGtoTripReceipt(
       // blocks the trip. Screen-copy evidence remains diagnostic, not a gate.
       analysisOk: Boolean(value) && !finalAdEvidence.detected,
       rawText: combinedText,
+      printEvidence,
+      validationReason: reading.reason,
     };
   } catch (error) {
     console.error("[NVU GTO OCR] receipt analysis error", error);
@@ -690,4 +849,6 @@ export const __gtoOcrTestUtils = {
   normalizeEvidenceText,
   detectDoubledByAdEvidence,
   detectResultScreenEvidence,
+  selectValidatedValueCandidate,
+  resolveDissentingTranscripts,
 };

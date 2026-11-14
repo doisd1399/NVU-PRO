@@ -1,0 +1,53 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 test:windows
+> npm --prefix desktop/windows test
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-windows@0.1.3 test
+> node --test tests/*.test.cjs
+
+✔ Tudo preparado exige frete conectado com rota e vínculo correto, sem bloqueio antigo após novo frete (12.197828ms)
+✔ Captura/envio não anunciam registro; sucesso exige ACK e preserva progresso autoritativo (11.383711ms)
+✔ Reinício com ACK perdido conserva a viagem e só anuncia sucesso após confirmação (7.647515ms)
+✔ Troca de contexto remove recibos e ACK antigo não aparece em outra operação (11.30998ms)
+✔ Entregas consecutivas iguais mantêm cards distintos e removem avisos antigos do mesmo frete (12.960589ms)
+✔ Cancelamento, pausa e desconexão não são confundidos com entrega (5.327246ms)
+✔ Foco usa Win32 só para processos permitidos sem teclas ou comandos arbitrários (1.497109ms)
+✔ Retomada e recuperação substituem avisos transitórios, sem mensagens antigas após o ACK (7.727877ms)
+✔ Scripts de empacotamento passam pela análise sintática do Node (2.570748ms)
+✔ NSIS real compilado passa na verificação nativa de CRC (1.403197ms)
+✔ Alterar stub, conteúdo ou CRC do instalador bloqueia a entrega (1.505251ms)
+✔ Instalador truncado, com bytes extras ou CRC desligado é rejeitado (1.335534ms)
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (4.013614ms)
+✔ Entrega atrasada após reinício continua na operação original (2.946574ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.466013ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (3.974435ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (7.069753ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (4.115588ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.243166ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (6.128154ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (4.851458ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (3.103591ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (6.176146ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.387815ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (87.211082ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (18.353554ms)
+✔ DLL compilada é PE x64 completo e contém os exports oficiais do SDK (16.438705ms)
+✔ Preparação bloqueia plugin ausente/desatualizado e mantém a pasta selecionada após reinício (10.019502ms)
+✔ Ponte real por arquivos autentica ATS, expira, reconecta e preserva entrega antes de confirmar (9.667491ms)
+✔ Token incorreto, pacote inválido e nome de simulador divergente não criam conexão (4.877987ms)
+✔ Frete já em andamento pode ser vinculado com o jogo pausado; pausa explícita do PRO continua protegida (5.638074ms)
+✔ Plugin antigo ainda carregado exige reinício, mesmo após atualizar o arquivo no disco (5.95025ms)
+✔ Diagnóstico inclui apenas linhas SDK relevantes e remove identificação pessoal e tokens (3.429523ms)
+✔ Painel recebe foco, permanece aberto sem cursor, migra posição e avisos não tomam foco (3.099716ms)
+✔ Main real inicializa, prepara plugin e executa todos os comandos com contexto e IPC validados (88.053378ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 307.734255

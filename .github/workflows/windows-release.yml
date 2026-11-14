@@ -1,0 +1,78 @@
+name: NVU Windows release (signed)
+# Manual. Needs signing credentials as repository secrets (put them in the Environment "windows-release"); WITHOUT them it stops with the exact blocker and publishes nothing.
+# Passo a passo para o operador: desktop/windows/ASSINATURA-E-LIBERACAO.md
+#   NVU_SIGN_PFX_BASE64 + NVU_SIGN_PFX_PASSWORD   (OV/EV code-signing certificate)    or    NVU_SIGN_COMMAND_JSON (SignPath / KeyLocker / Azure Trusted Signing CLI)
+#   NVU_GOOGLE_DESKTOP_CLIENT_ID + NVU_GOOGLE_DESKTOP_CLIENT_SECRET   (OAuth Desktop client written into config/google-oauth.json at build time)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write   # só para criar o RASCUNHO de release (visível apenas a quem tem acesso de escrita)
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    environment: windows-release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '24', cache: npm }
+      - name: Signing credentials must exist
+        shell: pwsh
+        env:
+          PFX: ${{ secrets.NVU_SIGN_PFX_BASE64 }}
+          CMD: ${{ secrets.NVU_SIGN_COMMAND_JSON }}
+        run: |
+          if (-not $env:PFX -and -not $env:CMD) { Write-Error 'BLOQUEIO: sem certificado de assinatura (NVU_SIGN_PFX_BASE64/NVU_SIGN_PFX_PASSWORD) nem serviço (NVU_SIGN_COMMAND_JSON). Nada foi publicado.'; exit 78 }
+      - name: OAuth Desktop client from secrets (never from the repository)
+        shell: pwsh
+        env:
+          CID: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_ID }}
+          CSEC: ${{ secrets.NVU_GOOGLE_DESKTOP_CLIENT_SECRET }}
+        run: |
+          if (-not $env:CID) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_ID ausente.'; exit 78 }
+          if (-not $env:CSEC) { Write-Error 'BLOQUEIO: NVU_GOOGLE_DESKTOP_CLIENT_SECRET ausente (o repositorio guarda o segredo vazio; sem ele o login Google nao funciona no instalador).'; exit 78 }
+          @{ clientId = $env:CID; clientSecret = $env:CSEC } | ConvertTo-Json | Set-Content -Encoding UTF8 desktop/windows/config/google-oauth.json
+      - run: npm ci
+      - run: npm --prefix desktop/windows ci
+      - run: npm run windows:plugin
+      - run: npm run lint
+      - run: npm run test:windows
+      - name: Build, sign and verify
+        env:
+          NVU_SIGN_PFX_BASE64: ${{ secrets.NVU_SIGN_PFX_BASE64 }}
+          NVU_SIGN_PFX_PASSWORD: ${{ secrets.NVU_SIGN_PFX_PASSWORD }}
+          NVU_SIGN_COMMAND_JSON: ${{ secrets.NVU_SIGN_COMMAND_JSON }}
+        run: |
+          npm run windows:installer
+          node desktop/windows/tools/verify-release.cjs artifacts/windows --require-signed --require-7zip
+      - name: O instalador assinado instala, abre e todas as assinaturas são válidas (veredito do Windows)
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem artifacts/windows -Filter 'NVU-PRO-Setup-*-x64.exe' | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP 'nvu-signed'
+          $p = Start-Process -FilePath $installer.FullName -ArgumentList '/S',"/D=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "instalador assinado saiu com codigo $($p.ExitCode)" }
+          $versions = Join-Path $env:RUNNER_TEMP 'signed-versions.json'
+          node -e "require('child_process').execFileSync(process.argv[1], ['--nvu-versions-out=' + process.argv[2]], {timeout: 60000})" "$dir\NVU PRO.exe" $versions
+          Get-Content $versions -Raw
+          '### Assinaturas (veredito do Windows)' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          foreach ($f in @($installer.FullName, "$dir\NVU PRO.exe", "$dir\resources\plugin\nvu_scs_telemetry.dll")) {
+            $s = Get-AuthenticodeSignature -LiteralPath $f
+            $line = "$([IO.Path]::GetFileName($f)): $($s.Status) | $($s.SignerCertificate.Subject) | carimbo de tempo: $($null -ne $s.TimeStamperCertificate)"
+            $line; "- $line" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            if ($s.Status -ne 'Valid') { throw "assinatura invalida em $f ($($s.Status))" }
+            if ($null -eq $s.TimeStamperCertificate) { throw "sem carimbo de tempo em $f" }
+          }
+          $manifest = Get-Content artifacts/windows/release-manifest.json -Raw | ConvertFrom-Json
+          if ($manifest.signing.productionReady -ne $true) { throw "o manifesto nao esta pronto para producao: $($manifest.signing.notProductionReason)" }
+      - name: "Rascunho de release (o instalador leva o segredo OAuth, por isso NÃO vai como artefato público)"
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = (Get-Content desktop/windows/package.json -Raw | ConvertFrom-Json).version
+          $tag = "windows-v$v-run$($env:GITHUB_RUN_NUMBER)"
+          $notes = "Rascunho gerado pelo fluxo de release (assinado). Antes de publicar: rode Verificar-NVU.ps1 (OK + assinatura Valid) e o roteiro ROTEIRO-TESTE-ETS2-ATS.md nos dois jogos."
+          gh release create $tag --draft --target $env:GITHUB_SHA --title "NVU PRO Windows $v (assinado)" --notes $notes `
+            "artifacts/windows/NVU-PRO-Setup-$v-x64.exe" artifacts/windows/release-manifest.json artifacts/windows/SHA256SUMS.txt desktop/windows/installer/Verificar-NVU.ps1
+          "- Rascunho de release criado: $tag" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append

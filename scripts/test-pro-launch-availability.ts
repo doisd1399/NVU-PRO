@@ -5,7 +5,8 @@ import {
 } from "../src/lib/proLaunchAvailability";
 
 const context = (status: string, progress: number, total = 12): ProLaunchContext => ({
-  job: { status, progress },
+  job: { status },
+  confirmedTripCount: progress,
   totalDeliveries: total,
   hasContract: true,
   hasUser: true,
@@ -55,3 +56,11 @@ assert.equal(incomplete.canLaunch, false);
 assert.match(incomplete.message, /confirmar o contexto/i);
 
 console.log("[test-pro-launch-availability] PASS");
+
+for (const operationSyncState of ["pending_finish", "start_rejected"]) {
+  const value = getProLaunchAvailability({ ...context("active", 4), job: { status: "active", operationSyncState } });
+  assert.equal(value.canLaunch, false);
+  assert(value.message.length > 0);
+}
+assert.equal(getProLaunchAvailability({ ...context("active", 0), job: { status: "active", operationSyncState: "pending_start" } }).canLaunch, true);
+console.log("PASS local start remains captureable; explicit finish/rejected start pauses new entry");

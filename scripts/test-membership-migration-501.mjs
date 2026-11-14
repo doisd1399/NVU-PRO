@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {execFileSync} from 'node:child_process';
+import {initializeTestEnvironment} from '@firebase/rules-unit-testing';
+if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error('Emulador obrigatório.');
+const root=process.cwd(),projectId='demo-nvu-v36-4-staging';
+const require=createRequire(new URL('../functions/package.json',import.meta.url)),admin=require(path.resolve('functions/lib/firebaseAdmin.js'));
+admin.initializeApp({projectId});const db=admin.firestore();
+const env=await initializeTestEnvironment({projectId,firestore:{rules:await fs.readFile('firestore.rules','utf8')}});
+const output=path.join(root,'qa-membership-migration-501');await fs.mkdir(output,{recursive:true});
+const run=apply=>JSON.parse(execFileSync(process.execPath,['--import',path.join(root,'scripts/guard-loopback-network.mjs'),path.join(root,'functions/scripts/migrate-membership-security-501.cjs'),'--project',projectId,...(apply?['--apply']:[])],{cwd:output,env:process.env,encoding:'utf8'}).trim().split('\n').at(-1));
+const checks=[];const check=async(name,fn)=>{await fn();checks.push(name);console.log('PASS',name);};
+try{
+ await env.clearFirestore();
+ await db.doc('frotas/migrate-company').set({companyName:'Migração',ownerId:'migrate-owner',userId:'migrate-owner',email:'private@example.test',whatsapp:'private',simulatorId:'gto',status:'active'});
+ for(const uid of ['migrate-owner','migrate-active','migrate-removed','migrate-inactive'])await db.doc(`users/${uid}`).set({name:uid,status:'active'});
+ for(const [uid,status] of [['migrate-active','active'],['migrate-removed','active'],['migrate-inactive','inactive']])await db.doc(`companyMembers/${uid}_migrate-company`).set({userId:uid,companyId:'migrate-company',roles:['driver'],status});
+ const revokedAt=admin.firestore.Timestamp.fromMillis(1_000);
+ await db.doc('company_access/migrate-company/members/migrate-removed').set({status:'removed',roles:[],revokedAt});
+ for(const uid of ['migrate-active','migrate-removed','migrate-inactive'])await db.doc(`recruitment_applications/${uid}`).set({type:'driver_application',userId:uid,companyId:'migrate-company',status:'approved'});
+ await check('Simulação prevê projeções sem modificar Firestore',async()=>{const r=run(false);assert.equal(r.apply,false);assert.equal(r.publicCompanies,1);assert.equal(r.preservedRevocations,1);assert.equal(r.stampedLegacyApprovals,1);assert.equal((await db.doc('public_companies/migrate-company').get()).exists,false);assert.equal((await db.doc('company_access/migrate-company/members/migrate-active').get()).exists,false);assert.equal((await db.doc('recruitment_applications/migrate-active').get()).get('approvalAuthorityVersion'),undefined);});
+ await check('Aplicação cria diretório público sem copiar dados privados',async()=>{const r=run(true);assert.equal(r.apply,true);const publicData=(await db.doc('public_companies/migrate-company').get()).data();assert.equal(publicData.companyName,'Migração');assert.equal(publicData.email,undefined);assert.equal(publicData.whatsapp,undefined);assert.equal(publicData.ownerId,undefined);assert.equal((await db.doc('frotas/migrate-company').get()).get('email'),'private@example.test');});
+ await check('Proprietário e membro ativo recebem projeção; inativo continua sem acesso',async()=>{assert.equal((await db.doc('company_access/migrate-company/members/migrate-owner').get()).get('status'),'active');assert.equal((await db.doc('company_access/migrate-company/members/migrate-active').get()).get('status'),'active');assert.equal((await db.doc('company_access/migrate-company/members/migrate-inactive').get()).get('status'),'inactive');});
+ await check('Migração mantém revogação mesmo com companyMembers residual',async()=>{const s=await db.doc('company_access/migrate-company/members/migrate-removed').get();assert.equal(s.get('status'),'removed');assert.equal(s.get('revokedAt').toMillis(),1_000);});
+ await check('Somente aprovação respaldada por vínculo ativo recebe selo do servidor',async()=>{assert.equal((await db.doc('recruitment_applications/migrate-active').get()).get('approvalAuthorityVersion'),1);for(const uid of ['migrate-removed','migrate-inactive'])assert.equal((await db.doc(`recruitment_applications/${uid}`).get()).get('approvalAuthorityVersion'),undefined);});
+ await check('Repetição é idempotente e não reaprova vínculo revogado',async()=>{const r=run(true);assert.equal(r.stampedLegacyApprovals,0);assert.equal(r.preservedRevocations,1);assert.equal((await db.doc('company_access/migrate-company/members/migrate-removed').get()).get('revokedAt').toMillis(),1_000);});
+ await fs.mkdir('reports',{recursive:true});await fs.writeFile('reports/membership-migration-501-tests.json',JSON.stringify({emulatorsOnly:true,actualMigration:true,passed:checks.length,checks},null,2)+'\n');
+ console.log(`MEMBERSHIP_MIGRATION_501_PASS ${checks.length}`);
+}finally{await env.cleanup();await Promise.all(admin.apps.map(app=>app.delete()));}

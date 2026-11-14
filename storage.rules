@@ -12,30 +12,154 @@ service firebase.storage {
         request.resource.size < maxSizeBytes;
     }
 
-    // Public company registration flow. Keep this path intentionally small
-    // because it can be written before a Firebase session exists.
+    function isSenior() {
+      return isAuthenticated() && (request.auth.token.get('senior', false) == true ||
+        request.auth.token.get('isSenior', false) == true || request.auth.token.get('role', '') == 'senior' ||
+        (request.auth.token.get('roles', []) is list && request.auth.token.get('roles', []).hasAny(['senior'])));
+    }
+    function accountIsUsable() {
+      let path = /databases/(default)/documents/users/$(request.auth.uid);
+      let user = firestore.exists(path) ? firestore.get(path).data : {};
+      return firestore.exists(path) && user.get('deleted', false) != true &&
+        !(user.get('status', 'active').lower() in ['suspended', 'deleted', 'blocked', 'disabled', 'inactive']) &&
+        !(user.get('accountStatus', 'active').lower() in ['suspended', 'deleted', 'blocked', 'disabled', 'inactive']) &&
+        user.get('suspension', {}).get('active', false) != true;
+    }
+    function companyAccess(companyId) {
+      let path = /databases/(default)/documents/company_access/$(companyId)/members/$(request.auth.uid);
+      return firestore.exists(path) ? firestore.get(path).data : {};
+    }
+    function belongsToCompany(companyId) {
+      let access = companyAccess(companyId);
+      // At most two distinct Firestore documents: own account and server-owned membership.
+      return isAuthenticated() && accountIsUsable() && (isSenior() ||
+        (access.get('status', '') == 'active' && access.get('revokedAt', null) == null));
+    }
+    function managesCompany(companyId) {
+      return belongsToCompany(companyId) && (isSenior() || companyAccess(companyId).get('roles', []).hasAny(['admin', 'owner']));
+    }
+    function mayReadTripReceipt(companyId, userId) {
+      return isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || managesCompany(companyId));
+    }
+
+    // Foto do veículo exigida para iniciar uma operação em parceria. Só o motorista designado envia (uma vez, sem sobrescrever);
+    // leem o próprio motorista e a gestão das duas empresas da parceria.
+    function partnershipDoc(partnershipId) {
+      let path = /databases/(default)/documents/partnerships/$(partnershipId);
+      return firestore.exists(path) ? firestore.get(path).data : {};
+    }
+    match /partnership-start-photos/{partnershipId}/{userId}/{fileName} {
+      allow read: if isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || isSenior() ||
+        managesCompany(partnershipDoc(partnershipId).get('contractorCompanyId', '-')) ||
+        managesCompany(partnershipDoc(partnershipId).get('executorCompanyId', '-')));
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(4000000) &&
+        partnershipDoc(partnershipId).get('driverId', '') == request.auth.uid &&
+        partnershipDoc(partnershipId).get('status', '') in ['accepted', 'active'];
+      allow update, delete: if false;
+    }
+
+    // Comprovante do pagamento (Pix): só a gestão da empresa pagadora envia (uma vez, sem sobrescrever) enquanto o pagamento está em aberto;
+    // leem quem enviou, a gestão da empresa e o motorista que recebe (Pagamentos) ou a gestão das duas empresas (Parcerias).
+    function rewardPaymentDoc(paymentId) {
+      let path = /databases/(default)/documents/rewardPayments/$(paymentId);
+      return firestore.exists(path) ? firestore.get(path).data : {};
+    }
+    match /reward-receipts/{paymentId}/{userId}/{fileName} {
+      allow read: if isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || isSenior() ||
+        request.auth.uid == rewardPaymentDoc(paymentId).get('driverId', '-') ||
+        managesCompany(rewardPaymentDoc(paymentId).get('companyId', '-')));
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(2000000) &&
+        managesCompany(rewardPaymentDoc(paymentId).get('companyId', '-')) &&
+        rewardPaymentDoc(paymentId).get('status', '') in ['pending', 'contested'];
+      allow update, delete: if false;
+    }
+    match /partnership-receipts/{partnershipId}/{userId}/{fileName} {
+      allow read: if isAuthenticated() && accountIsUsable() && (request.auth.uid == userId || isSenior() ||
+        managesCompany(partnershipDoc(partnershipId).get('contractorCompanyId', '-')) ||
+        managesCompany(partnershipDoc(partnershipId).get('executorCompanyId', '-')));
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(2000000) &&
+        managesCompany(partnershipDoc(partnershipId).get('contractorCompanyId', '-')) &&
+        partnershipDoc(partnershipId).get('status', '') == 'completed' &&
+        partnershipDoc(partnershipId).get('payment', {}).get('status', '') == 'pending';
+      allow update, delete: if false;
+    }
+
+    // Covers are public identity media. Writing a driver's cover requires its
+    // own UID; company covers require the same manager/owner boundary as frotas.
+    match /profile-covers/{scope}/{profileId}/{userId}/{fileName} {
+      allow read: if true;
+      allow create: if resource == null && isAuthenticated() && accountIsUsable() && request.auth.uid == userId &&
+        isImageUpload(2000000) &&
+        ((scope == 'driver' && profileId == request.auth.uid) ||
+          (scope == 'company' && managesCompany(profileId)));
+      allow update, delete: if false;
+    }
+
+    // Personal identity and company drafts are owned by a UID, not a tenant.
+    // Only the subsequent Firestore write can publish a draft as company media.
+    match /profile-photos/{userId}/{fileName} {
+      allow read: if true;
+      allow create: if resource == null && isAuthenticated() && request.auth.uid == userId &&
+        accountIsUsable() && isImageUpload(2000000);
+      allow update, delete: if false;
+    }
+    match /company-logo-drafts/{userId}/{fileName} {
+      allow read: if true;
+      allow create: if resource == null && isAuthenticated() && request.auth.uid == userId &&
+        accountIsUsable() && isImageUpload(2000000);
+      allow update, delete: if false;
+    }
+
+    // Public company-registration flow; uploads are deliberately small.
     match /empresas/company_registrations/recruitment_photos/{fileName} {
       allow read: if true;
-      allow write: if isImageUpload(500000);
+      allow write: if resource == null && isImageUpload(500000);
     }
 
-    // Trip receipts live under an isolated prefix so Cloud Storage lifecycle
-    // can remove only trip evidence after the retention period. Never point a
-    // lifecycle rule at /empresas because that path also stores permanent
-    // company/user images.
-    match /trip-receipts/{companyId}/{allPaths=**} {
+    // Guias do app (PDF). Leitura para qualquer usuário autenticado; só o Sênior com conta ativa envia ou apaga.
+    // Cada envio usa um nome novo (create), então nunca há sobrescrita; o limite é de 15 MB.
+    match /app-guides/{guideId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow create: if resource == null && isSenior() && accountIsUsable() &&
+        guideId in ['driver', 'company'] &&
+        fileName.matches('.*[.]pdf') &&
+        request.resource != null && request.resource.contentType == 'application/pdf' &&
+        request.resource.size > 0 && request.resource.size <= 15728640;
+      allow delete: if isSenior() && accountIsUsable();
+      allow update: if false;
+    }
+
+    // Receipts are readable only by their driver, company owner/manager or a
+    // Senior/admin. Paths are trip-receipts/{companyId}/{userId}/{fileName}.
+    match /trip-receipts/{companyId}/{userId}/{fileName} {
+      allow read: if mayReadTripReceipt(companyId, userId);
+      allow create: if resource == null && isAuthenticated() &&
+        request.auth.uid == userId &&
+        belongsToCompany(companyId) &&
+        isImageUpload(2000000);
+      allow update, delete: if false;
+    }
+    match /trip-receipts/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Existing company/profile images remain publicly readable for public
+    // profile pages, but writes must use the uploader's own UID path and tenant.
+    match /empresas/{companyId}/{folder}/{userId}/{fileName} {
       allow read: if true;
-      allow write: if isAuthenticated() && isImageUpload(2000000);
+      allow create: if resource == null && companyId != 'company_registrations' &&
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        belongsToCompany(companyId) &&
+        isImageUpload(2000000);
+      allow update, delete: if false;
     }
-
-    // Authenticated app uploads are compressed on the client. The previous
-    // 500 KB global limit conflicted with the 1 MB receipt compressor and
-    // caused valid trip images to be rejected with storage/unauthorized.
     match /empresas/{companyId}/{allPaths=**} {
       allow read: if true;
-      allow write: if companyId != "company_registrations" &&
-        isAuthenticated() &&
-        isImageUpload(2000000);
+      allow write: if false;
     }
   }
 }

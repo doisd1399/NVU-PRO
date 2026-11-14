@@ -1,3 +1,4 @@
+import { driverDisplayIdentity } from "./driverDisplayIdentity";
 import { buildDriverRankingContext, RankingScope } from "./performanceEngine";
 import { filterTripsBySimulator } from "./metricsEngine";
 import type { NormalizedTrip } from "./tripNormalizer";
@@ -5,6 +6,7 @@ import {
   isAllSimulatorSelection,
   resolveSimulatorId,
 } from "./resolveSimulator";
+import { isRankingEligibleCompany } from "./rankingAggregates";
 
 export interface RankingPageDriverItem {
   id: string;
@@ -12,8 +14,16 @@ export interface RankingPageDriverItem {
   logo: string;
   trips: number;
   val: number;
+  currency?: string;
+  currencyBreakdown?: { currency: string; value: number; tripCount: number; missingValueTrips?: number; currencySource?: string; currencySources?: string[] }[];
+  currencySourceCounts?: Record<string, number>;
+  currencyUnresolvedTrips?: number;
+  currencyTotals?: Record<string, number>;
+  currencyTripCounts?: Record<string, number>;
+  currencyMissingValueTrips?: number;
   companyId?: string;
   companyName?: string;
+  companyLogo?: string;
 }
 
 export interface BuildDriverRankingPageDataParams {
@@ -31,13 +41,12 @@ export interface BuildDriverRankingPageDataParams {
   companyMembers?: Record<string, unknown>[];
 }
 
-export interface BuildCanonicalDriverRankingContextParams
-  extends BuildDriverRankingPageDataParams {
+export interface BuildCanonicalDriverRankingContextParams extends BuildDriverRankingPageDataParams {
   driverId: string;
 }
 
 /**
- * Canonical context shared by the detailed ranking page and driver profile.
+ * Canonical context for the earnings-ordered driver ranking.
  * It applies the simulator filter once, then delegates ranking, position,
  * next competitor and financial gap to the same performance engine.
  */
@@ -66,12 +75,33 @@ export function buildCanonicalDriverRankingContext({
   const simulatorTrips = tripsAlreadyFilteredBySimulator
     ? trips
     : filterTripsBySimulator(trips, simulatorId, companies, simulators);
+  const eligibleCompanyIds =
+    scope === "global"
+      ? companies
+          .filter((company) => {
+            if (!isRankingEligibleCompany(company)) return false;
+            if (!simulatorId || isAllSimulatorSelection(simulatorId))
+              return true;
+            const selectedSimulatorId = resolveSimulatorId(
+              { simulatorId },
+              simulators,
+              companies,
+            );
+            return (
+              resolveSimulatorId(company, simulators, companies) ===
+              selectedSimulatorId
+            );
+          })
+          .map((company) => String(company.id || "").trim())
+          .filter(Boolean)
+      : undefined;
   return buildDriverRankingContext(simulatorTrips, {
     scope,
     startDate: startDate || new Date(0),
     endDate: endDate || new Date(),
     driverId,
     companyId,
+    eligibleCompanyIds,
   });
 }
 
@@ -82,8 +112,7 @@ function shortDriverName(value: unknown): string {
 }
 
 /**
- * Produces the driver list shown on the ranking page from the exact same
- * canonical engine used by DriverPerformanceCard. This prevents the profile
+ * Produces the driver list shared by the ranking page and profile. This prevents the profile
  * card and the detailed ranking from calculating different totals, positions
  * or participants for the same simulator and period.
  */
@@ -102,8 +131,38 @@ export function buildDriverRankingPageData({
 }: BuildDriverRankingPageDataParams): RankingPageDriverItem[] {
   if (scope === "internal" && !companyId) return [];
 
+  const readSimulatorText = (record: Record<string, unknown> | undefined, ...keys: string[]) => {
+    for (const key of keys) {
+      const value = record?.[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return "";
+  };
+  const canonicalSimulatorId = simulatorId
+    ? resolveSimulatorId({ simulatorId }, simulators, companies)
+    : "";
+  const simulatorCatalogEntry = simulators.find(
+    (item) => readSimulatorText(item, "id") === canonicalSimulatorId,
+  );
+  const catalogSimulatorCode = readSimulatorText(
+    simulatorCatalogEntry,
+    "simulatorCode", "simuladorCodigo", "code", "slug", "key",
+  );
+  const catalogSimulatorName = readSimulatorText(
+    simulatorCatalogEntry,
+    "simulatorName", "simuladorNome", "name", "nome", "label", "title", "displayName",
+  );
+  const currencyAwareTrips = trips.map((trip) => {
+    if (!canonicalSimulatorId || resolveSimulatorId(trip, simulators, companies) !== canonicalSimulatorId) return trip;
+    return {
+      ...trip,
+      simulatorCode: readSimulatorText(trip, "simulatorCode", "simuladorCodigo") || catalogSimulatorCode || undefined,
+      simulatorName: readSimulatorText(trip, "simulatorName", "simuladorNome", "simulator", "simulador") || catalogSimulatorName || undefined,
+    };
+  });
+
   const context = buildCanonicalDriverRankingContext({
-    trips,
+    trips: currencyAwareTrips,
     startDate,
     endDate,
     scope,
@@ -117,7 +176,10 @@ export function buildDriverRankingPageData({
     driverId: "__ranking_page__",
   });
 
-  const readText = (record: Record<string, unknown> | undefined, key: string) => {
+  const readText = (
+    record: Record<string, unknown> | undefined,
+    key: string,
+  ) => {
     const value = record?.[key];
     return typeof value === "string" ? value : "";
   };
@@ -132,9 +194,6 @@ export function buildDriverRankingPageData({
       .map((company) => [readText(company, "id"), company] as const)
       .filter(([id]) => Boolean(id)),
   );
-  const canonicalSimulatorId = simulatorId
-    ? resolveSimulatorId({ simulatorId }, simulators, companies)
-    : "";
   const activeMembershipByUser = new Map<
     string,
     { companyId: string; joinedAt: number }
@@ -199,20 +258,98 @@ export function buildDriverRankingPageData({
       // The user document is the canonical identity after approval. Trip
       // snapshots intentionally keep their historical motoristaNome for
       // auditability, but must not overwrite a newer approved profile name.
-      name: shortDriverName(readText(user, "name") || entry.name),
-      logo:
-        readText(user, "profilePhotoURL") ||
-        readText(user, "photoURL") ||
-        readText(user, "photoUrl") ||
-        readText(user, "avatar") ||
-        readText(user, "profileImage") ||
-        readText(user, "imageUrl") ||
-        readText(user, "photo"),
+      name: shortDriverName(user ? driverDisplayIdentity(user).name : entry.name),
+      logo: driverDisplayIdentity(user).profilePhotoURL,
       trips: entry.trips,
       val: entry.earnings,
+      currency: entry.currency,
+      currencyBreakdown: entry.currencyBreakdown,
+      currencyUnresolvedTrips: entry.currencyUnresolvedTrips,
+      currencyTotals: Object.fromEntries(
+        (entry.currencyBreakdown || []).map((group) => [group.currency, group.value]),
+      ),
+      currencyTripCounts: Object.fromEntries(
+        (entry.currencyBreakdown || []).map((group) => [group.currency, group.tripCount]),
+      ),
+      currencyMissingValueTrips: (entry.currencyBreakdown || []).reduce(
+        (sum, group) => sum + group.missingValueTrips,
+        0,
+      ),
       companyId: currentCompanyId,
       companyName:
         readText(company, "companyName") || readText(company, "name"),
+      companyLogo: readText(company, "logoUrl") || readText(company, "logoURL") || readText(company, "companyLogoURL"),
     };
+  });
+}
+
+export function getActiveInternalDriverIds(
+  companyMembers: Record<string, unknown>[],
+  companyId: string,
+): string[] {
+  if (!companyId) return [];
+  return Array.from(
+    new Set(
+      companyMembers
+        .filter((member) => {
+          const roles = Array.isArray(member.roles)
+            ? member.roles.map((role) => String(role).toLowerCase())
+            : [];
+          return (
+            String(member.companyId || "") === companyId &&
+            String(member.status || "").toLowerCase() === "active" &&
+            (roles.includes("driver") ||
+              String(member.role || "").toLowerCase() === "driver")
+          );
+        })
+        .map((member) => String(member.userId || "").trim())
+        .filter(Boolean),
+    ),
+  ).sort();
+}
+
+/** Include active colleagues with zero trips using the same population on both screens. */
+export function buildInternalDriverRankingPageData(
+  params: Omit<BuildDriverRankingPageDataParams, "scope">,
+): RankingPageDriverItem[] {
+  const companyId = params.companyId || "";
+  if (!companyId) return [];
+  const selectedCompany = (params.companies || []).find(
+    (company) => String(company.id || "") === companyId,
+  );
+  if (!isRankingEligibleCompany(selectedCompany)) return [];
+  const ranking = buildDriverRankingPageData({ ...params, scope: "internal" });
+  const existingIds = new Set(ranking.map((entry) => entry.id));
+  const usersById = new Map(
+    (params.users || []).map((user) => [String(user.id || ""), user]),
+  );
+  const company = (params.companies || []).find(
+    (item) => String(item.id || "") === companyId,
+  );
+  const zeroActivityDrivers = getActiveInternalDriverIds(
+    params.companyMembers || [],
+    companyId,
+  )
+    .filter((id) => !existingIds.has(id))
+    .map((id) => {
+      const user = usersById.get(id);
+      return {
+        id,
+        name: shortDriverName(driverDisplayIdentity(user).name),
+        logo: driverDisplayIdentity(user).profilePhotoURL,
+        trips: 0,
+        val: 0,
+        companyId,
+        companyName: String(company?.companyName || company?.name || ""),
+      };
+    });
+  return [...ranking, ...zeroActivityDrivers].sort((left, right) => {
+    if (right.val !== left.val) return right.val - left.val;
+    if (right.trips !== left.trips) return right.trips - left.trips;
+    const nameOrder = left.name.localeCompare(right.name, "pt-BR", {
+      sensitivity: "base",
+      numeric: true,
+    });
+    return nameOrder || left.id.localeCompare(right.id);
   });
 }

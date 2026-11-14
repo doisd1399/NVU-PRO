@@ -1,26 +1,37 @@
 import { useLayoutEffect, useState } from "react";
-import { TripsRepository } from "../repositories/TripsRepository";
+import { CanonicalTripQueryService } from "../application/trip/CanonicalTripQueryService";
 import { getTripMetricDate } from "../lib/tripNormalizer";
 import {
   isAuthTeardownActive,
   onAuthTeardown,
 } from "../lib/authLifecycle";
 import { filterTombstonedTrips } from "../lib/tripTombstones";
+import { onCanonicalTripUpdated } from "../lib/CanonicalTripUpdateEvent";
+import type { TripReadCoverage, TripReadCoverageStatus } from "../lib/tripReadCoverage";
+import { fitHistoryCacheBudget } from "../lib/boundedHistoryCache";
 
 type DriverTripsState = {
   trips: any[];
   loading: boolean;
   error: unknown | null;
+  historyReady: boolean;
+  coverage: TripReadCoverageStatus;
+  readCoverage: TripReadCoverage | null;
+  refreshing: boolean;
 };
 
 type DriverTripsEntry = DriverTripsState & {
   driverId: string;
+  remoteReady: boolean;
+  remoteTrips: any[];
   optimisticTrips: Map<string, any>;
   subscribers: Set<() => void>;
   unsubscribe: (() => void) | null;
   releaseTimer: ReturnType<typeof setTimeout> | null;
   retryTimer: ReturnType<typeof setTimeout> | null;
   retryAttempt: number;
+  subscriptionGeneration: number;
+  notifyQueued?: boolean;
 };
 
 const RELEASE_DELAY_MS = 120_000;
@@ -35,10 +46,14 @@ const EMPTY_STATE: DriverTripsState = {
   trips: [],
   loading: false,
   error: null,
+  historyReady: false,
+  coverage: "unknown",
+  readCoverage: null,
+  refreshing: false,
 };
 
 const tripIdentity = (trip: any): string =>
-  String(trip?.id || trip?.tripId || trip?.firestoreId || "").trim();
+  String(trip?.physicalDocumentId || trip?.canonicalTripId || trip?.id || trip?.tripId || trip?.firestoreId || "").trim();
 
 function mergeTrips(remoteTrips: any[], optimisticTrips: Map<string, any>): any[] {
   const merged = new Map<string, any>();
@@ -48,7 +63,7 @@ function mergeTrips(remoteTrips: any[], optimisticTrips: Map<string, any>): any[
     if (identity && optimisticTrips.has(identity)) optimisticTrips.delete(identity);
   });
   for (const [identity, trip] of optimisticTrips.entries()) {
-    if (!merged.has(identity)) merged.set(identity, trip);
+    if (!merged.has(identity)) merged.set(identity, { ...trip, historyLocalCommandOnly: true });
   }
   return filterTombstonedTrips(Array.from(merged.values()));
 }
@@ -65,10 +80,10 @@ const stripHeavyTripFields = (trip: any) => {
   return compact;
 };
 
-const readPersistedTrips = (driverId: string): any[] => {
+const readPersistedTrips = (driverId: string): { trips: any[]; historyReady: boolean } => {
   try {
     const raw = window.localStorage.getItem(persistedCacheKey(driverId));
-    if (!raw) return [];
+    if (!raw) return { trips: [], historyReady: false };
     const parsed = JSON.parse(raw) as { trips?: any[]; cachedAt?: number };
     if (
       !Array.isArray(parsed.trips) ||
@@ -76,11 +91,11 @@ const readPersistedTrips = (driverId: string): any[] => {
       Date.now() - parsed.cachedAt > PERSISTED_CACHE_MAX_AGE_MS
     ) {
       window.localStorage.removeItem(persistedCacheKey(driverId));
-      return [];
+      return { trips: [], historyReady: false };
     }
-    return filterTombstonedTrips(parsed.trips);
+    return { trips: filterTombstonedTrips(parsed.trips), historyReady: true };
   } catch {
-    return [];
+    return { trips: [], historyReady: false };
   }
 };
 
@@ -95,7 +110,7 @@ const writePersistedTrips = (driverId: string, trips: any[]) => {
       .map(stripHeavyTripFields);
     window.localStorage.setItem(
       persistedCacheKey(driverId),
-      JSON.stringify({ trips: compactTrips, cachedAt: Date.now() }),
+      JSON.stringify({ trips: fitHistoryCacheBudget(compactTrips), cachedAt: Date.now() }),
     );
   } catch {
     // Persistent cache is only an acceleration layer.
@@ -103,12 +118,29 @@ const writePersistedTrips = (driverId: string, trips: any[]) => {
 };
 
 function notify(entry: DriverTripsEntry) {
-  entry.subscribers.forEach((subscriber) => subscriber());
+  if (entry.notifyQueued) return;
+  entry.notifyQueued = true;
+  queueMicrotask(() => {
+    entry.notifyQueued = false;
+    entry.subscribers.forEach((subscriber) => subscriber());
+  });
 }
 
 function ensureTeardown() {
   if (teardownAttached || typeof window === "undefined") return;
   teardownAttached = true;
+  onCanonicalTripUpdated((trip) => {
+    if (!trip?.deleted) return;
+    cache.forEach((entry) => {
+      const visible = filterTombstonedTrips(entry.trips);
+      if (visible.length === entry.trips.length) return;
+      entry.trips = visible;
+      entry.historyReady = true;
+      entry.loading = false;
+      writePersistedTrips(entry.driverId, visible);
+      notify(entry);
+    });
+  });
   onAuthTeardown(() => {
     cache.forEach((entry) => {
       if (entry.releaseTimer) clearTimeout(entry.releaseTimer);
@@ -122,6 +154,7 @@ function ensureTeardown() {
         // Cleanup is best-effort.
       }
       entry.unsubscribe = null;
+      entry.subscriptionGeneration += 1;
       entry.subscribers.clear();
     });
     cache.clear();
@@ -170,45 +203,80 @@ function scheduleRetry(driverId: string, entry: DriverTripsEntry) {
 }
 
 function subscribeEntry(driverId: string, entry: DriverTripsEntry) {
-  if (isAuthTeardownActive()) return;
+  if (isAuthTeardownActive() || entry.unsubscribe) return;
+  const generation = ++entry.subscriptionGeneration;
+  const isCurrent = () => !isAuthTeardownActive() &&
+    cache.get(driverId) === entry && generation === entry.subscriptionGeneration;
+  entry.coverage = "unknown";
+  entry.readCoverage = null;
+  entry.refreshing = true;
+  notify(entry);
 
   try {
-    entry.unsubscribe = TripsRepository.listenDriverTrips(
+    const stop = CanonicalTripQueryService.listenDriverTrips(
       driverId,
       (trips) => {
-        if (isAuthTeardownActive() || cache.get(driverId) !== entry) return;
-        entry.retryAttempt = 0;
-        if (entry.retryTimer) clearTimeout(entry.retryTimer);
-        entry.retryTimer = null;
-        entry.trips = mergeTrips(filterTombstonedTrips(trips), entry.optimisticTrips);
-        entry.loading = false;
-        entry.error = null;
-        writePersistedTrips(driverId, entry.trips);
+        if (!isCurrent()) return;
+        entry.remoteTrips = filterTombstonedTrips(trips);
+        if (entry.historyReady && entry.coverage !== "complete") return;
+        entry.trips = mergeTrips(entry.remoteTrips, entry.optimisticTrips);
+        entry.historyReady = entry.historyReady || entry.trips.length > 0;
+        entry.loading = !entry.historyReady;
+        if (entry.historyReady) writePersistedTrips(driverId, entry.trips);
         notify(entry);
       },
       (error) => {
-        if (isAuthTeardownActive() || cache.get(driverId) !== entry) return;
+        if (!isCurrent()) return;
         console.warn("Error fetching driver trips:", error);
-        try {
-          entry.unsubscribe?.();
-        } catch {
-          // Firestore may already have closed the failed listener.
-        }
-        entry.unsubscribe = null;
+        // The other identity query can still deliver historical rows. Preserve
+        // it until the retry timer replaces this generation.
         // Keep the most recent confirmed dataset visible. A failed legacy alias
         // query is retried instead of replacing the history with a partial or
         // false-empty result.
-        entry.loading = entry.trips.length === 0;
+        entry.trips = mergeTrips([...entry.trips, ...entry.remoteTrips], entry.optimisticTrips);
+        entry.historyReady ||= entry.trips.length > 0;
+        entry.loading = !entry.historyReady;
         entry.error = error;
+        entry.coverage = "partial";
+        entry.refreshing = true;
         notify(entry);
         scheduleRetry(driverId, entry);
       },
+      () => {
+        if (!isCurrent()) return;
+        entry.remoteReady = true;
+        entry.historyReady ||= entry.trips.length > 0;
+        entry.loading = !entry.historyReady;
+        notify(entry);
+      },
+      (coverage) => {
+        if (!isCurrent()) return;
+        entry.readCoverage = coverage;
+        entry.coverage = coverage.projectionMode === "scoped-history" ? coverage.status
+          : coverage.status === "complete" && entry.optimisticTrips.size > 0 ? "partial" : coverage.status;
+        entry.refreshing = entry.coverage !== "complete";
+        if (coverage.status === "complete") {
+          entry.trips = mergeTrips(entry.remoteTrips, entry.optimisticTrips);
+          entry.historyReady = true;
+          entry.loading = false;
+          entry.error = null;
+          entry.retryAttempt = 0;
+          if (entry.retryTimer) clearTimeout(entry.retryTimer);
+          entry.retryTimer = null;
+          writePersistedTrips(driverId, entry.trips);
+        }
+        notify(entry);
+      },
     );
+    if (!isCurrent()) stop();
+    else entry.unsubscribe = stop;
   } catch (error) {
     if (isAuthTeardownActive() || cache.get(driverId) !== entry) return;
     console.warn("Error subscribing to driver trips:", error);
-    entry.loading = entry.trips.length === 0;
+    entry.loading = !entry.historyReady;
     entry.error = error;
+    entry.coverage = "partial";
+    entry.refreshing = true;
     notify(entry);
     scheduleRetry(driverId, entry);
   }
@@ -228,21 +296,28 @@ function ensureEntry(driverId: string) {
     return existing;
   }
 
-  const persistedTrips = readPersistedTrips(driverId);
+  const persisted = readPersistedTrips(driverId);
   const entry: DriverTripsEntry = {
     driverId,
+    remoteReady: false,
+    remoteTrips: [],
     optimisticTrips: new Map(),
-    trips: persistedTrips,
+    trips: persisted.trips,
     // A non-empty persisted snapshot is immediately displayable. The live
     // listener still reconciles it in the background and can replace it with
     // the authoritative server dataset.
-    loading: persistedTrips.length === 0,
+    loading: !persisted.historyReady,
     error: null,
+    historyReady: persisted.historyReady,
+    coverage: "unknown",
+    readCoverage: null,
+    refreshing: true,
     subscribers: new Set(),
     unsubscribe: null,
     releaseTimer: null,
     retryTimer: null,
     retryAttempt: 0,
+    subscriptionGeneration: 0,
   };
   cache.set(driverId, entry);
   subscribeEntry(driverId, entry);
@@ -255,6 +330,10 @@ function snapshot(entry: DriverTripsEntry): DriverTripsState {
     trips: entry.trips,
     loading: entry.loading,
     error: entry.error,
+    historyReady: entry.historyReady,
+    coverage: entry.coverage,
+    readCoverage: entry.readCoverage,
+    refreshing: entry.refreshing,
   };
 }
 
@@ -270,7 +349,9 @@ export function publishDriverTripOptimistically(
   entry.optimisticTrips.set(identity, trip);
   entry.trips = mergeTrips(entry.trips, entry.optimisticTrips);
   entry.loading = false;
-  entry.error = null;
+  entry.historyReady = true;
+  entry.coverage = "partial";
+  entry.refreshing = true;
   writePersistedTrips(normalizedId, entry.trips);
   notify(entry);
 }
@@ -295,26 +376,35 @@ export function useDriverTrips(
   ensureTeardown();
   const enabled = options.enabled !== false;
   const normalizedId = enabled ? String(driverId || "").trim() : "";
-  const [state, setState] = useState<DriverTripsState>(() => {
+  const getInitialState = (): DriverTripsState => {
     if (!normalizedId) return EMPTY_STATE;
     const existing = cache.get(normalizedId);
     if (existing) return snapshot(existing);
-    const persistedTrips = readPersistedTrips(normalizedId);
+    const persisted = readPersistedTrips(normalizedId);
     return {
-      trips: persistedTrips,
-      loading: persistedTrips.length === 0,
+      trips: persisted.trips,
+      loading: !persisted.historyReady,
       error: null,
+      historyReady: persisted.historyReady,
+      coverage: "unknown",
+      readCoverage: null,
+      refreshing: true,
     };
-  });
+  };
+  const [state, setState] = useState(() => ({ driverId: normalizedId, value: getInitialState() }));
 
   useLayoutEffect(() => {
     if (!normalizedId || isAuthTeardownActive()) {
-      setState(EMPTY_STATE);
+      setState({ driverId: "", value: EMPTY_STATE });
       return;
     }
 
     const entry = ensureEntry(normalizedId);
-    const update = () => setState(snapshot(entry));
+    const update = () => {
+      const value = snapshot(entry);
+      setState(previous => previous.driverId === normalizedId && Object.keys(value).every(key => previous.value[key as keyof DriverTripsState] === value[key as keyof DriverTripsState])
+        ? previous : { driverId: normalizedId, value });
+    };
     entry.subscribers.add(update);
     if (!entry.unsubscribe && !entry.retryTimer) {
       subscribeEntry(normalizedId, entry);
@@ -336,10 +426,13 @@ export function useDriverTrips(
         if (entry.retryTimer) clearTimeout(entry.retryTimer);
         entry.retryTimer = null;
         entry.retryAttempt = 0;
-        if (cache.get(normalizedId) === entry) cache.delete(normalizedId);
+        entry.subscriptionGeneration += 1;
+        const idle = [...cache.values()].filter(item => !item.subscribers.size && !item.unsubscribe && !item.optimisticTrips.size);
+        for (const item of idle.slice(0, Math.max(0, idle.length - 6))) cache.delete(item.driverId);
       }, RELEASE_DELAY_MS);
     };
   }, [normalizedId, enabled]);
 
-  return state;
+  // Do not expose the previous driver's projection before the scope effect runs.
+  return state.driverId === normalizedId ? state.value : getInitialState();
 }

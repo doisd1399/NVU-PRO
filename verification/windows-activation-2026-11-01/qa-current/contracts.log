@@ -1,0 +1,10 @@
+PASS Form identity wins over legacy Google copies; current independent profile edits win over the form
+PASS Removal reads only the affected driver's forms/requests and preserves another company
+PASS Parallel removal authorization eliminates one sequential read round under controlled latency
+PASS Actual Print writer returns the committed scoped row, serializes timestamps and replays without another slot
+PASS Receipt preparation and submission share one upload; failure releases the flight for retry
+PASS Committed inline ACK confirms the trip without a second server read
+PASS An old writer remains compatible and mismatched inline confirmations are rejected
+PASS Prepared receipt is reused and is never registered before upload confirmation
+PASS Actual upload service skips membership RPC normally and repairs one Storage denial without relaxing rules
+PERFORMANCE_520_PASS 9

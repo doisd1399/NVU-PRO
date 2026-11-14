@@ -27,11 +27,11 @@ export default function Diagnostics() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#09090b] text-gray-900 dark:text-gray-100 p-4 md:p-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-nvu-page text-gray-900 dark:text-nvu-text p-4 md:p-8">
       <div className="max-w-3xl mx-auto space-y-6">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-full transition-colors">
+            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-200 dark:hover:bg-nvu-surface rounded-full transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </button>
             <h1 className="text-2xl font-bold tracking-tight">System Diagnostics</h1>
@@ -51,8 +51,8 @@ export default function Diagnostics() {
         ) : result ? (
           <div className="grid gap-6 md:grid-cols-2">
             {/* Platform Information */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold mb-4 border-b border-gray-100 dark:border-gray-800 pb-2">
+            <div className="bg-white dark:bg-nvu-page p-6 rounded-2xl border border-gray-200 dark:border-nvu-line shadow-sm">
+              <h2 className="text-lg font-semibold mb-4 border-b border-gray-100 dark:border-nvu-line pb-2">
                 Platform
               </h2>
               <ul className="space-y-3 text-sm">
@@ -72,8 +72,8 @@ export default function Diagnostics() {
             </div>
 
             {/* Build Manifest */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold mb-4 border-b border-gray-100 dark:border-gray-800 pb-2">
+            <div className="bg-white dark:bg-nvu-page p-6 rounded-2xl border border-gray-200 dark:border-nvu-line shadow-sm">
+              <h2 className="text-lg font-semibold mb-4 border-b border-gray-100 dark:border-nvu-line pb-2">
                 Build Manifest
               </h2>
               {result.buildManifest ? (
@@ -102,24 +102,24 @@ export default function Diagnostics() {
             </div>
 
             {/* Firebase Status */}
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm md:col-span-2">
-              <h2 className="text-lg font-semibold mb-4 border-b border-gray-100 dark:border-gray-800 pb-2">
+            <div className="bg-white dark:bg-nvu-page p-6 rounded-2xl border border-gray-200 dark:border-nvu-line shadow-sm md:col-span-2">
+              <h2 className="text-lg font-semibold mb-4 border-b border-gray-100 dark:border-nvu-line pb-2">
                 Firebase Connectivity
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-nvu-surface/50 rounded-xl">
                   <span className="text-xs text-gray-500 mb-2 uppercase tracking-wider">SDK</span>
                   <StatusIcon ready={result.firebase.initialized} />
                 </div>
-                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-nvu-surface/50 rounded-xl">
                   <span className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Auth</span>
                   <StatusIcon ready={result.firebase.auth === 'ready'} />
                 </div>
-                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-nvu-surface/50 rounded-xl">
                   <span className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Firestore</span>
                   <StatusIcon ready={result.firebase.firestore === 'ready'} />
                 </div>
-                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+                <div className="flex flex-col items-center p-3 bg-gray-50 dark:bg-nvu-surface/50 rounded-xl">
                   <span className="text-xs text-gray-500 mb-2 uppercase tracking-wider">Storage</span>
                   <StatusIcon ready={result.firebase.storage === 'ready'} />
                 </div>

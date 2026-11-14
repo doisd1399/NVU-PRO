@@ -178,16 +178,16 @@ export function PendingApplicationsCarousel({
         {cards.map((card) => (
           <article
             key={card.application.id}
-            className="w-full min-w-full shrink-0 snap-center rounded-2xl border border-slate-200 dark:border-[#2A2F3A] bg-slate-50/80 dark:bg-[#111318] p-3.5 sm:p-4 text-left"
+            className="w-full min-w-full shrink-0 snap-center rounded-2xl border border-slate-200 dark:border-nvu-line bg-slate-50/80 dark:bg-nvu-page p-3.5 sm:p-4 text-left"
           >
             <div className="flex items-start justify-between gap-3 mb-4">
               <div className="min-w-0">
-                <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-[#71717a]">
+                <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-nvu-muted">
                   {card.isCompanyRegistration
                     ? "Cadastro de empresa"
                     : "Inscrição de motorista"}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-[#a1a1aa] mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-nvu-muted mt-0.5">
                   {card.dateTime}
                 </p>
               </div>
@@ -197,8 +197,8 @@ export function PendingApplicationsCarousel({
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] px-3 py-2">
-                <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-[#27272a] flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line px-3 py-2">
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-nvu-strip flex items-center justify-center shrink-0">
                   {card.personPhoto ? (
                     <StableImage
                       src={card.personPhoto}
@@ -211,19 +211,19 @@ export function PendingApplicationsCarousel({
                       fallback={
                         <User
                           size={16}
-                          className="text-slate-400 dark:text-[#a1a1aa]"
+                          className="text-slate-400 dark:text-nvu-muted"
                         />
                       }
                     />
                   ) : (
                     <User
                       size={16}
-                      className="text-slate-400 dark:text-[#a1a1aa]"
+                      className="text-slate-400 dark:text-nvu-muted"
                     />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-[#71717a] mb-0.5">
+                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-nvu-muted mb-0.5">
                     {card.isCompanyRegistration ? "Proprietário" : "Motorista"}
                   </p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
@@ -232,8 +232,8 @@ export function PendingApplicationsCarousel({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-[#18181b] border border-slate-200 dark:border-[#2A2F3A] px-3 py-2">
-                <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-[#27272a] flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line px-3 py-2">
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-nvu-strip flex items-center justify-center shrink-0">
                   {card.companyLogo ? (
                     <StableImage
                       src={card.companyLogo}
@@ -246,26 +246,26 @@ export function PendingApplicationsCarousel({
                       fallback={
                         <Building2
                           size={16}
-                          className="text-slate-400 dark:text-[#a1a1aa]"
+                          className="text-slate-400 dark:text-nvu-muted"
                         />
                       }
                     />
                   ) : (
                     <Building2
                       size={16}
-                      className="text-slate-400 dark:text-[#a1a1aa]"
+                      className="text-slate-400 dark:text-nvu-muted"
                     />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-[#71717a] mb-0.5">
+                  <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400 dark:text-nvu-muted mb-0.5">
                     Empresa
                   </p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                     {card.companyName}
                   </p>
                   {card.simulatorName && (
-                    <p className="text-[11px] text-slate-500 dark:text-[#a1a1aa] truncate mt-0.5">
+                    <p className="text-[11px] text-slate-500 dark:text-nvu-muted truncate mt-0.5">
                       {card.simulatorName}
                     </p>
                   )}
@@ -285,7 +285,7 @@ export function PendingApplicationsCarousel({
             type="button"
             onClick={() => goToCard(activeIndex - 1)}
             disabled={activeIndex === 0}
-            className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 dark:text-[#a1a1aa] hover:bg-slate-100 dark:hover:bg-[#27272a] disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+            className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 dark:text-nvu-muted hover:bg-slate-100 dark:hover:bg-nvu-strip disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             aria-label="Solicitação anterior"
           >
             <ChevronLeft size={16} />
@@ -305,7 +305,7 @@ export function PendingApplicationsCarousel({
                   className={`block h-2 rounded-full transition-[width,background-color] ${
                     activeIndex === index
                       ? "w-5 bg-slate-700 dark:bg-slate-200"
-                      : "w-2 bg-slate-300 dark:bg-[#52525b]"
+                      : "w-2 bg-slate-300 dark:bg-nvu-line"
                   }`}
                 />
               </button>
@@ -316,7 +316,7 @@ export function PendingApplicationsCarousel({
             type="button"
             onClick={() => goToCard(activeIndex + 1)}
             disabled={activeIndex === cards.length - 1}
-            className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 dark:text-[#a1a1aa] hover:bg-slate-100 dark:hover:bg-[#27272a] disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+            className="hidden sm:inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 dark:text-nvu-muted hover:bg-slate-100 dark:hover:bg-nvu-strip disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
             aria-label="Próxima solicitação"
           >
             <ChevronRight size={16} />

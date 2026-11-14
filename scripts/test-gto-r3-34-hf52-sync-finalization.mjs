@@ -9,7 +9,9 @@ const service = read('android/app/src/main/java/com/nvu/operacional/GtoObserverS
 const plugin = read('android/app/src/main/java/com/nvu/operacional/GtoObserverPlugin.java');
 const recordTrip = read('src/pages/driver/RecordTrip.tsx');
 const gradle = read('android/app/build.gradle');
-const workflow = read('.github/workflows/build-android-release.yml');
+const metadata = JSON.parse(read('NVU_RELEASE_METADATA.json'));
+const workflowPath = '.github/workflows/build-android-release.yml';
+const workflow = fs.existsSync(workflowPath) ? read(workflowPath) : '';
 
 const checks = [];
 const ck = (name, ok) => {
@@ -17,8 +19,12 @@ const ck = (name, ok) => {
   console.log(`${ok ? 'PASS' : 'FAIL'} ${name}`);
 };
 
-ck('HF52 Android identity', gradle.includes('versionCode 104') && gradle.includes('versionName "1.0.104"'));
-ck('HF52 workflow identity', workflow.includes('PC-HF52') && workflow.includes('EXPECTED_VERSION_CODE: "104"') && workflow.includes('EXPECTED_VERSION_NAME: "1.0.104"'));
+const currentCode = Number((gradle.match(/versionCode\s+(\d+)/) || [])[1] || 0);
+const currentPatch = Number((gradle.match(/versionName\s+"1\.0\.(\d+)"/) || [])[1] || 0);
+ck('HF52 Android identity', metadata.androidVersionCode === currentCode && metadata.androidVersion === `1.0.${currentPatch}`);
+ck('HF52 release identity', workflow
+  ? workflow.includes(`EXPECTED_VERSION_CODE: "${currentCode}"`) && workflow.includes(`EXPECTED_VERSION_NAME: "1.0.${currentPatch}"`)
+  : metadata.androidVersionCode === currentCode && metadata.androidVersion === `1.0.${currentPatch}`);
 
 ck('durable queue exposes any-queued truth', sync.includes('static boolean hasQueued(Context context)'));
 ck('durable queue exposes background-queued truth', sync.includes('static boolean hasQueuedOtherThan(Context context, String excludedSessionId)'));

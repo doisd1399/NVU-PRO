@@ -1,0 +1,32 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {MemoryRouter,Route,Routes,useNavigate,useLocation} from 'react-router-dom';
+import {Toaster} from 'sonner';
+import RecordTrip from '../../src/pages/driver/RecordTrip';
+import {FailedHistoryRegistrationRecovery} from '../../src/components/common/FailedHistoryRegistrationRecovery';
+import {useDriverTrips} from '../../src/hooks/useDriverTrips';
+import {auth,authReady} from '../../src/lib/firebase';
+import {SyncManager} from '../../src/services/syncManager';
+import {syncEngine} from '../../src/services/sync/SyncEngine';
+import {OfflineDatabase} from '../../src/services/offline/OfflineDatabase';
+import {canonicalTripCommandService} from '../../src/application/trip/CanonicalTripCommandService';
+import {TripRegistrationService} from '../../src/application/trip/TripRegistrationService';
+import {persistOfflineReceipt,getOfflineReceipt} from '../../src/lib/offlineReceiptStore';
+import {createCanonicalOutboxEntry} from '../../src/domain/trip/CanonicalTripOutbox';
+import {signInWithEmailAndPassword,updateCurrentUser} from 'firebase/auth';
+const w=window as any;
+w.__ocrCase='consensus';
+w.__journal=()=>JSON.parse(localStorage.getItem(OfflineDatabase.storageKey)||'{"records":{},"outbox":{}}');
+w.__owned=()=>syncEngine.getOwnedPendingRegistrations('company');
+w.__sync=()=>SyncManager.syncPendingTrips();
+w.__replay=(trip:any)=>canonicalTripCommandService.addTripWithinOperationLimit(TripRegistrationService.register(trip));
+w.__login=(foreign:boolean)=>signInWithEmailAndPassword(auth,foreign?'foreign507@example.test':'driver507@example.test','test-password-507');
+w.__primeForeign=async()=>{w.__foreign=(await w.__login(true)).user;await w.__login(false)};
+w.__switchCachedForeign=()=>updateCurrentUser(auth,w.__foreign);
+w.__makeFile=async(seed:number)=>{const c=document.createElement('canvas');c.width=1280;c.height=720;const x=c.getContext('2d')!;x.fillStyle=`rgb(${30+seed},50,70)`;x.fillRect(0,0,1280,720);if(seed>=20){const image=x.getImageData(0,0,1280,720);let state=seed;for(let i=0;i<image.data.length;i+=4){state^=state<<13;state^=state>>>17;state^=state<<5;image.data[i]=state&255;image.data[i+1]=(state>>>8)&255;image.data[i+2]=(state>>>16)&255;image.data[i+3]=255}x.putImageData(image,0,0)}x.fillStyle='#303030';x.fillRect(350,220,600,300);x.fillStyle='white';x.font='32px sans-serif';x.fillText('Concluído',540,270);x.fillText('Valor a receber: R$ 43.008,00',380,330);x.fillText('Receber    Dobrar valor (ADS)',380,440);x.fillText('Teste '+seed,10,50);return c.toDataURL('image/png').split(',')[1]};
+w.__receipt=async(key:string)=>{const r=await getOfflineReceipt(key);return r?{key:r.key,createdAt:r.createdAt,uploadedUrl:r.uploadedUrl,size:r.blob.size}:null};
+w.__reselect=async(base64:string,trip:any)=>{const file=new File([Uint8Array.from(atob(base64),c=>c.charCodeAt(0))],'replacement.png',{type:'image/png'});await persistOfflineReceipt(file,{imageHash:trip.imageHash,companyId:'company',userId:'driver'});return w.__receipt(trip.offlineReceiptKey)};
+w.__seedLegacy=async(base64:string)=>{const file=new File([Uint8Array.from(atob(base64),c=>c.charCodeAt(0))],'legacy.png',{type:'image/png'});const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))).map(v=>v.toString(16).padStart(2,'0')).join('');const key=await persistOfflineReceipt(file,{imageHash:hash,companyId:'company',userId:'driver'});const trip=TripRegistrationService.register({tripId:'legacy-506-print-507',idempotencyKey:'legacy-506-print-507',driverId:'driver',companyId:'company',contractId:'contract',jobId:w.__fixtureJobId,source:'PRINT_PRO_REGISTRATION',origem:'Registro',destino:'Águas Velhas',valor:43008,valorCents:4300800,simulatorCode:'GTO',imageHash:hash,offlineReceiptKey:key,gtoEntryMode:'print',gtoReceiptAnalyzed:true,gtoRewardedAdDetected:false,receiptText:'43.008,00 43.008,00 Concluído Receber Dobrar valor ADS'} as any);const db=new OfflineDatabase(),queue=db.readOutbox();queue[trip.tripId]={...createCanonicalOutboxEntry({trip,identity:trip.operationalIdentity!}),state:'FAILED',registrationProtocolVersion:505,serverRetryable:false,lastError:'functions/invalid-argument: REQUEST_INVALID: GTO_RECEIPT_AMOUNT_OR_BONUS_INVALID',lastFailureStage:'CALLABLE_REGISTRATION'};db.commitOutbox(queue,{trip,syncStatus:'CONFLICT',syncVersion:1,clientUpdatedAt:trip.clientUpdatedAt});return trip.tripId};
+function HistoryDestination(){const {trips}=useDriverTrips('driver');const confirmed=trips.filter(t=>t.serverValidatedAt&&!t.historyLocalCommandOnly&&!t.deleted);return <><h1>Histórico de teste</h1><output data-testid='confirmed-count'>{confirmed.length}</output><FailedHistoryRegistrationRecovery companyId='company'/><div>{confirmed.map(t=><p key={t.tripId}>{t.origem} → {t.destino}</p>)}</div></>}
+function App(){const go=useNavigate(),location=useLocation();w.__go=go;w.__route=location.pathname;return <><Routes><Route path='/driver/trip' element={<RecordTrip/>}/><Route path='*' element={<HistoryDestination/>}/></Routes><Toaster position="top-right" richColors/></>}
+w.__ready=authReady.then(()=>{SyncManager.initialize();createRoot(document.getElementById('root')!).render(<MemoryRouter initialEntries={['/driver/trip?mode=print']}><App/></MemoryRouter>)});

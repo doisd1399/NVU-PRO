@@ -1,0 +1,5 @@
+{
+  "expected": "BLOCKED",
+  "reason": "ROLL-01",
+  "output": "npm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.\n\n> nvu-operacional@2.3.197 qa:gate\n> node scripts/qa/gate.mjs\n\nQA_CRITICAL_AUDIT_OPEN: ROLL-01"
+}

@@ -1,5 +1,7 @@
 import { onAuthTeardown } from "./authLifecycle";
 
+import { displayImageViewer, readDisplayImage } from "../services/displayImageStore";
+
 type ImageCacheEntry = {
   image: HTMLImageElement | null;
   promise: Promise<void>;
@@ -18,7 +20,8 @@ type NvuImageCacheGlobal = typeof globalThis & {
 
 // Store the registry on globalThis so AI Studio/Vite hot updates do not throw
 // away decoded avatars and trigger a visible initials -> photo cycle again.
-// The browser/WebView HTTP cache remains the durable layer across full reloads.
+// This registry only retains decoded images in memory. Offline bytes for the
+// ranking are stored separately by rankingImageStore; HTTP cache is optional.
 const imageCacheGlobal = globalThis as NvuImageCacheGlobal;
 const preloadedImages =
   imageCacheGlobal.__nvuPreloadedImages ?? new Map<string, ImageCacheEntry>();
@@ -206,7 +209,7 @@ export function preloadImage(
 
     image.onload = () => void finish(true);
     image.onerror = () => void finish(false);
-    image.src = normalizedUrl;
+    image.src = readDisplayImage(displayImageViewer(), normalizedUrl) || normalizedUrl;
   });
 
   preloadedImages.set(normalizedUrl, entry);

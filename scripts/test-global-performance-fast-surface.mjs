@@ -13,6 +13,8 @@ const rankingEngine = read("src/lib/rankingPageEngine.ts");
 const photoWarmup = read("src/lib/rankingPhotoWarmup.ts");
 const driverProfileRoute = read("src/pages/driver/Profile.tsx");
 const tripHistoryHook = read("src/hooks/useTripHistory.ts");
+const profileRanking = read("src/hooks/useProfileRanking.ts");
+const performanceView = read("src/components/ProfileRankingPerformanceCard.tsx");
 
 assert.equal(companyTab.includes("performanceReady"), false, "CompanyTab não pode manter gate de frame");
 assert.equal(companyTab.includes("requestAnimationFrame"), false, "CompanyTab não pode atrasar conteúdo crítico por frame");
@@ -33,18 +35,17 @@ assert.equal(
 );
 
 assert.equal(
-  companyCard.includes("const normalizedCompanyHistory = useMemo") &&
-    companyCard.includes("const hasVisibleCompanyHistory = normalizedCompanyHistory.length > 0"),
+  companyCard.includes("const allTimeCompanyTrips = useMemo") && companyCard.includes("ownTrips={ownTrips}"),
   true,
   "CompanyPerformanceCard deve reconhecer histórico válido já disponível",
 );
 assert.equal(
-  companyCard.includes("!hasVisibleCompanyHistory"),
+  profileRanking.includes('status === "ready" ? ranking : []') && performanceView.includes("<ProfileActivityCalendar"),
   true,
-  "loading de ranking/classificação deve ser somente estado inicial vazio",
+  "posição exige confirmação comparativa; o calendário próprio permanece disponível",
 );
 assert.equal(
-  companyCard.includes("companyTripsLoading && currentTrips.length === 0"),
+  companyCard.includes("ownTripsLoading={companyTripsLoading}"),
   true,
   "refresh de empresa sem dados ainda pode exibir loading local legítimo",
 );
@@ -62,7 +63,7 @@ assert.equal(
   "ranking nunca deve bloquear a primeira pintura aguardando imagens",
 );
 assert.equal(
-  ranking.includes("publish();\n      void preloadRankingSnapshotImages(snapshot);"),
+  /publish\(\);\s*void preloadRankingSnapshotImages\(snapshot[,)]/.test(ranking),
   true,
   "ranking deve publicar dados antes do preload de imagens quando o gate estiver desligado",
 );
@@ -72,7 +73,7 @@ assert.equal(
   "ranking deve reutilizar o snapshot em memória da mesma chave",
 );
 assert.equal(
-  ranking.includes("const RankingListItem = memo") &&
+  fs.readFileSync(path.join(root, "src/components/RankingGamerLeaderboard.tsx"), "utf8").includes("const RankingGamerRow = memo") &&
     ranking.includes("const RANKING_CRITICAL_IMAGE_LIMIT = 24"),
   true,
   "linhas do ranking devem ser memoizadas e o warmup crítico deve permanecer limitado",

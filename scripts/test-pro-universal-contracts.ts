@@ -53,8 +53,8 @@ let outside = applyProSessionEvent(null, { type: "context_ready", context: toeCo
 outside = applyProSessionEvent(outside, { type: "simulator_visibility", visibility: "OUTSIDE" });
 outside = applyProSessionEvent(outside, { type: "route_selected", origin: "Lisboa", destination: "Porto", now: 2 });
 outside = applyProSessionEvent(outside, { type: "capture_requested", attemptId: "attempt-2" });
-assert.equal(outside?.state, "TRIP_ACTIVE");
-assert.equal(outside?.lastFailureCode, "FOREGROUND_MISMATCH");
+assert.equal(outside?.state, "CAPTURE_AUTH_PENDING");
+assert.equal(outside?.lastFailureCode, undefined);
 
 assert.throws(
   () => applyProSessionEvent(null, { type: "context_ready", context: { ...toeContext, expectedPackage: "com.stargamesapps.gto" }, sessionId: "bad", now: 1 }),
@@ -62,4 +62,4 @@ assert.throws(
 );
 assert.equal(applyProSessionEvent(outside, { type: "reset" }), null);
 
-console.log("pro-universal-contracts: PASS registry, allowed context, session transitions and fail-closed capture gate");
+console.log("pro-universal-contracts: PASS registry, allowed context and capture-first session transitions independent of foreground visibility");

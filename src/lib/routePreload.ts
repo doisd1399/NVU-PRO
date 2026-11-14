@@ -1,4 +1,5 @@
 import { getRuntimePerformanceProfile } from "./runtimePerformance";
+import { Capacitor } from "@capacitor/core";
 
 import { markProfilePerf } from "./profilePerformanceTelemetry";
 
@@ -28,11 +29,16 @@ const routeLoaders: Record<string, Loader[]> = {
     () => import("../pages/admin/Fleet"),
     () => import("../pages/admin/fleet/OperationsTab"),
   ],
+  "/admin/history": [() => import("../pages/driver/TripHistory")],
   "/admin/reports": [() => import("../pages/admin/Reports")],
   "/admin/news": [() => import("../pages/NewsFeed")],
   "/admin/manual": [() => import("../pages/Manual")],
   "/admin/senior": [() => import("../pages/admin/SeniorPanel")],
   "/admin/assign": [() => import("../pages/admin/AssignJob")],
+  "/admin/parcerias": [() => import("../pages/admin/Partnerships")],
+  "/admin/recompensas": [() => import("../pages/admin/Rewards")],
+  "/admin/trabalhos-ativos": [() => import("../pages/admin/ActiveJobs")],
+  "/driver/recompensas": [() => import("../pages/driver/Rewards")],
   "/admin/add-driver": [() => import("../pages/admin/AddDriver")],
   "/driver": [
     () => import("../layouts/DriverLayout"),
@@ -141,6 +147,9 @@ export function preloadRoute(path: string): Promise<void> {
   if (normalized.startsWith("/apply/")) {
     dynamicKey = "/apply/:companyId";
     dynamicLoaders = [() => import("../pages/RecruitmentApply")];
+  } else if (/^\/admin\/driver\/[^/]+\/perfil$/.test(normalized)) {
+    dynamicKey = "/admin/driver/:id/perfil";
+    dynamicLoaders = [() => import("../pages/admin/DriverProfileReference")];
   } else if (normalized.startsWith("/admin/driver/")) {
     dynamicKey = "/admin/driver/:id";
     dynamicLoaders = [() => import("../pages/admin/DriverProfileIsolated")];
@@ -168,12 +177,15 @@ export function preloadFleetPanel(panel: string): Promise<void> {
 
 export function preloadRoleRoutes(role: "admin" | "driver"): Promise<void> {
   const runtime = getRuntimePerformanceProfile();
-  if (!runtime.allowSecondaryRouteWarmup) return Promise.resolve();
+  const localBundle = Capacitor.isNativePlatform();
+  if (!runtime.allowSecondaryRouteWarmup && !localBundle) return Promise.resolve();
 
   const desktopPaths =
     role === "admin"
       ? [
           "/admin/fleet",
+          "/admin/history",
+          "/admin/reports",
           "/ranking",
           "/admin/news",
           "/admin/assign",
@@ -185,19 +197,22 @@ export function preloadRoleRoutes(role: "admin" | "driver"): Promise<void> {
           "/driver/trip",
         ];
 
-  // On mobile, preloading every secondary workspace chunk can block the active
-  // page while Vite/React parses those modules. Keep only the most likely two
-  // destinations and use one lane; pointer/focus preloads still warm any route
-  // the user actually approaches.
-  const paths = runtime.mobileViewport
+  // Native assets are local. Warm only the current role's dock destinations,
+  // one module per idle slice, without mounting pages or fetching their data.
+  // Mobile web keeps the smaller speculative network budget.
+  const paths = localBundle ? desktopPaths : runtime.mobileViewport
     ? desktopPaths.filter((path) => path.includes("ranking") || path.includes("news"))
     : desktopPaths;
-  const workerCount = runtime.mobileViewport ? 1 : 2;
+  const workerCount = localBundle || runtime.mobileViewport ? 1 : 2;
 
   let cursor = 0;
   const worker = async () => {
     while (cursor < paths.length) {
       const path = paths[cursor++];
+      if (localBundle && typeof window !== "undefined") await new Promise<void>(resolve => {
+        if ("requestIdleCallback" in window) window.requestIdleCallback(() => resolve(), { timeout: 4000 });
+        else setTimeout(resolve, 50);
+      });
       try {
         await preloadRoute(path);
       } catch {

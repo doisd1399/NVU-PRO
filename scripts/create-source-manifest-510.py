@@ -1,0 +1,32 @@
+from pathlib import Path
+import hashlib
+import json
+
+root = Path(__file__).resolve().parents[1]
+previous = root / 'reports/source-manifest-509.json'
+baseline = json.loads(previous.read_text())
+files = {}
+for f in sorted(root.rglob('*')):
+    if not f.is_file():
+        continue
+    rel = f.relative_to(root)
+    parts = rel.parts
+    name = str(rel)
+    if name == 'android/app/google-services.json' or any(k in parts for k in ['node_modules', '.git', '.gradle', '.firebase', 'dist', 'dist-apk', 'build', 'reports', '.vite']) or f.name.endswith('.log') or name.startswith(('functions/lib/', 'android/app/src/main/assets/')):
+        continue
+    if not (parts[0] in ['src', 'functions', 'scripts', 'public', 'android'] or (len(parts) == 1 and (f.name in ['package.json', 'package-lock.json', 'NVU_RELEASE_METADATA.json', 'tsconfig.json', 'firestore.indexes.json', 'capacitor.config.ts', 'vite.config.ts', 'server.ts', '.firebaserc'] or f.name.startswith('firebase') and f.suffix == '.json' or f.suffix == '.rules'))):
+        continue
+    files[name] = hashlib.sha256(f.read_bytes()).hexdigest()
+manifest = {
+    'release': '1.0.510',
+    'webVersion': '2.3.188',
+    'baseline': 'NVU-509-FONTE-FINAL.zip',
+    'baselineZipSHA256': 'f9463c2dc66f719110cebf3cc4437a1d11b5eac6296175bd59ea3ca80ffd1fbe',
+    'previousSourceManifestSHA256': hashlib.sha256(previous.read_bytes()).hexdigest(),
+    'changedSourceFiles': [name for name, sha in files.items() if baseline['files'].get(name) != sha],
+    'removedSourceFiles': sorted(set(baseline['files']) - set(files)),
+    'files': files,
+}
+target = root / 'reports/source-manifest-510.json'
+target.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+print(json.dumps({'manifest': str(target), 'files': len(files), 'changed': len(manifest['changedSourceFiles']), 'removed': manifest['removedSourceFiles']}, ensure_ascii=False))

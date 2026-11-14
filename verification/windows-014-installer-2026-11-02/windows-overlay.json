@@ -1,0 +1,24 @@
+{
+  "checks": [
+    "Sem bolha; camada interativa cobre monitor e recebe foco; aviso passivo separado",
+    "Distância real do snapshot convertida para mi no ATS e km no ETS2, fora da rolagem",
+    "Tab, setas, Enter, espaço e Esc não navegam ou executam; sem seleção automática",
+    "Área fora do card pertence à camada do mouse e não fecha por clique externo",
+    "Dois minutos fora do card e perda de foco não ocultam o assistente",
+    "Cabeçalho arrasta o card dentro da camada, mantendo controles acessíveis",
+    "Pausar e retomar funcionam pelo mouse sem fechar",
+    "Evento local e ACK limpam frete/rota residuais; confirmação não reabre viagem ou antecipa progresso",
+    "Histórico, painel, ajustes e jogo executam ações pelo mouse",
+    "Botão de tema executa ação e atualiza card e aviso nos dois temas",
+    "ACK repetido não duplica aviso ou restaura a rota antiga",
+    "Novo frete legítimo pode coexistir com card da última entrega encerrada",
+    "Viagem atual e distância permanecem visíveis a 480 DIP, inclusive no histórico",
+    "Cancelamento limpa rota; fallback é distância planejada, nunca valor inventado",
+    "Cancelar encerramento preserva sessão; confirmar conserva pendência e contexto",
+    "Erro acessível pelo mouse; botão fechar remove explicitamente a camada"
+  ],
+  "errors": [],
+  "nativeWindowsInputTested": false,
+  "realGamesTested": false,
+  "method": "HTML/CSS/JS, Session, AssistantNotices, AutomationCommands e OverlayController reais; mouse em Chromium; janelas/Steam/diálogo/ACK controlados."
+}

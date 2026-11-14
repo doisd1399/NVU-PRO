@@ -1,0 +1,115 @@
+{
+  "projectId": "vtc-frota-log",
+  "verifiedAt": "2026-10-27T12:10:23.165Z",
+  "backendPrerequisitesVerified": true,
+  "users": {
+    "sourceCount": 265,
+    "publicCount": 264,
+    "expected": 264,
+    "missing": 0,
+    "mismatch": 0,
+    "extraFields": 0,
+    "deletedProjected": 0
+  },
+  "notifications": {
+    "count": 2930,
+    "nonTimestampDates": 0
+  },
+  "indexes": [
+    {
+      "name": "projects/vtc-frota-log/databases/(default)/collectionGroups/notifications/indexes/CICAgNjpgYIK",
+      "state": "READY",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "read",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "name": "projects/vtc-frota-log/databases/(default)/collectionGroups/notifications/indexes/CICAgNjaxJEK",
+      "state": "READY",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "readPrivateUserProfiles",
+      "status": "ACTIVE",
+      "runtime": "nodejs22",
+      "versionId": "1",
+      "updateTime": "2026-10-27T12:03:53.589384978Z",
+      "retryEnabled": false
+    },
+    {
+      "name": "revokePushDevice",
+      "status": "ACTIVE",
+      "runtime": "nodejs22",
+      "versionId": "1",
+      "updateTime": "2026-10-27T12:03:55.398784276Z",
+      "retryEnabled": false
+    },
+    {
+      "name": "registerPushDevice",
+      "status": "ACTIVE",
+      "runtime": "nodejs22",
+      "versionId": "22",
+      "updateTime": "2026-10-27T12:03:54.235Z",
+      "retryEnabled": false
+    },
+    {
+      "name": "syncUserPublicProfile",
+      "status": "ACTIVE",
+      "runtime": "nodejs22",
+      "versionId": "1",
+      "updateTime": "2026-10-27T12:03:57.118241458Z",
+      "retryEnabled": true
+    },
+    {
+      "name": "pushOnNotificationCreated",
+      "status": "ACTIVE",
+      "runtime": "nodejs22",
+      "versionId": "22",
+      "updateTime": "2026-10-27T12:08:06.865Z",
+      "retryEnabled": true
+    },
+    {
+      "name": "pushOnLegacyNotificationCreated",
+      "status": "ACTIVE",
+      "runtime": "nodejs22",
+      "versionId": "22",
+      "updateTime": "2026-10-27T12:08:24.619Z",
+      "retryEnabled": true
+    }
+  ],
+  "limits": [
+    "No actual FCM delivery or physical Android test performed",
+    "Restricted rules intentionally deferred until client adoption"
+  ],
+  "indexesVerifiedAt": "2026-10-27T12:11:37.777Z"
+}

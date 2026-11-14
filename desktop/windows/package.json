@@ -1,0 +1,79 @@
+{
+  "name": "nvu-windows",
+  "version": "0.2.20",
+  "private": true,
+  "description": "NVU PRO Windows — ETS2/ATS (candidata a validação)",
+  "author": "NVU",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "package": "node build-installer.cjs",
+    "portable": "electron-builder --win --x64 --dir --publish never && node build-portable.cjs",
+    "plugin:build": "node build-plugin.cjs",
+    "verify:release": "node tools/verify-release.cjs"
+  },
+  "dependencies": {
+    "jose": "6.2.15"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.nvu.operacional.windows",
+    "productName": "NVU PRO",
+    "directories": {
+      "output": "../../artifacts/windows"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "core/**",
+      "ui/**",
+      "config/**",
+      "node_modules/**"
+    ],
+    "extraResources": [
+      {
+        "from": "../../dist",
+        "to": "web"
+      },
+      {
+        "from": "plugin/bin/nvu_scs_telemetry.dll",
+        "to": "plugin/nvu_scs_telemetry.dll"
+      },
+      {
+        "from": "plugin/bin/nvu_scs_telemetry.manifest.json",
+        "to": "plugin/nvu_scs_telemetry.manifest.json"
+      },
+      {
+        "from": "plugin/vendor/LICENSE-SCS.txt",
+        "to": "plugin/LICENSE-SCS.txt"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": true,
+      "requestedExecutionLevel": "asInvoker",
+      "icon": "ui/icon.ico",
+      "legalTrademarks": "NVU PRO"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "artifactName": "NVU-PRO-Setup-${version}-x64.${ext}",
+    "copyright": "Copyright © NVU",
+    "electronLanguages": [
+      "pt-BR",
+      "en-US"
+    ],
+    "executableName": "NVU PRO"
+  },
+  "nvu": {
+    "pluginVersion": "0.2.0"
+  }
+}

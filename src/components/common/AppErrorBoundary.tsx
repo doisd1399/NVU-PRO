@@ -70,9 +70,9 @@ export class AppErrorBoundary extends React.Component<
     }
 
     return (
-      <main className="min-h-screen bg-slate-50 px-6 dark:bg-[#09090b] flex items-center justify-center">
+      <main className="min-h-screen bg-slate-50 px-6 dark:bg-nvu-page flex items-center justify-center">
         <section
-          className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-white/10 dark:bg-[#151921]"
+          className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm dark:border-white/10 dark:bg-nvu-page"
           role="alert"
           aria-live="assertive"
         >
@@ -82,7 +82,7 @@ export class AppErrorBoundary extends React.Component<
           <h1 className="text-base font-semibold text-slate-900 dark:text-white">
             Não foi possível abrir este conteúdo
           </h1>
-          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+          <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-nvu-muted">
             Ocorreu uma falha inesperada de renderização. Sua sessão não foi
             alterada. Tente abrir esta tela novamente.
           </p>
@@ -97,7 +97,7 @@ export class AppErrorBoundary extends React.Component<
             <button
               type="button"
               onClick={this.reload}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-slate-200 dark:hover:bg-white/5"
+              className="h-10 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:text-nvu-text dark:hover:bg-white/5"
             >
               Recarregar aplicativo
             </button>

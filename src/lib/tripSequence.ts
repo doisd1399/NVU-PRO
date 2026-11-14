@@ -18,38 +18,16 @@ function resolveTripJobId(trip: any): string {
   ).trim();
 }
 
-function resolveTripContractId(trip: any): string {
-  return String(
-    trip?.contratoId ||
-      trip?.contractId ||
-      trip?.contrato_id ||
-      trip?.contratoNumero ||
-      "",
-  ).trim();
-}
-
-function resolveTripDriverId(trip: any): string {
-  return String(
-    trip?.motoristaId ||
-      trip?.driverId ||
-      trip?.motorista_id ||
-      trip?.userId ||
-      trip?.motoristaNome ||
-      "",
-  ).trim();
-}
-
 function getSequenceKey(trip: any, singleSequence = false): string {
   if (singleSequence) return "__embedded_job__";
 
   const jobId = resolveTripJobId(trip);
   if (jobId) return `job:${jobId}`;
 
-  const contractId = resolveTripContractId(trip);
-  const driverId = resolveTripDriverId(trip);
-  if (contractId || driverId) return `legacy:${contractId}:${driverId}`;
-
-  return `trip:${String(trip?.id || "")}`;
+  // A legacy row without jobId is intentionally isolated. Driver/company/
+  // contract/date are not proof of execution ownership and must not create a
+  // synthetic shared sequence across repeated runs of the same contract.
+  return `legacy-unbound:${String(trip?.id || trip?.tripId || "")}`;
 }
 
 function getOrderedValidTrips(trips: any[]) {

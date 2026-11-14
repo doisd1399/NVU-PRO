@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "runtimeFilesCompared": 12,
+  "pluginMatches": true,
+  "webFilesMatched": 150,
+  "windowsVersion": "0.1.1",
+  "packagedDesktopOAuthMatches": true,
+  "installerContentsMatchPackagedApp": true
+}

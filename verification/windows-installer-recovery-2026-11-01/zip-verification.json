@@ -1,0 +1,24 @@
+{
+  "status": "PASS",
+  "portableProgramFilesMatched": 224,
+  "portableComplete": true,
+  "zipMemberCrcChecksPassed": true,
+  "installerZipContainsOriginalVerifiedExecutable": true,
+  "installerSha256": "2e1b315677f726222ec8a8d2fdd4b5b40deb92b52b62081a038951b3458994a3",
+  "qaRunId": "2026-11-02T01-28-40-428Z",
+  "sourceFingerprint": "b4efdaa3cd99fb736dd592b5f171f0ae06cac974a56a2e2ef6b3310a25329013",
+  "nativeWindowsExecutionTested": false,
+  "userDeviceIncidentResolved": false,
+  "files": [
+    {
+      "name": "NVU-PRO-Windows-0.1.1-x64-Portable.zip",
+      "bytes": 171417465,
+      "sha256": "048248b4c6496f87c0ebdf394c14e4c1bc4b91a6192b85ec683d67adc0bcb086"
+    },
+    {
+      "name": "NVU-PRO-Windows-0.1.1-Instalador.zip",
+      "bytes": 125714232,
+      "sha256": "220d32e30abfa621e55db7033b5aa3e0b4e0161a4140721e766adfa874bc1230"
+    }
+  ]
+}

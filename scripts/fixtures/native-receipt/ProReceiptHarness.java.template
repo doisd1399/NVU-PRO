@@ -1,0 +1,16 @@
+package com.nvu.operacional;
+import android.util.DisplayMetrics; import android.graphics.PixelFormat; import android.view.*; import android.widget.*; import android.graphics.*;
+final class ProReceiptHarness extends android.content.Context {
+__COMMON__
+ int menuBaseY; static final int PRO_MESSAGE_MIN_BAND_DP=76;
+ String selectedInitial=""; boolean summaryExpanded,historyExpanded;
+ void openMenu(){menuView=new NativeCompactMenuView(this); if(cardVisibility.acquire(menuView)) windowManager.addView(menuView,new WindowManager.LayoutParams(256,-2,1,8,0));}
+ boolean orientation=true,consent; void cancelSimpleBubbleGesture(String s,boolean b){}
+ void hideSimpleBubbleRemoveTarget(){} boolean isProBubbleOrientationAllowed(){return orientation;}
+ boolean isCaptureConsentSurfaceActive(){return consent;}
+ void recordOverlayDiagnostic(String s,Throwable e){errors++;}
+ android.graphics.drawable.GradientDrawable roundBackground(int c,int r){return new android.graphics.drawable.GradientDrawable();}
+ void show(NativeTripReceipt r){showRegisteredTripCard(r,6500);mainHandler.flush();}
+ void dismiss(){hideStatusChip();}
+__METHODS__
+}

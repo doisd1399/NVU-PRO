@@ -1,11 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { computeSourceFingerprint } from "./source-fingerprint.mjs";
 
 const root = process.cwd();
 const dist = resolve(root, "dist");
 const packageJson = JSON.parse(
   await readFile(resolve(root, "package.json"), "utf8"),
 );
+const sourceSha256 = await computeSourceFingerprint(root);
 
 // Netlify exposes DEPLOY_ID for every deploy. Local builds still receive a
 // unique id so an Android WebView can detect a newly published web bundle.
@@ -34,6 +36,7 @@ await writeFile(
   `${JSON.stringify(
     {
       buildId,
+      sourceSha256,
       version: String(packageJson.version || "unknown"),
       stableReleaseName: String(packageJson.stableReleaseName || ""),
       officialStableRelease: Boolean(packageJson.officialStableRelease),
@@ -44,6 +47,7 @@ await writeFile(
       otaEnabled,
       otaManifestUrl,
       otaBundleId,
+      nativeBundleImmutable: !otaEnabled,
     },
     null,
     2,

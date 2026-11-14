@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-11-02T00:47:14.214243+00:00",
+  "method": "POST callable with empty data, no Authorization header",
+  "productionTripsCreated": false,
+  "results": [
+    {
+      "function": "registerCanonicalSimpleTrip",
+      "httpStatus": 401,
+      "errorStatus": "UNAUTHENTICATED",
+      "passed": true
+    },
+    {
+      "function": "operationalCommand",
+      "httpStatus": 401,
+      "errorStatus": "UNAUTHENTICATED",
+      "passed": true
+    },
+    {
+      "function": "updateWorkModeAvailability",
+      "httpStatus": 401,
+      "errorStatus": "UNAUTHENTICATED",
+      "passed": false
+    }
+  ]
+}

@@ -1,96 +1,60 @@
-# NVU PRO
+# NVU PRO — projeto com patch ETS2/ATS ônibus
 
-**NVU ANDROID OFFICIAL BASELINE**: nova fonte oficial, limpa e reproduzível do NVU Android.
+Código-fonte completo preparado para edição na branch `projeto-1.0.597-modo-pro-audios` do repositório `doisd1399/NVU-PRO`.
 
-## Origem e identidade
+## Estado desta entrega
 
-A base de código foi reconstruída a partir do projeto-fonte completo fornecido no backup oficial `NVU-Pro-v1.2-full-project-backup.zip`. O snapshot foi identificado como o commit `2dc553ee5fdab1a93f8859ade3d3539aa484bc4e` do repositório histórico `doisd1399/NVU-ZZZ-Android-`. O APK Golden de referência é o `NVU-Pro-v1.2-R3.34-PC-HF60-Android-1.0.358.apk`, cujo SHA-256 é `a77efea8849c1bdc950366d7ddb1370e155a6112f7ed83bca1767a8fec635a65`.
+- Base: versão Android **1.0.596 / versionCode 596**, Web **2.3.253**, com os áudios originais do Modo Pro restaurados.
+- O patch de OCR do resumo de viagem de ônibus foi aplicado. A atualização de versão para Android 1.0.597 e Web 2.3.254 permanece pendente da validação.
+- A versão **1.0.597 ainda não é uma release aprovada**. Nenhum APK novo é apresentado como validado.
+- Verificação de 14/11/2026: instalação das dependências concluída; TypeScript aprovado; parser `SCS_SUMMARY_WORDS_PASS 6/6`; OCR real da imagem bloqueado pela indisponibilidade do Chromium. A sequência de validação foi interrompida nessa etapa.
+- `npm run qa`, `npm run qa:release` e `npm run qa:gate` precisam de execução integral e atual antes de gerar o APK.
 
-A baseline Web permanece na versão `2.3.141`, com runtime `R3.34-PC-WEB-AUTH-ARCHITECTURE-MODULAR`. A nova identidade nativa destinada à próxima release é `versionName 1.0.359` e `versionCode 359`; a alteração é somente de identidade de release, não uma substituição do código funcional pela árvore histórica.
+## Abrir e executar
 
-## Arquitetura
-
-O Android carrega o Web empacotado localmente:
-
-```text
-src + public
-  -> npm run build
-  -> dist
-  -> npx cap sync android
-  -> android/app/src/main/assets/public
-  -> Gradle assembleRelease
-  -> APK Release assinado
-```
-
-`capacitor.config.ts` não define `server.url` e usa `webDir: "dist"`. O runtime remoto/OTA é legado e permanece **desabilitado por padrão**. Qualquer habilitação futura deve ser explícita, com URL de manifesto HTTPS, chave pública correspondente e validação do canal `production-<versionCode>`; a chave privada nunca pertence ao repositório.
-
-## Instalação
-
-Requisitos: Node.js 22 ou superior, npm 10 ou superior, JDK compatível com Java 21, Android SDK configurado e credenciais privadas de build mantidas fora do Git.
+Use Node.js 22 ou superior e npm. Na raiz do projeto:
 
 ```bash
 npm ci
+npm --prefix functions ci
+npm run dev
 ```
 
-## Build Web e sincronização Capacitor
+A configuração privada do Firebase deve ser fornecida pelo proprietário em ambiente local. Credenciais, contas de serviço, arquivos `.env*`, `google-services.json` real e materiais de assinatura não fazem parte deste repositório. Configure-os fora do controle de versão. Não substitua a configuração por dados inventados.
+
+Para preparar e validar a aplicação:
 
 ```bash
-npm run build
-npx cap sync android
-npm run prepare:cap-assets
-npm run verify:cap-local
-npm run verify:cap-assets
+npm run qa:setup
+npx tsc --noEmit -p .
+node --import tsx scripts/test-scs-summary-words.mjs
+node scripts/test-scs-bus-ocr.mjs
+npm run qa
 ```
 
-O último gate confirma que o fallback Web embutido é um espelho SHA-256 do `dist`, que o runtime é local e que o modelo OCR não está duplicado no APK.
+O setup reconstrói os recursos locais de OCR e imagens a partir das dependências e do modelo de idioma comprimido incluído no projeto. A leitura real de OCR exige Chromium funcional. Leia `AGENTS.md` e `qa/README.md` para os requisitos completos. Os testes usam somente o projeto fictício `demo-nvu-v36-4-staging`.
 
-## APK Release assinado
+## Android
 
-O `android/` é a plataforma Capacitor do repositório. O projeto exige `google-services.json` para o fluxo Release porque o login nativo Firebase faz parte da aplicação. Esse arquivo é secreto/privado e deve ser fornecido localmente em `android/app/google-services.json`; ele não é versionado.
-
-O keystore também deve ficar fora do Git. O Gradle lê as seguintes propriedades de ambiente ou propriedades Gradle:
-
-```text
-RELEASE_STORE_FILE
-RELEASE_STORE_PASSWORD
-RELEASE_KEY_ALIAS
-RELEASE_KEY_PASSWORD
-```
-
-Com esses insumos configurados:
+O processo exige JDK 21, Android SDK 36, Build Tools 35 e Android/AVD conectado para a instrumentação. Com a configuração privada de assinatura disponível e todas as pendências resolvidas:
 
 ```bash
-cd android
-./gradlew clean assembleRelease
-cd ..
-mkdir -p release
-cp android/app/build/outputs/apk/release/app-release.apk \
-  release/NVU-PRO-1.0.359-vc359-Release-signed.apk
-sha256sum release/NVU-PRO-1.0.359-vc359-Release-signed.apk
+npm run qa:release
+npm run qa:gate
 ```
 
-O APK recém-gerado deve ser verificado com `apksigner verify --verbose`, além de validar package/applicationId, assinatura, `versionName`, `versionCode`, existência de `assets/public/index.html` e ausência de dependência de `server.url`/Netlify para o carregamento inicial.
+Gere o APK somente após os dois comandos aprovarem a fonte atual. Não reutilize relatórios antigos, não contorne o gate e não trate indisponibilidade como aprovação. O envio desta branch não inicia publicação nem build automático de release.
 
-## Testes e validação
+## Escopo do patch
 
-Os gates locais disponíveis são:
+O único arquivo de implementação do aplicativo alterado pelo patch é `src/services/scsTripOcrService.ts`. Também foram adicionados `LEIAME-PATCH.txt`, `qa-config-trecho.json`, dois testes e dois fixtures; `qa/config.json` recebeu os passos correspondentes.
 
-```bash
-npm run verify:cap-local
-npm run verify:cap-assets
-npm run lint
-```
+O OCR da base tinha SHA-256 `ea45d4b221f14036f5604e46f30a5ecc0a64e91c515c66d3a026c5631359a80a`. Após o patch, o SHA-256 é `5eeeab469e0a6416ffd76e69674f11e998056eec8c30ba099e374dcef37c855a`.
 
-Os testes de login, Firebase, perfis, Modo PRO, Modo MAX/GTO, captura, seleção/validação de frete, status bar e navegação devem ser executados em ambiente com Firebase configurado e, quando necessário, dispositivo/emulador Android. Um teste não executado não deve ser reportado como PASS.
+A revisão estática identificou pendências nas regras exigidas: há aceitação de km sem três votos, a votação pode aceitar somente uma posição e o Total pode ser aceito sem linhas de dinheiro quando a confiança é alta. Essas divergências não foram alteradas nesta importação e precisam ser resolvidas antes de declarar conformidade com as regras solicitadas.
 
-## Release e tag
+## Arquivos excluídos do Git
 
-A tag oficial deve ser criada somente depois de um APK Release assinado ser compilado e validado. O nome recomendado é `v1.0.359-release`. O commit da tag deve ser exatamente o commit utilizado na geração do APK validado.
+O `.gitignore` exclui credenciais e chaves, dependências instaladas, caches, resultados de QA, saídas Web/Android/Functions, arquivos sincronizados do Capacitor e pacotes de entrega (`.apk`, `.aab`, `.exe`, `.zip`). Os áudios e as imagens necessários ao projeto permanecem na fonte. Nenhum arquivo desta importação excede 50 MB.
 
-## Segurança
-
-Não versionar `google-services.json`, `.env`, keystores, senhas, chaves privadas OTA, APKs antigos, AABs, ZIPs de backup, `dist` manual ou builds de teste. Os backups originais e o repositório histórico permanecem preservados fora desta árvore como fontes forenses.
-
-## Estado da baseline
-
-A árvore foi auditada e o build Web/Capacitor local foi executado com sucesso. A compilação Android Release assinada permanece pendente até que sejam fornecidos, no ambiente de build, `google-services.json` e as credenciais do keystore; nenhuma senha foi adivinhada e nenhum segredo foi gravado no Git.
+Os relatórios existentes em `verification/` registram verificações históricas. Eles não aprovam esta fonte nem substituem uma nova execução completa.

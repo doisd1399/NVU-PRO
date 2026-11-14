@@ -67,6 +67,7 @@ export default function NotificationToastListener() {
       const title = notification.title ?? notification.titulo ?? "Nova notificação";
       const message = notification.message ?? notification.mensagem ?? "";
 
+
       toast(title, {
         description: message,
         duration: 8000,

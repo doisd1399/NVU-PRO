@@ -52,13 +52,13 @@ export function OperationProgressBar({
   return (
     <div
       className={cn(
-        "w-full bg-gray-100 dark:bg-[#2A2F3A] rounded-full h-1 overflow-hidden mx-auto max-w-full",
+        "w-full bg-gray-100 dark:bg-nvu-track rounded-full h-1 overflow-hidden mx-auto max-w-full",
         trackClassName,
       )}
     >
       <div
         className={cn(
-          "h-full w-full origin-left rounded-full bg-slate-800 dark:bg-gray-300 [transform:translateZ(0)]",
+          "h-full w-full origin-left rounded-full bg-slate-800 dark:bg-nvu-accent [transform:translateZ(0)]",
           fillClassName,
         )}
         style={{

@@ -151,6 +151,7 @@ export default function RankingStartupWarmup() {
       endDate: rankingRange.end,
       enabled: shouldWarmTrips,
       keepPreviousData: true,
+      companyId: activeCompanyId || undefined,
     });
 
   // The startup listener deliberately uses all simulators. A simulator

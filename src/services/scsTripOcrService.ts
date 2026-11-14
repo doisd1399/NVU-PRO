@@ -397,6 +397,197 @@ const extractValueFromText = (rawText: string): string | null => {
   return formatCurrencyInput(amount);
 };
 
+/** Palavra lida pelo OCR, com posição no print original (px) e confiança (0–100). */
+export interface ScsOcrWord {
+  text: string;
+  conf: number;
+  x: number;
+  y: number;
+  /** Largura e altura da palavra no print original (px); usadas para reler só aquele número. */
+  w?: number;
+  h?: number;
+}
+
+export interface ScsKmRead {
+  location: "header" | "reward";
+  km: number;
+  unit: "km" | "mi";
+  conf: number;
+  box: { x: number; y: number; w: number; h: number } | null;
+}
+
+export interface ScsSummaryReading {
+  origin: string | null;
+  destination: string | null;
+  distanceKm: number | null;
+  sourceDistanceUnit: "km" | "mi" | null;
+  value: string | null;
+  /** Leituras de km desta passada (as duas posições), para a votação com releituras. */
+  kmReads?: ScsKmRead[];
+}
+
+const MONEY_WORD = /^[+\-]?[€$£]?\d[\d.,]*$/;
+const CURRENCY_ONLY = /^[+\-]?[€$£]$/;
+const XP_WORD = /^(?:exp|xp)$/i;
+
+/** Agrupa palavras na mesma linha visual (mesma altura, com folga de meia linha). */
+const groupWordsIntoLines = (words: ScsOcrWord[]): ScsOcrWord[][] => {
+  const sorted = [...words].sort((a, b) => a.y - b.y || a.x - b.x);
+  const lines: ScsOcrWord[][] = [];
+  for (const word of sorted) {
+    const line = lines.find((candidate) => Math.abs(candidate[0].y - word.y) <= 6);
+    if (line) line.push(word);
+    else lines.push([word]);
+  }
+  for (const line of lines) line.sort((a, b) => a.x - b.x);
+  return lines.sort((a, b) => a[0].y - b[0].y);
+};
+
+const wordsToText = (line: ScsOcrWord[]): string => line.map((word) => word.text).join(" ");
+
+const digitsOnly = (value: string): number | null => {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+  const parsed = Number(digits);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+/** Dinheiro de uma linha da tabela: o primeiro valor perto da coluna do Total. */
+const moneyInColumn = (line: ScsOcrWord[], columnX: number, tolerance: number): number | null => {
+  for (let index = 0; index < line.length; index += 1) {
+    const word = line[index];
+    if (Math.abs(word.x - columnX) > tolerance) continue;
+    if (CURRENCY_ONLY.test(word.text)) {
+      const next = line[index + 1];
+      if (next && MONEY_WORD.test(next.text)) return digitsOnly(next.text);
+      continue;
+    }
+    if (MONEY_WORD.test(word.text) && !XP_WORD.test(line[index + 1]?.text || "")) return digitsOnly(word.text);
+  }
+  return null;
+};
+
+/**
+ * Decide o km por votação entre leituras independentes (as duas posições do print, em
+ * passadas e releituras diferentes). Aceita só com 3+ votos iguais, vencedor único e, quando
+ * as duas posições foram lidas, presente em ambas. Divergência sem maioria deixa o campo vazio.
+ */
+export const resolveKmVotes = (reads: ScsKmRead[]): { km: number; unit: "km" | "mi" } | null => {
+  const groups = new Map<string, { km: number; unit: "km" | "mi"; votes: number; locations: Set<string> }>();
+  for (const read of reads) {
+    const key = `${read.unit}:${read.km}`;
+    const group = groups.get(key) || { km: read.km, unit: read.unit, votes: 0, locations: new Set<string>() };
+    group.votes += 1;
+    group.locations.add(read.location);
+    groups.set(key, group);
+  }
+  const ranked = [...groups.values()].sort((a, b) => b.votes - a.votes);
+  if (!ranked.length) return null;
+  const [winner, runner] = ranked;
+  const locations = new Set(reads.map((read) => read.location));
+  if (winner.votes < 3 || (runner && runner.votes === winner.votes)) return null;
+  if (locations.size > 1 && winner.locations.size < locations.size) return null;
+  return { km: winner.km, unit: winner.unit };
+};
+
+/**
+ * Leitura do resumo "Trabalho concluído" por PALAVRAS e posições, para telas que a leitura
+ * por recortes fixos não alcança (ônibus, cores verde/laranja, outra escala de interface).
+ * Segue a mesma regra rígida de antes: km só com duas leituras que concordam (ou uma bem
+ * confiável) e valor só se a soma das linhas da coluna Dinheiro bater com o Total.
+ */
+export const parseScsSummaryWords = (words: ScsOcrWord[], frameWidth: number): ScsSummaryReading => {
+  const empty: ScsSummaryReading = { origin: null, destination: null, distanceKm: null, sourceDistanceUnit: null, value: null };
+  if (!words.length) return empty;
+  const lines = groupWordsIntoLines(words.filter((word) => word.text.trim()));
+  const result = { ...empty };
+
+  // Rota: "66 passageiros transportados na rota de Porto para Gijón." ou o texto do caminhão.
+  for (const line of lines) {
+    const text = cleanOcrLine(wordsToText(line));
+    const bus = text.match(/transportad[ao]s?\s+na\s+rota\s+de\s+(.+?)\s+para\s+(.+?)\.?$/i);
+    const found = bus
+      ? { origin: cleanCityName(bus[1]), destination: cleanCityName(bus[2]) }
+      : extractRouteFromText(text);
+    if (found.origin && found.destination) {
+      result.origin = found.origin;
+      result.destination = found.destination;
+      break;
+    }
+  }
+
+  // Distância: linha "618 km percorridos" e primeira linha da tabela "Recompensa base ... 618 km".
+  const readKm = (line: ScsOcrWord[]) => {
+    for (let index = 0; index < line.length - 1; index += 1) {
+      const number = line[index];
+      const unit = line[index + 1];
+      if (!/^\d[\d.,]*$/.test(number.text) || !/^(?:km|kms|mi|miles?)$/i.test(unit.text)) continue;
+      const amount = digitsOnly(number.text);
+      if (!amount || amount > 100000) continue;
+      const isMiles = /^(?:mi|miles?)$/i.test(unit.text);
+      const right = Math.max(number.x + (number.w ?? 0), unit.x + (unit.w ?? 0));
+      const bottom = Math.max(number.y + (number.h ?? 0), unit.y + (unit.h ?? 0));
+      return {
+        km: isMiles ? Math.round(amount * 1.609344 * 100) / 100 : amount,
+        unit: (isMiles ? "mi" : "km") as "km" | "mi",
+        conf: Math.min(number.conf, unit.conf),
+        box: number.w && number.h ? { x: number.x, y: number.y, w: right - number.x, h: bottom - number.y } : null,
+      };
+    }
+    return null;
+  };
+  const headerKm = lines
+    .filter((line) => /percorrid|driven|dist[âa]ncia|distance/i.test(wordsToText(line)))
+    .map(readKm).find(Boolean) || null;
+  const rewardKm = lines
+    .filter((line) => /recompensa\s+base|base\s+reward/i.test(wordsToText(line)))
+    .map(readKm).find(Boolean) || null;
+  result.kmReads = [
+    ...(headerKm ? [{ location: "header" as const, km: headerKm.km, unit: headerKm.unit, conf: headerKm.conf, box: headerKm.box }] : []),
+    ...(rewardKm ? [{ location: "reward" as const, km: rewardKm.km, unit: rewardKm.unit, conf: rewardKm.conf, box: rewardKm.box }] : []),
+  ];
+  if (headerKm && rewardKm) {
+    if (headerKm.km === rewardKm.km && headerKm.unit === rewardKm.unit) {
+      result.distanceKm = headerKm.km;
+      result.sourceDistanceUnit = headerKm.unit;
+    }
+  } else {
+    const single = headerKm || rewardKm;
+    if (single && single.conf >= 90) {
+      result.distanceKm = single.km;
+      result.sourceDistanceUnit = single.unit;
+    }
+  }
+
+  // Valor: linha "Total  € 10.595  1.026 EXP". A coluna de XP nunca entra, e a soma das
+  // linhas de dinheiro acima precisa bater com o Total.
+  const totalIndex = lines.findIndex((line) => /^total$/i.test(line[0].text.replace(/[^A-Za-z]/g, "")));
+  if (totalIndex >= 0) {
+    const totalLine = lines[totalIndex];
+    const labelEnd = totalLine[0];
+    const tail = totalLine.filter((word) => word !== labelEnd);
+    const moneyIndex = tail.findIndex((word) => MONEY_WORD.test(word.text) && !XP_WORD.test(tail[tail.indexOf(word) + 1]?.text || ""));
+    const numberWord = moneyIndex >= 0 ? tail[moneyIndex] : null;
+    const symbolWord = numberWord && moneyIndex > 0 && CURRENCY_ONLY.test(tail[moneyIndex - 1].text) ? tail[moneyIndex - 1] : null;
+    const total = numberWord ? digitsOnly(numberWord.text) : null;
+    if (numberWord && total && total <= 1_000_000_000) {
+      const columnX = (symbolWord || numberWord).x;
+      const tolerance = Math.max(24, frameWidth * 0.045);
+      const headerIndex = lines.findIndex((line, index) => index < totalIndex && /recompensa|reward/i.test(wordsToText(line)) && /dinheiro|money|cash/i.test(wordsToText(line)));
+      const rowStart = headerIndex >= 0 ? headerIndex + 1 : 0;
+      const amounts = lines.slice(rowStart, totalIndex)
+        .map((line) => moneyInColumn(line, columnX, tolerance))
+        .filter((amount): amount is number => amount !== null);
+      const sum = amounts.reduce((acc, amount) => acc + amount, 0);
+      const confident = Math.min(numberWord.conf, symbolWord?.conf ?? 100) >= 90;
+      if ((amounts.length > 0 && sum === total) || (amounts.length === 0 && confident)) {
+        result.value = formatCurrencyInput(total);
+      }
+    }
+  }
+  return result;
+};
+
 const decodeImage = async (file: File): Promise<DecodedImage> => {
   if (typeof createImageBitmap === "function") {
     try {
@@ -549,6 +740,153 @@ const buildPreparedCrop = (
   return canvas;
 };
 
+// Janela do resumo inteiro (rota, km, tabela de recompensas e Total) para a leitura por palavras.
+const SUMMARY_WORDS_CROP: CropRegion = {
+  x: 0.20,
+  y: 0.15,
+  width: 0.60,
+  height: 0.70,
+  targetWidth: 1800,
+  minScale: 2,
+  maxScale: 3,
+};
+
+/**
+ * Binariza pelo canal MAIS FORTE da cor (não pelo brilho). O resumo usa texto verde
+ * (dinheiro), laranja (km, nível) e branco sobre cinza escuro; o brilho do verde fica
+ * abaixo do limite do recorte padrão e o texto sumia, deixando a leitura toda vazia.
+ */
+const buildWordsCanvas = (
+  decoded: DecodedImage,
+  region: CropRegion,
+  threshold: number,
+): { canvas: HTMLCanvasElement; sourceX: number; sourceY: number; scale: number; border: number; frameWidth: number } => {
+  const viewport = resolveReferenceViewport(decoded.width, decoded.height);
+  const sourceX = Math.round(viewport.x + viewport.width * region.x);
+  const sourceY = Math.round(viewport.y + viewport.height * region.y);
+  const sourceWidth = Math.max(1, Math.round(viewport.width * region.width));
+  const sourceHeight = Math.max(1, Math.round(viewport.height * region.height));
+  const scale = Math.min(region.maxScale, Math.max(region.minScale, region.targetWidth / sourceWidth));
+  const border = 28;
+  const targetWidth = Math.round(sourceWidth * scale);
+  const targetHeight = Math.round(sourceHeight * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth + border * 2;
+  canvas.height = targetHeight + border * 2;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Canvas OCR indisponível.");
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(decoded.source, sourceX, sourceY, sourceWidth, sourceHeight, border, border, targetWidth, targetHeight);
+
+  const imageData = context.getImageData(border, border, targetWidth, targetHeight);
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    const strongest = Math.max(imageData.data[index], imageData.data[index + 1], imageData.data[index + 2]);
+    const output = strongest >= threshold ? 0 : 255;
+    imageData.data[index] = output;
+    imageData.data[index + 1] = output;
+    imageData.data[index + 2] = output;
+    imageData.data[index + 3] = 255;
+  }
+  context.putImageData(imageData, border, border);
+  return { canvas, sourceX, sourceY, scale, border, frameWidth: viewport.width };
+};
+
+/** Lê o resumo por palavras (com posição) e devolve só o que passou nas regras rígidas. */
+const readSummaryByWords = async (
+  worker: any,
+  decoded: DecodedImage,
+  need: { route: boolean; distance: boolean; value: boolean },
+): Promise<ScsSummaryReading> => {
+  const tesseractModule: any = await import("tesseract.js");
+  const Tesseract: any = tesseractModule.default || tesseractModule;
+  const PSM = Tesseract.PSM || tesseractModule.PSM || {};
+  const merged: ScsSummaryReading = { origin: null, destination: null, distanceKm: null, sourceDistanceUnit: null, value: null };
+  const kmReads: ScsKmRead[] = [];
+
+  for (const threshold of [120, 150]) {
+    const { canvas, sourceX, sourceY, scale, border, frameWidth } = buildWordsCanvas(decoded, SUMMARY_WORDS_CROP, threshold);
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.SINGLE_BLOCK ?? "6",
+      tessedit_char_whitelist: "",
+      preserve_interword_spaces: "1",
+      user_defined_dpi: "300",
+    });
+    const result = await worker.recognize(canvas, {}, { blocks: true });
+    const words: ScsOcrWord[] = [];
+    for (const block of result?.data?.blocks || []) {
+      for (const paragraph of block.paragraphs || []) {
+        for (const line of paragraph.lines || []) {
+          for (const word of line.words || []) {
+            words.push({
+              text: String(word.text || "").trim(),
+              conf: Number(word.confidence) || 0,
+              x: Math.round(sourceX + (word.bbox.x0 - border) / scale),
+              y: Math.round(sourceY + (word.bbox.y0 - border) / scale),
+              w: Math.round((word.bbox.x1 - word.bbox.x0) / scale),
+              h: Math.round((word.bbox.y1 - word.bbox.y0) / scale),
+            });
+          }
+        }
+      }
+    }
+    const reading = parseScsSummaryWords(words, frameWidth);
+    if ((globalThis as { __NVU_OCR_DEBUG?: boolean }).__NVU_OCR_DEBUG) console.log("[NVU SCS OCR] words dump", JSON.stringify(words.map((w) => [w.text, w.conf, w.x, w.y])));
+    if (!merged.origin && reading.origin) { merged.origin = reading.origin; merged.destination = reading.destination; }
+    if (!merged.distanceKm && reading.distanceKm) { merged.distanceKm = reading.distanceKm; merged.sourceDistanceUnit = reading.sourceDistanceUnit; }
+    if (!merged.value && reading.value) merged.value = reading.value;
+    kmReads.push(...(reading.kmReads || []));
+    console.log("[NVU SCS OCR] words pass", { threshold, words: words.length, ...reading });
+    const done = (!need.route || merged.origin) && (!need.distance || merged.distanceKm) && (!need.value || merged.value);
+    if (done) break;
+  }
+
+  // Km: se as duas posições divergiram (ex.: 618 no topo e 616 na tabela), relê só aqueles
+  // números, bem ampliados, e decide por votação. Nunca inventa dígito: empate = campo vazio.
+  if (need.distance && !merged.distanceKm && kmReads.length) {
+    const viewport = resolveReferenceViewport(decoded.width, decoded.height);
+    const votes: ScsKmRead[] = [...kmReads];
+    const seen = new Set<string>();
+    for (const read of kmReads) {
+      if (!read.box) continue;
+      const boxKey = `${read.location}:${read.box.x}:${read.box.y}`;
+      if (seen.has(boxKey)) continue;
+      seen.add(boxKey);
+      const pad = Math.max(3, Math.round(read.box.h * 0.35));
+      const region: CropRegion = {
+        x: (read.box.x - pad - viewport.x) / viewport.width,
+        y: (read.box.y - pad - viewport.y) / viewport.height,
+        width: (read.box.w + pad * 2) / viewport.width,
+        height: (read.box.h + pad * 2) / viewport.height,
+        targetWidth: 900,
+        minScale: 4,
+        maxScale: 8,
+      };
+      for (const threshold of [120, 150, 100]) {
+        const crop = buildWordsCanvas(decoded, region, threshold);
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_LINE ?? "7",
+          tessedit_char_whitelist: "0123456789., kmKMilesILES",
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+        });
+        const text = (await worker.recognize(crop.canvas))?.data?.text || "";
+        const strict = extractStrictDistanceFromText(text);
+        if (strict.distanceKm && strict.sourceDistanceUnit) {
+          votes.push({ location: read.location, km: strict.distanceKm, unit: strict.sourceDistanceUnit, conf: 100, box: read.box });
+        }
+      }
+    }
+    const decided = resolveKmVotes(votes);
+    console.log("[NVU SCS OCR] km votes", votes.map((v) => `${v.location}:${v.km}${v.unit}`), decided);
+    if (decided) { merged.distanceKm = decided.km; merged.sourceDistanceUnit = decided.unit; }
+  }
+  return merged;
+};
+
 const ocrLogger = (message: { status: string; progress?: number }) => {
   if (message.status === "recognizing text") {
     console.log(
@@ -693,13 +1031,13 @@ export async function extractScsTripData(
     // Distance autofill is intentionally strict. Broad text blocks are never
     // allowed to supply a number because they can hallucinate a leading glyph
     // (the reported 117 -> 4117 failure).
-    const distance = resolveStrictDistanceReadings(
+    let distance = resolveStrictDistanceReadings(
       distanceText,
       distanceSparseText,
       distanceRewardText,
       distanceRewardSparseText,
     );
-    const value = extractValueFromText(valueText);
+    let value = extractValueFromText(valueText);
     let desktopRouteText = "";
     let summaryFallbackText = "";
 
@@ -724,6 +1062,23 @@ export async function extractScsTripData(
       desktopRouteText = await recognizeTextBlock(worker, desktopRouteCanvas);
       const desktopRoute = extractRouteFromText(desktopRouteText);
       if (desktopRoute.origin && desktopRoute.destination) route = desktopRoute;
+    }
+
+    // Telas que os recortes fixos não alcançam (resumo do ônibus, texto verde/laranja, outra
+    // escala de interface): leitura por palavras. Só completa o que ficou vazio, e passa pelas
+    // mesmas regras rígidas (km com duas leituras; valor só se a soma das linhas bater).
+    const needRoute = !route.origin || !route.destination;
+    const needDistance = !distance.distanceKm;
+    const needValue = !value;
+    if (needRoute || needDistance || needValue) {
+      try {
+        const byWords = await readSummaryByWords(worker, decoded, { route: needRoute, distance: needDistance, value: needValue });
+        if (needRoute && byWords.origin && byWords.destination) route = { origin: byWords.origin, destination: byWords.destination };
+        if (needDistance && byWords.distanceKm) distance = { distanceKm: byWords.distanceKm, sourceDistanceUnit: byWords.sourceDistanceUnit };
+        if (needValue && byWords.value) value = byWords.value;
+      } catch (wordsError) {
+        console.warn("[NVU SCS OCR] words fallback failed", wordsError);
+      }
     }
 
     console.log("[NVU SCS OCR] text", {
@@ -766,6 +1121,8 @@ export async function extractScsTripData(
 }
 
 export const __scsOcrTestUtils = {
+  parseScsSummaryWords,
+  resolveKmVotes,
   extractRouteFromText,
   extractDistanceFromText,
   extractStrictDistanceFromText,

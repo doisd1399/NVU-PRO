@@ -6,4 +6,5 @@
     <exclude domain="sharedpref" path="nvu_gto_auto_trip_retry_v1.xml" />
     <exclude domain="sharedpref" path="nvu_gto_trip_snapshot_v2.xml" />
     <exclude domain="sharedpref" path="nvu_gto_auto_trip_quarantine_v2.xml" />
+    <exclude domain="sharedpref" path="nvu_simple_automation.xml" />
 </full-backup-content>

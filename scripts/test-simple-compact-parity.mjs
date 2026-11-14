@@ -4,6 +4,7 @@ import path from "node:path";
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const service = read("android/app/src/main/java/com/nvu/operacional/SimpleAutomationService.java");
+const receiptCard = read("android/app/src/main/java/com/nvu/operacional/NativeTripReceiptCardView.java");
 const citySelector = read("src/components/driver/SimpleCitySelector.tsx");
 const bridge = read("src/components/SimpleAutomationCompletionBridge.tsx");
 const policy = read("src/services/simpleAutomationReceiptPolicy.ts");
@@ -16,17 +17,22 @@ const required = [
   [service, "stopSimpleFromFloatingBubble", "parada por arraste validado"],
   [service, "playReadyVoice", "áudio de rota pronta"],
   [service, "playTripCompletedVoice", "áudio de conclusão"],
-  [service, "Viagem registrada com sucesso.", "chip de confirmação"],
+  [service, "showRegisteredTripCard", "card nativo de confirmação"],
+  [receiptCard, "NativeTripReceipt", "modelo do card nativo de confirmação"],
   [service, "Finalize a viagem na tela de resultados e tente novamente.", "feedback nativo de tela incorreta"],
   [citySelector, "grid-cols-[1.75rem_minmax(0,1fr)]", "índice alfabético separado"],
   [citySelector, "h-6 w-6", "letras compactas"],
   [citySelector, "min-h-7", "cidades compactas"],
-  [bridge, "Viagem registrada com sucesso.", "feedback Web de sucesso"],
+  [bridge, 'SimpleAutomation.addListener("receiptCaptured"', "ponte Web observa o feedback nativo"],
   [policy, "Captura fora da tela correta", "política de tela incorreta"],
 ];
 
 for (const [source, needle, label] of required) {
   if (!source.includes(needle)) throw new Error(`Contrato ausente: ${label} (${needle})`);
+}
+
+if (bridge.includes("completeSimpleAutomationReceipt")) {
+  throw new Error("A ponte Web não pode repetir a confirmação nativa");
 }
 
 if (service.includes("Modo Automático Simples\\n") || service.includes("\\nSimulador:")) {

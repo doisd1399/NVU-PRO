@@ -1,0 +1,12 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 qa:setup
+> node scripts/qa/setup.mjs
+
+[NVU OCR] recursos locais do Tesseract preparados em public/tesseract
+Local vehicle-photo compression worker prepared.
+i  firestore: downloading cloud-firestore-emulator-v1.22.0.jar...
+
+i  storage: downloading cloud-storage-rules-runtime-v1.1.3.jar...
+
+QA_SETUP_PASS

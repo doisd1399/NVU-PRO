@@ -53,8 +53,8 @@ check('backend requires recordable operation', backend.includes('statusIsTripRec
 check('backend normalizes localized km/currency', backend.includes('parsePositiveNumber') && backend.includes('distanceKm') && backend.includes('finalValue'));
 check('backend uses deterministic session idempotency', backend.includes('safeTripDocumentId(uid, sessionId)'));
 check('backend writes historico_viagens in transaction', backend.includes('db.runTransaction') && backend.includes('transaction.create(tripRef'));
-check('backend recalculates operation progress after registration', backend.includes('syncJobProgress(db, jobId, totalDeliveries, serverContractMode)') || backend.includes('syncJobProgress(db, jobId, totalDeliveries)'));
-check('backend moves completed contract to awaiting_completion', backend.includes('nextStatus = "awaiting_completion"'));
+check('backend reconciles operation progress after registration', backend.includes('syncJobProgress(') && backend.includes('reconcileOperationTripsCore'));
+check('backend marks full operation awaiting explicit finalization', backend.includes('operationAwaitingCompletionPatch') && backend.includes('fastJobStatus = "awaiting_completion"'));
 check('successful Android sync removes queue only after FIX18 ACK', sync.includes('responseContract < CONTRACT_VERSION') && sync.indexOf('responseContract < CONTRACT_VERSION') < sync.indexOf('queue.edit().remove(key).commit()'));
 
 const failureBlock = sync.split('.addOnFailureListener(error -> {')[1]?.split('});\n        }')[0] || '';

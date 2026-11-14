@@ -1,0 +1,22 @@
+PASS Form identity wins over legacy Google copies; current independent profile edits win over the form
+PASS Removal reads only the affected driver's forms/requests and preserves another company
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert(metrics["519"].controlledRemovalMs < metrics["518"].controlledRemovalMs * 0.9)
+
+    at <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/scripts/test-performance-520.mts:55:3)
+    at async test (/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/scripts/test-performance-520.mts:11:57)
+    at async <anonymous> (/workspace/scratch/4e5e4b265ca9/nvu-v36-windows/NVU-PRO-2.3.198-SOURCE/scripts/test-performance-520.mts:48:1) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.22.1

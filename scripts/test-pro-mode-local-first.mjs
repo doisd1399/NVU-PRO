@@ -30,22 +30,25 @@ assert(nativeTs.includes("companyName: string"), "setContext exige companyName")
 assert(startDialog.includes("Modo pro"), "dialog apresenta Modo pro");
 assert(!startDialog.includes("Modo Automático Simples"), "dialog não apresenta o nome antigo");
 assert(modeDialog.includes("Modo pro"), "matriz apresenta Modo pro");
-assert(modeDialog.includes("Modo automático Max"), "matriz mantém Max no GTO");
+assert(modeDialog.includes("Modo automático Max"), "implementação interna do Max permanece presente");
+assert(modeDialog.includes("showMaxMode = false"), "card do Max permanece oculto no seletor padrão");
 const citySelector = read("src/components/driver/SimpleCitySelector.tsx");
 assert(citySelector.includes("max-h-[19rem]"), "seletor limita a altura com rolagem interna");
 assert(citySelector.includes("grid-cols-[1.75rem_minmax(0,1fr)]"), "rail alfabético é estreito");
 assert(citySelector.includes("self-start"), "letras ficam separadas e alinhadas no próprio botão");
 assert(citySelector.includes("px-3 py-1"), "cidade Web tem margem interna");
-assert(completion.includes("Viagem registrada com sucesso"), "bridge mantém confirmação de sucesso");
+assert(completion.includes('SimpleAutomation.addListener("receiptCaptured"'), "bridge observa a confirmação nativa");
+assert(!completion.includes("completeSimpleAutomationReceipt"), "bridge não repete a confirmação pelo fluxo Web antigo");
+assert(service.includes("showRegisteredTripCard") && service.includes("NativeTripReceiptCardView"), "serviço nativo apresenta confirmação pelo componente compartilhado");
 assert(service.includes("Sistema inteligente de automação pro"), "card nativo apresenta a identidade Pro");
 assert(service.includes("companyName"), "card nativo exibe a empresa");
 assert(service.includes("addActionRow(target, \"Iniciar viagem\""), "card Pro tem iniciar viagem compacto");
 assert(service.includes("addActionRow(target, \"Cancelar\""), "viagem em andamento tem cancelar compacto");
-assert(service.includes("GtoOverlayLayoutPolicy.chooseMenuSideForBubble"), "painel Pro usa posicionamento do Max");
+assert(service.includes("GtoOverlayLayoutPolicy.centeredMenuYBesideBubble"), "painel Pro respeita limites verticais sem mover o botão");
 assert(service.includes("FrameLayout frame"), "bolha Pro usa composição FrameLayout do Max");
 assert(service.includes("makeNvuBubbleBackground(false)"), "bolha Pro usa drawable do Max");
 assert(service.includes("summaryExpanded = false"), "toque curto reabre o card inicial Pro");
-assert(service.includes("routeSelector ? dp(280)"), "seletor nativo usa altura limitada com rolagem");
+assert(service.includes("routeSelector ? routeBodyHeight") && service.includes("availableMenuHeight - dp(20) - routeFooterHeight"), "seletor nativo usa altura limitada com rolagem e retorno dimensionado pela fonte");
 assert(service.includes("addBackToHomeButton"), "seletor mantém helper de retorno");
 assert(service.includes("if (routeSelector) {\n            Button fixedBack"), "Back do seletor fica fora da rolagem");
 assert(service.includes("editor.putString(\"operationName\", \"Operação Pro\")"), "setRoute persiste contexto da operação Pro");
@@ -57,13 +60,24 @@ assert(service.includes("Math.max(5000L, durationMs)"), "avisos duram pelo menos
 assert(service.includes("moveMenuAwayFromStatusChip"), "card é deslocado quando há aviso");
 assert(service.includes("option.setPadding(dp(10), 0, dp(8), 0)"), "cidade nativa tem margem interna");
 assert(service.includes("putBoolean(\"captureUiHidden\", true)"), "captura esconde o card antes do consentimento");
-assert(service.includes("instance.hideCaptureInteractiveOverlaysKeepBubble();\n        instance.mainHandlerPost(instance::beginCaptureConsent)"), "consentimento abre após ocultar card/chip e preservar a bolha");
+assert(
+  service.includes("instance.hideCaptureInteractiveOverlaysKeepBubble();\n        instance.mainHandlerPost(instance::beginCaptureConsent)")
+    || /hideCaptureInteractiveOverlaysKeepBubble\(\);[\s\S]{0,1200}beginCaptureConsent\(\)/.test(service),
+  "consentimento abre após ocultar card/chip e preservar a bolha",
+);
 assert(service.includes("hideStatusChip();\n            closeMenu();"), "captura legível mantém todos os overlays ocultos para envio imediato");
 assert(!service.includes("Recebimento capturado. Enviando viagem."), "captura legível não deve criar chip sobre o simulador");
-assert(service.includes("if (prefs != null && prefs.getBoolean(\"captureUiHidden\", false)) return;"), "nenhum overlay pode nascer durante captura oculta");
+assert(
+  service.includes("if (prefs != null && prefs.getBoolean(\"captureUiHidden\", false)) return;")
+    || service.includes("if (!forceDuringCapture && prefs != null && prefs.getBoolean(\"captureUiHidden\", false)) return;")
+    || service.includes("if (prefs != null && prefs.getBoolean(\"captureUiHidden\", false) && !allowDuringCaptureHidden) return;"),
+  "nenhum overlay pode nascer durante captura oculta",
+);
 assert(service.includes("Do not refresh the native menu here"), "beginCapture não pode reabrir o menu após consentimento");
 assert(service.includes("putBoolean(\"captureUiHidden\", false)"), "erro/ack restaura o overlay controladamente");
-assert(service.includes("Color.argb(214, 28, 31, 36)"), "painel Pro usa superfície compacta do Max");
+assert(service.includes("new NativeCompactMenuView(this)")
+  && read("android/app/src/main/java/com/nvu/operacional/NativeCompactMenuView.java").includes("Color.argb(214, 28, 31, 36)"),
+  "painel Pro usa superfície compacta compartilhada com Max");
 assert(!service.includes("GtoObserverService"), "serviço Pro não instancia o observador Max");
 assert(plugin.includes('companyName = safe(call.getString("companyName"))'), "plugin recebe companyName");
 assert(plugin.includes('operationName = safe(call.getString("operationName"))'), "plugin recebe operação designada");

@@ -1,0 +1,157 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 prebuild
+> npm run prepare:ocr-assets && npm run prepare:photo-assets
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 prepare:ocr-assets
+> node scripts/prepare-tesseract-assets.mjs
+
+[NVU OCR] recursos locais do Tesseract preparados em public/tesseract
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 prepare:photo-assets
+> node scripts/prepare-photo-assets.mjs
+
+Local vehicle-photo compression worker prepared.
+
+> nvu-operacional@2.3.198 build
+> vite build && node scripts/write-build-manifest.mjs && node scripts/verify-web-release.mjs
+
+vite v6.4.5 building for production...
+transforming...
+✓ 3219 modules transformed.
+rendering chunks...
+[plugin vite:reporter] 
+(!) /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/workModeAvailabilityService.ts is dynamically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/components/WindowsAutomationBridge.tsx but also statically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/components/admin/WorkModeAvailabilityModal.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/context/AppContext.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/pages/driver/Dashboard.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/pages/driver/Profile.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/pages/driver/RecordTrip.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/gtoWorkLauncher.ts, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/operationOutbox.ts, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/simpleAutomationLauncher.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/lib/gtoObserver.ts is dynamically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/App.tsx but also statically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/components/GtoObserverSetup.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/components/common/NvuStatusBarController.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/context/AppContext.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/layouts/AdminLayout.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/layouts/DriverLayout.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/gtoCanonicalState.ts, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/gtoWorkLauncher.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/operationReconciliationService.ts is dynamically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/lib/CanonicalTripUpdateEvent.ts but also statically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/application/trip/TripReconciliationService.ts, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter] 
+(!) /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/services/syncManager.ts is dynamically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/context/AppContext.tsx but also statically imported by /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/main.tsx, /workspace/scratch/4e5e4b265ca9/nvu014/NVU-PRO-2.3.198-SOURCE/src/pages/driver/RecordTrip.tsx, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/index.html                                            1.49 kB │ gzip:   0.68 kB
+dist/assets/DriverProfileReference-DFrJ_cCS.css            0.84 kB │ gzip:   0.38 kB
+dist/assets/TripHistory-B7EDsi-D.css                       1.39 kB │ gzip:   0.38 kB
+dist/assets/WorkspaceDock-D8IY2SDE.css                     2.68 kB │ gzip:   0.73 kB
+dist/assets/vendor-BD8MpcyB.css                            2.74 kB │ gzip:   0.82 kB
+dist/assets/DriverProfileToolbar-DY2uuk2u.css              2.89 kB │ gzip:   0.87 kB
+dist/assets/OptionSelectionModal-eieckBwJ.css              4.82 kB │ gzip:   1.37 kB
+dist/assets/OperationInfoSheet-DY8P8Gmu.css                6.39 kB │ gzip:   1.64 kB
+dist/assets/RankingPeriodModal-CHU_MlA1.css                6.85 kB │ gzip:   1.84 kB
+dist/assets/ProfileCoverHero-DCYKCkB1.css                  6.92 kB │ gzip:   1.93 kB
+dist/assets/DriverProfileSummary-7qG_vhZK.css              7.08 kB │ gzip:   1.72 kB
+dist/assets/AdminLayout-G_gvi5Ml.css                       7.85 kB │ gzip:   1.60 kB
+dist/assets/SeniorPanel-DGsqmzaf.css                       9.59 kB │ gzip:   2.10 kB
+dist/assets/DriverLandscapeProfile-BcvADULD.css           10.65 kB │ gzip:   1.70 kB
+dist/assets/AssignJobAssetPicker-CR1OIXGe.css             12.07 kB │ gzip:   2.47 kB
+dist/assets/Profile-DWOxhRIB.css                          13.84 kB │ gzip:   2.91 kB
+dist/assets/ManagementDashboard-PH1zKEP9.css              29.24 kB │ gzip:   5.29 kB
+dist/assets/RankingGlobal-DSPpepBs.css                    29.26 kB │ gzip:   5.88 kB
+dist/assets/DriverWorkspace-D1TE3pHP.css                  34.80 kB │ gzip:   6.45 kB
+dist/assets/index-DvQJ70Kp.css                           303.40 kB │ gzip:  41.24 kB
+dist/assets/resolveDriverPhoto-Tzmiw7Ny.js                 0.18 kB │ gzip:   0.15 kB
+dist/assets/useOnlineStatus-65D_GJWN.js                    0.33 kB │ gzip:   0.20 kB
+dist/assets/applyReturn-DT4WWuog.js                        0.36 kB │ gzip:   0.29 kB
+dist/assets/operationalQueueOrder-D06FwryY.js              0.40 kB │ gzip:   0.26 kB
+dist/assets/operationalQueueModel-C-4edXQH.js              0.45 kB │ gzip:   0.31 kB
+dist/assets/operationProjectionSelectors-D9MJ-YhR.js       0.46 kB │ gzip:   0.28 kB
+dist/assets/useManagedDriverContacts-BuiF8jqD.js           0.62 kB │ gzip:   0.42 kB
+dist/assets/useLiveCalendarReference-CV9FVlAO.js           0.66 kB │ gzip:   0.38 kB
+dist/assets/SafeSelect-p_edPtgw.js                         0.74 kB │ gzip:   0.47 kB
+dist/assets/RetainedPanel-ju0Vwrgx.js                      0.76 kB │ gzip:   0.44 kB
+dist/assets/simpleAutomationCityService-ByrEX0dM.js        0.80 kB │ gzip:   0.49 kB
+dist/assets/useProfileCover-F7nx0bQq.js                    0.88 kB │ gzip:   0.51 kB
+dist/assets/DriverPerformanceCard-C1-c-Tz4.js              1.00 kB │ gzip:   0.57 kB
+dist/assets/OperationProgressBar-DMfDSF9B.js               1.01 kB │ gzip:   0.59 kB
+dist/assets/levelUtils-B49VEVFm.js                         1.09 kB │ gzip:   0.65 kB
+dist/assets/DriverProfileToolbar-D4NqZze1.js               1.10 kB │ gzip:   0.50 kB
+dist/assets/newsSimulator-CX7q7Ytb.js                      1.38 kB │ gzip:   0.70 kB
+dist/assets/CanonicalTripQueryService-Cfp2XbcY.js          1.44 kB │ gzip:   0.70 kB
+dist/assets/WorkspaceProfileCover-CM_OIzZn.js              1.56 kB │ gzip:   0.82 kB
+dist/assets/fleetUsage-CYhjJtxb.js                         1.64 kB │ gzip:   0.80 kB
+dist/assets/ProAttemptDiagnosticDetails-yWQrlxGG.js        1.83 kB │ gzip:   0.93 kB
+dist/assets/ManagementDashboard-CG2cvFJV.js                1.88 kB │ gzip:   0.93 kB
+dist/assets/DriverLandscapeProfile-Amaj_ldq.js             2.35 kB │ gzip:   0.97 kB
+dist/assets/RankingStartupWarmup-CjtSJ1kE.js               2.44 kB │ gzip:   1.26 kB
+dist/assets/SimulatorSelectionModal-DdTCVq3q.js            2.52 kB │ gzip:   1.17 kB
+dist/assets/tripReportHistory-Cjh6I14w.js                  2.95 kB │ gzip:   1.26 kB
+dist/assets/tripReceiptRetention-B3vJiIxX.js               2.96 kB │ gzip:   1.06 kB
+dist/assets/BannerPhotoCrop-BwQo8lWL.js                    3.16 kB │ gzip:   1.58 kB
+dist/assets/historyScopeDiagnostic-DEw1-DWG.js             3.25 kB │ gzip:   1.31 kB
+dist/assets/proOperationHistory-E1dGSFTq.js                3.28 kB │ gzip:   1.47 kB
+dist/assets/AuditPage-DmeP0OwK.js                          3.52 kB │ gzip:   1.63 kB
+dist/assets/useVehiclePhoto-DyviVbIe.js                    3.77 kB │ gzip:   1.64 kB
+dist/assets/ProfileCoverHero-DRyUF2FS.js                   3.78 kB │ gzip:   1.60 kB
+dist/assets/ProfileCoverEditorModal-CRg5un6y.js            4.08 kB │ gzip:   1.83 kB
+dist/assets/RankingPeriodModal-CPCvCGhK.js                 4.40 kB │ gzip:   1.98 kB
+dist/assets/metricsEngine-eBXg4gsM.js                      4.55 kB │ gzip:   1.95 kB
+dist/assets/Portal-D6jCoB5I.js                             5.01 kB │ gzip:   1.65 kB
+dist/assets/tripHistoryEngine-NkUI1rry.js                  5.08 kB │ gzip:   2.21 kB
+dist/assets/DriverProfileReference-Br3xNL2m.js             5.18 kB │ gzip:   2.24 kB
+dist/assets/DriverProfileSummary-CtfjTy3v.js               5.28 kB │ gzip:   1.76 kB
+dist/assets/MultiSelectField-D0iuyDdL.js                   5.48 kB │ gzip:   2.21 kB
+dist/assets/Diagnostics-CThpYL53.js                        5.72 kB │ gzip:   1.58 kB
+dist/assets/AddDriver-B9wOxV01.js                          5.73 kB │ gzip:   1.95 kB
+dist/assets/companyGroupService-DBknnXwx.js                6.02 kB │ gzip:   2.47 kB
+dist/assets/useDriverTrips-fQ0szd2j.js                     6.03 kB │ gzip:   2.19 kB
+dist/assets/WorkspaceDock-BTUgcQjR.js                      6.47 kB │ gzip:   2.53 kB
+dist/assets/PersonalArea-BUcKodL2.js                       6.80 kB │ gzip:   2.32 kB
+dist/assets/TrailersTab-k7T7Soga.js                        6.85 kB │ gzip:   2.40 kB
+dist/assets/ModalSelect-BtIi1zhV.js                        7.10 kB │ gzip:   2.92 kB
+dist/assets/VehiclesTab-BbSmvOQH.js                        7.20 kB │ gzip:   2.54 kB
+dist/assets/OperationalQueueUI-BHDOvT43.js                 7.38 kB │ gzip:   2.95 kB
+dist/assets/useTripHistory-CL77Jv-p.js                     7.57 kB │ gzip:   2.62 kB
+dist/assets/AssignJob-BE92C6-8.js                          8.80 kB │ gzip:   3.07 kB
+dist/assets/operationIntegrityGuard-CSv3xnRh.js            8.88 kB │ gzip:   3.40 kB
+dist/assets/vendor-tesseract-F5vSHlM8.js                   9.15 kB │ gzip:   4.47 kB
+dist/assets/AssignJobAssetPicker-DgPxCgqc.js               9.33 kB │ gzip:   3.08 kB
+dist/assets/Fleet-BleZq8mq.js                             10.58 kB │ gzip:   4.02 kB
+dist/assets/FleetAssetFolderManager-O2eiGk7a.js           11.02 kB │ gzip:   3.12 kB
+dist/assets/HistoryMoneySummary-JCxaRxUK.js               11.63 kB │ gzip:   3.69 kB
+dist/assets/ManageContract-Cam2o3t2.js                    11.76 kB │ gzip:   3.03 kB
+dist/assets/ApplicationStatus-BeK7fFC7.js                 12.73 kB │ gzip:   3.50 kB
+dist/assets/Manual-nnp3iXAJ.js                            13.19 kB │ gzip:   3.84 kB
+dist/assets/AdminLayout-t1C0sHHp.js                       13.51 kB │ gzip:   4.90 kB
+dist/assets/useTripsRealtime-BMAMIpit.js                  14.49 kB │ gzip:   4.13 kB
+dist/assets/Reports-ESsrlTq_.js                           14.93 kB │ gzip:   3.87 kB
+dist/assets/GlobalMenu-Dh1LimDp.js                        15.25 kB │ gzip:   4.80 kB
+dist/assets/performancePeriods-CdH5ESMH.js                15.68 kB │ gzip:   5.78 kB
+dist/assets/CompactProfileEditorModal-CqoV6kNC.js         16.39 kB │ gzip:   5.76 kB
+dist/assets/RegisterCompany-brp53A0X.js                   16.50 kB │ gzip:   4.87 kB
+dist/assets/ContractDetailsPage-C9aw88_1.js               16.65 kB │ gzip:   4.30 kB
+dist/assets/DriverLayout-DZP7u1DK.js                      17.37 kB │ gzip:   6.38 kB
+dist/assets/PublicProfile-C7dM837R.js                     17.56 kB │ gzip:   5.38 kB
+dist/assets/JoinCompany-D85MFTjX.js                       18.55 kB │ gzip:   6.04 kB
+dist/assets/CompanyTab-BM8rFqxz.js                        19.05 kB │ gzip:   6.45 kB
+dist/assets/DriversTab-b5b6h20s.js                        23.07 kB │ gzip:   6.27 kB
+dist/assets/ProfileRankingPerformanceCard-Ccq6VyyX.js     23.71 kB │ gzip:   6.84 kB
+dist/assets/ContractsTab-B2u4M6tX.js                      24.44 kB │ gzip:   5.78 kB
+dist/assets/DriverProfileIsolated-BS3HrmQU.js             28.29 kB │ gzip:   7.05 kB
+dist/assets/RecruitmentApply-CpahLDTN.js                  32.95 kB │ gzip:   8.59 kB
+dist/assets/RecruitmentTab-DJS8qnGU.js                    35.06 kB │ gzip:   8.44 kB
+dist/assets/OperationalQueuesManager-DM7e5dyE.js          36.66 kB │ gzip:   9.75 kB
+dist/assets/OperationsTab-dFqInpvJ.js                     40.61 kB │ gzip:  13.36 kB
+dist/assets/RankingGlobal-CDY1rsOu.js                     56.36 kB │ gzip:  18.16 kB
+dist/assets/vendor-icons-BgdnMq1U.js                      57.72 kB │ gzip:  11.48 kB
+dist/assets/NewsFeed-DSQ7TK8M.js                          59.82 kB │ gzip:  16.58 kB
+dist/assets/RecordTrip-DH2Sr5eM.js                        88.72 kB │ gzip:  27.02 kB
+dist/assets/TripHistory-MtvWoqH0.js                      111.60 kB │ gzip:  30.33 kB
+dist/assets/vendor-motion-B6yWG6RH.js                    126.69 kB │ gzip:  41.66 kB
+dist/assets/SeniorPanel-BIK9oiEj.js                      128.76 kB │ gzip:  32.53 kB
+dist/assets/Profile-CkGRu8J3.js                          133.66 kB │ gzip:  38.96 kB
+dist/assets/index-DWv606Iq.js                            549.74 kB │ gzip: 170.13 kB
+dist/assets/vendor-BzSsuzTA.js                         1,406.48 kB │ gzip: 387.09 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 11.21s
+[NVU WEB RELEASE] aprovado: versão 2.3.198, OCR local e manifesto presentes no dist.

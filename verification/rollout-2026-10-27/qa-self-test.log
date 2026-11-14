@@ -1,0 +1,23 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.197 qa:self-test
+> node --test scripts/qa/self-test.mjs
+
+✔ gate accepts a fresh complete release report (1.818696ms)
+✔ a failure, missing Android, timeout, skipped test or duplicate cannot approve a release (0.30732ms)
+✔ partial profile and forged top-level approval are rejected (0.132014ms)
+✔ a changed source, old or future report is rejected (0.1919ms)
+✔ process failures and timeouts propagate (116.293542ms)
+✔ test children receive no production credential or release signing variables (0.326265ms)
+✔ a known P1 blocks even an otherwise complete release report (0.187574ms)
+✔ moderate issues do not block, while resolved issues require evidence (2.670459ms)
+✔ a missing, malformed or invalid configured audit policy fails closed (1.45064ms)
+✔ fingerprint covers root build inputs, backend configuration and migrations (457.176268ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 687.766907

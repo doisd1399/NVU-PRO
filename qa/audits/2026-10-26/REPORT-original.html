@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>NVU — Auditoria de estabilidade — 26/10/2026</title><style>
+:root{color-scheme:light;--ink:#182230;--muted:#566579;--line:#dce5eb;--brand:#087e8b}*{box-sizing:border-box}body{margin:0;background:#eff4f6;color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,sans-serif}.page{max-width:1150px;margin:32px auto;padding:44px 48px;background:white;border:1px solid var(--line);border-radius:18px}.eyebrow{font-size:.78rem;font-weight:750;text-transform:uppercase;letter-spacing:.12em;color:var(--brand)}.status{padding:18px 22px;border-left:5px solid #bf601a;background:#fff6eb;margin:20px 0 26px;border-radius:6px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:34px}.stat{border:1px solid var(--line);border-radius:10px;padding:16px}.stat strong{font-size:1.65rem;display:block}.stat span{font-size:.85rem;color:var(--muted)}h1{font-size:2rem;line-height:1.25;letter-spacing:-.025em;margin:16px 0}h2{font-size:1.35rem;line-height:1.35;margin-top:42px;border-top:1px solid var(--line);padding-top:24px}p{margin:14px 0}a{color:#086b86;text-underline-offset:3px;overflow-wrap:anywhere}code{font-size:.86em;background:#f0f4f7;border-radius:4px;padding:2px 5px;overflow-wrap:anywhere}table{width:100%;border-collapse:collapse;font-size:.9rem;line-height:1.5;margin:22px 0}th{text-align:left;background:#edf5f6;font-size:.84rem}th,td{border:1px solid var(--line);padding:12px;vertical-align:top}td:first-child{white-space:nowrap;font-weight:650}ul,ol{padding-left:24px}li{padding-left:4px;margin:10px 0}footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:.8rem}@media(max-width:760px){.page{margin:0;padding:24px 18px;border:0;border-radius:0}.stats{grid-template-columns:1fr}table{font-size:.78rem}th,td{padding:7px}h1{font-size:1.7rem}}@media print{body{background:white}.page{max-width:none;margin:0;padding:0;border:0}a{color:inherit}h2{break-after:avoid}tr,.stat{break-inside:avoid}}
+</style></head><body><main class="page"><div class="eyebrow">NVU · diagnóstico local · 26 de outubro de 2026</div><div class="status"><strong>Produção ainda precisa ser conferida após autenticação no Firebase.</strong><br>A correção descrita está na revisão local. Nenhum backend, APK ou aplicativo instalado foi atualizado nesta auditoria.</div><div class="stats"><div class="stat"><strong>13 grupos</strong><span>Validação Web aprovada na fonte atual</span></div><div class="stat"><strong>6 cenários</strong><span>Nova regressão de notificações aprovada</span></div><div class="stat"><strong>9 achados P1</strong><span>Bloqueiam a aprovação de uma nova versão</span></div></div><article><h1>NVU — auditoria de estabilidade, notificações e acesso</h1>
+<p>Data: 26/10/2026. Base: Android 1.0.520 / Web 2.3.197, commit <code>870c23d9d4cab534fc8073aea1bb24465b23b8ff</code> da branch privada <code>qa/automated-tests-520</code>.</p>
+<h2>Conclusão</h2>
+<p>Há problemas reais na fonte que a bateria anterior não cobria. A causa de bloqueio dos popups dentro do app foi reproduzida e corrigida nesta revisão. O teste correspondente falhou antes da mudança e passou depois, com seis cenários. Permanecem achados graves em permissões, cadastro e entrega push. Eles estão registrados em <code>qa/audit-blockers.json</code> e bloqueiam a aprovação de APK pelo processo, mesmo com os testes funcionais verdes.</p>
+<p>A fonte foi verificada localmente e em emuladores, com contas fictícias. As regras, índices, Functions e configuração FCM efetivamente publicados em <code>vtc-frota-log</code> ainda precisam ser comparados depois de renovar a autenticação no Firebase CLI. Não houve envio de push real nem uso de dados de produção como fixtures. A correção local não foi publicada e não altera o aplicativo já instalado.</p>
+<h2>Correção já aplicada</h2>
+<p><strong>NOT-01 — popups bloqueados até abrir o sino (P1, resolvido na fonte).</strong> A configuração padrão ativa leitura histórica e realtime legado. O histórico só é buscado após demanda, mas o callback do realtime verificava se a capacidade de histórico estava desativada para concluir a hidratação. Com a capacidade ativa e ainda não solicitada, <code>notificationsHydrated</code> ficava falso. O efeito de popup recusava exibir avisos novos, mesmo recebidos e já presentes no estado.</p>
+<p>Os callbacks agora consideram <code>legacyHistoryEnabled</code>, a busca realmente ativa nesta sessão. O novo teste em <code>qa/tests/notifications.mjs</code> cobre hidratação sem clicar no sino, novo aviso, snapshot repetido, outra empresa, callback tardio de outra conta e snapshot inicial antigo sem popup. É um teste do Provider e dos efeitos React reais, com transportes e sessão controlados. Ele não declara comprovada a entrega FCM em um celular.</p>
+<h2>P1 — resolver antes de liberar outra versão</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Problema e evidência</th>
+<th>Correção e validação necessárias</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SEC-01</td>
+<td>Um motorista comum alterou <code>simulators/gto</code> nas regras reais do emulador. A coleção é global e o gerenciador fica no Painel Sênior. O trigger de catálogo pode reconstruir semana/mês do ranking quando esses campos mudam.</td>
+<td>Restringir escrita à autoridade verificada apropriada, com auditoria. Testar motorista, gestor comum, Sênior e anônimo; preservar leitura do catálogo.</td>
+</tr>
+<tr>
+<td>SEC-02</td>
+<td>Em <code>userDevices</code>, um usuário que conhece o ID de um documento de outra conta pode atualizar seu <code>userId</code> para o próprio UID. A leitura anterior era corretamente negada, mas a atualização foi aceita.</td>
+<td>Separar create/update, preservar proprietário e validar campos. Preferir o callable canônico para associação/revogação de tokens. Testar troca de conta e concorrência sem remover o token da conta nova.</td>
+</tr>
+<tr>
+<td>SEC-03</td>
+<td>Uma conta autenticada sem vínculo conseguiu listar <code>users</code> e ler contato de outra conta fictícia. O documento completo contém mais dados que nome/foto públicos. Ranking e outros consumidores hoje leem essa coleção.</td>
+<td>Criar/migrar projeção pública mínima antes de restringir o documento privado. Testar ranking, perfil, equipes e acesso entre empresas para evitar nova regressão visual. A regra global não deve simplesmente ser fechada sem migrar os leitores.</td>
+</tr>
+<tr>
+<td>SEC-04</td>
+<td>Conta com <code>status: pending</code> criou sua própria frota ativa, mudou seu documento para admin/active e criou contrato, sem aprovação de inscrição. A exceção <code>ownsRequestedCompany</code> aceita esse caminho. A tentativa de obter papel Sênior foi recusada.</td>
+<td>Fazer ativação depender da aprovação canônica e remover o caminho de autoativação. Preservar o cadastro pendente legítimo e a aprovação pelo responsável autorizado. A brecha reproduzida é de administração da própria frota forjada, não um custom claim Sênior.</td>
+</tr>
+<tr>
+<td>PUSH-01</td>
+<td>Depois de uma falha inicial, duas chamadas ao serviço geraram só uma tentativa nativa. Depois de permissão negada e posteriormente concedida, o registro não reiniciou. <code>registrationPromise</code> continua retida após terminar.</td>
+<td>Separar tentativa em andamento de registro confirmado; permitir retry limitado por reconexão/retorno ao app e reavaliar permissão. Deduplicar listeners e tentativas, respeitar troca de conta e não repetir prompts desnecessariamente.</td>
+</tr>
+<tr>
+<td>PUSH-02</td>
+<td>O handler real recebeu uma resposta FCM controlada com zero sucesso e uma falha transitória por token. Salvou o despacho como <code>completed</code>, impedindo retry. A transação foi real no emulador; o transporte FCM foi substituído.</td>
+<td>Classificar erros individuais, preservar confirmações e reprocessar apenas destinatários transitórios com backoff. Verificar política publicada de retry. Não tratar retorno do método como sucesso de todos os tokens.</td>
+</tr>
+<tr>
+<td>PUSH-03</td>
+<td>Um despacho fictício <code>processing</code> com 24 horas bloqueou nova tentativa e nunca foi reenviado. A existência do documento funciona como trava permanente.</td>
+<td>Usar lease com expiração e controle de concorrência, estados finais e tentativa rastreável. Testar processo interrompido, timeout, dois gatilhos e resposta duplicada. Entrega FCM não oferece exatamente uma vez; manter dedupe/tag no Android.</td>
+</tr>
+<tr>
+<td>PUSH-04</td>
+<td>Logout limpa contexto JS, mas não revoga o registro nativo nem a associação do token no backend. A troca de associação ocorre apenas em login/registro posterior.</td>
+<td>Revogar de forma segura o token do dispositivo da conta antiga e tratar falha/offline, sem apagar registro da conta nova por uma resposta atrasada. O recebimento real de um push pós-logout ainda não foi testado.</td>
+</tr>
+<tr>
+<td>DEP-01</td>
+<td>A consulta <code>npm audit --omit=dev</code> apontou dependências com avisos atuais, inclusive <code>proxy-addr</code> no backend. Os totais incluem propagação para pacotes pais, não vulnerabilidades independentes.</td>
+<td>Priorizar patches transitivos compatíveis, avaliar alcance de cada aviso e executar regressões. Não usar <code>npm audit fix --force</code>: o relatório chega a sugerir downgrade do Firebase/Authentication e atualizações maiores dos SDKs, que podem quebrar a arquitetura atual.</td>
+</tr>
+</tbody></table>
+<p>As quatro primeiras reproduções e os dois cenários de despacho estão em <code>server-and-rules-baseline.json</code>. A associação indevida de dispositivo exige conhecimento do identificador; o teste não demonstra descoberta de tokens de dispositivos reais. O risco de exposição de documentos foi demonstrado no emulador, não confirmado nas regras publicadas atuais.</p>
+<h2>P2 — inconsistências e cobertura de testes</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Constatação</th>
+<th>Trabalho necessário</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>NOT-02</td>
+<td>O cliente grava <code>popupShownAt</code> e <code>popupShownAtIso</code>, mas a lista de campos permitidos pelas regras não os aceita. Marcar como lida é permitido; persistir popup exibido é negado.</td>
+<td>Alinhar o contrato, com tipos, destinatário e imutabilidade do payload. Preservar avisos não lidos e evitar repetição entre sessões/dispositivos.</td>
+</tr>
+<tr>
+<td>NOT-03</td>
+<td>A consulta moderna aplica <code>limit(200)</code> sem ordem cronológica. Com 200 IDs antigos e um aviso novo, o novo ficou fora do resultado no emulador.</td>
+<td>Ordenar no servidor por recência, planejar índices e compatibilidade de documentos antigos; testar backlog acima do limite. Os índices precisam ser verificados em produção: o emulador não comprova todos os índices compostos.</td>
+</tr>
+<tr>
+<td>PUSH-06</td>
+<td>O plugin emite <code>nvu-push-opened</code>; os layouts consomem <code>nvu-notification-open</code>. Não há consumidor do primeiro evento na fonte.</td>
+<td>Implementar encaminhamento seguro, incluindo abertura fria, autenticação, empresa/perfil alvo e aviso já resolvido. A navegação Android real ainda não foi exercitada.</td>
+</tr>
+<tr>
+<td>QA-01</td>
+<td>O teste antigo de armazenamento falhou no Web Lock experimental do Node antes de alcançar a falha de storage esperada. Com o transporte de lock controlado, os cenários de armazenamento e recuperação passaram.</td>
+<td>Atualizar o ambiente do teste para exercitar storage e testar locks separadamente, com fallback, exclusão e timeout reais. Não mudar o app apenas para satisfazer o erro antigo.</td>
+</tr>
+<tr>
+<td>QA-02</td>
+<td><code>test:fluency-476</code> exige <code>PENDING_SYNC</code> em um instante em que a operação já pode estar <code>SYNCING</code>. Uma cópia diagnóstica superou esse ponto e depois parou na suposição de envio serial entre operações distintas. A versão atual permite paralelismo entre operações.</td>
+<td>Atualizar os cenários para validar persistência, autoria, ordem dentro da mesma operação e ACK final. Não apenas aceitar qualquer estado. A parte restante do teste antigo continua sem validação; não foi declarada aprovada.</td>
+</tr>
+<tr>
+<td>QA-03</td>
+<td>O fingerprint atual não inclui alguns insumos usados pelos testes, como <code>tests/fixtures</code>, entradas de <code>verification</code> e <code>android/gradle.properties</code>. Parte de <code>verification</code> também recebe arquivos compilados durante os ensaios.</td>
+<td>Separar fixtures de outputs gerados, incluir todos os insumos estáveis e configurações de build no fingerprint e testar que sua alteração invalida um relatório. Não incluir outputs mutáveis que invalidariam toda execução.</td>
+</tr>
+</tbody></table>
+<p>O canal Android <code>nvu_notifications</code> informado pelo servidor também precisa ser comparado com os canais efetivamente criados no aparelho. A ausência de criação explícita na fonte merece revisão, mas o FCM pode usar canal de fallback; isso isoladamente não prova ausência de entrega.</p>
+<h2>Consultas e funcionamento</h2>
+<p>O inventário AST percorreu 452 arquivos TypeScript/TSX da camada Web e registrou 75 construções diretas de query e 36 chamadas diretas a <code>onSnapshot</code>, além de leituras e escritas. Ele não resolve todos os wrappers ou mede tráfego real. O backend tem 64 arquivos TypeScript e o código nativo principal tem 116 arquivos Java; esses números descrevem o conjunto mapeado, não uma afirmação de que cada linha foi validada dinamicamente.</p>
+<ul>
+<li><strong>Notificações:</strong> o limite sem ordenação produz perda demonstrável de visibilidade. Hoje erros de leitura também podem terminar em estado aparentemente vazio; a UI deve distinguir falha, carregamento e ausência de avisos.</li>
+<li><strong>Cadastro/autoridade:</strong> políticas no cliente e regras precisam representar a mesma aprovação. Os testes comprovaram que esconder uma ação na interface não protege a escrita direta.</li>
+<li><strong>Perfis/ranking:</strong> há leitores com IDs agrupados em blocos de 30 e cache/reuso. A migração para projeções públicas deve preservar essa eficiência e a identidade do cadastro/perfil atual.</li>
+<li><strong>Catálogo de empresas:</strong> <code>loadCompanyCatalog</code> faz leitura completa de <code>public_companies</code> sob demanda e a reutiliza. Não é uma leitura inteira a cada renderização. Antes de grande crescimento, planejar paginação/versões de catálogo com indicação de cobertura; não truncar o conjunto arbitrariamente.</li>
+<li><strong>Auditoria administrativa:</strong> <code>auditCanonicalProductionData</code> lê operações, viagens e slots completos. É uma ação Sênior, não a confirmação comum de uma viagem. Para volume alto, usar execução em lotes/checkpoints e orçamento de leitura.</li>
+<li><strong>Ranking:</strong> a escrita comum de viagem atualiza agregados por deltas. Mudanças de identidade/catálogo podem reconstruir períodos. É incorreto atribuir uma leitura completa do histórico a cada viagem sem medir o caminho efetivo.</li>
+<li><strong>Operações e sincronização:</strong> a bateria atual cobre ACK perdido, replay, concorrência, persistência e isolamento de conta. Não remover guardas de autorização, evidência de comprovante ou tombstones para ganhar velocidade.</li>
+<li><strong>Imagens:</strong> os testes de cache/persistência e isolamento passaram. Desempenho em aparelho real, consumo de armazenamento e cache de mídia após atualizações ainda exigem medição específica.</li>
+</ul>
+<p>Não há, nesta etapa, métricas de produção suficientes para afirmar uma nova causa da latência de envio ou garantir média de três segundos.</p>
+<h2>Dependências</h2>
+<p>Os resultados brutos atuais estão em <code>npm-audit-runtime.json</code> e <code>npm-audit-functions.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Lockfile consultado</th>
+<th align="right">Total de pacotes afetados</th>
+<th>Classificação do npm</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Raiz, omitindo dev</td>
+<td align="right">9</td>
+<td>1 crítico, 8 altos</td>
+</tr>
+<tr>
+<td>Functions, omitindo dev</td>
+<td align="right">16</td>
+<td>1 crítico, 5 altos, 10 moderados</td>
+</tr>
+</tbody></table>
+<p>O lockfile raiz também contém ferramentas/peers de desenvolvimento e Express usado pelos ensaios locais. Um aviso nesse conjunto não comprova código vulnerável dentro do APK ou da Dist. O backend e o bundle precisam ser avaliados por alcance. Os alertas de <code>proxy-addr</code> dizem respeito a decisões de confiança de endereço IP; os alertas de autenticação gRPC citados pelo npm dependem de configurações de servidor. O uso dessas bibliotecas como clientes não equivale automaticamente à exposição descrita no aviso.</p>
+<p>Referências primárias: <a href="https://github.com/advisories/GHSA-jqcg-44mw-7w3h">proxy-addr</a>, <a href="https://github.com/advisories/GHSA-m9gg-hp2v-232j">gRPC</a>, <a href="https://firebase.google.com/docs/cloud-messaging/send/admin-sdk">Admin FCM e respostas individuais</a>, <a href="https://firebase.google.com/docs/cloud-messaging/scale-fcm">boas práticas de retry FCM</a>.</p>
+<h2>Evidências e limites</h2>
+<ul>
+<li>Os oito probes de regras/backend usaram Auth/Firestore/Storage locais no projeto <code>demo-nvu-v36-4-staging</code>; nenhum push real foi enviado. Identidades e dados são fictícios.</li>
+<li>Quatro cenários do cliente foram reproduzidos com código real e transportes controlados antes da correção. PUSH-01 e PUSH-05 representam a mesma causa em dois cenários; não são contados como duas correções independentes.</li>
+<li>As 42 verificações suplementares resultaram em 40 aprovações e duas falhas antigas investigadas acima. Algumas são contratos estáticos; não representam 42 fluxos completos no celular.</li>
+<li>A nova regressão de notificações tem seis cenários. O mecanismo de qualidade agora tem nove autotestes, incluindo bloqueio por achado grave e política ausente/corrompida.</li>
+<li>A validação Web/Firebase da fonte atual deve ser consultada em <code>qa/results/latest.json/html</code>. A execução Android aprovada anteriormente, antes desta revisão, é <a href="https://github.com/doisd1399/NVU-PRO-ANDROID-382-RELEASE/actions/runs/40362984668">40362984668</a>; ela não valida automaticamente esta revisão.</li>
+<li>Login Google real, FCM ponta a ponta, notificações com o app fechado, permissões/otimização de bateria da Motorola, índices publicados e latência de produção permanecem sem comprovação nesta etapa.</li>
+</ul>
+<h2>Ordem de correção</h2>
+<ol>
+<li><strong>Conferir a produção após login:</strong> edição do banco, regras/índices efetivos, Functions de notificações publicadas, erros de registro/envio e configuração de retry. Consultar somente metadados e logs necessários, sem transportar dados reais para os testes.</li>
+<li><strong>Fechar as escritas indevidas e a autoativação:</strong> SEC-01, SEC-02 e SEC-04. Testar caminhos legítimos e negados em cada mudança.</li>
+<li><strong>Restaurar entrega push e contratos de notificações:</strong> PUSH-01/02/03/04, NOT-02/03 e roteamento. Criar testes com falhas transitórias, processo interrompido, troca de conta e fila acima do limite; validar envio real apenas com conta/dispositivo de teste autorizados.</li>
+<li><strong>Migrar a privacidade dos perfis:</strong> SEC-03 exige projeção pública e atualização dos consumidores antes da restrição.</li>
+<li><strong>Atualizar dependências de forma controlada:</strong> começar por patches compatíveis, revisar mudanças maiores dos SDKs em separado e repetir regressões.</li>
+<li><strong>Reparar testes legados e ampliar o catálogo:</strong> transformar cada defeito reproduzido em teste de comportamento seguro; não reduzir verificações para obter verde.</li>
+<li><strong>Só então liberar outra versão:</strong> zerar P0/P1 abertos com evidências, validar Web/Firebase e Android da fonte final e verificar o gate. Dist e APK não fazem parte desta auditoria.</li>
+</ol>
+<p>Este relatório é um diagnóstico amplo da fonte e dos cenários exercitados, não uma certificação de ausência de outros defeitos nem a confirmação de comprometimento de produção.</p>
+</article><footer>Execução Web: 2026-10-26T18-11-16-922Z. A aprovação Web não substitui a validação Android, FCM ou da configuração de produção.</footer></main></body></html>

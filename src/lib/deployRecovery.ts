@@ -1,3 +1,5 @@
+import { Capacitor } from "@capacitor/core";
+
 const CHUNK_RECOVERY_KEY = "nvu.chunk-recovery";
 const PUBLISHED_BUILD_KEY = "nvu.published-build.v1";
 const BUILD_CHECK_INTERVAL_MS = 15_000;
@@ -136,6 +138,9 @@ const recoverFromDeployChunkMismatch = (reason: unknown) => {
  * receives the new asset map without forcing the user to sign out.
  */
 export const installDeployRecovery = () => {
+  // The APK contains an immutable local bundle. A stored web build id or a
+  // transient chunk error must never reload that WebView during app resume.
+  if (Capacitor.isNativePlatform()) return () => {};
   const handleError = (event: ErrorEvent) => {
     recoverFromDeployChunkMismatch(event.error || event.message);
   };
@@ -153,15 +158,17 @@ export const installDeployRecovery = () => {
   document.addEventListener("visibilitychange", handleVisible);
   window.addEventListener("focus", handleVisible);
 
-  window.setTimeout(() => {
+  const initialCheck = window.setTimeout(() => {
     clearRecoveryTimestamp();
     void checkPublishedBuild();
   }, INITIAL_BUILD_CHECK_DELAY_MS);
 
   return () => {
+    window.clearTimeout(initialCheck);
     window.removeEventListener("error", handleError);
     window.removeEventListener("unhandledrejection", handleRejection);
     document.removeEventListener("visibilitychange", handleVisible);
     window.removeEventListener("focus", handleVisible);
   };
 };
+

@@ -1,0 +1,147 @@
+:root {
+  --nvu-workspace-dock-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --nvu-workspace-dock-clearance: calc(62px + var(--nvu-workspace-dock-safe-bottom));
+}
+
+/* The opaque footer owns the whole bottom band, including the rounded dock's
+   sides and the system gesture inset. Scrolling cards never show or receive
+   taps through that band. The existing document scroll and its memory stay intact. */
+.nvu-workspace-dock-region {
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 40;
+  box-sizing: border-box;
+  /* The compact pill keeps 44px touch targets. Six pixels separate it
+     from the opaque band edge; the system bottom inset stays unchanged. */
+  padding: 6px 14px calc(10px + var(--nvu-workspace-dock-safe-bottom));
+  background: var(--nvu-page, #f7f9fa);
+}
+
+/* Keep the approved pill, icons, spacing and bottom position. The footer,
+   rather than a second fixed child, now positions the navigation. */
+.nvu-workspace-dock-region > nav.nvu-driver-dock {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  margin: 0 auto;
+  padding-block: 0;
+}
+
+/* Tablets and desktops: the bottom pill does not need the phone's full width. */
+@media (min-width: 768px) {
+  .nvu-workspace-dock-region > nav.nvu-driver-dock { max-width: 360px; }
+}
+
+.nvu-workspace-dock-space {
+  height: var(--nvu-workspace-dock-clearance);
+  min-height: var(--nvu-workspace-dock-clearance);
+}
+
+html:has(.nvu-workspace-dock-region) {
+  scroll-padding-bottom: var(--nvu-workspace-dock-clearance);
+}
+
+/* The desktop shell has no permanent sidebar (its menu is a floating card) and its content is centered
+   on the window, so the dock region keeps the full-width inset above and the bottom pill stays centered
+   under the content on every driver, company and ranking page. */
+
+/* Wide landscape windows: the dock becomes a lateral rail, vertically centered on the left edge, with slightly
+   rounded corners. It is the one shared dock, so every page that shows it gets the same rail, and the bottom band
+   is not needed there. The rail sits in the side margins that a window this wide leaves around the page, so the
+   cover, the profile photo and the driver name keep their size and position. Portrait and smaller landscape
+   windows (phones, small tablets) keep the bottom pill. */
+@media (orientation: landscape) and (min-width: 1100px) {
+  :root {
+    --nvu-workspace-dock-clearance: 0px;
+    --nvu-rail-reserve: 72px;
+  }
+
+  .nvu-workspace-dock-space { display: none; }
+
+  .nvu-workspace-dock-region {
+    inset: 0 auto 0 0;
+    display: flex;
+    align-items: center;
+    padding: 0 0 0 max(12px, env(safe-area-inset-left, 0px));
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .nvu-workspace-dock-region > nav.nvu-driver-dock {
+    pointer-events: auto;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 5px;
+    border-radius: 16px;
+  }
+
+  /* 38px buttons (a 50px rail); on very short windows they shrink so the whole rail stays inside the viewport
+     (6 buttons + 5 gaps + padding/border + 12px of air above and below). */
+  .nvu-workspace-dock-region .nvu-driver-dock-item {
+    width: 38px;
+    height: 38px;
+    min-height: 0;
+    width: max(30px, min(38px, calc((100dvh - 56px) / 6)));
+    height: max(30px, min(38px, calc((100dvh - 56px) / 6)));
+    padding: 0;
+    border-radius: 12px;
+  }
+}
+
+/* Between 1100px and 1279px the pages that hug the window edges (driver news, ranking...) keep clear of the rail with
+   equal space on both sides, so they stay centered. Cover pages already have wider margins (their cover must not
+   change), and the company layout has its own rule below. */
+@media (orientation: landscape) and (min-width: 1100px) and (max-width: 1279px) {
+  body:has(.nvu-workspace-dock-region):not(:has(.nvu-cover-page-shell, .nvu-admin-shell-content)) { padding-inline: var(--nvu-rail-reserve); }
+}
+
+/* Company pages are centered on the window (see index.css) and many of them fill the width, so from 1100px up they keep
+   clear of the rail at every width, with equal space on both sides. Their cover pages need no reserve. */
+@media (orientation: landscape) and (min-width: 1100px) {
+  body:has(.nvu-admin-shell-content):not(:has(.nvu-cover-page-shell)) { padding-inline: var(--nvu-rail-reserve); }
+}
+
+/* Smartphones turned sideways (short landscape, touch): the bottom pill would take a third of the height, so the dock is a
+   compact lateral rail, vertically centered, on the right edge. The pages are centered with the same reserve on both sides;
+   cover pages keep their cover as it is. */
+@media (orientation: landscape) and (min-width: 720px) and (max-height: 520px) and (pointer: coarse) {
+  :root { --nvu-workspace-dock-clearance: 0px; --nvu-rail-reserve: 56px; }
+
+  .nvu-workspace-dock-space { display: none; }
+
+  .nvu-workspace-dock-region {
+    inset: 0 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 0 max(4px, env(safe-area-inset-right, 0px)) 0 0;
+    background: transparent;
+    pointer-events: none;
+  }
+
+  .nvu-workspace-dock-region > nav.nvu-driver-dock {
+    pointer-events: auto;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 13px;
+  }
+
+  /* 6 buttons + gaps + padding; on very short windows the buttons shrink so the whole rail stays inside. */
+  .nvu-workspace-dock-region .nvu-driver-dock-item {
+    width: 32px;
+    height: max(26px, min(38px, calc((100dvh - 40px) / 6)));
+    min-height: 0;
+    padding: 0;
+    border-radius: 10px;
+  }
+
+  body:has(.nvu-workspace-dock-region):not(:has(.nvu-cover-page-shell)) { padding-inline: var(--nvu-rail-reserve); }
+}

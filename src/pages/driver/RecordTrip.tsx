@@ -1,9 +1,14 @@
-import React, { useState, useRef, useEffect } from "react";
+import { CachedImage } from "../../components/common/CachedImage";
+import { assertWorkModeEntryAllowed, assertCachedWorkModeEntryAllowed } from "../../services/workModeAvailabilityService";
+import { isWorkModeMaintenanceError } from "../../lib/workModeMaintenanceError";
+import { WorkModeMaintenanceDialog } from "../../components/WorkModeMaintenanceDialog";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { PhotoProvider, PhotoView } from 'react-photo-view';
 import 'react-photo-view/dist/react-photo-view.css';
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
+import { resolveOperationContract, selectCompletedOperationJobs } from "../../lib/operationResultSummary";
 import {
   ArrowLeft,
   MapPin,
@@ -19,29 +24,27 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { withTimeout } from "../../lib/asyncTimeout";
-import {
-  updateDoc,
-  serverTimestamp,
-} from "firebase/firestore";
 import { toast } from "sonner";
-import { uploadService, UploadError } from "../../services/uploadService";
-import { TripsRepository } from "../../repositories/TripsRepository";
+import { UploadError } from "../../services/uploadService";
+import { canonicalTripDuplicateService } from "../../application/trip/CanonicalTripDuplicateService";
+import { canonicalTripOperationService } from "../../application/trip/CanonicalTripOperationService";
+import { canonicalTripCommandService } from "../../application/trip/CanonicalTripCommandService";
 import { completeTripWithCoordinator } from "../../services/operationalCompletionCoordinator";
-import { publishOperationCompletionResult } from "../../lib/operationCompletionResult";
-import type { OperationResultData } from "../../components/OperationResultModal";
+import { TripRegistrationCoordinator } from "../../application/trip/TripRegistrationCoordinator";
 import { OperationalSuspensionNotice } from "../../components/OperationalSuspensionNotice";
 import { useOperationalSuspension } from "../../hooks/useOperationalSuspension";
 import { isTrailerlessSimulator, resolveSimulatorId } from "../../lib/resolveSimulator";
 import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import {
   isClosedJobStatus,
-  isRunningJobStatus,
   isTripRecordableJobStatus,
 } from "../../lib/jobStatus";
 import { parseTripValue } from "../../lib/tripNormalizer";
 import { analyzeGtoTripReceipt } from "../../services/gtoOcrService";
+import type { GtoPrintEvidence } from "../../../functions/src/gtoPrintEvidence";
 import { extractScsTripData } from "../../services/scsTripOcrService";
 import { extractToe3TripData } from "../../services/toe3TripOcrService";
+import { extractWorldTripValue } from "../../services/worldTripOcrService";
 import {
   isFileAccessError,
   normalizeFileAccessError,
@@ -54,7 +57,15 @@ import {
   resolveTripSimulatorCode,
 } from "../../lib/tripDistance";
 import { TRIP_RECEIPT_RETENTION_DAYS } from "../../lib/tripReceiptRetention";
+import { SyncManager } from "../../services/syncManager";
+import { isConnectivityError, isDefinitelyOffline } from "../../lib/connectivity";
+import { persistOfflineReceipt, removeOfflineReceipt } from "../../lib/offlineReceiptStore";
+import { firebaseTripSyncAdapter } from "../../services/sync/FirebaseTripSyncAdapter";
 import { launchGtoWork } from "../../services/gtoWorkLauncher";
+import { ensureOperationIntegrity } from "../../services/operationIntegrityGuard";
+import { useDriverTrips } from "../../hooks/useDriverTrips";
+import { PrintFailureDiagnostic, usePrintFailureDiagnostic } from "../../components/PrintFailureDiagnostic";
+import { deriveCurrentOperationProgress, selectCanonicalOperationTrips, selectCurrentOperationJob } from "../../lib/currentOperation";
 
 type ReceiptUploadPhase = "idle" | "preparing" | "validating" | "uploading";
 
@@ -91,10 +102,11 @@ const resolveImageUploadErrorMessage = (
   return "Não foi possível concluir o envio. Confira a conexão e tente novamente.";
 };
 
-export default function RecordTrip() {
+function RecordTripOperational({ onMaintenance }: { onMaintenance: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useSessionStore();
+  const printDiagnostic = usePrintFailureDiagnostic(currentUser?.id || "");
   const { companies, activeCompanyId, memberships } = useCompanyStore();
   const { suspension: operationalSuspension } = useOperationalSuspension(
     currentUser as any,
@@ -106,8 +118,8 @@ export default function RecordTrip() {
     trailers,
     simulators,
     simulatorsLoading,
-    finishJob,
   } = useOperationalStore();
+  const driverTripState = useDriverTrips(currentUser?.id);
 
   const [origem, setOrigem] = useState("");
   const [destino, setDestino] = useState("");
@@ -117,13 +129,17 @@ export default function RecordTrip() {
   const [distanciaPercorrida, setDistanciaPercorrida] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageHash, setImageHash] = useState<string | null>(null);
+  const [offlineReceiptKey, setOfflineReceiptKey] = useState<string | null>(null);
   const [deviceId, setDeviceId] = useState<string>("");
   const [uploadLocation, setUploadLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [uploadCountMinute, setUploadCountMinute] = useState<number[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isReadingValue, setIsReadingValue] = useState(false);
   const [gtoReceiptAnalysisStatus, setGtoReceiptAnalysisStatus] = useState<"idle" | "reading" | "ok" | "failed" | "blocked">("idle");
+  // Preserve the OCR evidence that produced the GTO Print amount. The server
+  // can then reject a client amount that does not match the receipt evidence.
+  const [gtoReceiptRawText, setGtoReceiptRawText] = useState("");
+  const [gtoReceiptEvidence, setGtoReceiptEvidence] = useState<GtoPrintEvidence | null>(null);
   const [gtoAdDoubleDetected, setGtoAdDoubleDetected] = useState(false);
   const [gtoAdEvidence, setGtoAdEvidence] = useState<string[]>([]);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -132,6 +148,8 @@ export default function RecordTrip() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const ocrRequestIdRef = useRef(0);
   const receiptOriginalNameRef = useRef("");
+  const submissionInFlightRef = useRef(false);
+  const selectionInFlightRef = useRef(false);
 
   useEffect(() => {
     let id = localStorage.getItem("deviceId");
@@ -177,33 +195,27 @@ export default function RecordTrip() {
     currentUser?.role === "admin" ||
     (driverMembership && driverMembership.roles.includes("admin"));
 
-  // Find active job in the current company context
-  const validActiveJobs = jobs.filter(
-    (j) =>
-      j.driverId === currentUser?.id &&
-      j.companyId === activeCompanyId &&
-      (isRunningJobStatus(j.status) || j.status === "completed") &&
-      contracts.some(
-        (c) => c.companyId === activeCompanyId && c.id === j.contractId,
-      ),
+  // Print, Pro and both dashboards must resolve the same assignment before
+  // choosing the target contract or binding a receipt to an operation.
+  const activeJob = useMemo(() =>
+    selectCurrentOperationJob(jobs, currentUser?.id, activeCompanyId) ||
+    selectCompletedOperationJobs(jobs, driverTripState.trips, currentUser?.id || "", activeCompanyId)[0] || null,
+    [jobs, currentUser?.id, activeCompanyId, driverTripState.trips],
   );
-
-  validActiveJobs.sort((a, b) => {
-    if (a.status === "active" && b.status !== "active") return -1;
-    if (b.status === "active" && a.status !== "active") return 1;
-
-    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return dateB - dateA;
-  });
-
-  const activeJob = validActiveJobs[0];
-  const activeContract = activeJob
-    ? contracts.find(
-        (c) => c.id === activeJob.contractId && c.companyId === activeCompanyId,
-      )
-    : null;
-  const activeJobProgress = Math.max(0, Number(activeJob?.progress || 0));
+  const activeContract = useMemo(
+    () => resolveOperationContract(activeJob, contracts), [activeJob, contracts],
+  );
+  useEffect(() => {
+    printDiagnostic.clear();
+  }, [currentUser?.id, activeCompanyId, activeJob?.id, printDiagnostic.clear]);
+  const activeJobPendingOffline = activeJob ? SyncManager.getPendingRegistrationCount(activeJob.id) : 0;
+  const activeJobProgress = activeJob
+    ? deriveCurrentOperationProgress(activeJob as any, driverTripState.trips, currentUser?.id)
+    : 0;
+  const activeOperationTrips = activeJob ? selectCanonicalOperationTrips(activeJob, driverTripState.trips, String(currentUser?.id || activeJob.driverId || "")) : [];
+  // Local pending records reserve the next route index, but never count as
+  // operation progress until a server-confirmed trip appears in the canonical history.
+  const activeJobNextRouteIndex = activeJobProgress + activeJobPendingOffline;
   const activeJobTotalDeliveries = Math.max(
     0,
     Number(activeContract?.totalDeliveries || 0),
@@ -224,7 +236,7 @@ export default function RecordTrip() {
     activeContract.deliveries.length > 0
       ? activeContract.deliveries
       : null;
-  const currentRouteIndex = activeJob ? (activeJob.progress || 0) : 0;
+  const currentRouteIndex = activeJob ? activeJobNextRouteIndex : 0;
 
   const isContractCompletedState = predefinedRoutes && currentRouteIndex >= predefinedRoutes.length;
   const currentPredefinedRoute = (predefinedRoutes && !isContractCompletedState) ? predefinedRoutes[currentRouteIndex] : null;
@@ -265,7 +277,7 @@ export default function RecordTrip() {
   if (!currentCompany) {
     return (
       <div className="w-full text-center py-10">
-        <p className="text-gray-500 dark:text-gray-400">
+        <p className="text-gray-500 dark:text-nvu-muted">
           Selecione uma empresa e simulador para acessar o lançamento de
           viagens.
         </p>
@@ -283,7 +295,7 @@ export default function RecordTrip() {
     return (
       <div className="w-full flex flex-col items-center justify-center py-12 gap-3">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 border-b-blue-600" />
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+        <p className="text-sm text-gray-500 dark:text-nvu-muted">
           Identificando o simulador da empresa...
         </p>
       </div>
@@ -293,7 +305,7 @@ export default function RecordTrip() {
   if (!resolvedSimulatorCode) {
     return (
       <div className="w-full text-center py-10 px-4">
-        <p className="text-gray-600 dark:text-gray-300">
+        <p className="text-gray-600 dark:text-nvu-text-soft">
           Não foi possível identificar o simulador desta empresa. Atualize o
           cadastro da empresa antes de lançar uma viagem.
         </p>
@@ -311,7 +323,7 @@ export default function RecordTrip() {
   if (!driverMembership && !isAdmin) {
     return (
       <div className="w-full text-center py-10">
-        <p className="text-gray-500 dark:text-gray-400">
+        <p className="text-gray-500 dark:text-nvu-muted">
           Você não possui vínculo ativo com esta empresa/simulador.
         </p>
         <button
@@ -330,14 +342,14 @@ export default function RecordTrip() {
     // Only admins or something? Wait, admins can't launch trips for themselves unless they have an active contract here.
     return (
       <div className="w-full text-center py-10 px-4">
-        <div className="max-w-md mx-auto bg-white dark:bg-[#1A1F26] p-6 rounded-2xl border border-gray-100 dark:border-[#2A2F3A] shadow-sm">
+        <div className="max-w-md mx-auto bg-white dark:bg-nvu-surface p-6 rounded-2xl border border-gray-100 dark:border-nvu-line shadow-sm">
           <div className="w-16 h-16 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
             <X size={32} />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
             Acesso Bloqueado
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6 text-left space-y-2">
+          <p className="text-gray-600 dark:text-nvu-muted mb-6 text-left space-y-2">
             <strong>Inicie uma operação para lançar viagens.</strong>
             <br/><br/>
             1. Receba um contrato.<br/>
@@ -361,6 +373,14 @@ export default function RecordTrip() {
           (v) =>
             v.id === activeJob.vehicleId && v.companyId === activeCompanyId,
         )
+        || ((activeJob as any).vehicleName
+          ? ({
+              id: activeJob.vehicleId,
+              name: (activeJob as any).vehicleName,
+              plate: (activeJob as any).vehiclePlate || "",
+              companyId: activeCompanyId || activeJob.companyId,
+            } as any)
+          : null)
       : null;
   const activeTrailerId = trailerlessSimulator
     ? ""
@@ -369,13 +389,22 @@ export default function RecordTrip() {
     ? trailers.find(
         (t) => t.id === activeTrailerId && t.companyId === activeCompanyId,
       )
+      || ((activeJob as any)?.trailerName
+        ? ({
+            id: activeTrailerId,
+            name: (activeJob as any).trailerName,
+            companyId: activeCompanyId || activeJob?.companyId,
+          } as any)
+        : null)
     : null;
 
   const activeGtoDelivery = (() => {
     const deliveries = activeContract?.deliveries || [];
     if (!deliveries.length) return undefined;
-    const progress = Math.max(0, Number(activeJob?.progress) || 0);
-    return deliveries[Math.min(progress, deliveries.length - 1)];
+    // Route selection is derived from confirmed canonical history, never from
+    // the denormalized job counter. Pending/offline captures are not confirmed
+    // deliveries and therefore cannot advance the server-defined route.
+    return deliveries[Math.min(activeJobProgress, deliveries.length - 1)];
   })();
 
   if (resolvedSimulatorCode === "GTO" && !isGtoPrintMode) {
@@ -388,7 +417,8 @@ export default function RecordTrip() {
           companyName: currentCompany.companyName || currentCompany.name || "Empresa",
           jobId: activeJob.id,
           jobStatus: activeJob.status,
-          jobProgress: activeJob.progress || 0,
+          confirmedTripCount: activeJobProgress,
+          jobProgress: activeJobProgress,
           jobTotalDeliveries: activeContract.totalDeliveries || 0,
           contractId: activeContract.id,
           contractName: activeContract.name || "",
@@ -422,12 +452,12 @@ export default function RecordTrip() {
 
     return (
       <div className="w-full max-w-lg mx-auto py-8 px-3">
-        <div className="bg-white dark:bg-[#121213] border border-slate-200 dark:border-slate-800 rounded-2xl p-5 text-center">
+        <div className="bg-white dark:bg-nvu-surface border border-slate-200 dark:border-nvu-line rounded-2xl p-5 text-center">
           <Truck size={28} className="mx-auto text-cyan-600 dark:text-cyan-300 mb-3" />
           <h1 className="text-base font-bold text-slate-900 dark:text-white">
             Trabalho GTO
           </h1>
-          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-nvu-muted">
             Escolha o frete no GTO e faça a rota normalmente. Ao chegar ao destino, a NVU identificará a conclusão e registrará a viagem automaticamente.
           </p>
           <div className="mt-4 space-y-2">
@@ -449,7 +479,7 @@ export default function RecordTrip() {
           <button
             type="button"
             onClick={() => navigate("/driver/profile", { replace: true })}
-            className="mt-2 w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold"
+            className="mt-2 w-full h-10 rounded-xl border border-slate-200 dark:border-nvu-line text-slate-700 dark:text-nvu-text text-sm font-semibold"
           >
             Voltar ao painel operacional
           </button>
@@ -466,23 +496,35 @@ export default function RecordTrip() {
     input.value = "";
 
     if (selectedFile) {
+      if (selectionInFlightRef.current || isReadingValue || isUploading) return;
+      printDiagnostic.clear();
+      selectionInFlightRef.current = true;
       const now = Date.now();
-      const recentUploads = uploadCountMinute.filter(time => now - time < 60000);
-
-      if (recentUploads.length >= 3) {
-        toast.error("Limite de uploads atingido. Aguarde um minuto.");
-        return;
-      }
-      if (recentUploads.length > 0 && now - recentUploads[recentUploads.length - 1] < 5000) {
-        toast.error("Aguarde 5 segundos entre envios.");
-        return;
-      }
+      const previous = { imagePreview, imageHash, offlineReceiptKey, valor, valorDetectadoAutomaticamente,
+        valorDeteccaoMetodo, gtoReceiptAnalysisStatus, gtoReceiptRawText, gtoReceiptEvidence,
+        gtoAdDoubleDetected, gtoAdEvidence, name: receiptOriginalNameRef.current };
+      const restorePrevious = () => {
+        if (!previous.imagePreview || !previous.offlineReceiptKey) return false;
+        setImagePreview(previous.imagePreview); setImageHash(previous.imageHash); setOfflineReceiptKey(previous.offlineReceiptKey);
+        setValor(previous.valor); setValorDetectadoAutomaticamente(previous.valorDetectadoAutomaticamente);
+        setValorDeteccaoMetodo(previous.valorDeteccaoMetodo); setGtoReceiptAnalysisStatus(previous.gtoReceiptAnalysisStatus);
+        setGtoReceiptRawText(previous.gtoReceiptRawText); setGtoReceiptEvidence(previous.gtoReceiptEvidence);
+        setGtoAdDoubleDetected(previous.gtoAdDoubleDetected); setGtoAdEvidence(previous.gtoAdEvidence);
+        receiptOriginalNameRef.current = previous.name;
+        return true;
+      };
 
       setIsUploading(true);
       setUploadPhase("preparing");
       setUploadProgress(0);
       setImageHash(null);
+      // Persist the owned original and begin its upload before OCR. Serialize OCR instead of
+      // imposing the old three-per-minute quota on legitimate local captures.
+      // Previous evidence stays intact until explicit safe cleanup.
+      setOfflineReceiptKey(null);
       let localPreviewUrl: string | null = null;
+      let stableFile: File | null = null;
+      let stableHash = "";
       let phase = "capturing-file";
 
       try {
@@ -493,18 +535,19 @@ export default function RecordTrip() {
           maxBytes: 10 * 1024 * 1024,
           fallbackName: `comprovante-${now}.jpg`,
         });
+        stableFile = file;
 
         const requestId = ++ocrRequestIdRef.current;
-        if (imagePreview?.startsWith("blob:")) {
-          URL.revokeObjectURL(imagePreview);
-        }
         localPreviewUrl = URL.createObjectURL(file);
         receiptOriginalNameRef.current = file.name.trim();
         setGtoReceiptAnalysisStatus("idle");
+        setGtoReceiptRawText("");
+        setGtoReceiptEvidence(null);
         setGtoAdDoubleDetected(false);
         setGtoAdEvidence([]);
         setValorDetectadoAutomaticamente(false);
         setValorDeteccaoMetodo("manual");
+        setValor("");
         setImagePreview(localPreviewUrl);
 
         const simulatorId = resolveSimulatorId(currentCompany, simulators) || "";
@@ -516,6 +559,7 @@ export default function RecordTrip() {
         const isScsOcrSimulator =
           resolvedSimulatorCode === "ATS" || resolvedSimulatorCode === "ETS2";
         const isToe3OcrSimulator = resolvedSimulatorCode === "TOE3";
+        const isWorldOcrSimulator = resolvedSimulatorCode === "WTDS" || resolvedSimulatorCode === "WBDS";
         console.log("[NVU OCR] context", {
           simulatorId,
           simulatorName,
@@ -523,27 +567,86 @@ export default function RecordTrip() {
           isGto,
           isScsOcrSimulator,
           isToe3OcrSimulator,
+          isWorldOcrSimulator,
         });
 
-        // OCR always reads the stable browser-owned snapshot, but it must never
-        // hold the receipt upload hostage. On low-end Android devices the OCR
-        // worker and Firebase upload now progress independently. The launch
-        // gate below still requires a successful GTO analysis before saving a
-        // normal trip, so anti-ADS validation remains conservative.
+        setUploadPhase("validating");
+        phase = "hashing";
+        const hash = await withTimeout(
+          generateImageHash(bytes, file),
+          10_000,
+          "A validação local da imagem demorou demais.",
+        );
+        stableHash = hash;
+
+        phase = "duplicate-check";
+        const isDuplicate = await withTimeout(
+          canonicalTripDuplicateService.findTripByImageHash(hash, currentCompany?.id || activeCompanyId || ""),
+          12_000,
+          "A verificação de duplicidade demorou demais.",
+        );
+
+        if (isDuplicate) {
+          toast.error(isDuplicate.jobId === activeJob?.id && isDuplicate.driverId === currentUser.id
+            ? "Este comprovante já foi registrado nesta operação. Confira o histórico antes de reenviar."
+            : "Esta imagem já foi utilizada em um lançamento anterior.");
+          ocrRequestIdRef.current += 1;
+          setIsReadingValue(false);
+          if (restorePrevious()) {
+            if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+            return;
+          }
+          setImagePreview(null);
+          setImageHash(null);
+          setOfflineReceiptKey(null);
+          setGtoReceiptAnalysisStatus("idle");
+          setGtoAdDoubleDetected(false);
+          setGtoAdEvidence([]);
+          receiptOriginalNameRef.current = "";
+          if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+          return;
+        }
+
+        // Persist the exact image before networking, also when online. The
+        // trip outbox owns the upload and keeps the same identity on retries.
+        phase = "offline-receipt-store";
+        const receiptKey = await persistOfflineReceipt(file, {
+          imageHash: hash, companyId: currentCompany?.id || "Geral", userId: currentUser.id,
+        });
+        setImageHash(hash);
+        setOfflineReceiptKey(receiptKey);
+        if (!isDefinitelyOffline()) {
+          // Start transfer before OCR; even a driver who filled the route first
+          // gets upload/OCR overlap. Submission joins
+          // the same flight and still waits for the authoritative server ACK.
+          void firebaseTripSyncAdapter.prepareReceipt(receiptKey, currentUser.id, currentCompany?.id || "Geral")
+            .catch(() => { /* The durable receipt is retried by submission. */ });
+        }
+        if (previous.imagePreview?.startsWith("blob:") && previous.imagePreview !== localPreviewUrl) URL.revokeObjectURL(previous.imagePreview);
+
+        // OCR reads the unmodified local original while its transport copy uploads.
+        // The full ADS analysis still gates registration.
+        phase = "ocr-analysis";
         if (isGto) {
           setIsReadingValue(true);
           setGtoReceiptAnalysisStatus("reading");
 
-          void analyzeGtoTripReceipt(file, {
+          let signalValueReady: () => void = () => {};
+          const valueReady = new Promise<void>((resolve) => { signalValueReady = resolve; });
+          const analysisTask = analyzeGtoTripReceipt(file, {
             onValueDetected: (detectedValue) => {
               if (ocrRequestIdRef.current !== requestId) return;
               setValor(detectedValue);
               setValorDetectadoAutomaticamente(true);
               setValorDeteccaoMetodo("ocr");
+              signalValueReady();
             },
           })
             .then((analysis) => {
               if (ocrRequestIdRef.current !== requestId) return;
+
+              setGtoReceiptRawText(analysis.rawText || "");
+              setGtoReceiptEvidence(analysis.printEvidence || null);
 
               // Promote a valid monetary value before any screen-evidence
               // decision. A readable amount and explicit fraud evidence are
@@ -590,9 +693,10 @@ export default function RecordTrip() {
                 setIsReadingValue(false);
               }
             });
+          await Promise.race([valueReady, analysisTask]);
         } else if (isScsOcrSimulator) {
           setIsReadingValue(true);
-          void extractScsTripData(file, resolvedSimulatorCode)
+          await extractScsTripData(file, resolvedSimulatorCode)
             .then((detected) => {
               if (ocrRequestIdRef.current !== requestId) return;
 
@@ -624,7 +728,7 @@ export default function RecordTrip() {
               }
 
               if (detected.value) {
-                setValor((current) => current.trim() || detected.value || "");
+                setValor(detected.value);
                 setValorDetectadoAutomaticamente(true);
                 setValorDeteccaoMetodo("ocr");
                 detectedFields.push("valor");
@@ -640,6 +744,10 @@ export default function RecordTrip() {
                 );
               }
             })
+            .catch((error) => {
+              console.warn("[NVU OCR] SCS reading failed", error);
+              toast.warning("Não foi possível ler o print automaticamente. Confira os campos.");
+            })
             .finally(() => {
               if (ocrRequestIdRef.current === requestId) {
                 setIsReadingValue(false);
@@ -647,7 +755,7 @@ export default function RecordTrip() {
             });
         } else if (isToe3OcrSimulator) {
           setIsReadingValue(true);
-          void extractToe3TripData(file)
+          await extractToe3TripData(file)
             .then((detected) => {
               if (ocrRequestIdRef.current !== requestId) return;
 
@@ -669,7 +777,7 @@ export default function RecordTrip() {
               }
 
               if (detected.value) {
-                setValor((current) => current.trim() || detected.value || "");
+                setValor(detected.value);
                 setValorDetectadoAutomaticamente(true);
                 setValorDeteccaoMetodo("ocr");
                 detectedFields.push("valor");
@@ -685,84 +793,97 @@ export default function RecordTrip() {
                 );
               }
             })
+            .catch((error) => {
+              console.warn("[NVU OCR] TOE3 reading failed", error);
+              toast.warning("Não foi possível ler o print automaticamente. Confira os campos.");
+            })
             .finally(() => {
               if (ocrRequestIdRef.current === requestId) {
                 setIsReadingValue(false);
               }
             });
+        } else if (isWorldOcrSimulator) {
+          setIsReadingValue(true);
+          await extractWorldTripValue(file, resolvedSimulatorCode)
+            .then((detectedValue) => {
+              if (ocrRequestIdRef.current !== requestId) return;
+              if (!detectedValue) {
+                toast.warning("Não foi possível confirmar os ganhos no comprovante. Confira o print ou informe o valor manualmente.");
+                return;
+              }
+              setValor(detectedValue);
+              setValorDetectadoAutomaticamente(true);
+              setValorDeteccaoMetodo("ocr");
+              toast.success(`Valor identificado: R$ ${detectedValue}`);
+            })
+            .catch((error) => {
+              console.warn("[NVU OCR] World reading failed", error);
+              toast.warning("Não foi possível ler o print automaticamente. Confira os campos.");
+            })
+            .finally(() => {
+              if (ocrRequestIdRef.current === requestId) setIsReadingValue(false);
+            });
         } else {
           setIsReadingValue(false);
         }
 
-        setUploadPhase("validating");
-        phase = "hashing";
-        const hash = await withTimeout(
-          generateImageHash(bytes, file),
-          10_000,
-          "A validação local da imagem demorou demais.",
-        );
-
-        phase = "duplicate-check";
-        const isDuplicate = await withTimeout(
-          TripsRepository.checkImageHash(hash),
-          12_000,
-          "A verificação de duplicidade demorou demais.",
-        );
-
-        if (isDuplicate) {
-          toast.error("Esta imagem já foi utilizada em um lançamento anterior.");
-          ocrRequestIdRef.current += 1;
-          setIsReadingValue(false);
-          setImagePreview(null);
-          setImageHash(null);
-          setGtoReceiptAnalysisStatus("idle");
-          setGtoAdDoubleDetected(false);
-          setGtoAdEvidence([]);
-            receiptOriginalNameRef.current = "";
-          if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
-          return;
+      } catch (error: unknown) {
+        // A connection can disappear after the local snapshot/hash is ready.
+        // Preserve that exact binary evidence instead of discarding the user's
+        // receipt and forcing a second selection.
+        if (stableFile && stableHash && (isConnectivityError(error) ||
+          ["storage/unknown", "storage/unauthorized", "storage/unauthenticated", "functions/permission-denied", "functions/unauthenticated"].includes(String((error as { code?: string })?.code || "")))) {
+          try {
+            const receiptKey = await persistOfflineReceipt(stableFile, {
+              imageHash: stableHash,
+              companyId: currentCompany?.id || "Geral",
+              userId: currentUser.id,
+            });
+            setImageHash(stableHash);
+            setOfflineReceiptKey(receiptKey);
+            const uploadCode = String((error as { code?: string })?.code || "");
+            console.warn("[NVU] comprovante aguardando envio", {
+              code: uploadCode,
+              httpStatus: (error as { httpStatus?: number })?.httpStatus,
+            });
+            toast.info("Comprovante preservado no aparelho", {
+              description: "A viagem permanece pendente. Confira a conexão ou regularize seu vínculo para tentar novamente.",
+              position: "top-center",
+            });
+            return;
+          } catch (storageError) {
+            console.error("Offline receipt persistence failed:", storageError);
+          }
         }
 
-        phase = "firebase-upload";
-        setUploadPhase("uploading");
-        const url = await uploadService.uploadImage({
-          file,
-          companyId: currentCompany?.id || "Geral",
-          userId: currentUser.id,
-          folder: "receipts",
-          compressionMaxSizeMB: 1,
-          maxWidthOrHeight: 1920,
-          // Keep the client output below the authenticated 2 MB Storage rule.
-          maxOutputBytes: 1_800_000,
-          storageScope: "trip-receipt",
-          onProgress: (progress) => {
-            setUploadProgress(progress);
-          },
-        });
-
-        setUploadCountMinute([...recentUploads, now]);
-        setImageHash(hash);
-        setImagePreview(url);
-        if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
-        toast.success("Comprovante pronto para envio!", { position: "top-center" });
-      } catch (error: unknown) {
+        try { printDiagnostic.capture(error, `image-${phase}`); } catch { /* Never hide the original failure. */ }
         const normalizedError = normalizeFileAccessError(error);
         const userMessage = resolveImageUploadErrorMessage(error, phase);
         console.error("Upload error:", {
           phase,
           error: normalizedError,
+          code: (error as { code?: unknown })?.code,
+          serverResponse: (error as { serverResponse?: unknown })?.serverResponse,
         });
         ocrRequestIdRef.current += 1;
         setIsReadingValue(false);
+        if (restorePrevious()) {
+          if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+          toast.error(`Não foi possível substituir a imagem. ${userMessage} O comprovante anterior foi preservado.`);
+          return;
+        }
         setImagePreview(null);
         setImageHash(null);
+        setOfflineReceiptKey(null);
         setGtoReceiptAnalysisStatus("idle");
+        setGtoReceiptRawText("");
         setGtoAdDoubleDetected(false);
         setGtoAdEvidence([]);
         receiptOriginalNameRef.current = "";
         if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
         toast.error(`Falha no envio da imagem. ${userMessage}`);
       } finally {
+        selectionInFlightRef.current = false;
         setIsUploading(false);
         setUploadPhase("idle");
         setUploadProgress(0);
@@ -773,7 +894,14 @@ export default function RecordTrip() {
     }
   };
 
-  const handleLancarViagem = async () => {
+  const registerSelectedTrip = async () => {
+    try { assertCachedWorkModeEntryAllowed("print", resolvedSimulatorCode); }
+    catch (error) {
+      if (isWorkModeMaintenanceError(error)) onMaintenance();
+      else toast.error(error instanceof Error ? error.message : "Não foi possível verificar o controle de envio.");
+      return;
+    }
+
     if (operationalSuspension.active) {
       toast.error(
         "Suas atividades operacionais estão suspensas. Aguarde a liberação para lançar viagens.",
@@ -799,7 +927,7 @@ export default function RecordTrip() {
         toast.error("Não foi possível ler o valor recebido. Envie um print mais nítido.");
         return;
       }
-      if (imagePreview && gtoReceiptAnalysisStatus !== "ok") {
+      if (gtoReceiptAnalysisStatus !== "ok" || !valorDetectadoAutomaticamente) {
         toast.error("Aguarde a leitura do valor recebido.");
         return;
       }
@@ -808,7 +936,12 @@ export default function RecordTrip() {
     const finalOrigem = currentPredefinedRoute ? currentPredefinedRoute.origin : origem;
     const finalDestino = currentPredefinedRoute ? currentPredefinedRoute.destination : destino;
 
-    if (!finalOrigem || !finalDestino || !valor || !imagePreview) {
+    const remoteReceiptUrl = String(imagePreview || "").trim();
+    const receiptIsConfirmedInStorage =
+      !offlineReceiptKey && /^https:\/\//i.test(remoteReceiptUrl);
+    const receiptReadyForSubmission = Boolean(offlineReceiptKey) || receiptIsConfirmedInStorage;
+
+    if (!finalOrigem || !finalDestino || !valor || !receiptReadyForSubmission) {
       toast.error("Por favor, preencha todos os campos obrigatórios.");
       return;
     }
@@ -824,21 +957,44 @@ export default function RecordTrip() {
       return;
     }
 
+    if (!imageHash) {
+      toast.error("Não foi possível validar o comprovante. Selecione o print novamente.");
+      return;
+    }
+
     setIsUploading(true);
 
+    printDiagnostic.clear();
+    let submissionPhase = "operation-preflight";
     try {
       // 6. Backend validation check: reconcile valid trips before accepting
       // another one, so the last delivery cannot be recorded twice or exceed
       // the contract total after a stale local refresh.
-      const authoritativeState = await TripsRepository.readAuthoritativeOperationState(
-        activeJob.id,
-        Number(activeContract?.totalDeliveries || 0),
-      );
+      // Storage may fail while Firestore still works. A local receipt always
+      // requires the ordered replay path, never a direct Firestore write.
+      let isOffline = isDefinitelyOffline() || Boolean(offlineReceiptKey);
+      const localOperationState = () => ({
+        progress: activeJobProgress,
+        totalDeliveries: Number(activeContract?.totalDeliveries || 0),
+        status: String(activeJob.status || "active"),
+      });
+      // The local, owned operation snapshot controls capture availability.
+      // Registration is durable first; the canonical server writer validates
+      // the receipt later. A history audit must never gate the Save button.
+      if (["pending_finish", "start_rejected"].includes(activeJob.operationSyncState || "")) {
+        throw new Error("Esta operação está aguardando confirmação ou finalização. Confira o painel.");
+      }
+      const authoritativeState = localOperationState();
+      if (!isOffline && activeJob.operationSyncState !== "pending_start") {
+        void ensureOperationIntegrity(activeJob.id, Number(activeContract?.totalDeliveries || 0), "before-trip")
+          .catch(error => console.warn("[NVU] Conferência da operação será retomada em segundo plano", error));
+      }
       const freshJobProgress = Math.max(0, Number(authoritativeState.progress || 0));
       const freshJobTotalDeliveries = Math.max(
         0,
         Number(authoritativeState.totalDeliveries || activeContract?.totalDeliveries || 0),
       );
+      const locallyReservedTrips = SyncManager.getPendingRegistrationCount(activeJob.id);
       if (
         !isTripRecordableJobStatus(
           authoritativeState.status,
@@ -854,20 +1010,36 @@ export default function RecordTrip() {
         );
         return;
       }
+      if (
+        locallyReservedTrips > 0 &&
+        freshJobTotalDeliveries > 0 &&
+        freshJobProgress + locallyReservedTrips >= freshJobTotalDeliveries
+      ) {
+        setIsUploading(false);
+        toast.error("Há viagens aguardando validação nesta operação. Aguarde a sincronização antes de registrar outra viagem.");
+        return;
+      }
 
       const valorNumerico = parseTripValue(valor);
+      if (resolvedSimulatorCode === "GTO" && (!Number.isFinite(valorNumerico) || valorNumerico <= 0)) {
+        setIsUploading(false);
+        toast.error("Leitura GTO inválida: o ganho precisa ser positivo. Confira o comprovante.");
+        return;
+      }
 
       const simulatorId = resolveSimulatorId(currentCompany, simulators);
       const simulatorName =
         resolveSimulatorDisplayLabel(currentCompany as any, simulators as any[], companies as any[]) ||
         simulators.find((simulator) => simulator.id === simulatorId)?.name ||
         resolvedSimulatorCode;
+      const tripCompletedAtLocal = new Date().toISOString();
 
       const data: any = {
         empresaId: currentCompany?.id || "Geral",
         companyId: currentCompany?.id || "Geral",
         empresaNome: currentCompany?.companyName || "Geral",
         simulatorId,
+        simulatorCode: resolvedSimulatorCode,
         simulatorName,
         simuladorNome: simulatorName,
         motoristaId: currentUser.id,
@@ -888,36 +1060,54 @@ export default function RecordTrip() {
         origem: finalOrigem,
         destino: finalDestino,
         valor: valorNumerico,
+        valorCents: Math.round(valorNumerico * 100),
         valorDeteccaoMetodo,
         valorDetectadoAutomaticamente,
         valorBloqueadoPorDeteccao: valorDetectadoAutomaticamente,
         ...(distanceRequired
           ? { distanciaPercorrida: distanciaNumerica }
           : {}),
-        comprovanteUrl: imagePreview,
+        // A blob URL is only a preview and is not readable by Firebase. Never
+        // send it as a receipt URL: the adapter must receive the HTTPS URL
+        // returned by Storage after the upload has completed.
+        comprovanteUrl: receiptIsConfirmedInStorage ? remoteReceiptUrl : "",
+        ...(offlineReceiptKey
+          ? {
+              offlineReceiptKey,
+              receiptSyncStatus: "awaiting_upload",
+            }
+          : {}),
         comprovanteTituloOriginal: receiptOriginalNameRef.current || "",
         status: "concluida",
         criadoPor: currentUser.id,
-        dataLancamento: new Date(),
-        completedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAtLocal: tripCompletedAtLocal,
+        completedAtLocal: tripCompletedAtLocal,
+        dataLancamento: tripCompletedAtLocal,
+        completedAt: tripCompletedAtLocal,
+        createdAt: tripCompletedAtLocal,
+        updatedAt: tripCompletedAtLocal,
 
         // Audit fields
         imageHash: imageHash,
+        idempotencyKey: `print:${activeJob.id}:${currentUser.id}:${imageHash}`,
         deviceId: deviceId,
-        uploadedAt: serverTimestamp(),
+        uploadedAt: tripCompletedAtLocal,
         uploadedBy: currentUser.id,
         receiptRetentionDays: TRIP_RECEIPT_RETENTION_DAYS,
         receiptRetentionPolicy: "storage-lifecycle-v1",
         contractId: activeContract?.id || "",
         jobId: activeJob?.id || "",
+        operationId: activeJob?.id || "",
         ...(resolvedSimulatorCode === "GTO" && isGtoPrintMode
           ? {
               gtoEntryMode: "print",
               gtoReceiptAnalyzed: gtoReceiptAnalysisStatus === "ok",
               gtoReceiptValidationMode: "ocr",
               gtoReceiptManualConfirmation: false,
+              // Send the same OCR evidence used by the UI. registerCanonicalSimpleTrip
+              // independently compares its parsed amount with valorCents.
+              receiptText: gtoReceiptRawText,
+              ...(gtoReceiptEvidence ? { gtoReceiptEvidence } : {}),
               gtoReceiptReviewRequired: false,
               gtoRewardedAdDetected: false,
             }
@@ -928,80 +1118,44 @@ export default function RecordTrip() {
         data.uploadLocation = uploadLocation;
       }
 
+      submissionPhase = "trip-commit";
       const completionResult = await completeTripWithCoordinator({
         userId: currentUser.id,
         companyId: currentCompany?.id || activeCompanyId || "",
         tripData: data,
         job: activeJob,
         contract: activeContract,
-        addTrip: (trip) =>
-          TripsRepository.addTripWithinOperationLimit(trip, {
+        addTrip: async (trip) => {
+          const canonicalTrip = TripRegistrationCoordinator.register({
+            ...trip,
+            source: "PRINT_PRO_REGISTRATION",
+          });
+          return canonicalTripCommandService.addTripWithinOperationLimit(canonicalTrip, {
             jobId: activeJob.id,
             totalDeliveries: freshJobTotalDeliveries,
-          }),
-        persistTripId: async (tripRef) => {
-          await updateDoc(tripRef as any, { tripId: tripRef.id });
+            waitForServerAck: false,
+          });
         },
         syncJobProgress: activeJob
-          ? (jobId) => TripsRepository.syncJobProgress(jobId)
+          ? (jobId) => canonicalTripOperationService.syncJobProgress(jobId)
           : undefined,
-        finishJob,
         projectedOperationProgress: freshJobProgress + 1,
         projectedOperationTotalDeliveries: freshJobTotalDeliveries,
+        deferOperationReconciliation: true,
       });
 
-      let completedOperationResultData: OperationResultData | null = null;
-      if (completionResult.operationClosed && activeJob && activeContract) {
-        const completionAt = new Date();
-        const assignedAtMs = activeJob.assignedAt
-          ? new Date(activeJob.assignedAt).getTime()
-          : activeJob.createdAt
-            ? new Date(activeJob.createdAt).getTime()
-            : completionAt.getTime();
-        const executionMs = Math.max(0, completionAt.getTime() - assignedAtMs);
-        const executionDays = Math.floor(executionMs / (1000 * 60 * 60 * 24));
-        const executionHours = Math.floor((executionMs / (1000 * 60 * 60)) % 24);
-        const executionMinutes = Math.floor((executionMs / (1000 * 60)) % 60);
-        const dueAt = activeJob.dueAt || activeJob.deadlineDate;
-        const dueDiffMs = dueAt
-          ? new Date(dueAt).getTime() - completionAt.getTime()
-          : 0;
-        const isAtrasado = Boolean(dueAt) && dueDiffMs < 0;
-        const remainingAbsMs = Math.abs(dueDiffMs);
-        const remainingDays = Math.floor(remainingAbsMs / (1000 * 60 * 60 * 24));
-        const remainingHours = Math.floor((remainingAbsMs / (1000 * 60 * 60)) % 24);
-        const remainingMinutes = Math.floor((remainingAbsMs / (1000 * 60)) % 60);
-        const tempoRestante = dueAt
-          ? remainingDays > 0
-            ? `${remainingDays}d ${remainingHours}h ${remainingMinutes}min`
-            : `${remainingHours}h ${remainingMinutes}min`
-          : "-";
-
-        completedOperationResultData = {
-          contractName: activeContract.name || "Operação concluída",
-          tempoExecucao:
-            executionDays > 0
-              ? `${executionDays}d ${executionHours}h ${executionMinutes}min`
-              : `${executionHours}h ${executionMinutes}min`,
-          tempoRestante,
-          isAtrasado,
-          prazoTotal: `${Math.max(1, Number(activeContract.deadlineDays || 1))} dias`,
-          totalViagens: Number(
-            completionResult.operationProgress ?? freshJobProgress + 1,
-          ),
-          vehicleName: activeVehicle?.name,
-          showTrailer: !trailerlessSimulator,
-          trailerName: trailerlessSimulator ? undefined : activeTrailer?.name,
-        };
-        publishOperationCompletionResult({
-          userId: currentUser.id,
-          jobId: activeJob.id,
-          data: completedOperationResultData,
+      printDiagnostic.clear();
+      const savedOffline = completionResult.docRef.offline === true || String(completionResult.docRef.id || "").startsWith("local-");
+      if (["FAILED", "CONFLICT"].includes(completionResult.docRef.syncState || "")) {
+        toast.warning("Viagem salva; a validação exige revisão", {
+          description: "O comprovante está preservado. Confira o motivo em Viagens aguardando confirmação no histórico.",
         });
-      }
-
-      if (!completionResult.operationClosed) {
-        toast.success("Viagem lançada com sucesso!");
+      } else if (completionResult.operationReadyToFinalize) {
+        toast.success("Todas as viagens foram registradas. Finalize a operação no painel.");
+      } else if (!completionResult.operationClosed) {
+        if (!savedOffline) {
+          toast.success("Viagem lançada com sucesso!");
+        }
       }
       setOrigem("");
       setDestino("");
@@ -1011,22 +1165,21 @@ export default function RecordTrip() {
       setDistanciaPercorrida("");
       setImagePreview(null);
       setImageHash(null);
+      setOfflineReceiptKey(null);
       setGtoReceiptAnalysisStatus("idle");
+      setGtoReceiptRawText("");
+      setGtoReceiptEvidence(null);
       setGtoAdDoubleDetected(false);
       setGtoAdEvidence([]);
       receiptOriginalNameRef.current = "";
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       setIsNavigating(true);
-      // Navigation is no longer held by syncJobProgress. If the projected
-      // progress is not the final delivery, show the history immediately;
-      // the final delivery remains on the current route until finishJob's
-      // optimistic job update redirects it safely.
-      if (completionResult.operationClosed) {
-        navigate("/driver/dashboard", {
-          replace: true,
-          state: { nvuOperationResult: completedOperationResultData },
-        });
+      // A confirmed final delivery returns to the operational dashboard with
+      // the job still in `awaiting_completion`. Only the explicit Finalizar
+      // Operação button may perform the terminal transition and open results.
+      if (completionResult.operationReadyToFinalize) {
+        navigate("/driver/dashboard", { replace: true });
       } else if (
         activeJob &&
         activeContract &&
@@ -1035,23 +1188,88 @@ export default function RecordTrip() {
         navigate("/driver/history");
       }
     } catch (err: any) {
-      console.error("Erro ao salvar viagem:", err);
+      const failureStage = String(err?.tripSyncStage || submissionPhase);
+      try { printDiagnostic.capture(err, failureStage); } catch { /* never hide the original failure */ }
+      const errorDetails = err?.details && typeof err.details === "object" ? err.details : {};
+      const reasonCode = String((errorDetails as any)?.reasonCode || (errorDetails as any)?.reason || "");
+      console.error("Erro ao salvar viagem:", {
+        phase: failureStage,
+        code: err?.code,
+        reasonCode,
+        message: err?.message,
+      });
       const errorCode = String(err?.code || "").toLowerCase();
       const errorMessage = String(err?.message || "");
-      const combinedError = `${errorCode} ${errorMessage}`;
-      const userMessage = combinedError.includes("OPERATION_TRIP_LIMIT_REACHED")
+      const storageFailureReason = String(err?.storageFailureReason || "").toUpperCase();
+      const combinedError = `${errorCode} ${reasonCode} ${storageFailureReason} ${errorMessage}`;
+      const receiptTransportFailure =
+        /storage\/(?:unauthorized|unauthenticated|unknown|retry-limit-exceeded|quota-exceeded|canceled|network-request-failed)/.test(combinedError)
+        || /network|offline|timeout|failed to fetch|connection/i.test(combinedError);
+      const userMessage = combinedError.includes("CANONICAL_TRIP_TOMBSTONED")
+        ? "Este print está vinculado ao identificador de uma viagem excluída anteriormente. Por segurança, não é possível reenviá-lo como uma viagem nova. Confira o histórico da operação e solicite revisão da exclusão, se ela foi indevida. O comprovante permanece nesta tela; não limpe os dados do aplicativo."
+        : combinedError.includes("CANONICAL_TRIP_ATTEMPT_CONFLICT")
+        ? "Este comprovante já pertence a uma viagem salva. Confira a pendência no histórico; a tentativa original foi preservada sem duplicar o registro."
+        : combinedError.includes("CANONICAL_TRIP_AUTH_SCOPE_MISMATCH")
+        ? "O perfil aberto não corresponde à sessão autenticada. Entre novamente com a conta deste motorista; o comprovante permanece nesta tela."
+        : storageFailureReason === "QUOTA"
+          ? "O armazenamento do aparelho está cheio. Libere espaço e tente novamente; o comprovante permanece nesta tela."
+        : storageFailureReason === "UNAVAILABLE"
+          ? "O armazenamento local do aparelho está indisponível. Preserve o comprovante e reabra o aplicativo antes de tentar novamente."
+        : storageFailureReason === "CORRUPT"
+          ? "Os dados locais da viagem precisam de recuperação. Preserve o comprovante e exporte o diagnóstico para o suporte."
+        : /OFFLINE_STORAGE_WRITE_FAILED|SYNC_QUEUE_STORAGE_WRITE_FAILED|OFFLINE_STORAGE_UNAVAILABLE/.test(combinedError)
+          ? "Não foi possível gravar a viagem localmente. O comprovante foi preservado nesta tela; tente novamente sem fechar o aplicativo."
+          : /OFFLINE_STORAGE_DATA_CORRUPT|SYNC_QUEUE_STORAGE_READ_FAILED/.test(combinedError)
+            ? "Os dados locais precisam de recuperação. Preserve os dados do app e exporte o diagnóstico para o suporte; o comprovante permanece nesta tela."
+            : combinedError.includes("OFFLINE_RECEIPT_UPLOAD_REQUIRED") ||
+        combinedError.includes("TRIP_RECEIPT_UPLOAD_REQUIRED")
+        ? "O comprovante ainda não foi enviado. A viagem permanece pendente para validação."
+        : combinedError.includes("OPERATION_DRIVER_BINDING_INVALID")
+          ? "O motorista desta sessão não corresponde ao trabalho no servidor. Solicite a correção da operação."
+          : combinedError.includes("OPERATION_COMPANY_CONTRACT_BINDING_INVALID")
+            ? "Empresa ou contrato divergem do trabalho no servidor. Solicite a correção da operação."
+            : combinedError.includes("OPERATION_TOTAL_DELIVERIES_INVALID")
+              ? "O total de viagens está ausente ou inválido na operação do servidor. Solicite a atualização do trabalho."
+              : combinedError.includes("GTO_RECEIPT_ANALYSIS_REQUIRED")
+                ? "A validação OCR do comprovante não terminou. Selecione o print novamente."
+        : combinedError.includes("OPERATION_TRIP_LIMIT_REACHED")
         ? "A operação já atingiu o total previsto de viagens. Solicite uma nova operação."
         : combinedError.includes("OPERATION_TRIP_SLOT_ALREADY_CLAIMED")
           ? "Esta viagem já está sendo processada ou já foi registrada. Atualize o histórico antes de tentar novamente."
+        : combinedError.includes("OFFLINE_RECEIPT_OWNER_OR_DATA_MISMATCH")
+          ? "O comprovante local não corresponde à sessão atual. Entre novamente com a conta deste motorista; o comprovante permanece nesta tela."
+          : combinedError.includes("OFFLINE_RECEIPT_UPLOAD_NOT_CONFIRMED") || combinedError.includes("TRIP_RECEIPT_URL_NOT_CONFIRMED")
+            ? "O comprovante ainda não foi confirmado no Firebase Storage. Aguarde o envio terminar e tente novamente."
+            : receiptTransportFailure && offlineReceiptKey
+              ? "O comprovante foi preservado no aparelho, mas a viagem ainda não foi confirmada. Verifique a conexão e tente lançar novamente."
+            : combinedError.includes("OPERATION_PROGRESS_RECONCILIATION_REQUIRED")
+              ? "A operação está sincronizando as viagens anteriores. Atualize a tela e tente novamente em alguns segundos."
           : combinedError.includes("OPERATION_NOT_RECORDABLE")
             ? "A operação não está ativa para receber novos lançamentos. Atualize a operação e tente novamente."
             : combinedError.includes("permission-denied")
-              ? "O servidor não autorizou este lançamento. Atualize a operação e tente novamente."
-              : "Ocorreu um erro ao salvar a viagem. Tente novamente.";
+              ? submissionPhase === "operation-preflight"
+                ? "O servidor não permitiu consultar a operação. Verifique a sessão e as regras publicadas."
+                : "As regras do servidor recusaram a viagem. O comprovante permanece nesta tela; confira o vínculo da operação."
+              : combinedError.includes("functions/not-found")
+                ? "O serviço de registro precisa ser atualizado no servidor. Sua viagem foi preservada no histórico pendente."
+                : /SERVER_CANONICAL_TRIP_ACK|SERVER_TRIP_EDIT_ACK|CALLABLE_ACK_INVALID|CALLABLE_REGISTRATION/.test(combinedError)
+                  ? "O servidor não confirmou a viagem. O comprovante permanece nesta tela e a tentativa pode ser revisada no histórico pendente."
+                : combinedError.includes("invalid-argument") || combinedError.includes("failed-precondition")
+                  ? `O servidor não confirmou o registro: ${errorMessage.slice(0, 240)}. A viagem permanece salva para revisão.`
+                  : err?.tripId
+                    ? "O envio ainda não foi confirmado. A viagem foi preservada no histórico pendente."
+                    : `Não foi possível concluir o registro nesta etapa (${failureStage}). O comprovante foi mantido nesta tela.`;
       toast.error(userMessage);
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleLancarViagem = async () => {
+    if (submissionInFlightRef.current) return;
+    submissionInFlightRef.current = true;
+    try { await registerSelectedTrip(); }
+    finally { submissionInFlightRef.current = false; }
   };
 
   const formatCurrency = (value: string) => {
@@ -1068,13 +1286,13 @@ export default function RecordTrip() {
   };
 
   const handleValorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (valorDetectadoAutomaticamente) return;
+    if (isGtoPrintMode || valorDetectadoAutomaticamente) return;
     const rawValue = e.target.value;
     setValor(formatCurrency(rawValue));
     setValorDeteccaoMetodo("manual");
   };
 
-  const currentDeliveries = activeJob ? activeJob.progress : 0;
+  const currentDeliveries = activeJobProgress;
   const totalDeliveries = activeContract ? activeContract.totalDeliveries : 6; // fallback 6 as per mockup
   const driverName = currentUser.name || "Motorista não identificado";
   const contractName = activeContract?.name || "Nenhum contrato ativo";
@@ -1102,12 +1320,12 @@ export default function RecordTrip() {
       : 4;
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-3 pb-6 px-0 sm:px-4 text-gray-900 dark:text-gray-100 font-sans tracking-[-0.01em]">
+    <div className="w-full max-w-2xl mx-auto space-y-3 pb-6 px-0 sm:px-4 text-gray-900 dark:text-nvu-text font-sans tracking-[-0.01em]">
       {/* Top Header */}
       <div className="flex items-center gap-2 py-1 px-2">
         <button
           onClick={() => navigate(-1)}
-          className="p-1 -ml-1 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors bg-transparent border-none outline-none appearance-none cursor-pointer flex items-center justify-center shrink-0"
+          className="p-1 -ml-1 text-gray-600 hover:text-gray-900 dark:text-nvu-muted dark:hover:text-white transition-colors bg-transparent border-none outline-none appearance-none cursor-pointer flex items-center justify-center shrink-0"
         >
           <ArrowLeft size={18} />
         </button>
@@ -1115,20 +1333,20 @@ export default function RecordTrip() {
           <h1 className="text-[16px] sm:text-[17px] font-bold text-gray-900 dark:text-white tracking-tight leading-none mb-0.5">
             Lançar Viagem
           </h1>
-          <p className="text-[11px] sm:text-[12px] text-gray-500 dark:text-gray-400 font-medium leading-none">
+          <p className="text-[11px] sm:text-[12px] text-gray-500 dark:text-nvu-muted font-medium leading-none">
             Registre os dados da entrega realizada.
           </p>
         </div>
       </div>
 
       {/* Main Info Card */}
-      <div className="bg-white dark:bg-[#121213] border border-gray-100 dark:border-gray-800 shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:rounded-2xl rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-nvu-surface border border-gray-100 dark:border-nvu-line shadow-[0_2px_12px_rgba(0,0,0,0.03)] sm:rounded-2xl rounded-xl overflow-hidden">
         <div className="p-3 sm:p-4">
           {/* Company Header */}
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-[#1BACB3] font-bold text-white tracking-tighter text-lg rounded-xl flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
               {companyLogo ? (
-                <img
+                <CachedImage
                   src={companyLogo}
                   alt={companyName}
                   className="w-full h-full object-cover"
@@ -1153,7 +1371,7 @@ export default function RecordTrip() {
                   </svg>
                 </div>
               </div>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mt-0.5 truncate">
+              <p className="text-[11px] text-gray-500 dark:text-nvu-muted font-medium mt-0.5 truncate">
                 CNPJ {cnpj}
               </p>
             </div>
@@ -1161,54 +1379,54 @@ export default function RecordTrip() {
 
           <div className="grid grid-cols-2 gap-y-2.5 gap-x-2.5">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-800 flex items-center justify-center shrink-0 text-gray-400 dark:text-gray-500">
+              <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-nvu-surface/80 border border-gray-100 dark:border-nvu-line flex items-center justify-center shrink-0 text-gray-400 dark:text-nvu-muted">
                 <User size={14} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium leading-none mb-0.5">
+                <p className="text-[10px] text-gray-400 dark:text-nvu-muted font-medium leading-none mb-0.5">
                   Motorista
                 </p>
-                <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 truncate leading-none">
+                <p className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text truncate leading-none">
                   {driverName}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-800 flex items-center justify-center shrink-0 text-gray-400 dark:text-gray-500">
+              <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-nvu-surface/80 border border-gray-100 dark:border-nvu-line flex items-center justify-center shrink-0 text-gray-400 dark:text-nvu-muted">
                 <ClipboardList size={14} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium leading-none mb-0.5">
+                <p className="text-[10px] text-gray-400 dark:text-nvu-muted font-medium leading-none mb-0.5">
                   Contrato
                 </p>
-                <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 truncate leading-none">
+                <p className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text truncate leading-none">
                   {contractName}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-800 flex items-center justify-center shrink-0 text-gray-400 dark:text-gray-500">
+              <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-nvu-surface/80 border border-gray-100 dark:border-nvu-line flex items-center justify-center shrink-0 text-gray-400 dark:text-nvu-muted">
                 <Truck size={14} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium leading-none mb-0.5">
+                <p className="text-[10px] text-gray-400 dark:text-nvu-muted font-medium leading-none mb-0.5">
                   Veículo
                 </p>
-                <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 truncate leading-none">
+                <p className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text truncate leading-none">
                   {vehicleName}
                 </p>
               </div>
             </div>
             {!trailerlessSimulator && (
               <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-800 flex items-center justify-center shrink-0 text-gray-400 dark:text-gray-500">
+                <div className="w-7 h-7 rounded-lg bg-gray-50 dark:bg-nvu-surface/80 border border-gray-100 dark:border-nvu-line flex items-center justify-center shrink-0 text-gray-400 dark:text-nvu-muted">
                   <Package size={14} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium leading-none mb-0.5">
+                  <p className="text-[10px] text-gray-400 dark:text-nvu-muted font-medium leading-none mb-0.5">
                     Reboque
                   </p>
-                  <p className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 truncate leading-none">
+                  <p className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text truncate leading-none">
                     {trailerName}
                   </p>
                 </div>
@@ -1218,7 +1436,7 @@ export default function RecordTrip() {
         </div>
 
         {/* Progress Card Section */}
-        <div className="px-3 py-2 bg-gray-50/80 dark:bg-gray-800/30 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between">
+        <div className="px-3 py-2 bg-gray-50/80 dark:bg-nvu-surface/30 border-t border-gray-100 dark:border-nvu-line flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <div className="text-blue-500 dark:text-blue-400">
               <svg
@@ -1236,7 +1454,7 @@ export default function RecordTrip() {
                 <line x1="6" y1="20" x2="6" y2="16" />
               </svg>
             </div>
-            <span className="font-semibold text-[12px] text-gray-800 dark:text-gray-200">
+            <span className="font-semibold text-[12px] text-gray-800 dark:text-nvu-text">
               Viagens
             </span>
           </div>
@@ -1244,7 +1462,7 @@ export default function RecordTrip() {
             <span className="text-blue-600 dark:text-blue-400">
               {currentDeliveries}
             </span>
-            <span className="text-gray-400 dark:text-gray-500">
+            <span className="text-gray-400 dark:text-nvu-muted">
               /{totalDeliveries}
             </span>
           </div>
@@ -1263,18 +1481,18 @@ export default function RecordTrip() {
       )}
 
       {/* Form Card */}
-      <div className="bg-white dark:bg-[#121213] border border-gray-200/80 dark:border-gray-800 shadow-[0_4px_24px_rgba(0,0,0,0.02)] sm:rounded-2xl rounded-xl p-3 sm:p-4 relative">
+      <div className="bg-white dark:bg-nvu-surface border border-gray-200/80 dark:border-nvu-line shadow-[0_4px_24px_rgba(0,0,0,0.02)] sm:rounded-2xl rounded-xl p-3 sm:p-4 relative">
         <div className="space-y-3">
           {predefinedRoutes && !isGtoPrintMode ? (
             <div>
-              <label className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 mb-1 block">
+              <label className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text mb-1 block">
                 1. Rota*
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500 z-10">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-nvu-muted z-10">
                   <MapPin size={14} />
                 </div>
-                <div className="w-full min-h-9 px-3 py-1.5 pl-8 bg-gray-50 dark:bg-[#1A1F26]/50 border border-gray-200 dark:border-gray-800 text-[13px] rounded-lg cursor-not-allowed opacity-90 truncate flex items-center">
+                <div className="w-full min-h-9 px-3 py-1.5 pl-8 bg-gray-50 dark:bg-nvu-surface/50 border border-gray-200 dark:border-nvu-line text-[13px] rounded-lg cursor-not-allowed opacity-90 truncate flex items-center">
                   {isContractCompletedState ? (
                     <span className="text-green-600 dark:text-green-400 font-medium">Contrato 100% concluído</span>
                   ) : (
@@ -1283,7 +1501,7 @@ export default function RecordTrip() {
                         <span className="font-semibold text-blue-600 dark:text-blue-400">
                           {`Viagem ${currentRouteIndex + 1}/${predefinedRoutes.length}`}
                         </span>
-                        <span className="text-gray-600 dark:text-gray-300 font-medium ml-1.5">
+                        <span className="text-gray-600 dark:text-nvu-text-soft font-medium ml-1.5">
                            • {currentPredefinedRoute.origin} ➔ {currentPredefinedRoute.destination}
                         </span>
                       </span>
@@ -1298,11 +1516,11 @@ export default function RecordTrip() {
             <>
               {/* 1. Origem */}
               <div>
-                <label className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 mb-1 block">
+                <label className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text mb-1 block">
                   1. Origem*
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-nvu-muted">
                     <MapPin size={14} />
                   </div>
                   <input
@@ -1311,7 +1529,7 @@ export default function RecordTrip() {
                     readOnly={false}
                     aria-label="Origem da rota"
                     onChange={(e) => setOrigem(e.target.value)}
-                    className="w-full h-9 bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 text-[13px] rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-8 pr-3 py-1.5 transition-colors outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    className="w-full h-9 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-800 dark:text-nvu-text text-[13px] rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-8 pr-3 py-1.5 transition-colors outline-none placeholder:text-gray-400 dark:placeholder:text-nvu-muted"
                     placeholder="Ex.: Curitiba - PR"
                   />
                 </div>
@@ -1319,11 +1537,11 @@ export default function RecordTrip() {
 
               {/* 2. Destino */}
               <div>
-                <label className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 mb-1 block">
+                <label className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text mb-1 block">
                   2. Destino*
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-nvu-muted">
                     <MapPin size={14} />
                   </div>
                   <input
@@ -1332,7 +1550,7 @@ export default function RecordTrip() {
                     readOnly={false}
                     aria-label="Destino da rota"
                     onChange={(e) => setDestino(e.target.value)}
-                    className="w-full h-9 bg-white dark:bg-[#1A1F26] border border-gray-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 text-[13px] rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-8 pr-3 py-1.5 transition-colors outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                    className="w-full h-9 bg-white dark:bg-nvu-surface border border-gray-200 dark:border-nvu-line text-gray-800 dark:text-nvu-text text-[13px] rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 block pl-8 pr-3 py-1.5 transition-colors outline-none placeholder:text-gray-400 dark:placeholder:text-nvu-muted"
                     placeholder="Ex.: São Paulo - SP"
                   />
                 </div>
@@ -1342,20 +1560,20 @@ export default function RecordTrip() {
 
           {distanceRequired && (
             <div>
-              <label className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 mb-1 block">
+              <label className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text mb-1 block">
                 {distanceFieldNumber}. Distância percorrida (km)*
               </label>
-              <div className="relative flex items-center border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-[#1A1F26] focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-shadow h-9">
+              <div className="relative flex items-center border border-gray-200 dark:border-nvu-line rounded-lg overflow-hidden bg-white dark:bg-nvu-surface focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-shadow h-9">
                 <input
                   type="text"
                   inputMode="decimal"
                   value={distanciaPercorrida}
                   onChange={(event) => setDistanciaPercorrida(event.target.value)}
-                  className="w-full bg-transparent text-gray-900 dark:text-white text-right font-semibold text-[13px] block px-3 py-1.5 outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                  className="w-full bg-transparent text-gray-900 dark:text-white text-right font-semibold text-[13px] block px-3 py-1.5 outline-none placeholder:text-gray-400 dark:placeholder:text-nvu-muted"
                   placeholder="0"
                   aria-label="Distância percorrida em quilômetros"
                 />
-                <div className="px-3 py-1.5 border-l border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 font-medium text-[13px] shrink-0">
+                <div className="px-3 py-1.5 border-l border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-surface/50 text-gray-600 dark:text-nvu-muted font-medium text-[13px] shrink-0">
                   km
                 </div>
               </div>
@@ -1364,7 +1582,7 @@ export default function RecordTrip() {
 
           {/* Comprovante */}
           <div>
-            <label className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 mb-1 block">
+            <label className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text mb-1 block">
               {receiptFieldNumber}. Comprovante da Viagem*
             </label>
             <div className="flex items-center flex-wrap gap-2 mb-2">
@@ -1413,7 +1631,7 @@ export default function RecordTrip() {
                 )}
               >
                 {gtoReceiptAnalysisStatus === "reading" && "Analisando valor e confirmação de anúncio/dobro…"}
-                {gtoReceiptAnalysisStatus === "ok" && "Print validado · nenhum anúncio/valor dobrado confirmado."}
+                {gtoReceiptAnalysisStatus === "ok" && "Leitura local concluída · validação do servidor após o envio."}
                 {gtoReceiptAnalysisStatus === "failed" && (
                   <div>
                     Não foi possível ler o valor recebido. Envie um print mais nítido para continuar.
@@ -1453,18 +1671,18 @@ export default function RecordTrip() {
                     className={cn(
                       "flex items-center gap-1 text-[10px] font-medium py-1 px-2 rounded-full transition-colors",
                       isUploading
-                       ? "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed opacity-50"
-                       : "text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
+                       ? "bg-gray-100 text-gray-400 dark:bg-nvu-surface dark:text-gray-600 cursor-not-allowed opacity-50"
+                       : "text-gray-500 hover:text-gray-800 dark:text-nvu-muted dark:hover:text-nvu-text bg-gray-100 hover:bg-gray-200 dark:bg-nvu-surface dark:hover:bg-nvu-strip"
                     )}
                   >
                     <X size={10} className="stroke-[2.5]" />
                     <span>Remover</span>
                   </button>
                 </div>
-                <div className="w-full rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 shadow-sm relative z-0">
+                <div className="w-full rounded-xl overflow-hidden border border-gray-200 dark:border-nvu-line shadow-sm relative z-0">
                   <PhotoProvider>
                     <PhotoView src={imagePreview}>
-                      <img
+                      <CachedImage
                         src={imagePreview}
                         alt="Prévia do comprovante"
                         className={cn("w-full h-auto max-h-[160px] object-cover sm:object-contain rounded-lg cursor-pointer transition-opacity", uploadPhase !== "idle" ? "opacity-70" : "opacity-100")}
@@ -1473,7 +1691,7 @@ export default function RecordTrip() {
                   </PhotoProvider>
 
                   {uploadPhase !== "idle" && (
-                    <div className="absolute inset-x-0 bottom-0 bg-white/95 dark:bg-[#1A1F26]/95 backdrop-blur-md p-3 border-t border-gray-200/50 dark:border-gray-700/50 flex flex-col gap-1.5">
+                    <div className="absolute inset-x-0 bottom-0 bg-white/95 dark:bg-nvu-surface/95 backdrop-blur-md p-3 border-t border-gray-200/50 dark:border-nvu-line/50 flex flex-col gap-1.5">
                        <div className="flex justify-between text-[10px] items-center text-blue-600 dark:text-blue-400 font-bold tracking-widest uppercase">
                          <span className="flex items-center gap-1.5">
                            <UploadCloud size={12} className="animate-pulse" />
@@ -1485,7 +1703,7 @@ export default function RecordTrip() {
                          </span>
                          {uploadPhase === "uploading" && <span>{uploadProgress.toFixed(0)}%</span>}
                        </div>
-                       <div className="w-full h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                       <div className="w-full h-1 bg-gray-200 dark:bg-nvu-strip rounded-full overflow-hidden">
                           <div
                             className={cn(
                               "h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all duration-300",
@@ -1505,7 +1723,7 @@ export default function RecordTrip() {
                   {uploadPhase === "idle" && imageHash && (
                     <div className="absolute bottom-2 right-2 bg-green-500/90 text-white text-[10px] px-2.5 py-1.5 rounded-lg font-semibold shadow-sm backdrop-blur-sm flex items-center gap-1.5">
                       <CheckCircle2 size={12} className="stroke-[2.5]" />
-                      Comprovante enviado com sucesso
+                      {offlineReceiptKey ? "Comprovante salvo; aguardando envio" : "Comprovante enviado com sucesso"}
                     </div>
                   )}
                 </div>
@@ -1516,7 +1734,7 @@ export default function RecordTrip() {
           {/* Valor */}
           <div className="pt-0.5">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <label className="text-[12px] font-semibold text-gray-800 dark:text-gray-200 block">
+              <label className="text-[12px] font-semibold text-gray-800 dark:text-nvu-text block">
                 {valueFieldNumber}. Valor ganho (R$)*
               </label>
                   {isReadingValue && (
@@ -1531,10 +1749,15 @@ export default function RecordTrip() {
                 </span>
               )}
             </div>
-            <div className="relative flex items-center border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-[#1A1F26] focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-shadow h-9">
-              <div className="px-3 py-1.5 border-r border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 font-medium text-[13px] shrink-0">
+            <div className="relative flex items-center border border-gray-200 dark:border-nvu-line rounded-lg overflow-hidden bg-white dark:bg-nvu-surface focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-shadow h-9">
+              <div className="px-3 py-1.5 border-r border-gray-100 dark:border-nvu-line bg-gray-50/50 dark:bg-nvu-surface/50 text-gray-600 dark:text-nvu-muted font-medium text-[13px] shrink-0">
                 R$
               </div>
+              {isGtoPrintMode ? (
+                <output className="w-full text-right pr-3 text-[13px] font-semibold text-gray-900 dark:text-white">
+                  {valor || "0,00"}
+                </output>
+              ) : (
                 <input
                   type="text"
                   value={valor}
@@ -1543,25 +1766,27 @@ export default function RecordTrip() {
                   aria-readonly={valorDetectadoAutomaticamente}
                   title={valorDetectadoAutomaticamente ? "Valor detectado automaticamente pelo print; não pode ser alterado." : undefined}
                   className={cn(
-                    "w-full bg-transparent text-gray-900 dark:text-white text-right font-semibold text-[13px] block pr-3 py-1.5 outline-none placeholder:text-gray-400 dark:placeholder:text-gray-500",
+                    "w-full bg-transparent text-gray-900 dark:text-white text-right font-semibold text-[13px] block pr-3 py-1.5 outline-none placeholder:text-gray-400 dark:placeholder:text-nvu-muted",
                     valorDetectadoAutomaticamente
                       ? "cursor-not-allowed text-emerald-700 dark:text-emerald-300"
                       : "focus:ring-0",
                   )}
                   placeholder="0,00"
                 />
+              )}
             </div>
           </div>
 
           {/* Buttons */}
           <div className="pt-2 space-y-2">
+            <PrintFailureDiagnostic text={printDiagnostic.text} />
             <button
               onClick={handleLancarViagem}
               disabled={isContractCompletedState || isUploading}
               className={cn(
                 "w-full h-10 flex items-center justify-center gap-1.5 rounded-lg font-bold text-[13px] transition-all active:scale-[0.99]",
                 isContractCompletedState
-                  ? "bg-gray-400 dark:bg-gray-700 text-white cursor-not-allowed"
+                  ? "bg-gray-400 dark:bg-nvu-strip text-white cursor-not-allowed"
                   : "bg-[#1f242d] hover:bg-[#2a303c] active:bg-[#151921] text-white dark:bg-slate-200 dark:hover:bg-slate-300 dark:text-slate-800 shadow-sm dark:shadow-none"
               )}
             >
@@ -1570,7 +1795,7 @@ export default function RecordTrip() {
             </button>
             <button
               onClick={() => navigate("/driver/history")}
-              className="w-full h-10 flex items-center justify-center gap-1.5 bg-white dark:bg-[#121213] hover:bg-slate-50 dark:hover:bg-gray-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-gray-800 rounded-lg font-bold text-[13px] transition-all active:scale-[0.99]"
+              className="w-full h-10 flex items-center justify-center gap-1.5 bg-white dark:bg-nvu-surface hover:bg-slate-50 dark:hover:bg-nvu-surface text-slate-800 dark:text-nvu-text border border-slate-300 dark:border-nvu-line rounded-lg font-bold text-[13px] transition-all active:scale-[0.99]"
             >
               <Clock size={14} />
               HISTÓRICO DE VIAGENS
@@ -1579,5 +1804,75 @@ export default function RecordTrip() {
         </div>
       </div>
     </div>
+  );
+}
+
+
+export default function RecordTrip() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { companies, activeCompanyId } = useCompanyStore();
+  const { simulators, simulatorsLoading } = useOperationalStore();
+  const company = companies.find((item) => item.id === activeCompanyId);
+  const simulator = resolveTripSimulatorCode(company as any, simulators as any[]);
+  const isPrintEntry = new URLSearchParams(location.search).get("mode") === "print";
+  const [entry, setEntry] = useState<"checking" | "allowed" | "blocked">("checking");
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [approvedKey, setApprovedKey] = useState("");
+  const [maintenance, setMaintenance] = useState(false);
+  const currentKey = `${company?.id || ""}:${simulator}:${location.search}`;
+
+  useEffect(() => {
+    if (!isPrintEntry) return;
+    if (!company || (simulatorsLoading && !simulator)) {
+      setEntry("checking");
+      return;
+    }
+    let active = true;
+    setEntry("checking");
+    setMaintenance(false);
+    assertWorkModeEntryAllowed("print", simulator)
+      .then(() => {
+        if (active) { setApprovedKey(currentKey); setEntry("allowed"); }
+      })
+      .catch((reason: unknown) => {
+        if (!active) return;
+        if (isWorkModeMaintenanceError(reason)) {
+          setMaintenance(true);
+          setEntry("blocked");
+          return;
+        }
+        setError(reason instanceof Error ? reason.message : "Não foi possível validar a entrada no Print.");
+        setEntry("blocked");
+      });
+    return () => { active = false; };
+  }, [isPrintEntry, company?.id, simulator, simulatorsLoading, attempt, currentKey]);
+
+  if (isPrintEntry && entry === "blocked" && !maintenance) {
+    return (
+      <div className="p-6 text-center" role="status">
+        <p>{error}</p>
+        {entry === "blocked" && (
+          <button type="button" onClick={() => setAttempt((value) => value + 1)}>
+            Tentar novamente
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <>
+      <div inert={maintenance || (isPrintEntry && (entry !== "allowed" || approvedKey !== currentKey))}>
+        <RecordTripOperational onMaintenance={() => setMaintenance(true)} />
+      </div>
+      {(maintenance || (isPrintEntry && (entry !== "allowed" || approvedKey !== currentKey))) && (
+        maintenance
+          ? <WorkModeMaintenanceDialog mode="print" simulator={simulator} onClose={() => setMaintenance(false)} />
+          : <div role="status" aria-live="polite" className="fixed inset-0 z-[190] flex items-start justify-center bg-white/20 pt-36 dark:bg-nvu-page/30">
+              <p className="rounded-2xl bg-white p-5 font-semibold text-slate-800 shadow-lg dark:bg-nvu-surface dark:text-white">Verificando disponibilidade do Print...</p>
+            </div>
+      )}
+    </>
   );
 }

@@ -1,0 +1,14 @@
+Compression measured: {
+  before: 2422544,
+  after: 675320,
+  width: 1920,
+  height: 1080,
+  type: 'image/webp'
+}
+IMAGES_520_PASS 8 {
+  before: 2422544,
+  after: 675320,
+  width: 1920,
+  height: 1080,
+  type: 'image/webp'
+}

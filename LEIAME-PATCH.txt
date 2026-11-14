@@ -1,0 +1,10 @@
+NVU — patch v91: ETS2 modo print (resumo "Trabalho concluído" do ônibus)
+
+Arquivo alterado no app: src/services/scsTripOcrService.ts (só ele; o restante são testes).
+Base esperada: o src/services/scsTripOcrService.ts do 1.0.596 com SHA-256
+  ea45d4b221f14036f5604e46f30a5ecc0a64e91c515c66d3a026c5631359a80a
+Se o seu arquivo tiver outro hash, NÃO sobrescreva: me envie o arquivo para eu mesclar.
+
+Como aplicar: extraia por cima do projeto (mesmos caminhos) e adicione os 2 passos de qa-config-trecho.json
+ao qa/config.json (steps + profiles web e release). Testes: node --import tsx scripts/test-scs-summary-words.mjs
+e node scripts/test-scs-bus-ocr.mjs (usa public/tesseract do projeto).

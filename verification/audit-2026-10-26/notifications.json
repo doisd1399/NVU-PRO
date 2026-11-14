@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "Hydrates without opening the bell while default legacy capabilities stay enabled",
+      "status": "PASS"
+    },
+    {
+      "name": "A new notification displays the real toast effect after initial hydration",
+      "status": "PASS"
+    },
+    {
+      "name": "Repeating a snapshot does not repeat the popup",
+      "status": "PASS"
+    },
+    {
+      "name": "Another company stays hidden in modern and legacy sources",
+      "status": "PASS"
+    },
+    {
+      "name": "Late callbacks from an old account cannot publish into the new account",
+      "status": "PASS"
+    },
+    {
+      "name": "The initial snapshot fills the bell without displaying an existing popup",
+      "status": "PASS"
+    }
+  ],
+  "error": null,
+  "method": "Real NotificationsProvider, NotificationToastListener and scope rules in React DOM/JSDOM. Firestore, auth session, route and toast transport controlled. Default legacy flags retained.",
+  "productionAccess": false,
+  "realPushSent": false
+}

@@ -1,3 +1,4 @@
+import { isWindowsDesktop } from "../lib/windowsAutomation";
 import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import {
@@ -189,7 +190,23 @@ function finishAttempt(attempt: GoogleAuthAttempt): void {
 function beginAttempt(environment: GoogleAuthEnvironment): GoogleAuthAttempt {
   if (activeAttempt) {
     const phase = activeAttempt.state().phase;
-    if (phase !== "recoverable-error" && phase !== "cancelled" && phase !== "signed-out") {
+    const stale =
+      phase === "starting" ||
+      phase === "awaiting-provider" ||
+      phase === "credential-received" ||
+      phase === "firebase-authenticating";
+
+    // Android WebView/Google SDK can leave a previous attempt alive after an
+    // interrupted Activity recreation. Recover that stale attempt instead of
+    // blocking the user permanently with GOOGLE_AUTH_ALREADY_IN_PROGRESS.
+    if (stale) {
+      try {
+        activeAttempt.cancel();
+      } catch {
+        // Ignore invalid terminal transitions during recovery.
+      }
+      resetGoogleAuthAttempt();
+    } else if (phase !== "recoverable-error" && phase !== "cancelled" && phase !== "signed-out") {
       throw new Error(GOOGLE_AUTH_ALREADY_IN_PROGRESS);
     }
   }
@@ -479,6 +496,10 @@ export async function restoreNativeGoogleSession(): Promise<User | null> {
   await auth.authStateReady();
   if (auth.currentUser) return auth.currentUser;
 
+  if (isWindowsDesktop()) {
+    const stored = await window.nvuWindows!.restoreAuth();
+    return stored ? (await signInWithCredential(auth, GoogleAuthProvider.credential(stored.idToken))).user : null;
+  }
   if (!isNativeAndroidRuntime() || !Capacitor.isPluginAvailable(nativePluginName)) {
     return null;
   }
@@ -519,6 +540,17 @@ export async function signInWithGoogleAccount(): Promise<User> {
   let attempt = beginAttempt(environment);
 
   try {
+    if (isWindowsDesktop()) {
+      await authPersistenceReady;
+      attempt.transition("awaiting-provider");
+      const credential = await window.nvuWindows!.signIn();
+      attempt.transition("credential-received");
+      attempt.transition("firebase-authenticating");
+      const result = await signInWithCredential(auth, GoogleAuthProvider.credential(credential.idToken));
+      attempt.transition("auth-confirmed");
+      attempt.transition("ready-for-profile-selector");
+      finishAttempt(attempt); return result.user;
+    }
     if (environment === "android") {
       return await signInWithNative(attempt);
     }
@@ -546,12 +578,63 @@ export async function signInWithGoogleAccount(): Promise<User> {
   }
 }
 
+/** Repairs native Auth for a queued Pro receipt without replacing the Web user. */
+export async function authenticateNativeForPendingProTrip(
+  expectedUid: string,
+  options: { allowInteractiveFallback?: boolean } = {},
+): Promise<void> {
+  const expected = String(expectedUid || "").trim();
+  await authPersistenceReady;
+  await auth.authStateReady();
+  if (!expected || auth.currentUser?.uid !== expected) {
+    throw new Error("PRO_PENDING_WEB_USER_MISMATCH");
+  }
+  if (!isNativeAndroidRuntime() || !Capacitor.isPluginAvailable(nativePluginName)) {
+    throw new Error(NATIVE_GOOGLE_PLUGIN_UNAVAILABLE);
+  }
+  const existing = await FirebaseAuthentication.getCurrentUser();
+  if (existing.user?.uid === expected) {
+    try {
+      // The native account can still be correct while its Firebase ID token is
+      // expired. Renew it before declaring the queued receipt recoverable.
+      await FirebaseAuthentication.getIdToken({ forceRefresh: true });
+      return;
+    } catch (error) {
+      if (options.allowInteractiveFallback === false) throw error;
+      // A failed refresh is the one case where the provider session must be
+      // recreated. This does not sign out the persisted Web Firebase session.
+    }
+  }
+  // A previous native account must be detached before the provider chooser;
+  // signOut here affects the native plugin, never the persisted Web session.
+  if (existing.user) await FirebaseAuthentication.signOut();
+  try {
+    // Credential Manager is the silent/native account path. It can restore the
+    // same Google account already used by the Web session without showing a
+    // second login surface after an app restart or update.
+    await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: true });
+  } catch (error) {
+    if (
+      isNativeGoogleCancellation(error) ||
+      isPluginRegistrationError(error) ||
+      options.allowInteractiveFallback === false
+    ) throw error;
+    await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
+  }
+  await FirebaseAuthentication.getIdToken({ forceRefresh: true });
+  const nativeSession = await FirebaseAuthentication.getCurrentUser();
+  if (nativeSession.user?.uid !== expected || auth.currentUser?.uid !== expected) {
+    throw new Error("PRO_PENDING_NATIVE_USER_MISMATCH");
+  }
+}
+
 /**
  * Preloads the official GIS library while the Login screen is mounted. This
  * keeps the user gesture available for the in-page account prompt and avoids a
  * redirect or a second browser tab.
  */
 export function preloadGoogleIdentityServices(): void {
+  if (isWindowsDesktop()) return;
   if (!isNativeAppRuntime()) {
     void ensureGoogleIdentityServices().catch((error) => {
       console.warn("[NVU Google Auth] GIS preload failed", error);
@@ -560,6 +643,7 @@ export function preloadGoogleIdentityServices(): void {
 }
 
 export function signOutNativeGoogleIfAvailable(): Promise<void> {
+  if (isWindowsDesktop()) return window.nvuWindows!.signOut();
   if (!isNativeGoogleAuthenticationAvailable()) return Promise.resolve();
   return FirebaseAuthentication.signOut();
 }

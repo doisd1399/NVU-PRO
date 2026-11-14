@@ -1,0 +1,25 @@
+/* Complementos da lista de opções (avatar, selo, opção bloqueada) sobre o visual das listas da Central (AssignmentWorkspace.css). */
+.nvu-option-avatar { overflow: hidden; }
+.nvu-option-avatar { border-radius: 12px; }
+.nvu-option-avatar.is-round { border-radius: 50%; }
+.nvu-option-avatar-frame { display: block; width: 100%; height: 100%; overflow: hidden; background: var(--assignment-soft); }
+.nvu-option-avatar-frame > span { display: grid; place-items: center; width: 100%; height: 100%; font-size: 12px; font-weight: 700; color: var(--assignment-muted); }
+.nvu-option-avatar-frame img { width: 100%; height: 100%; object-fit: cover; }
+.nvu-option-choice { align-items: center; }
+.nvu-option-choice .nvu-assignment-choice-copy strong { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.nvu-option-tag { display: inline-block; padding: 1px 8px; border-radius: 999px; font-style: normal; font-size: 10.5px; font-weight: 700; line-height: 1.6; background: var(--assignment-soft); color: var(--assignment-muted); }
+.nvu-option-tag[data-tone="good"] { background: color-mix(in srgb, var(--assignment-action) 16%, transparent); color: var(--assignment-action); }
+.nvu-option-tag[data-tone="warn"] { background: color-mix(in srgb, #b8660d 16%, transparent); color: #b8660d; }
+.dark .nvu-option-tag[data-tone="warn"] { background: color-mix(in srgb, #f0c46a 16%, transparent); color: #f0c46a; }
+.nvu-option-choice.is-disabled { opacity: .62; cursor: not-allowed; }
+.nvu-option-choice.is-disabled:hover { border-color: var(--assignment-line); }
+.nvu-option-reason { color: var(--assignment-muted); }
+.nvu-option-lock { width: 19px; height: 19px; }
+.nvu-option-none { margin-bottom: 10px; }
+.nvu-option-group { cursor: default; }
+.nvu-option-group > svg:first-child { color: var(--assignment-action); }
+
+/* Sem molduras de foco genéricas (quadrado em volta de busca, botão ou opção): o próprio campo/linha já mostra o estado. */
+.nvu-option-picker :is(button, input, [tabindex]):focus, .nvu-option-picker :is(button, input, [tabindex]):focus-visible { outline: none; box-shadow: none; }
+.nvu-option-picker .nvu-assign-picker-search input { border: 0; background: transparent; }
+body:has(.nvu-b2p) .nvu-assign-picker-dialog :is(button, input, [tabindex]):focus, body:has(.nvu-b2p) .nvu-assign-picker-dialog :is(button, input, [tabindex]):focus-visible { outline: none; box-shadow: none; }

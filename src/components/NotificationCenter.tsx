@@ -124,7 +124,7 @@ export function NotificationCenter({
       >
         <Bell size={20} />
         {unread.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-[#09090b]">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center border-2 border-white dark:border-nvu-page">
             {unread.length > 99 ? "99+" : unread.length}
           </span>
         )}
@@ -137,15 +137,15 @@ export function NotificationCenter({
             className="fixed inset-0 z-40 cursor-default"
             onClick={onClose}
           />
-          <div className="nvu-notification-panel fixed left-3 right-3 top-[72px] z-50 max-h-[calc(100dvh-88px)] overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#111113]/95 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[390px] sm:max-h-[72vh]">
+          <div className="nvu-notification-panel fixed left-3 right-3 top-[72px] z-50 max-h-[calc(100dvh-88px)] overflow-hidden rounded-2xl border border-gray-200/80 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-nvu-page/95 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[390px] sm:max-h-[72vh]">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/10">
               <div>
                 <h3 className="text-sm font-bold text-gray-950 dark:text-white">Notificações</h3>
-                <p className="text-[11px] text-gray-500 dark:text-zinc-400">
+                <p className="text-[11px] text-gray-500 dark:text-nvu-muted">
                   {unread.length} {unread.length === 1 ? "pendente" : "pendentes"}
                 </p>
               </div>
-              <Bell data-nvu-notification-card-icon size={17} className="nvu-notification-card-icon text-slate-700 dark:text-zinc-200" />
+              <Bell data-nvu-notification-card-icon size={17} className="nvu-notification-card-icon text-slate-700 dark:text-nvu-text" />
             </div>
 
             <div className="max-h-[calc(100dvh-154px)] overflow-y-auto overscroll-contain p-3 space-y-4 sm:max-h-[calc(72vh-66px)]">
@@ -155,8 +155,8 @@ export function NotificationCenter({
                   return (
                     <section key={group.id}>
                       <div className="flex items-center gap-2 px-1 mb-2">
-                        <GroupIcon data-nvu-notification-card-icon size={14} className="nvu-notification-card-icon text-slate-700 dark:text-zinc-200" />
-                        <h4 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-zinc-400">
+                        <GroupIcon data-nvu-notification-card-icon size={14} className="nvu-notification-card-icon text-slate-700 dark:text-nvu-text" />
+                        <h4 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-nvu-muted">
                           {group.label}
                         </h4>
                         <span className="ml-auto text-[10px] font-semibold text-gray-400">
@@ -177,16 +177,16 @@ export function NotificationCenter({
                           >
                             <div className="flex items-start gap-3">
                               <div className="mt-0.5 h-8 w-8 shrink-0 rounded-lg bg-white border border-gray-200 flex items-center justify-center dark:bg-white/[0.06] dark:border-white/10">
-                                <GroupIcon data-nvu-notification-card-icon size={16} className="nvu-notification-card-icon text-slate-700 dark:text-zinc-200" />
+                                <GroupIcon data-nvu-notification-card-icon size={16} className="nvu-notification-card-icon text-slate-700 dark:text-nvu-text" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-[13px] leading-4 font-bold text-gray-950 dark:text-white">
                                   {notification.title ?? notification.titulo}
                                 </p>
-                                <p className="mt-1 text-[12px] leading-4 text-gray-600 dark:text-zinc-300">
+                                <p className="mt-1 text-[12px] leading-4 text-gray-600 dark:text-nvu-text-soft">
                                   {notification.message ?? notification.mensagem}
                                 </p>
-                                <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-gray-400 dark:text-zinc-500">
+                                <div className="mt-2 flex items-center gap-1.5 text-[10px] font-medium text-gray-400 dark:text-nvu-muted">
                                   <Clock3 size={11} />
                                   <span>{formatNotificationDate(notification)}</span>
                                 </div>
@@ -201,7 +201,7 @@ export function NotificationCenter({
               ) : (
                 <div className="py-10 text-center">
                   <Inbox size={24} className="mx-auto text-gray-300 dark:text-zinc-600" />
-                  <p className="mt-2 text-sm font-medium text-gray-500 dark:text-zinc-400">
+                  <p className="mt-2 text-sm font-medium text-gray-500 dark:text-nvu-muted">
                     Nenhuma notificação pendente.
                   </p>
                 </div>

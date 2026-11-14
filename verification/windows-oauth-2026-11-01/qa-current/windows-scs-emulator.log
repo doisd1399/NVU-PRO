@@ -1,0 +1,12 @@
+PASS Senior Windows mode controls: persistence, legacy-client omissions, version conflict, authorization and audit
+{"elapsedMs":2123,"preflightMs":11,"evidenceMs":0,"transactionMs":2113,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":2777,"preflightMs":13,"evidenceMs":0,"transactionMs":2764,"transactionAttempts":2,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":47,"preflightMs":8,"evidenceMs":0,"transactionMs":39,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":55,"preflightMs":6,"evidenceMs":0,"transactionMs":49,"transactionAttempts":1,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+PASS ets2 concorrência, replay, moeda, identidade, capacidade e awaiting_completion
+{"elapsedMs":2080,"preflightMs":10,"evidenceMs":0,"transactionMs":2070,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":2696,"preflightMs":11,"evidenceMs":0,"transactionMs":2685,"transactionAttempts":2,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":48,"preflightMs":6,"evidenceMs":0,"transactionMs":42,"transactionAttempts":1,"duplicate":false,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+{"elapsedMs":38,"preflightMs":6,"evidenceMs":0,"transactionMs":32,"transactionAttempts":1,"duplicate":true,"severity":"INFO","message":"NVU_TRIP_TIMING_520"}
+PASS ats concorrência, replay, moeda, identidade, capacidade e awaiting_completion
+SCS_WINDOWS_EMULATOR_PASS

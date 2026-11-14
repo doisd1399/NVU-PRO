@@ -5,6 +5,8 @@ const plugin = fs.readFileSync("android/app/src/main/java/com/nvu/operacional/Si
 const bridge = fs.readFileSync("src/components/SimpleAutomationCompletionBridge.tsx", "utf8");
 const native = fs.readFileSync("src/lib/simpleAutomationNative.ts", "utf8");
 const completion = fs.readFileSync("src/services/simpleAutomationCompletionService.ts", "utf8");
+const job = fs.readFileSync("android/app/src/main/java/com/nvu/operacional/ProPendingTripJobService.java", "utf8");
+const store = fs.readFileSync("android/app/src/main/java/com/nvu/operacional/ProPendingTripStore.java", "utf8");
 
 function check(label, condition) {
   if (!condition) throw new Error(`FAIL: ${label}`);
@@ -17,12 +19,11 @@ check("capture event has monotonic version", service.includes('captureEventVersi
 check("context updates preserve pending/captured receipts", service.includes("preservePendingReceipt") && service.includes("if (!preservePendingReceipt)"));
 check("plugin replays pending capture after WebView/plugin load", plugin.includes("receiptReplayRunnable") && plugin.includes("postDelayed(this, 250L)"));
 check("replay is bounded", plugin.includes("receiptReplayAttempts++ < 20"));
-check("bridge remembers last valid operation context", bridge.includes("lastValidContext") && bridge.includes("pendingPoll.current = true"));
-const pollSection = bridge.slice(bridge.indexOf("const poll ="));
-check("bridge does not discard a capture solely during transient context loss", !pollSection.includes("if (!currentUser?.id || !currentCompany?.id || !currentJob?.id || !currentContract?.id) return;"));
-check("bridge maintains event and polling recovery", bridge.includes('SimpleAutomation.addListener("receiptCaptured"') && bridge.includes("window.setInterval(requestPoll, 200)"));
-check("bridge coalesces consecutive notifications", bridge.includes("pendingPoll.current") && bridge.includes("running.current"));
-check("attempt key prevents duplicate processing", bridge.includes("handledReceiptKey.current === receiptKey") && bridge.includes("handledReceiptKey.current = receiptKey"));
+check("operation snapshot remains live from confirmed history while receipt is queued", bridge.includes("SimpleAutomation.refreshOperationSnapshot({") && bridge.includes("Number(currentOperationProgress)") && !bridge.includes("currentJob.progress"));
+check("native queue owns captures across transient Web context loss", !bridge.includes("completeSimpleAutomationReceipt") && store.includes('PREFIX + id'));
+check("bridge maintains event and bounded status recovery", bridge.includes('SimpleAutomation.addListener("receiptCaptured"') && bridge.includes("window.setInterval(() => void poll(), 750)"));
+check("bridge coalesces notifications", bridge.includes("running.current"));
+check("attempt claim prevents duplicate processing", service.includes("ProPendingTripStore.claim(this, prefs, id)") && job.includes("ProPendingTripStore.claim(this, index, id)"));
 check("native ACK remains after durable completion", completion.indexOf("completeTripWithCoordinator") < completion.indexOf("acknowledgeReceipt"));
 check("post-write reconciliation remains deferred except for terminal completion", completion.includes("operationWillClose") && completion.includes("deferOperationReconciliation: !operationWillClose"));
 

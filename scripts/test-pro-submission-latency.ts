@@ -10,6 +10,10 @@ const measure = async (deferred: boolean): Promise<{ elapsedMs: number; reconcil
     companyId: "latency-test-company",
     tripData: {
       idempotencyKey: `latency-${deferred ? "deferred" : "sync"}-${Date.now()}-${Math.random()}`,
+      driverId: "latency-test-user",
+      companyId: "latency-test-company",
+      jobId: `latency-job-${deferred ? "deferred" : "sync"}`,
+      contractId: "latency-contract",
     },
     job: { id: `latency-job-${deferred ? "deferred" : "sync"}`, progress: 3 },
     contract: { id: "latency-contract", totalDeliveries: 10 },
@@ -23,9 +27,6 @@ const measure = async (deferred: boolean): Promise<{ elapsedMs: number; reconcil
     syncJobProgress: async () => {
       await sleep(1_000);
       return 4;
-    },
-    finishJob: async () => {
-      await sleep(1_000);
     },
     deferOperationReconciliation: deferred,
     projectedOperationProgress: 4,

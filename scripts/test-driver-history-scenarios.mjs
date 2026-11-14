@@ -39,6 +39,15 @@ assert.deepEqual(driverA.map((item) => item.id), ["a-2", "a-1"]);
 assert.deepEqual(summarizeTripHistory(driverA), {
   totalViagens: 2,
   faturamentoTotal: 220,
+  moneyGroups: [{
+    currency: "BRL",
+    currencyStatus: "known",
+    currencySources: ["SIMULATOR_REGISTRY"],
+    currencySource: "SIMULATOR_REGISTRY",
+    value: 220,
+    tripCount: 2,
+    missingValueTrips: 0,
+  }],
 });
 
 // TESTE 2: a driver without cached records remains empty and can be filled by sync.
@@ -103,9 +112,35 @@ assert.equal(scoped(dataset, {
 // TESTE 7: a slow Firebase refresh cannot replace a non-empty cached projection.
 const cachedProjection = driverA;
 const remotePending = true;
-assert.equal(remotePending, true);
+assert.ok(remotePending, true);
 assert.deepEqual(cachedProjection.map((item) => item.id), ["a-2", "a-1"]);
 
+const wrongJob = {
+  ...trip("wrong-job", {
+    companyId: "company-a",
+    driverId: "driver-a",
+    simulatorId: "gto",
+    date: "2026-09-02T12:00:00.000Z",
+    value: 50,
+  }),
+  jobId: "job-other",
+  contractId: "contract-shared",
+};
+assert.equal(
+  filterAndSortTripHistory([wrongJob], {
+    driverId: "driver-a",
+    embeddedJob: {
+      id: "job-requested",
+      driverId: "driver-a",
+      contractId: "contract-shared",
+      assignedAt: "2026-09-01T00:00:00.000Z",
+      completedAt: "2026-09-03T00:00:00.000Z",
+    },
+  }).length,
+  0,
+  "explicit mismatched jobId must never be admitted by contract/driver/date fallback",
+);
+
 console.log(
-  "driver-history-scenarios: PASS 7 cenários — cache-first, empty-cache sync, A→B→A isolation, new trip, reopen, company/simulator scope and slow Firebase",
+  "driver-history-scenarios: PASS 8 cenários — cache-first, empty-cache sync, A→B→A isolation, new trip, reopen, company/simulator scope, slow Firebase and explicit jobId isolation",
 );

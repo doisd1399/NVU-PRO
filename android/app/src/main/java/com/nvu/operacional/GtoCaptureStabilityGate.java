@@ -19,8 +19,10 @@ final class GtoCaptureStabilityGate {
     static final String GTO_READY = "GTO_READY";
     static final String CAPTURE_RESIZE_FAILED = "CAPTURE_RESIZE_FAILED";
 
-    static final int REQUIRED_STABLE_FRAMES = 3;
-    static final long MIN_GEOMETRY_SETTLE_MS = 280L;
+    static final int REQUIRED_STABLE_FRAMES = 1;
+    // Snapshot único: o OCR trabalha sobre um frame congelado.
+    // Não aguardamos múltiplos frames para evitar atraso e falsos negativos.
+    static final long MIN_GEOMETRY_SETTLE_MS = 80L;
 
     static final class Snapshot {
         final long generation;

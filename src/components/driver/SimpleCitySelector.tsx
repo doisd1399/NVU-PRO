@@ -47,7 +47,7 @@ export function SimpleCitySelector({
   return (
     <section
       aria-label={`Selecionar ${label.toLocaleLowerCase("pt-BR")}`}
-      className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-[#15171c]"
+      className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-white/10 dark:bg-nvu-surface"
     >
       <div className="mb-2 flex items-center gap-1.5">
         <MapPin size={14} className="text-cyan-600 dark:text-cyan-400" />
@@ -55,7 +55,7 @@ export function SimpleCitySelector({
       </div>
 
       {initials.length === 0 ? (
-        <p className="rounded-xl bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:bg-white/5 dark:text-slate-400">
+        <p className="rounded-xl bg-slate-50 px-3 py-4 text-center text-xs text-slate-500 dark:bg-white/5 dark:text-nvu-muted">
           Nenhuma cidade cadastrada para este simulador.
         </p>
       ) : (
@@ -78,7 +78,7 @@ export function SimpleCitySelector({
                     "flex h-6 w-6 items-center justify-center self-start rounded-md text-[11px] font-extrabold leading-none transition-colors",
                     active
                       ? "bg-cyan-600 text-white shadow-sm"
-                      : "text-slate-500 hover:bg-cyan-50 hover:text-cyan-700 dark:text-slate-400 dark:hover:bg-cyan-400/10 dark:hover:text-cyan-300",
+                      : "text-slate-500 hover:bg-cyan-50 hover:text-cyan-700 dark:text-nvu-muted dark:hover:bg-cyan-400/10 dark:hover:text-cyan-300",
                     disabled && "cursor-not-allowed opacity-50",
                   )}
                 >
@@ -102,7 +102,7 @@ export function SimpleCitySelector({
                     "flex min-h-7 items-center justify-between gap-1 rounded-lg border px-3 py-1 text-left text-[12px] leading-tight transition-colors duration-200 ease-out",
                     active
                       ? "border-orange-400 bg-orange-500 font-bold text-white shadow-sm ring-1 ring-orange-300/70 dark:border-orange-300 dark:bg-orange-500 dark:text-white"
-                      : "border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/70 dark:border-white/10 dark:text-slate-200 dark:hover:border-orange-400/50 dark:hover:bg-orange-400/10",
+                      : "border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/70 dark:border-white/10 dark:text-nvu-text dark:hover:border-orange-400/50 dark:hover:bg-orange-400/10",
                     disabled && "cursor-not-allowed opacity-50",
                   )}
                 >

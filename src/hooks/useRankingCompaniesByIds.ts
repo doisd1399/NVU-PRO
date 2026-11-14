@@ -1,3 +1,5 @@
+import { ABSENT_RECHECK_MS, settleCompanyChunks, type ChunkResult } from "../lib/rankingCompaniesSettlement";
+import { withTimeout } from "../lib/asyncTimeout";
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -19,6 +21,7 @@ export type RankingCompaniesState = {
   error: unknown | null;
   complete: boolean;
   serverConfirmed: boolean;
+  stale?: boolean;
 };
 
 type RankingCompaniesEntry = {
@@ -32,6 +35,8 @@ type RankingCompaniesEntry = {
   retryTimer: ReturnType<typeof setTimeout> | null;
   retryAttempt: number;
   hasCompleteSnapshot: boolean;
+  /** Ids the server confirmed it does not list (deleted companies). */
+  absentIds?: string[];
   serverConfirmed: boolean;
 };
 
@@ -121,6 +126,28 @@ function findReusableSourceState(ids: string[]): RankingCompaniesState | null {
   };
 }
 
+function readPersistedState(ids: string[]): RankingCompaniesState | null {
+  try {
+    const key = `nvu.ranking.companies.v501.${ids.join("|")}`;
+    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;
+    const saved = raw ? JSON.parse(raw) : null;
+    if (!saved || !Array.isArray(saved.ids) || saved.ids.join("|") !== ids.join("|") || !Array.isArray(saved.companies)) return null;
+    const savedIds = new Set(saved.companies.map((company: any) => typeof company?.id === "string" ? company.id : ""));
+    const savedAbsent = new Set<string>(Array.isArray(saved.absent) ? saved.absent.filter((id: unknown): id is string => typeof id === "string") : []);
+    if (!ids.every(id => savedIds.has(id) || savedAbsent.has(id))) return null;
+    return { companies: saved.companies, loading: false, refreshing: false, error: null, complete: true, serverConfirmed: true, stale: true };
+  } catch { return null; }
+}
+function persistCompleteState(entry: RankingCompaniesEntry) {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(`nvu.ranking.companies.v501.${entry.key}`, JSON.stringify({ ids: entry.ids, companies: entry.state.companies, absent: entry.absentIds || [], cachedAt: Date.now() }));
+    const keys = Object.keys(localStorage).filter(key => key.startsWith("nvu.ranking.companies.v501."));
+    keys.sort((a, b) => Number(JSON.parse(localStorage.getItem(a) || "{}").cachedAt || 0) - Number(JSON.parse(localStorage.getItem(b) || "{}").cachedAt || 0));
+    keys.slice(0, Math.max(0, keys.length - 12)).forEach(key => localStorage.removeItem(key));
+  } catch { /* Full memory snapshot remains usable when local persistence is unavailable. */ }
+}
+
 function ensureEntry(ids: string[]) {
   ensureTeardownListener();
   const key = ids.join("|");
@@ -133,7 +160,7 @@ function ensureEntry(ids: string[]) {
     return existing;
   }
 
-  const reusableSource = findReusableSourceState(ids);
+  const reusableSource = findReusableSourceState(ids) || readPersistedState(ids);
   const entry: RankingCompaniesEntry = {
     key,
     ids,
@@ -148,7 +175,7 @@ function ensureEntry(ids: string[]) {
       },
     subscribers: new Set(),
     request: null,
-    expiresAt: reusableSource ? Date.now() + CACHE_TTL_MS : 0,
+    expiresAt: reusableSource && !reusableSource.stale ? Date.now() + CACHE_TTL_MS : 0,
     releaseTimer: null,
     retryTimer: null,
     retryAttempt: 0,
@@ -215,6 +242,7 @@ function loadEntry(entry: RankingCompaniesEntry) {
     error: null,
     complete: entry.hasCompleteSnapshot,
     serverConfirmed: entry.serverConfirmed,
+          stale: true,
   };
   notify(entry);
 
@@ -222,32 +250,17 @@ function loadEntry(entry: RankingCompaniesEntry) {
     chunks.map((ids) =>
       // Android persistence can satisfy getDocs from a stale/local catalog.
       // Only this bounded set is forced to the server for ranking identity.
-      getDocsFromServer(
-        query(collection(db, "frotas"), where(documentId(), "in", ids)),
-      ),
+      withTimeout(getDocsFromServer(
+        query(collection(db, "public_companies"), where(documentId(), "in", ids)),
+      ), 10_000, "Tempo limite ao confirmar as empresas da classificação."),
     ),
   )
     .then((results) => {
       if (isAuthTeardownActive() || cache.get(entry.key) !== entry) return;
 
-      const merged = new Map<string, any>();
-      let firstError: unknown = null;
+      const { merged, firstError, confirmed, absent } = settleCompanyChunks(entry.ids, results as ChunkResult[]);
 
-      results.forEach((result) => {
-        if (result.status === "rejected") {
-          firstError ||= result.reason;
-          return;
-        }
-        result.value.docs.forEach((document) => {
-          merged.set(document.id, { ...document.data(), id: document.id });
-        });
-      });
-
-      const allSourcesSucceeded = results.every(
-        (result) => result.status === "fulfilled",
-      );
-
-      if (allSourcesSucceeded) {
+      if (confirmed) {
         entry.hasCompleteSnapshot = true;
         entry.serverConfirmed = true;
         entry.retryAttempt = 0;
@@ -261,7 +274,9 @@ function loadEntry(entry: RankingCompaniesEntry) {
           complete: true,
           serverConfirmed: true,
         };
-        entry.expiresAt = Date.now() + CACHE_TTL_MS;
+        entry.absentIds = absent;
+        entry.expiresAt = Date.now() + (absent.length ? ABSENT_RECHECK_MS : CACHE_TTL_MS);
+        persistCompleteState(entry);
       } else {
         // Do not cache a successful subset as the requested company set. A
         // previous complete result may remain visible while this refresh is
@@ -270,13 +285,14 @@ function loadEntry(entry: RankingCompaniesEntry) {
           companies: entry.hasCompleteSnapshot
             ? entry.state.companies
             : Array.from(merged.values()),
-          loading: !entry.hasCompleteSnapshot,
+          loading: false,
           refreshing: false,
           error:
             firstError ||
-            new Error("Não foi possível confirmar todas as empresas do ranking."),
+            new Error("Há empresas do ranking aguardando confirmação no diretório público."),
           complete: entry.hasCompleteSnapshot,
           serverConfirmed: entry.serverConfirmed,
+    stale: true,
         };
         if (!entry.hasCompleteSnapshot) entry.expiresAt = 0;
         // Retry only the same bounded participant set. The exponential backoff
@@ -346,7 +362,7 @@ export function useRankingCompaniesByIds(
       !enabled || normalizedIds.length === 0
         ? EMPTY_STATE
         : cache.get(key)?.state ||
-          findReusableSourceState(normalizedIds) || {
+          findReusableSourceState(normalizedIds) || readPersistedState(normalizedIds) || {
             companies: [],
             loading: true,
             refreshing: false,
@@ -377,7 +393,7 @@ export function useRankingCompaniesByIds(
   if (stateRecord.key !== key) {
     return !enabled || normalizedIds.length === 0
       ? EMPTY_STATE
-      : findReusableSourceState(normalizedIds) || {
+      : findReusableSourceState(normalizedIds) || readPersistedState(normalizedIds) || {
           companies: [],
           loading: true,
           refreshing: false,

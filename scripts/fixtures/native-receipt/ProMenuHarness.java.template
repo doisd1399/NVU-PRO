@@ -1,0 +1,39 @@
+package com.nvu.operacional;
+import android.content.*; import android.util.DisplayMetrics; import android.graphics.*;
+import android.graphics.drawable.GradientDrawable; import android.view.*; import android.widget.*;
+import java.util.*;
+
+/** Real menu/picker/ready methods; doubles only for unrelated business/network/capture. */
+final class ProMenuHarness extends android.content.Context {
+__COMMON__
+ static ProMenuHarness instance;
+ static final String PREFS_NAME="fixture";
+ static final String STATE_IDLE="IDLE",DEFAULT_STATE=STATE_IDLE,STATE_ROUTE_ORIGIN="ROUTE_ORIGIN",
+  STATE_ROUTE_DESTINATION="ROUTE_DESTINATION",STATE_TRIP_ACTIVE="TRIP_ACTIVE",
+  STATE_CAPTURE_PENDING="CAPTURE_PENDING",STATE_CANCELLED="CANCELLED";
+ int menuBaseY,voices,pending,finalizeRequests,cancelRequests; static final int PRO_MESSAGE_MIN_BAND_DP=76;
+ String selectedInitial=""; boolean summaryExpanded,historyExpanded,orientation=true,consent;
+ List<String> cities=new ArrayList<>(Arrays.asList("Agro Grão","Águas Velhas","Registro"));
+ ProMenuHarness(){instance=this;}
+ @Override public SharedPreferences getSharedPreferences(String name,int mode){return prefs;}
+ static String safe(String s){return s==null?"":s.trim();}
+ static String closedOperationMessage(String s){return "Operação encerrada";}
+ void cancelSimpleBubbleGesture(String s,boolean b){} void hideSimpleBubbleRemoveTarget(){}
+ boolean isProBubbleOrientationAllowed(){return orientation;} boolean isCaptureConsentSurfaceActive(){return consent;}
+ void recordOverlayDiagnostic(String s,Throwable e){errors++;}
+ void emitSimpleReadyVoice(long id){voices++;}
+ int pendingTripCountForCurrentScope(){return pending;}
+ String operationSummary(){return "Resumo da operação";}
+ void addHistoryContents(LinearLayout target){target.addView(label("Histórico preservado",11f,false));}
+ List<String> readCities(){return cities;}
+ String initialOf(String city){String s=java.text.Normalizer.normalize(city,java.text.Normalizer.Form.NFD).replaceAll("\\p{M}","");return s.substring(0,1).toUpperCase(java.util.Locale.ROOT);}
+ static void cancelTrip(Context c){instance.cancelRequests++;}
+ static void requestReceiptCapture(Context c){instance.finalizeRequests++;}
+ static void retryReceiptCapture(Context c){instance.finalizeRequests++;}
+ GradientDrawable roundBackground(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
+ void open(){openMenu();} void outside(View surface){surface.dispatchTouchEvent(new MotionEvent(MotionEvent.ACTION_OUTSIDE));}
+ void ready(){showRouteReadyMessage();} void message(String text){showStatusChip(text,2600L);}
+ void flush(){mainHandler.flush();} void dismiss(){hideStatusChip();}
+ void renderInto(LinearLayout target){populateMenuContents(target);}
+__METHODS__
+}

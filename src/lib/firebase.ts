@@ -1,13 +1,14 @@
 import { initializeApp } from "firebase/app";
-import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
+import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence } from "firebase/auth";
 import {
   getFirestore,
   initializeFirestore,
   memoryLocalCache,
+  connectFirestoreEmulator,
   type Firestore,
 } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
-import { getFunctions } from "firebase/functions";
+import { connectStorageEmulator, getStorage } from "firebase/storage";
+import { connectFunctionsEmulator, getFunctions } from "firebase/functions";
 
 const canonicalFirebaseConfig = {
   apiKey: ["A", "I", "z", "a", "SyCUoMAtCJHYSN1" + "U0MUKhbMf9kvwBAuL8pM"].join(""),
@@ -34,13 +35,18 @@ const resolveFirebaseApiKey = () => {
     : canonicalFirebaseConfig.apiKey;
 };
 
+const requestedProjectId = readFirebaseEnv("VITE_FIREBASE_PROJECT_ID");
+const emulatorRequested = readFirebaseEnv("VITE_USE_FIREBASE_EMULATORS") === "true";
+if (requestedProjectId && requestedProjectId !== canonicalFirebaseConfig.projectId && !(requestedProjectId === "demo-nvu-v36-4-staging" && emulatorRequested)) {
+  throw new Error("Firebase project override rejected: only vtc-frota-log or the isolated demo emulator is allowed.");
+}
 const firebaseConfig = {
   apiKey: resolveFirebaseApiKey(),
   authDomain:
     readFirebaseEnv("VITE_FIREBASE_AUTH_DOMAIN") ||
     canonicalFirebaseConfig.authDomain,
   projectId:
-    readFirebaseEnv("VITE_FIREBASE_PROJECT_ID") || canonicalFirebaseConfig.projectId,
+    requestedProjectId || canonicalFirebaseConfig.projectId,
   storageBucket:
     readFirebaseEnv("VITE_FIREBASE_STORAGE_BUCKET") ||
     canonicalFirebaseConfig.storageBucket,
@@ -55,8 +61,18 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+const useFirebaseEmulators =
+  emulatorRequested &&
+  firebaseConfig.projectId === "demo-nvu-v36-4-staging";
+if (useFirebaseEmulators) {
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+}
 // Explicitly preserve Firebase Auth across WebView/browser restarts. An
 // explicit logOutApp() remains the only path that clears the Auth session.
+// Windows uses the same local persistence as Android: restoring the session
+// from the Google token vault needs the network, so with memory-only Auth the
+// desktop app could not even open offline. The Firebase session now lives in the
+// per-user app data folder; signing out clears it.
 export const authPersistenceReady: Promise<boolean> = setPersistence(
   auth,
   browserLocalPersistence,
@@ -86,3 +102,8 @@ try {
 export { db };
 export const storage = getStorage(app);
 export const functions = getFunctions(app, "us-central1");
+if (useFirebaseEmulators) {
+  connectFirestoreEmulator(db, "127.0.0.1", 8085);
+  connectStorageEmulator(storage, "127.0.0.1", 9199);
+  connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+}

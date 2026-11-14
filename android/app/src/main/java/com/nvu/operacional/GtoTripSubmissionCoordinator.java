@@ -63,11 +63,16 @@ final class GtoTripSubmissionCoordinator {
         GtoAutoTripSync.Listener coordinatedListener = new GtoAutoTripSync.Listener() {
             @Override
             public void onSynced(String callbackSessionId, String tripId) {
+                onSynced(callbackSessionId, tripId, null);
+            }
+
+            @Override
+            public void onSynced(String callbackSessionId, String tripId, NativeTripReceipt receipt) {
                 if (sessionId.equals(clean(callbackSessionId))) {
                     release(sessionId);
                     setCurrentState(prefs, STATE_SYNCED, "Viagem registrada com sucesso.");
                 }
-                if (listener != null) listener.onSynced(callbackSessionId, tripId);
+                if (listener != null) listener.onSynced(callbackSessionId, tripId, receipt);
             }
 
             @Override

@@ -15,6 +15,7 @@ assert.match(statusBarController, /location\.key/);
 assert.match(statusBarController, /SystemBarsStyle\.Dark/);
 assert.match(statusBarController, /SystemBarsStyle\.Light/);
 assert.match(statusBarController, /theme === "dark"/);
+assert.match(statusBarController, /bar: SystemBarType.NavigationBar/);
 assert.match(statusBarController, /SystemBarsStyle\.Light/);
 assert.match(statusBarController, /isProfileBannerRoute/);
 assert.match(ranking, /nvu-ranking-page/);
@@ -26,7 +27,8 @@ assert.doesNotMatch(ranking, /nvu-ranking-closed/);
 assert.match(ranking, /aria-label="Abrir menu do aplicativo"/);
 assert.doesNotMatch(ranking, /onClick=\{\(\) => navigate\(-1\)\}[\s\S]{0,80}aria-label="Abrir menu do aplicativo"/);
 assert.match(app, /nvu-ranking-overlay fixed inset-0/);
-assert.match(app, /Capacitor\.isNativePlatform\(\) && "nvu-native-android"/);
+// Android Web-like sessions share the native chrome contract with Capacitor.
+assert.match(app, /Capacitor\.isNativePlatform\(\)[\s\S]{0,100}"nvu-native-android"/);
 assert.match(css, /nvu-native-android\.nvu-ranking-overlay/);
 assert.match(css, /nvu-ranking-header/);
 assert.match(css, /nvu-native-android \.nvu-ranking-app-header/);

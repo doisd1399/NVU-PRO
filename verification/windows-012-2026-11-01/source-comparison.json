@@ -1,0 +1,26 @@
+{
+  "baseline": "NVU-PRO-2.3.198-SOURCE-v36.zip",
+  "androidNativeFilesUnchanged": 187,
+  "modifiedOriginalPaths": [
+    ".gitignore",
+    "functions/src/operationalWorkModePolicy.ts",
+    "functions/src/registerCanonicalSimpleTrip.ts",
+    "functions/src/workModeAvailability.ts",
+    "package.json",
+    "qa/README.md",
+    "qa/config.json",
+    "scripts/qa/common.mjs",
+    "scripts/qa/integration.mts",
+    "src/App.tsx",
+    "src/components/GtoWorkModeDialog.tsx",
+    "src/context/AppContext.tsx",
+    "src/lib/firebase.ts",
+    "src/lib/simpleAutomation.ts",
+    "src/lib/simpleAutomationNative.ts",
+    "src/services/googleAuthService.ts",
+    "src/services/simpleAutomationLauncher.ts",
+    "src/services/sync/CanonicalTripRegistrationRequest.ts",
+    "verification/release-519/adapter-isolated.mjs",
+    "verification/release-519/upload-isolated.mjs"
+  ]
+}

@@ -8,7 +8,8 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 const profile = read("src/pages/admin/DriverProfileIsolated.tsx");
 const tripHistory = read("src/hooks/useTripHistory.ts");
 const persistentCache = read("src/lib/tripHistoryPersistentCache.ts");
-const repository = read("src/repositories/TripsRepository.ts");
+const realtimeAdapter = read("src/application/trip/CanonicalTripRealtimeFirebaseAdapter.ts");
+const queryService = read("src/application/trip/CanonicalTripQueryService.ts");
 const historyPage = read("src/pages/driver/TripHistory.tsx");
 const dashboard = read("src/pages/driver/Dashboard.tsx");
 const driversTab = read("src/pages/admin/fleet/DriversTab.tsx");
@@ -77,22 +78,25 @@ assert.equal(
 );
 
 assert.equal(
-  repository.includes('where("companyId", "==", companyId)'),
+  realtimeAdapter.includes('"companyId", "empresaId"') &&
+    realtimeAdapter.includes('where(companyField, "==", companyId)'),
   true,
   "listener canônico deve continuar filtrado por empresa",
 );
 assert.equal(
-  repository.includes("loadLegacyTripsOnce({ companyId })"),
+  queryService.includes("listenCompanyTrips") && queryService.includes("listenCanonicalTripsForScope"),
   true,
   "aliases legados devem continuar reconciliados",
 );
 assert.equal(
-  repository.includes("areTripSourcesReady(canonicalAuthoritative, legacyReady)"),
+  !queryService.includes("loadLegacyTripsOnce") &&
+    /this\.listenScope\s*\(\s*scope/.test(queryService) &&
+    realtimeAdapter.includes("confirmedSources.size === expectedSources"),
   true,
   "a correção não pode publicar dataset parcial",
 );
-const companyListenerCount = (repository.match(/listenCompanyTrips|onSnapshot\(/g) || []).length;
-assert.ok(companyListenerCount >= 2, "repository deve manter listener canônico e contrato de sources");
+const companyListenerCount = (realtimeAdapter.match(/where\(companyField, "==", companyId\)/g) || []).length;
+assert.ok(companyListenerCount >= 1, "adapter deve manter listener canônico filtrado por alias de empresa");
 
 assert.equal(
   driversTab.includes("useTripHistory(activeCompanyId, {") &&

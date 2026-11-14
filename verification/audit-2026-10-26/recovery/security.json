@@ -1,0 +1,18 @@
+{
+  "project": "demo-nvu-v36-4-staging",
+  "checks": [
+    "Only verified Senior can create/update/delete simulator catalog; updates keep valid schema",
+    "Client cannot steal, forge or delete push ownership; own association stays readable",
+    "Private profile is owner-readable only, including against collection listing and Senior direct reads",
+    "Public projection uses a whitelist and is authenticated/read-only",
+    "Projection re-reads current edits and deletes stale public data after account deletion",
+    "A pending applicant cannot bootstrap fleet, activate account or assign admin membership atomically",
+    "Senior-approved fleet creation remains allowed and cannot be performed with a forged user role",
+    "Only recipient can acknowledge popup/read; message, ownership and scope remain immutable",
+    "Unverified or user-editable e-mail cannot expose another applicant; UID and verified e-mail remain usable",
+    "Private callable checks live authority, tenant scope and field exposure",
+    "First verified login recovers only its own legacy e-mail without requiring a preexisting profile",
+    "Ordered notification query returns recent records beyond the old arbitrary limit and rejects foreign scope"
+  ],
+  "method": "Real Firestore rules and transactions, compiled backend, synthetic Auth users; no production reads or writes."
+}

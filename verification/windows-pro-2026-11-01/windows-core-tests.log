@@ -1,0 +1,27 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-windows@0.1.0 test
+> node --test tests/*.test.cjs
+
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (6.206712ms)
+✔ Entrega atrasada após reinício continua na operação original (2.440132ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.246502ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (1.98994ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (4.435339ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (2.65624ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.544624ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (3.628402ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (3.792973ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (2.557154ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (7.335529ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.181257ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (78.3471ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (15.710377ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 225.807803

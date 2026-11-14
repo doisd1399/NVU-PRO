@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "build": {
+    "bytes": 125712878,
+    "firstHeaderOffset": 51712,
+    "dataLength": 125661166,
+    "crcEnabled": true,
+    "crc32": "8717188d",
+    "sha256": "2e1b315677f726222ec8a8d2fdd4b5b40deb92b52b62081a038951b3458994a3"
+  },
+  "retrievedDeliveredFile": {
+    "bytes": 125712878,
+    "firstHeaderOffset": 51712,
+    "dataLength": 125661166,
+    "crcEnabled": true,
+    "crc32": "8717188d",
+    "sha256": "2e1b315677f726222ec8a8d2fdd4b5b40deb92b52b62081a038951b3458994a3"
+  },
+  "deliveredCopyMatchesBuild": true,
+  "userDeviceFileProvided": false,
+  "causeOnUserDeviceConfirmed": false,
+  "nativeWindowsInstallerExecuted": false,
+  "notes": [
+    "The screenshot reports NSIS integrity failure but does not identify the downloaded file hash or length.",
+    "The generated and retrieved delivered binaries have matching SHA-256 and valid NSIS native CRC. This does not identify the file that failed on the PC.",
+    "No CRC bypass or Windows protection change was applied."
+  ]
+}

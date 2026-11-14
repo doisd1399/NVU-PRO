@@ -1,0 +1,544 @@
+{
+  "schema": 1,
+  "projectId": "demo-nvu-v36-4-staging",
+  "profiles": {
+    "quick": [
+      "harness",
+      "types",
+      "functions",
+      "contracts",
+      "queue",
+      "supervisor",
+      "images",
+      "teams",
+      "profile-team-audit",
+      "diagnostics",
+      "notifications",
+      "push-client",
+      "legacy-regressions",
+      "windows-core",
+      "windows-registry",
+      "goal-currency",
+      "operation-vehicle",
+      "ranking-internal",
+      "app-guides",
+      "ghost-jobs",
+      "callable-regions",
+      "partnerships",
+      "rewards",
+      "vehicle-photo-prepare",
+      "durable-outbox",
+      "voice-core",
+      "voice-assets",
+      "voice-controls",
+      "voice-bridge",
+      "voice-events",
+      "voice-offline",
+      "windows-voice"
+    ],
+    "web": [
+      "harness",
+      "types",
+      "functions",
+      "web-build",
+      "contracts",
+      "queue",
+      "supervisor",
+      "images",
+      "teams",
+      "profile-team-audit",
+      "diagnostics",
+      "notifications",
+      "push-client",
+      "legacy-regressions",
+      "native-policies",
+      "emulators",
+      "windows-core",
+      "windows-registry",
+      "goal-currency",
+      "operation-vehicle",
+      "ranking-internal",
+      "app-guides",
+      "ghost-jobs",
+      "callable-regions",
+      "partnerships",
+      "rewards",
+      "vehicle-photo-prepare",
+      "durable-outbox",
+      "senior-sheets-ui",
+      "windows-overlay",
+      "windows-settings",
+      "voice-core",
+      "voice-assets",
+      "voice-controls",
+      "voice-native",
+      "voice-ui",
+      "voice-bridge",
+      "voice-events",
+      "voice-offline",
+      "windows-voice",
+      "scs-summary-words",
+      "scs-bus-ocr"
+    ],
+    "release": [
+      "harness",
+      "types",
+      "functions",
+      "web-build",
+      "contracts",
+      "queue",
+      "supervisor",
+      "images",
+      "teams",
+      "profile-team-audit",
+      "diagnostics",
+      "notifications",
+      "push-client",
+      "legacy-regressions",
+      "native-policies",
+      "emulators",
+      "android-device",
+      "windows-core",
+      "windows-registry",
+      "goal-currency",
+      "operation-vehicle",
+      "ranking-internal",
+      "app-guides",
+      "ghost-jobs",
+      "callable-regions",
+      "partnerships",
+      "rewards",
+      "vehicle-photo-prepare",
+      "durable-outbox",
+      "senior-sheets-ui",
+      "windows-overlay",
+      "windows-settings",
+      "voice-core",
+      "voice-assets",
+      "voice-controls",
+      "voice-native",
+      "voice-ui",
+      "voice-bridge",
+      "voice-events",
+      "voice-offline",
+      "windows-voice",
+      "scs-summary-words",
+      "scs-bus-ocr"
+    ]
+  },
+  "steps": {
+    "types": {
+      "label": "Tipos e compilação do aplicativo",
+      "kind": "static",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "timeoutMs": 120000
+    },
+    "functions": {
+      "label": "Compilação do servidor",
+      "kind": "build",
+      "args": [
+        "functions/node_modules/typescript/bin/tsc",
+        "--project",
+        "functions/tsconfig.json"
+      ],
+      "timeoutMs": 120000
+    },
+    "web-build": {
+      "label": "Build Web atual",
+      "kind": "build",
+      "command": "npm",
+      "args": [
+        "run",
+        "build"
+      ],
+      "timeoutMs": 180000
+    },
+    "contracts": {
+      "label": "Upload, confirmação, identidade e autorização",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-performance-520.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "queue": {
+      "label": "Fila, falhas, reconexão e preservação das viagens",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-trip-recovery-520.mts"
+      ],
+      "timeoutMs": 90000
+    },
+    "supervisor": {
+      "label": "Envio sem bloqueio por operações antigas",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-sync-supervisor-520.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "images": {
+      "label": "Imagens persistentes, reabertura e isolamento",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-images-520.mts"
+      ],
+      "timeoutMs": 120000
+    },
+    "teams": {
+      "label": "Telas de aprovação e remoção",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-teams-ui-519.mts"
+      ],
+      "timeoutMs": 90000
+    },
+    "diagnostics": {
+      "label": "Diagnóstico somente após falha",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-print-diagnostic-ui-519.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "native-policies": {
+      "label": "Políticas reais de OCR e valores do Android/JVM",
+      "kind": "native-jvm",
+      "args": [
+        "scripts/qa/native-policies.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "emulators": {
+      "label": "Firebase local: ciclo operacional, regras, telas e upload",
+      "kind": "integration",
+      "args": [
+        "scripts/qa/emulators.mjs"
+      ],
+      "timeoutMs": 720000
+    },
+    "android-device": {
+      "label": "APK isolado: instalação, abertura offline e reinício do processo",
+      "kind": "android-instrumented",
+      "args": [
+        "scripts/qa/android-device.mjs"
+      ],
+      "timeoutMs": 900000
+    },
+    "harness": {
+      "label": "Bloqueio de liberação e execução dos testes",
+      "kind": "qa-self-test",
+      "args": [
+        "--test",
+        "scripts/qa/self-test.mjs"
+      ],
+      "timeoutMs": 30000
+    },
+    "notifications": {
+      "label": "Notificações reais: hidratação, popup e isolamento de sessão",
+      "kind": "react-controlled",
+      "args": [
+        "qa/tests/notifications.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "push-client": {
+      "label": "Registro push: falhas, permissões, concorrência e recuperação",
+      "kind": "controlled",
+      "args": [
+        "qa/tests/push-client.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "legacy-regressions": {
+      "label": "Regressões de armazenamento e concorrência entre operações",
+      "kind": "controlled",
+      "args": [
+        "scripts/qa/legacy-regressions.mjs"
+      ],
+      "timeoutMs": 90000
+    },
+    "profile-team-audit": {
+      "label": "Regressões de equipe, histórico, identidade e reconexão de imagens",
+      "kind": "react-controlled",
+      "args": [
+        "scripts/audit/profile-team-regressions.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "windows-core": {
+      "label": "Windows: fila durável, instância única, inicialização, plugin, telemetria e instalador",
+      "kind": "controlled",
+      "args": [
+        "--test",
+        "desktop/windows/tests/core.test.cjs",
+        "desktop/windows/tests/native.test.cjs",
+        "desktop/windows/tests/assistant.test.cjs",
+        "desktop/windows/tests/archive.test.cjs",
+        "desktop/windows/tests/authenticode.test.cjs",
+        "desktop/windows/tests/main.test.cjs",
+        "desktop/windows/tests/instance.test.cjs",
+        "desktop/windows/tests/startup.test.cjs",
+        "desktop/windows/tests/plugin.test.cjs",
+        "desktop/windows/tests/auth.test.cjs",
+        "desktop/windows/tests/sdk-contract.test.cjs",
+        "desktop/windows/tests/sevenzip.test.cjs",
+        "desktop/windows/tests/powershell-env.test.cjs",
+        "desktop/windows/tests/update-check.test.cjs",
+        "desktop/windows/tests/renderer-runtime.test.cjs"
+      ],
+      "timeoutMs": 120000
+    },
+    "operation-vehicle": {
+      "label": "Veículo da viagem é o determinado pela operação, não o do jogo",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-operation-vehicle.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "goal-currency": {
+      "label": "Meta financeira na moeda em que a empresa recebe (US$ ATS, € ETS2, R$ comprovantes)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-goal-currency.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "windows-registry": {
+      "label": "Windows: catálogo opaco, nomes e isolamento de plataformas",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-windows-registry.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "windows-overlay": {
+      "label": "Windows: mouse, viagem fixa, encerramento e avisos de viagem",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "qa/tests/windows-overlay.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "windows-settings": {
+      "label": "Windows: ajustes profissionais, temas e ações do aplicativo",
+      "kind": "browser-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "qa/tests/windows-settings.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "ranking-internal": {
+      "label": "Ranking interno vem do agregado do servidor, filtrado pela empresa (igual ao Global)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-ranking-internal-aggregate.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "app-guides": {
+      "label": "Guias do app: arquivo que acompanha o APK, troca/exclusão pelo Sênior e validação do PDF",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-app-guides.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "senior-sheets-ui": {
+      "label": "Painel Sênior em painel inferior (Opções, Ações do funcionário, Gerenciar guias) e página Manual",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-senior-sheets-ui.mjs"
+      ],
+      "timeoutMs": 150000
+    },
+    "ghost-jobs": {
+      "label": "Trabalho em andamento escondido bloqueia o início; Sênior age nas operações da empresa",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-operation-ghost-jobs.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "callable-regions": {
+      "label": "Ações atendidas em São Paulo (região do Firestore) com retorno seguro e aquecimento barato",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-callable-regions.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "durable-outbox": {
+      "label": "Fila local de iniciar/finalizar: envio durável, ordem, espera e histórico limitado",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-durable-operation-outbox.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "partnerships": {
+      "label": "Parcerias B2P: oferta, designação, foto, livro de viagens e pontuação",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-partnerships.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "rewards": {
+      "label": "Recompensas: campanhas, ganho por viagem, bônus, teto, aceite e regras (cálculo do servidor e do app)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-rewards.mts"
+      ],
+      "timeoutMs": 60000
+    },
+    "vehicle-photo-prepare": {
+      "label": "Foto do veículo: fotos de 50/108 MP, até 20 MB, rotação EXIF, HEIC e falhas com mensagem clara (Chromium)",
+      "kind": "controlled",
+      "args": [
+        "scripts/test-vehicle-photo-prepare.mjs"
+      ],
+      "timeoutMs": 240000
+    },
+    "voice-core": {
+      "label": "Voz: sessões, repetição, intervalos, fila e isolamento",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "--test",
+        "scripts/test-voice-assistant.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "voice-assets": {
+      "label": "Voz: 98 MP3 v2 locais, duração, hashes e catálogo nativo",
+      "kind": "static",
+      "args": [
+        "scripts/test-voice-assets.mjs"
+      ],
+      "timeoutMs": 30000
+    },
+    "voice-controls": {
+      "label": "Voz: controles reais dos menus flutuante e lateral (React DOM)",
+      "kind": "react-controlled",
+      "args": [
+        "scripts/test-voice-controls.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "voice-native": {
+      "label": "Voz: canal Android compartilhado (Java real, portas Android controladas)",
+      "kind": "native-jvm-controlled",
+      "args": [
+        "scripts/test-voice-native.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "voice-ui": {
+      "label": "Voz: interação e layout em Chromium",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-voice-ui.mjs"
+      ],
+      "timeoutMs": 90000
+    },
+    "voice-bridge": {
+      "label": "Voz: confirmações reais, hidratação e recuperação de sessão",
+      "kind": "react-controlled",
+      "args": [
+        "scripts/test-voice-bridge.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "voice-events": {
+      "label": "Voz v2: eventos confirmados, fontes existentes, prazos e isolamento",
+      "kind": "unit-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "--test",
+        "scripts/test-voice-events.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "voice-offline": {
+      "label": "Voz v2: 98 MP3 em cache offline, hashes, descarte e armazenamento indisponível",
+      "kind": "controlled-cache",
+      "args": [
+        "scripts/test-voice-offline.mjs"
+      ],
+      "timeoutMs": 30000
+    },
+    "windows-voice": {
+      "label": "Voz Windows: contexto, transições reais e detecção sem confirmação falsa",
+      "kind": "unit-controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "--test",
+        "scripts/test-windows-voice.mts"
+      ],
+      "timeoutMs": 30000
+    },
+    "scs-summary-words": {
+      "label": "ETS2/ATS: leitura por palavras do resumo (rota, km por votação, Total conferido pela soma)",
+      "kind": "controlled",
+      "args": [
+        "--import",
+        "tsx",
+        "scripts/test-scs-summary-words.mjs"
+      ],
+      "timeoutMs": 60000
+    },
+    "scs-bus-ocr": {
+      "label": "ETS2: OCR real do print do ônibus (Porto → Gijon, 618 km, 10.595) em Chromium",
+      "kind": "browser-controlled",
+      "args": [
+        "scripts/test-scs-bus-ocr.mjs"
+      ],
+      "timeoutMs": 240000
+    }
+  },
+  "auditBlockersFile": "qa/audit-blockers.json"
+}

@@ -82,7 +82,10 @@ export function applyProSessionEvent(
     case "capture_requested":
       if (session.state !== "TRIP_ACTIVE") stateError(session.state, "capture_requested");
       if (!session.origin || !session.destination) throw new Error("PRO_ROUTE_MISSING");
-      if (session.visibility !== "VISIBLE") return { ...session, lastFailureCode: "FOREGROUND_MISMATCH" };
+      // PRO mode does not depend on proving that a specific game window is in the foreground.
+      // The value reader must consume the simulator result image and validate the monetary
+      // result, bonus/ad evidence and business rules. Foreground checks caused valid trips
+      // to be rejected when Android reported transient visibility changes.
       return { ...session, state: "CAPTURE_AUTH_PENDING", projection: "PENDING", attemptId: event.attemptId, lastFailureCode: undefined };
     case "projection_granted":
       if (session.state !== "CAPTURE_AUTH_PENDING") stateError(session.state, "projection_granted");
@@ -98,7 +101,7 @@ export function applyProSessionEvent(
       return { ...session, state: "OCR_VALIDATING" };
     case "ocr_rejected":
       if (session.state !== "OCR_VALIDATING") stateError(session.state, "ocr_rejected");
-      return { ...session, state: "REJECTED", lastFailureCode: event.failureCode || "RESULT_SCREEN_UNCONFIRMED" };
+      return { ...session, state: "TRIP_ACTIVE", lastFailureCode: event.failureCode || "OCR_RETRYABLE" };
     case "submission_started":
       if (session.state !== "OCR_VALIDATING") stateError(session.state, "submission_started");
       return { ...session, state: "SUBMITTING" };

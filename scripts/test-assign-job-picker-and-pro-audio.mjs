@@ -18,8 +18,8 @@ assert.doesNotMatch(assignJob, /Reboque Vinculado[\s\S]{0,600}<select/);
 assert.doesNotMatch(assignJob, /availableTrailers/);
 
 assert.match(picker, /type PickerKind = "contract" \| "vehicle"/);
-assert.match(picker, /Selecionar operação/);
-assert.match(picker, /Selecionar veículo/);
+assert.match(picker, /Escolher operação/);
+assert.match(picker, /Escolher veículo/);
 assert.match(picker, /Em uso por/);
 assert.match(picker, /totalDeliveries/);
 assert.match(picker, /trailer\?\.name/);
@@ -33,7 +33,9 @@ assert.match(picker, /FolderOpen/);
 const nativeCitySelection = service.slice(service.indexOf("private void addCityPicker"), service.indexOf("private List<String> readCities"));
 assert.match(nativeCitySelection, /putString\("destination", city\)/);
 assert.match(nativeCitySelection, /emitSimpleReadyVoice\(tripStartedAt\)/);
-assert.match(nativeCitySelection, /Tudo preparado, podemos partir/);
+const routeReady = read("android/app/src/main/java/com/nvu/operacional/NativeRouteReadySnapshot.java");
+assert.match(nativeCitySelection, /showRouteReadyMessage\(\)/);
+assert.match(routeReady, /MESSAGE\s*=\s*"Tudo preparado, podemos partir\./);
 assert.match(audio, /playReadyVoice\(String eventId\)/);
 assert.match(audio, /nvu_ready_voice_pt_br/);
 

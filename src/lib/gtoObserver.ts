@@ -2,6 +2,8 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 
 export interface GtoObserverStatus {
   overlayPermission: boolean;
+  overlayValidationAt?: number;
+  overlayValidationReason?: string;
   usageAccess: boolean;
   preciseTouchPermission: boolean;
   preciseTouchActive: boolean;
@@ -193,6 +195,7 @@ export interface GtoObserverStatus {
   gtoCanonicalStateError?: string;
   jobStatus?: string;
   jobProgress?: number;
+  confirmedTripCount?: number;
   jobTotalDeliveries?: number;
   gtoJobStatus?: string;
   gtoJobProgress?: number;
@@ -212,6 +215,7 @@ export interface GtoObserverContext {
   jobId?: string;
   jobStatus?: string;
   jobProgress?: number;
+  confirmedTripCount?: number;
   jobTotalDeliveries?: number;
   contractId?: string;
   contractName?: string;

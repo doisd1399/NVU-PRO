@@ -1,0 +1,58 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-operacional@2.3.198 test:windows
+> npm --prefix desktop/windows test
+
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> nvu-windows@0.1.4 test
+> node --test tests/*.test.cjs
+
+✔ Publicação do ZIP copia os bytes completos e recusa destinos que não sejam arquivos (15.325066ms)
+✔ Conferência final rejeita ZIP truncado e corrupção de mesmo tamanho (6.678631ms)
+✔ Tudo preparado exige frete conectado com rota e vínculo correto, sem bloqueio antigo após novo frete (12.447461ms)
+✔ Captura/envio não anunciam registro; sucesso exige ACK e preserva progresso autoritativo (9.084465ms)
+✔ Reinício com ACK perdido conserva a viagem e só anuncia sucesso após confirmação (8.719442ms)
+✔ Troca de contexto remove recibos e ACK antigo não aparece em outra operação (7.869081ms)
+✔ Entregas consecutivas iguais mantêm cards distintos e removem avisos antigos do mesmo frete (9.229999ms)
+✔ Cancelamento, pausa e desconexão não são confundidos com entrega (4.77748ms)
+✔ Foco usa Win32 só para processos permitidos sem teclas ou comandos arbitrários (1.121988ms)
+✔ Retomada e recuperação substituem avisos transitórios, sem mensagens antigas após o ACK (8.85526ms)
+✔ Rota atual desaparece no evento local antes do próximo heartbeat e não volta após ACK/reinício (5.445275ms)
+✔ Heartbeat terminal ou vazio com textos residuais nunca expõe rota ativa (2.115303ms)
+✔ Distâncias do SDK são opcionais, limitadas, e desaparecem com a entrega ou outro contexto (2.80444ms)
+✔ Scripts de empacotamento passam pela análise sintática do Node (2.40546ms)
+✔ NSIS real compilado passa na verificação nativa de CRC (1.208499ms)
+✔ Alterar stub, conteúdo ou CRC do instalador bloqueia a entrega (0.998863ms)
+✔ Instalador truncado, com bytes extras ou CRC desligado é rejeitado (1.265003ms)
+✔ Vínculo prévio, entrega durável e replay exato usam uma identidade (4.306505ms)
+✔ Entrega atrasada após reinício continua na operação original (2.937591ms)
+✔ Frete anterior sem vínculo não é importado para a operação atual (0.524419ms)
+✔ Troca de empresa/conta preserva pendência e impede migração do frete (3.826388ms)
+✔ Pausa fecha intervalo; entrega durante pausa exige conferência (4.718656ms)
+✔ Entrega anterior à pausa pode chegar atrasada sem perder autorização (5.876418ms)
+✔ Heartbeat expirado e sequência repetida removem conexão válida (1.412996ms)
+✔ Entregas consecutivas de mesmo valor/rota são eventos independentes (4.948787ms)
+✔ ACK perdido é repetível; confirmação exige prova e usuário correto (4.57813ms)
+✔ Dados incompletos são preservados para OCR e moeda inválida não é aceita (2.408595ms)
+✔ Steam adicional e instalação/remoção preservam DLL de terceiros (8.259289ms)
+✔ Monitor removido recupera posição visível, inclusive coordenadas negativas (0.246591ms)
+✔ OAuth valida assinatura, audience, issuer e nonce usando chaves controladas (68.283279ms)
+✔ OAuth usa browser externo, loopback, state e PKCE; estado errado não conclui login (18.225777ms)
+✔ DLL compilada é PE x64 completo e contém os exports oficiais do SDK (17.352127ms)
+✔ Preparação bloqueia plugin ausente/desatualizado e mantém a pasta selecionada após reinício (8.852717ms)
+✔ Ponte real por arquivos autentica ATS, expira, reconecta e preserva entrega antes de confirmar (8.495203ms)
+✔ Token incorreto, pacote inválido e nome de simulador divergente não criam conexão (4.445861ms)
+✔ Frete já em andamento pode ser vinculado com o jogo pausado; pausa explícita do PRO continua protegida (7.621974ms)
+✔ Plugin antigo ainda carregado exige reinício, mesmo após atualizar o arquivo no disco (4.340381ms)
+✔ Diagnóstico inclui apenas linhas SDK relevantes e remove identificação pessoal e tokens (3.901271ms)
+✔ Painel recebe foco, permanece aberto sem cursor, migra posição e avisos não tomam foco (2.814966ms)
+✔ Main real inicializa, prepara plugin e executa todos os comandos com contexto e IPC validados (49.80027ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 254.448531

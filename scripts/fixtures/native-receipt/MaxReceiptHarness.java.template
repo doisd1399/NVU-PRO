@@ -1,0 +1,20 @@
+package com.nvu.operacional;
+import android.util.DisplayMetrics; import android.graphics.PixelFormat; import android.view.*; import android.widget.*;
+final class MaxReceiptHarness extends android.content.Context {
+__COMMON__
+ View tripRegisteredCardView; WindowManager.LayoutParams tripRegisteredCardParams;
+ Runnable tripRegisteredCardHideRunnable;
+ Object menuScrollView,menuContentView,activeReviewInput;
+ String lastMenuRenderSignature="",statusChipDriverStageKey="";
+ boolean operationSummaryExpanded,statusChipIsDriverStage;
+ int statusChipDriverStagePriority; long statusChipShownAt;
+ TextView statusChipTextView; ProgressBar statusChipProgressView;
+ void cancelBubbleGesture(String s,boolean b){} void hideBubbleRemoveTarget(){}
+ void runOnMainImmediatelyOrPost(Runnable r){mainHandler.post(r);}
+ void refreshMenuContents(){} void adjustOpenMenuLayoutAfterMeasure(){}
+ void showStatusChip(String s,long d){}
+ void show(NativeTripReceipt r){showTripRegisteredCard(r);mainHandler.flush();}
+ void dismiss(){hideTripRegisteredCard();}
+ void closeMenu(){closeMenu(true);}
+__METHODS__
+}

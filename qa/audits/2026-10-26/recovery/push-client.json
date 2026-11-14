@@ -1,0 +1,43 @@
+{
+  "checks": [
+    {
+      "name": "Native failure does not pin a completed registration promise",
+      "status": "PASS"
+    },
+    {
+      "name": "Permission is rechecked after settings change without repeatedly prompting a denial",
+      "status": "PASS"
+    },
+    {
+      "name": "Concurrent callers share setup and native registration",
+      "status": "PASS"
+    },
+    {
+      "name": "Identical callbacks and context do not rewrite the backend association",
+      "status": "PASS"
+    },
+    {
+      "name": "Latest company wins over an older pending permission check",
+      "status": "PASS"
+    },
+    {
+      "name": "Transient backend failure retries the cached token",
+      "status": "PASS"
+    },
+    {
+      "name": "Retries are bounded and foreground permits recovery",
+      "status": "PASS"
+    },
+    {
+      "name": "Logout revokes its captured account and a late acknowledgement preserves a new login",
+      "status": "PASS"
+    },
+    {
+      "name": "An offline revocation stays queued and does not block a fresh registration",
+      "status": "PASS"
+    }
+  ],
+  "productionAccess": false,
+  "realNativePlugin": false,
+  "method": "Actual client push service; controlled Capacitor/callable transports and retry clock."
+}

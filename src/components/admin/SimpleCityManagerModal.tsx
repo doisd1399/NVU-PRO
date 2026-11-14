@@ -12,6 +12,7 @@ import {
   type SimpleAutomationSimulatorKey,
 } from "../../lib/simpleAutomation";
 import { db, auth } from "../../lib/firebase";
+import { cacheSimpleAutomationCities, getCachedSimpleAutomationCities } from "../../services/simpleAutomationCityService";
 import { cn } from "../../lib/utils";
 
 interface SimpleCityManagerModalProps {
@@ -47,21 +48,23 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
   useEffect(() => {
     if (!isOpen || !selectedKey) return;
     let cancelled = false;
+    setCities(getCachedSimpleAutomationCities(selectedKey));
 
     const loadCities = async () => {
       setIsLoading(true);
       try {
         const snapshot = await getDoc(doc(db, CITIES_COLLECTION, selectedKey));
         if (cancelled) return;
+        if (snapshot.metadata.fromCache) return;
         const data = snapshot.exists() ? snapshot.data() : {};
-        setCities(sanitizeSimpleAutomationCities(data?.cities));
+        const confirmedCities = sanitizeSimpleAutomationCities(data?.cities);
+        cacheSimpleAutomationCities(selectedKey, confirmedCities);
+        setCities(confirmedCities);
         setLoadedVersion(Number(data?.version || 0));
       } catch (error) {
         if (cancelled) return;
         console.error("[NVU] Falha ao carregar cidades do Modo Pro", error);
-        setCities([]);
-        setLoadedVersion(0);
-        toast.error("Não foi possível carregar as cidades deste simulador.");
+        toast.error("Sem conexão com o servidor. Exibindo cidades salvas neste aparelho.");
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -77,6 +80,10 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
 
   const saveCities = async (nextCities: SimpleAutomationCity[]) => {
     if (isSaving) return;
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      toast.error("As cidades salvas podem ser consultadas offline. Conecte-se para alterá-las.");
+      return;
+    }
     if (!auth.currentUser) {
       toast.error("A sessão Sênior não está disponível.");
       return;
@@ -100,6 +107,7 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
         updatedBy: auth.currentUser.uid,
       });
       setCities(normalized);
+      cacheSimpleAutomationCities(selectedKey, normalized);
       setLoadedVersion((version) => version + 1);
       toast.success("Cidades atualizadas.");
     } catch (error) {
@@ -148,11 +156,11 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-[#121213]">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-white/10 dark:bg-nvu-surface">
         <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/10">
           <div>
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Gerenciar cidades</h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-slate-500 dark:text-nvu-muted">
               As cidades serão usadas somente pelo Modo Pro.
             </p>
           </div>
@@ -168,7 +176,7 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
 
         <div className="grid min-h-0 gap-4 overflow-y-auto p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
           <aside className="space-y-2">
-            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-nvu-muted">
               Simulador da lista
             </div>
             {SIMPLE_AUTOMATION_SIMULATORS.map((simulator) => (
@@ -180,7 +188,7 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
                   "w-full rounded-xl border px-3 py-3 text-left transition-colors",
                   selectedKey === simulator.key
                     ? "border-cyan-500 bg-cyan-50 text-cyan-900 dark:border-cyan-400 dark:bg-cyan-400/10 dark:text-cyan-100"
-                    : "border-slate-200 text-slate-700 hover:border-cyan-300 dark:border-white/10 dark:text-slate-300 dark:hover:border-cyan-400/50",
+                    : "border-slate-200 text-slate-700 hover:border-cyan-300 dark:border-white/10 dark:text-nvu-text-soft dark:hover:border-cyan-400/50",
                 )}
               >
                 <div className="text-sm font-bold">{simulator.shortLabel}</div>
@@ -196,10 +204,10 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
           <section className="min-w-0">
             <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">Lista atual</div>
+                <div className="text-xs font-semibold text-slate-500 dark:text-nvu-muted">Lista atual</div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">{selectedSimulator.label}</h3>
               </div>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-nvu-text-soft">
                 {cities.length} cidades
               </span>
             </div>
@@ -222,11 +230,11 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
 
             <div className="max-h-[400px] space-y-2 overflow-y-auto pr-1">
               {isLoading ? (
-                <div className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:bg-white/5 dark:text-slate-400">
+                <div className="rounded-xl bg-slate-50 px-4 py-8 text-center text-sm text-slate-500 dark:bg-white/5 dark:text-nvu-muted">
                   Carregando cidades…
                 </div>
               ) : cities.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-white/15 dark:text-slate-400">
+                <div className="rounded-xl border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-500 dark:border-white/15 dark:text-nvu-muted">
                   Nenhuma cidade cadastrada para {selectedSimulator.shortLabel}.
                 </div>
               ) : (
@@ -248,7 +256,7 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
                         disabled={isSaving}
                       />
                     ) : (
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{city.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-nvu-text">{city.name}</span>
                     )}
                     {editingId === city.id ? (
                       <button type="button" onClick={() => void handleSaveEdit()} disabled={isSaving} className="rounded-lg p-2 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-400/10" aria-label={`Salvar ${city.name}`}>
@@ -267,7 +275,7 @@ export function SimpleCityManagerModal({ isOpen, onClose }: SimpleCityManagerMod
               )}
             </div>
 
-            <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+            <div className="mt-4 flex items-center gap-2 text-[11px] text-slate-500 dark:text-nvu-muted">
               <Save size={14} />
               {isSaving ? "Salvando alteração…" : "Cada alteração é salva imediatamente no simulador selecionado."}
             </div>

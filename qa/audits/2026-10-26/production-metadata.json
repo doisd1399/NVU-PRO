@@ -1,0 +1,265 @@
+{
+  "schema": 1,
+  "checkedAt": "2026-10-26T20:17:52.411064+00:00",
+  "projectId": "vtc-frota-log",
+  "access": "read-only-metadata-and-bounded-logs",
+  "productionDocumentsRead": false,
+  "productionWrites": false,
+  "realPushSent": false,
+  "database": {
+    "name": "projects/vtc-frota-log/databases/(default)",
+    "databaseEdition": "STANDARD",
+    "locationId": "southamerica-east1",
+    "type": "FIRESTORE_NATIVE",
+    "pointInTimeRecoveryEnablement": "POINT_IN_TIME_RECOVERY_DISABLED",
+    "deleteProtectionState": "DELETE_PROTECTION_DISABLED"
+  },
+  "rules": [
+    {
+      "service": "storage",
+      "release": "projects/vtc-frota-log/releases/firebase.storage/vtc-frota-log.firebasestorage.app",
+      "ruleset": "projects/vtc-frota-log/rulesets/da7f2469-40e1-455f-819f-0d145524de57",
+      "updateTime": "2026-10-24T00:33:07.776714Z",
+      "filename": "storage.rules",
+      "sha256": "f753a60e28909ff2143481ac4dc5a16ebd280a1401bce7ddb473f23ceed39d49",
+      "matchesLocal": true
+    },
+    {
+      "service": "firestore",
+      "release": "projects/vtc-frota-log/releases/cloud.firestore",
+      "ruleset": "projects/vtc-frota-log/rulesets/aaf68e27-7d21-4de5-a2b3-44634ee4520a",
+      "updateTime": "2026-10-24T16:53:54.450220Z",
+      "filename": "firestore.rules",
+      "sha256": "392fdcc401434f99e93a8a5c3067e8380729513a3c40f04e7e920b8afcd579ce",
+      "matchesLocal": true
+    }
+  ],
+  "indexes": {
+    "productionCount": 23,
+    "localCount": 23,
+    "missingInProduction": 0,
+    "extraInProduction": 0,
+    "normalization": "Ignore implicit __name__ tie-breaker and non-semantic server metadata; compare collectionGroup/queryScope/fields."
+  },
+  "functions": {
+    "total": 69,
+    "selected": [
+      {
+        "platform": "gcfv1",
+        "id": "approveDriverRequest",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "approveRecruitmentApplication",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "manageFleetMembership",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "pushOnLegacyNotificationCreated",
+        "region": "us-central1",
+        "eventTrigger": {
+          "eventType": "providers/cloud.firestore/eventTypes/document.create",
+          "eventFilters": {
+            "resource": "projects/vtc-frota-log/databases/(default)/documents/notificacoes/{notificationId}"
+          },
+          "retry": false
+        },
+        "runtime": "nodejs22",
+        "maxInstances": 3000,
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "pushOnNotificationCreated",
+        "region": "us-central1",
+        "eventTrigger": {
+          "eventType": "providers/cloud.firestore/eventTypes/document.create",
+          "eventFilters": {
+            "resource": "projects/vtc-frota-log/databases/(default)/documents/notifications/{notificationId}"
+          },
+          "retry": false
+        },
+        "runtime": "nodejs22",
+        "maxInstances": 3000,
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "registerCanonicalSimpleTrip",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "registerGtoTrip",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      },
+      {
+        "platform": "gcfv1",
+        "id": "registerPushDevice",
+        "region": "us-central1",
+        "runtime": "nodejs22",
+        "availableMemoryMb": 256,
+        "timeoutSeconds": 60,
+        "state": "ACTIVE"
+      }
+    ]
+  },
+  "logs": {
+    "push": {
+      "entries": 200,
+      "earliest": "2026-10-26T12:16:17.759361236Z",
+      "latest": "2026-10-26T20:14:20.466992142Z",
+      "severities": {
+        "DEBUG": 200
+      },
+      "executions": [
+        {
+          "function": "registerPushDevice",
+          "completedRecords": 73,
+          "medianMs": 341,
+          "p95NearestRankMs": 4658,
+          "maxMs": 7449,
+          "completionStatuses": {
+            "200": 38,
+            "204": 35
+          }
+        },
+        {
+          "function": "pushOnNotificationCreated",
+          "completedRecords": 9,
+          "medianMs": 3194,
+          "p95NearestRankMs": 5777,
+          "maxMs": 5777,
+          "completionStatuses": {
+            "ok": 9
+          }
+        }
+      ],
+      "limitations": "Bounded sample of server function logs. Includes preflight HTTP 204 where present; no device delivery proof, no unique-user count and no measurement of total click-to-ACK time. Raw logs, account IDs and payloads are excluded.",
+      "byCompletionStatus": [
+        {
+          "function": "registerPushDevice",
+          "status": "200",
+          "completedRecords": 38,
+          "medianMs": 1281.0,
+          "p95NearestRankMs": 5076,
+          "maxMs": 7449
+        },
+        {
+          "function": "registerPushDevice",
+          "status": "204",
+          "completedRecords": 35,
+          "medianMs": 32,
+          "p95NearestRankMs": 287,
+          "maxMs": 333
+        },
+        {
+          "function": "pushOnNotificationCreated",
+          "status": "ok",
+          "completedRecords": 9,
+          "medianMs": 3194,
+          "p95NearestRankMs": 5777,
+          "maxMs": 5777
+        }
+      ]
+    },
+    "operations": {
+      "entries": 200,
+      "earliest": "2026-10-25T20:05:26.746856414Z",
+      "latest": "2026-10-26T19:44:53.431901077Z",
+      "severities": {
+        "DEBUG": 166,
+        "INFO": 34
+      },
+      "executions": [
+        {
+          "function": "registerCanonicalSimpleTrip",
+          "completedRecords": 32,
+          "medianMs": 581.5,
+          "p95NearestRankMs": 6066,
+          "maxMs": 6281,
+          "completionStatuses": {
+            "200": 16,
+            "204": 16
+          }
+        },
+        {
+          "function": "manageFleetMembership",
+          "completedRecords": 34,
+          "medianMs": 909.5,
+          "p95NearestRankMs": 5980,
+          "maxMs": 6775,
+          "completionStatuses": {
+            "200": 18,
+            "204": 16
+          }
+        }
+      ],
+      "limitations": "Bounded server-log sample, includes HTTP 204 preflight where present. Not unique-user counts, physical-device delivery or total click-to-ACK latency. No raw logs or account/payload identifiers are published.",
+      "byCompletionStatus": [
+        {
+          "function": "registerCanonicalSimpleTrip",
+          "status": "200",
+          "completedRecords": 16,
+          "medianMs": 3577.5,
+          "p95NearestRankMs": 6281,
+          "maxMs": 6281
+        },
+        {
+          "function": "registerCanonicalSimpleTrip",
+          "status": "204",
+          "completedRecords": 16,
+          "medianMs": 26.5,
+          "p95NearestRankMs": 143,
+          "maxMs": 143
+        },
+        {
+          "function": "manageFleetMembership",
+          "status": "200",
+          "completedRecords": 18,
+          "medianMs": 1390.5,
+          "p95NearestRankMs": 6775,
+          "maxMs": 6775
+        },
+        {
+          "function": "manageFleetMembership",
+          "status": "204",
+          "completedRecords": 16,
+          "medianMs": 4.5,
+          "p95NearestRankMs": 168,
+          "maxMs": 168
+        }
+      ]
+    }
+  }
+}

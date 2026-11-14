@@ -1,0 +1,57 @@
+/* The driver's current operation: the same card as "Trabalhos ativos" (ManagementDashboard.css) without the driver row.
+   Everything that is not listed here comes from the shared .nvu-central-* styles. */
+.nvu-driver-op-card { min-width: 0; }
+
+/* Light theme: the shared card colour is almost the page colour, so on the page (not inside a panel) it needs a surface. */
+.nvu-driver-op-card { background: var(--central-paper); border: 1px solid var(--central-line); box-shadow: 0 1px 3px rgb(24 35 50 / .07); }
+.dark .nvu-driver-op-card { background: var(--central-card); border-color: transparent; box-shadow: none; }
+
+/* Vehicle photo is a button: tap to add or replace it. */
+.nvu-driver-op-photo { display: flex; align-items: center; justify-content: center; width: 100%; padding: 0; border: 0; color: var(--central-muted); cursor: pointer; }
+.nvu-driver-op-photo:disabled { cursor: wait; }
+.nvu-driver-op-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.nvu-driver-op-photo-empty { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.nvu-driver-op-photo-busy { position: absolute; right: 8px; bottom: 8px; padding: 3px 10px; border-radius: 8px; background: rgb(0 0 0 / .7); color: #fff; font-size: 12px; }
+.nvu-driver-op-photo-note { margin: 0; color: var(--central-muted); font-size: 12px; line-height: 1.4; }
+.nvu-driver-op-photo-note[data-tone="error"] { color: #d63d55; }
+.dark .nvu-driver-op-photo-note[data-tone="error"] { color: #ff8fa8; }
+
+/* All deliveries done: the driver finishes the operation. */
+.nvu-driver-op-finish { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--central-soft); }
+.nvu-driver-op-finish > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.nvu-driver-op-finish strong { color: #0e9a72; font-size: 14px; font-weight: 700; line-height: 1.25; }
+.dark .nvu-driver-op-finish strong { color: #51d5ad; }
+.nvu-driver-op-finish span { color: var(--central-muted); font-size: 11px; line-height: 1.35; }
+.nvu-driver-op-finish button { flex-shrink: 0; padding: 8px 14px; border-radius: 999px; background: #16a34a; color: #fff; font-size: 12px; font-weight: 700; }
+.nvu-driver-op-finish button:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 380px) { .nvu-driver-op-finish { flex-direction: column; align-items: stretch; } .nvu-driver-op-finish button { width: 100%; } }
+
+/* Figures card and progress: the card colour is also the colour of the start button (below). */
+.nvu-driver-op-progress { min-width: 0; }
+
+/* Start button: same colour as the figures card, keeping the glass reflection of the original button (both themes). */
+.nvu-driver-op-card .nvu-driver-operation-timing {
+  --timing-surface: var(--central-soft);
+  --timing-line: color-mix(in srgb, var(--central-text) 10%, transparent);
+}
+
+/* Availability row at the bottom of the card. */
+.nvu-driver-op-card > .nvu-driver-status-row { min-height: 30px; gap: 8px; padding: 6px 2px 0; margin-top: 0; border-top: 1px solid var(--central-line); }
+.nvu-driver-op-card .nvu-driver-status-dot { width: 8px; height: 8px; }
+.nvu-driver-op-card .nvu-driver-status-label { font-size: 12px; }
+.nvu-driver-op-card .nvu-driver-status-value { padding-left: 8px; font-size: 11px; }
+/* The availability switch is a little smaller so the row is not taller than its text. */
+.nvu-driver-op-card .nvu-driver-status-row > label { margin-right: -3px; transform: scale(.82); transform-origin: right center; }
+
+/* Compact lower area (start button, remaining time, availability): less height than the shared card. */
+.nvu-driver-op-card { gap: 7px; padding: 12px; }
+.nvu-driver-op-card .nvu-central-operation-stats { gap: 6px; padding: 8px 14px 9px; }
+.nvu-driver-op-card .nvu-driver-operation-timing { gap: 10px; }
+.nvu-driver-op-card .nvu-driver-operation-timing > .nvu-driver-start-work { min-height: 38px; padding-block: 4px; font-size: 12.5px; }
+.nvu-driver-op-card .nvu-driver-remaining-time { align-items: center; justify-content: center; gap: 6px; min-height: 18px; font-size: 11px; line-height: 1; }
+.nvu-driver-op-card .nvu-driver-remaining-time > svg { display: block; width: 14px; height: 14px; margin: 0; }
+.nvu-driver-op-card .nvu-driver-remaining-time > span, .nvu-driver-op-card .nvu-driver-remaining-time > strong { display: inline-flex; align-items: center; height: 18px; line-height: 1; }
+.nvu-driver-op-card .nvu-driver-remaining-time > strong { font-size: 12px; }
+.nvu-driver-op-card .nvu-driver-status-label { color: var(--central-text); }
+.nvu-driver-op-card .nvu-driver-status-value { color: var(--central-muted); border-left-color: var(--central-line); }
+

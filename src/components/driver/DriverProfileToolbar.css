@@ -1,0 +1,34 @@
+/* Local presentation only: dock geometry and its reserved footer are untouched. */
+.nvu-driver-profile-toolbar {
+  --profile-control-muted: #5f6f7d;
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  min-height: 40px; margin: 12px 0 10px; padding: 4px 6px;
+  border: 1px solid var(--driver-line, #dce4e8); border-radius: 12px;
+  background: var(--driver-paper, #fff); color: var(--driver-text, #182332);
+}
+.nvu-driver-profile-ranking { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; flex: 1; min-width: 0; }
+.dark .nvu-driver-profile-toolbar { --profile-control-muted: var(--driver-muted, #b3c0cb); }
+.nvu-driver-profile-ranking button { min-width: 0; min-height: 30px; padding: 5px 6px; border: 0; border-radius: 8px; background: transparent; color: var(--profile-control-muted); font-size: 11.5px; font-weight: 600; line-height: 1.25; white-space: nowrap; }
+.nvu-driver-profile-ranking button[aria-pressed="true"] { background: var(--driver-strip, #edf1f4); color: var(--driver-text, #182332); }
+.nvu-driver-profile-actions { display: flex; align-items: center; flex-shrink: 0; gap: 6px; padding-left: 8px; border-left: 1px solid var(--driver-line, #dce4e8); }
+.nvu-driver-profile-actions button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; color: var(--profile-control-muted); background: transparent; }
+.nvu-driver-profile-actions button[aria-pressed="true"] { color: var(--driver-text, #182332); background: var(--driver-strip, #edf1f4); }
+.nvu-driver-profile-toolbar button:focus-visible { outline: 2px solid var(--driver-accent, #20a9b8); outline-offset: 1px; }
+@media (hover: hover) { .nvu-driver-profile-toolbar button:hover { background: var(--driver-strip, #edf1f4); color: var(--driver-text, #182332); } }
+@media (max-width: 359px) {
+  .nvu-driver-profile-toolbar { gap: 5px; padding-inline: 4px; }
+  .nvu-driver-profile-ranking { gap: 2px; }
+  .nvu-driver-profile-ranking button { font-size: 10.5px; padding-inline: 3px; }
+  .nvu-driver-profile-actions { gap: 3px; padding-left: 5px; }
+  .nvu-driver-profile-actions button { width: 28px; }
+  .nvu-driver-profile-actions svg { width: 16px; height: 16px; }
+}
+@media (min-width: 768px) { .nvu-driver-profile-ranking button { font-size: 13px; } }
+.nvu-profile-ranking-layout [data-nvu-ranking-position] { font-size: clamp(20px, 5.7vw, 34px); line-height: 1.3; letter-spacing: -.025em; }
+.nvu-profile-ranking-layout [data-nvu-profile-stat] { font-size: clamp(12px, 4.05vw, 20px); white-space: nowrap; }
+.nvu-profile-ranking-layout .nvu-profile-performance-heading { flex-wrap: nowrap; gap: 8px; }
+.nvu-profile-ranking-layout .nvu-profile-performance-heading > h3 { min-width: 0; font-size: clamp(9px, 2.6vw, 12px); letter-spacing: .025em; }
+.nvu-profile-ranking-layout .nvu-profile-performance-heading > label { flex-shrink: 0; gap: 5px; padding: 5px 8px; }
+.nvu-profile-ranking-layout .nvu-profile-performance-heading .nvu-modal-select { gap: 6px; font-size: 10px; color: var(--driver-text, #182332); }
+.nvu-profile-ranking-layout .nvu-profile-performance-heading .nvu-modal-select-label { color: inherit; }
+@media (max-width: 767px) { .nvu-driver-workspace[data-profile-page="profile"] .nvu-cover-identity { min-height: 70px; } }

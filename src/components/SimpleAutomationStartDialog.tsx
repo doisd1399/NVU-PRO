@@ -40,7 +40,7 @@ export function SimpleAutomationStartDialog({
         if (event.currentTarget === event.target && !busy) onClose();
       }}
     >
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-cyan-200/70 bg-white shadow-2xl dark:border-cyan-400/20 dark:bg-[#15171c]">
+      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-cyan-200/70 bg-white shadow-2xl dark:border-cyan-400/20 dark:bg-nvu-surface">
         <header className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 pb-3 pt-4 dark:border-white/5">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-600 text-white">
@@ -68,7 +68,7 @@ export function SimpleAutomationStartDialog({
           <div className="rounded-xl bg-cyan-50/80 p-3 text-[12px] leading-relaxed text-cyan-900 dark:bg-cyan-400/5 dark:text-cyan-100">
             Este modo usa a bolha NVU para escolher origem, destino, finalizar ou cancelar a viagem. Ele não usa projeção, observador, lista de fretes ou fluxo GTO Max.
           </div>
-          <div className="space-y-2 text-[12px] text-slate-600 dark:text-slate-300">
+          <div className="space-y-2 text-[12px] text-slate-600 dark:text-nvu-text-soft">
             <div className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-500" /> Cidades configuradas por simulador.</div>
             <div className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-500" /> Origem e destino escolhidos manualmente.</div>
             <div className="flex items-center gap-2"><CheckCircle2 size={15} className="text-emerald-500" /> Finalização protegida contra ADS e bônus.</div>

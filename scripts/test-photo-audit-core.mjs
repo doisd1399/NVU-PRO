@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { collectPhotoCandidates, scanPhotoUsers, verifyPhotoUrl } from '../functions/scripts/photo-audit-core.mjs';
+
+const require = createRequire(import.meta.url);
+const sharp = require(process.env.NVU_IMAGE_DECODER_MODULE || 'sharp');
+const decode = async bytes => { const image = sharp(bytes, { failOn: 'warning', limitInputPixels: 40_000_000 }); const meta = await image.metadata(); await image.raw().toBuffer(); return meta; };
+const png = await sharp({ create: { width: 2, height: 2, channels: 3, background: '#16d6a1' } }).png().toBuffer();
+let passed = 0;
+const test = async (name, run) => { await run(); passed++; console.log('PASS', name); };
+const row = id => ({ userId: id, simulatorId: 'gto', vehicleId: 'truck', url: 'https://photos.test/truck.png', identityKey: `${id}:gto:truck`, source: 'vehiclePhotosV2', status: 'CANDIDATE' });
+const users = Array.from({ length: 205 }, (_, n) => ({ id: `u${String(n).padStart(3,'0')}`, data: {} }));
+const makeAdapter = () => {
+  const store = new Map(), cursors = [], checkpoints = [];
+  return { store, cursors, checkpoints, listUsers: async (after, size) => { cursors.push(after); return users.filter(u => u.id > after).slice(0,size); }, collect: async user => [row(user.id)], getProjection: async key => store.get(key), verifyImage: async () => ({ valid: true }), createProjection: async (key, value) => { if (store.has(key)) throw Object.assign(new Error('exists'), {code:6}); store.set(key,value); }, checkpoint: async value => checkpoints.push(value) };
+};
+await test('P01 — 205 users across all pages, dry-run writes zero', async () => { const a=makeAdapter();const r=await scanPhotoUsers(a,{pageSize:100,checkUrls:true}); assert.equal(r.usersScanned,205);assert.equal(r.pages,3);assert.equal(r.wouldMigrate,205);assert.equal(a.store.size,0); });
+await test('P02 — resume cursor is a completed user ID', async () => { const a=makeAdapter();const r=await scanPhotoUsers(a,{pageSize:100,checkUrls:true,startAfter:'u099',execute:true});assert.equal(r.usersScanned,105);assert.equal(r.migrated,105);assert.equal(a.checkpoints.at(-1).lastCompletedUserId,'u204'); });
+await test('P03 — conditional creation preserves a concurrent update', async () => { const a=makeAdapter();a.listUsers=async after=>after?[]:[users[0]];a.createProjection=async key=>{a.store.set(key,{url:'https://photos.test/newer.png'});throw Object.assign(new Error('exists'),{code:6});};const r=await scanPhotoUsers(a,{execute:true,checkUrls:true});assert.equal(r.migrated,0);assert.equal(r.conflicts,1);assert.equal(a.store.get('u000:gto:truck').url,'https://photos.test/newer.png'); });
+await test('P04 — repeats are idempotent', async () => { const a=makeAdapter();await scanPhotoUsers(a,{execute:true,checkUrls:true});const r=await scanPhotoUsers(a,{execute:true,checkUrls:true});assert.equal(r.migrated,0);assert.equal(r.alreadyPresent,205); });
+await test('P05 — missing legacy simulator resolves only from unique evidence', async () => {const data={vehiclePhotos:{truck:{vehicleId:'truck',url:'https://photos.test/a.png'}}};const rows=collectPhotoCandidates('owner',data,{vehicles:[{id:'truck',companyId:'c'}],companies:[{id:'c',simulatorId:'gto'}]});assert.equal(rows[0].simulatorId,'gto');assert.equal(collectPhotoCandidates('owner',data)[0].status,'REJECTED_AMBIGUOUS_SIMULATOR'); });
+await test('P06 — conflicting simulator evidence is rejected', async () => { const rows=collectPhotoCandidates('owner',{vehiclePhotos:{truck:{vehicleId:'truck',url:'https://photos.test/a.png'}}},{vehicles:[{id:'truck',simulatorId:'gto'}],jobs:[{driver_id:'owner',vehicleId:'truck',simulatorId:'ats'}]});assert.equal(rows[0].status,'REJECTED_AMBIGUOUS_SIMULATOR'); });
+await test('P07 — foreign owner is rejected', async () => {assert.equal(collectPhotoCandidates('owner',{vehiclePhotos:{truck:{userId:'foreign',vehicleId:'truck',simulatorId:'gto',url:'https://photos.test/a.png'}}})[0].status,'REJECTED_FOREIGN_OWNER');});
+const verify = (body, type='image/png', extra={}) => verifyPhotoUrl('https://photos.test/a.png',{decode,allowedHosts:['photos.test'],fetcher:async()=>new Response(body,{headers:{'content-type':type,'access-control-allow-origin':'*'}}),...extra});
+await test('P08 — real valid PNG is fully decoded',async()=>{const r=await verify(png);assert.equal(r.valid,true);assert.equal(r.width,2);assert.equal(r.cors.allowed,true);});
+await test('P09 — HTML with HTTP 200 is rejected',async()=>{assert.equal((await verify('<html/>','text/html')).valid,false);});
+await test('P10 — corrupt image with image/png and HTTP 200 is rejected',async()=>{assert.equal((await verify('not an image')).valid,false);});
+await test('P11 — download byte limit is enforced',async()=>{assert.equal((await verify(png,'image/png',{maxBytes:5})).code,'IMAGE_TOO_LARGE');});
+await test('P12 — valid display bytes with blocked CORS are reported separately',async()=>{const r=await verify(png,'image/png',{fetcher:async()=>new Response(png,{headers:{'content-type':'image/png'}})});assert.equal(r.valid,true);assert.equal(r.cors.allowed,false);});
+await test('P13 — missing decoder cannot produce verification evidence',async()=>{assert.equal((await verifyPhotoUrl('https://photos.test/a.png',{allowedHosts:['photos.test']})).code,'DECODER_UNAVAILABLE');});
+await test('P14 — unapproved hosts and redirected hosts are rejected',async()=>{assert.equal((await verifyPhotoUrl('https://private.test/x',{decode,allowedHosts:['photos.test']})).code,'URL_HOST_NOT_ALLOWED');assert.equal((await verifyPhotoUrl('https://photos.test/x',{decode,allowedHosts:['photos.test'],fetcher:async()=>new Response(null,{status:302,headers:{location:'https://private.test/x'}})})).code,'URL_HOST_NOT_ALLOWED');});
+await test('P15 — execute without image verification is rejected',async()=>{await assert.rejects(scanPhotoUsers(makeAdapter(),{execute:true}),/verification/);});
+await test('P16 — conflicting legacy URLs are preserved for review',async()=>{const a=makeAdapter();a.listUsers=async after=>after?[]:[users[0]];a.collect=async()=>[row('u000'),{...row('u000'),source:'vehiclePhotos',url:'https://photos.test/other.png'}];const r=await scanPhotoUsers(a,{execute:true,checkUrls:true});assert.equal(r.migrated,0);assert.equal(r.conflicts,1);});
+await test('P17 — TIFF disguised as image/png is rejected for browser compatibility',async()=>{const tiff=await sharp(png).tiff().toBuffer();assert.equal((await verify(tiff)).valid,false);});
+console.log(JSON.stringify({passed,failed:0,productionCalls:0}));

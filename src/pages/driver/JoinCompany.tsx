@@ -1,20 +1,42 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { ModalSelect } from "../../components/ui/ModalSelect";
+import React, { useEffect, useRef, useState, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useOperationalStore, useSessionStore } from "../../context/AppContext";
 import { useCompanyStore } from "../../context/CompanyContext";
 import { Button } from "../../components/ui/Button";
 import { resolveSimulatorId } from "../../lib/resolveSimulator";
-import { resolveSimulatorDisplayLabel } from "../../lib/simulatorOptions";
 import { StableImage } from "../../components/common/StableImage";
+import { MyCompanyApplications, type MyApplicationRow } from "../../components/driver/MyCompanyApplications";
+import { useCurrentUserPendingApplications } from "../../hooks/useCurrentUserPendingApplications";
+import { loadMembershipCapabilities, withdrawApplication } from "../../services/applicationWithdrawService";
+import { withdrawFailureMessage } from "../../services/applicationWithdrawCore";
+import { applyRoute } from "../../lib/applyReturn";
+import { APPLY_STATE_LABEL, companyApplyState, isCompanyListable, shortCompanyName, toApplicationDate, type CompanyApplyState } from "../../lib/companyCatalog";
 import {
   UserCog,
   Building2,
   Search,
   ArrowLeft,
+  RefreshCw,
 } from "lucide-react";
 
-export default function JoinCompany() {
+/** One look per situation, all on the same 100 px button: only "Enviar" is the call to action. */
+const APPLY_STATE_BUTTON: Record<CompanyApplyState, string> = {
+  open: "bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#10151c] hover:bg-black dark:hover:bg-white shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95",
+  member: "bg-teal-50 text-teal-700 border border-teal-200 dark:bg-[rgba(36,207,222,.14)] dark:text-[#24cfde] dark:border-[rgba(36,207,222,.34)]",
+  applied: "bg-amber-50 text-amber-700 border border-amber-200 dark:bg-[#3b2e1f] dark:text-[#ffc16b] dark:border-[rgba(255,193,107,.34)]",
+  closed: "bg-slate-100 text-slate-500 border border-slate-200 dark:bg-nvu-strip dark:text-nvu-muted dark:border-nvu-line",
+};
+
+/**
+ * "join": the first-access screen of a driver without a company (unchanged behaviour).
+ * "browse": "Empresas", open to a driver who already has a company; it lists the public catalog, shows which companies the
+ * driver already belongs to or applied to, and "Minhas inscrições". It never changes the current link.
+ */
+export default function JoinCompany({ mode = "join", onBack, initialFocus }: { mode?: "join" | "browse"; onBack?: () => void; initialFocus?: "applications" }) {
+  const browse = mode === "browse";
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useSessionStore();
   const { simulators } = useOperationalStore();
   const {
@@ -23,42 +45,56 @@ export default function JoinCompany() {
     companyCatalogLoaded,
     companyCatalogAttempted,
     loadCompanyCatalog,
-    allCompanyMembers,
-    requestJoinCompany,
+    memberships,
     cancelRequestJoinCompany,
     driverRequests,
   } = useCompanyStore();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSimulatorId, setSelectedSimulatorId] = useState("");
-  const [isRequestingId, setIsRequestingId] = useState<string | null>(null);
 
+  // The catalog is loaded by the screen that needs it (idempotent: a loaded or in-flight catalog is reused).
+  useEffect(() => { void loadCompanyCatalog().catch(() => undefined); }, []);
+  const retryCatalog = () => { void loadCompanyCatalog(true).catch(() => undefined); };
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+
+  const { applications: pendingApplications, loading: applicationsLoading, queryError: applicationsFailed } =
+    useCurrentUserPendingApplications(browse ? currentUser?.id : undefined, browse ? currentUser?.email : undefined);
+  // Withdrawing a full application is a server command: offered only once the published server lists it.
+  const [canWithdraw, setCanWithdraw] = useState(false);
   useEffect(() => {
-    if (companyCatalogLoaded || companyCatalogAttempted) return;
-    void loadCompanyCatalog();
-  }, [companyCatalogAttempted, companyCatalogLoaded, loadCompanyCatalog]);
+    if (!browse) return;
+    let current = true;
+    loadMembershipCapabilities().then(list => { if (current) setCanWithdraw(list.includes("withdraw-application")); }, () => undefined);
+    return () => { current = false; };
+  }, [browse, currentUser?.id]);
+  // One command id per application: a retry after a lost answer replays the same command.
+  const withdrawIds = useRef(new Map<string, string>());
+  const withdrawRow = async (row: MyApplicationRow) => {
+    const key = `${row.companyId}:${row.id}`;
+    if (!withdrawIds.current.has(key)) withdrawIds.current.set(key, `withdraw-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`);
+    try { await withdrawApplication(row.companyId, row.id, withdrawIds.current.get(key)!); }
+    catch (error) { throw new Error(withdrawFailureMessage(error)); }
+  };
+  const applicationsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (browse && ((location.state as { focus?: string } | null)?.focus === "applications" || initialFocus === "applications")) applicationsRef.current?.scrollIntoView({ block: "start" });
+  }, [browse, location.state, initialFocus]);
 
   const activeSimulators = simulators.filter((s:any) => s.active !== false).sort((a:any, b:any) => a.name.localeCompare(b.name));
-  const getSimulatorLabel = (company: any) =>
-    resolveSimulatorDisplayLabel(
-      company,
-      simulators as any[],
-      allCompanies as any[],
-    ) || company?.simulatorName || "Global Truck";
-
   // Check if there is an active request
   const myPendingRequest = driverRequests.find(
     (r) => r.motoristaId === currentUser?.id && r.status === "pending",
   );
 
-  if (myPendingRequest) {
+  if (!browse && myPendingRequest) {
     const company = allCompanies.find((c) => c.id === myPendingRequest.empresaId);
     return (
       <div className="w-full max-w-7xl mx-auto py-4 sm:py-10 px-4 sm:px-6">
         <div className="max-w-md mx-auto w-full mb-8">
           <button
             onClick={() => navigate("/select-profile")}
-            className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-[#fafafa] transition-colors"
+            className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text transition-colors"
           >
             <ArrowLeft size={16} />
             Voltar
@@ -68,20 +104,20 @@ export default function JoinCompany() {
           <div className="w-24 h-24 bg-orange-50 dark:bg-orange-500/10 rounded-full flex items-center justify-center mb-6 text-orange-500">
             <UserCog size={40} />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-[#fafafa] mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-nvu-text mb-2">
             Aguardando Aprovação
           </h2>
-          <p className="text-gray-500 dark:text-[#a1a1aa] mb-8">
+          <p className="text-gray-500 dark:text-nvu-muted mb-8">
             Seu convite para a empresa{" "}
-            <strong className="text-gray-900 dark:text-[#fafafa]">
+            <strong className="text-gray-900 dark:text-nvu-text">
               {company?.companyName || "Carregando..."}
             </strong>{" "}
             foi enviado. O administrador da frota precisa aprovar seu acesso.
           </p>
           <Button
             variant="outline"
-            onClick={() => cancelRequestJoinCompany(myPendingRequest.id)}
-            className="text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-[#f4f4f5]"
+            onClick={() => void cancelRequestJoinCompany(myPendingRequest.id).catch(() => {})}
+            className="text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text"
           >
             Cancelar Convite
           </Button>
@@ -91,37 +127,45 @@ export default function JoinCompany() {
   }
 
   // Not linked to any company yet
-  const handleRequest = async (companyId: string) => {
-    setIsRequestingId(companyId);
-    try {
-      // Never hold the action behind an artificial delay.
-      await requestJoinCompany(companyId);
-    } finally {
-      setIsRequestingId(null);
-    }
+  const memberCompanyIds = useMemo(() => new Set((memberships || [])
+    .filter((member) => member.userId === currentUser?.id && member.status === "active").map((member) => member.companyId)), [memberships, currentUser?.id]);
+  const myRequests = driverRequests.filter((r) => r.motoristaId === currentUser?.id && r.status === "pending");
+  const applicationRows = useMemo<MyApplicationRow[]>(() => {
+    const byId = new Map(allCompanies.map((company: any) => [company.id, company]));
+    const rows: MyApplicationRow[] = [
+      ...pendingApplications.filter((app: any) => String(app.type || app.registrationType || "driver_application") !== "company_registration").map((app: any) => {
+        const company: any = byId.get(String(app.companyId || ""));
+        return { id: app.id, kind: "recruitment" as const, companyId: String(app.companyId || ""), companyName: String(app.companyName || company?.companyName || ""),
+          companyLogo: app.companyLogoURL || company?.logoUrl, simulatorName: app.simulatorName || company?.simulatorName, createdAt: app.createdAt };
+      }),
+      ...myRequests.map((request) => {
+        const company: any = byId.get(request.empresaId);
+        return { id: request.id, kind: "request" as const, companyId: request.empresaId, companyName: String(company?.companyName || ""),
+          companyLogo: company?.logoUrl, simulatorName: company?.simulatorName, createdAt: request.createdAt };
+      }),
+    ];
+    return rows.sort((a, b) => (toApplicationDate(b.createdAt)?.getTime() || 0) - (toApplicationDate(a.createdAt)?.getTime() || 0));
+  }, [pendingApplications, myRequests, allCompanies]);
+  const appliedCompanyIds = useMemo(() => new Set(applicationRows.map((row) => row.companyId).filter(Boolean)), [applicationRows]);
+
+  // "Enviar" opens the company's recruitment form: the application HR reviews, with the driver's data and photo.
+  // (The old one-tap request carried no data and did not reach the company's Recursos Humanos.)
+  const handleRequest = (companyId: string) => {
+    const route = applyRoute(companyId, location.pathname);
+    navigate(route.to, { state: route.state });
   };
 
-  // Calculate member counts
-  const companiesWithCount = allCompanies
-    .map((c) => ({
-      ...c,
-      memberCount:
-        allCompanyMembers?.filter((m) => m.companyId === c.id).length || 0,
-    }))
-    .sort(
-      (a, b) =>
-        b.memberCount - a.memberCount ||
-        a.companyName.localeCompare(b.companyName),
-    );
-
-  const filteredCompanies = companiesWithCount.filter((c) => {
-    if (!selectedSimulatorId) return false;
-    const matchesSimulator =
-      resolveSimulatorId(c as any, simulators as any[], allCompanies as any[]) ===
-      selectedSimulatorId;
-    const matchesSearch = c.companyName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSimulator && matchesSearch;
-  });
+  // Only companies that can receive candidates are offered; the order is alphabetical. The number of members is not shown:
+  // the member list the app holds is limited to the driver's own scope and would not be the company's real size.
+  const filteredCompanies = allCompanies
+    .filter((c) => {
+      if (!selectedSimulatorId || !isCompanyListable(c)) return false;
+      const matchesSimulator = resolveSimulatorId(c as any, simulators as any[], allCompanies as any[]) === selectedSimulatorId;
+      const matchesSearch = String(c.companyName || "").toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSimulator && matchesSearch;
+    })
+    .slice()
+    .sort((a, b) => String(a.companyName || "").localeCompare(String(b.companyName || "")));
 
   const isSearching = searchTerm.length > 0;
 
@@ -129,8 +173,8 @@ export default function JoinCompany() {
     <div className="w-full max-w-7xl mx-auto py-4 sm:py-10 px-4 sm:px-6">
       <div className="max-w-2xl mx-auto w-full mb-6 sm:mb-10">
         <button
-          onClick={() => navigate("/select-profile")}
-          className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-[#a1a1aa] hover:text-gray-900 dark:hover:text-[#fafafa] transition-colors"
+          onClick={() => (onBack ? onBack() : browse ? (window.history.length > 1 ? navigate(-1) : navigate("/driver/profile")) : navigate("/select-profile"))}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-500 dark:text-nvu-muted hover:text-gray-900 dark:hover:text-nvu-text transition-colors"
         >
           <ArrowLeft size={16} />
           Voltar
@@ -143,24 +187,28 @@ export default function JoinCompany() {
           <div className="w-16 h-16 bg-blue-50 dark:bg-blue-500/10 dark:border-blue-500/40 rounded-2xl flex items-center justify-center mx-auto mb-5 text-blue-600 shadow-sm dark:shadow-none border border-blue-100 dark:border-blue-500/20/50">
             <Building2 size={28} strokeWidth={2} />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-[#fafafa] tracking-tight">
-            Encontre sua Frota
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-nvu-text tracking-tight">
+            {browse ? "Empresas" : "Encontre sua Frota"}
           </h1>
-          <p className="text-[15px] text-gray-500 dark:text-[#a1a1aa] mt-2 max-w-[280px] sm:max-w-md mx-auto leading-relaxed">
-            Pesquise o nome da empresa ou frota e envie sua solicitação de acesso.
+          <p className="nvu-page-description text-gray-500 dark:text-nvu-muted mt-2 max-w-[280px] sm:max-w-md mx-auto">
+            {browse ? "Conheça as empresas de cada simulador e envie sua inscrição: o Recursos Humanos da empresa analisa. Você continua na sua empresa atual até ser aprovado." : "Pesquise o nome da empresa ou frota e envie sua inscrição para análise do Recursos Humanos."}
           </p>
         </div>
       )}
 
+      {browse && <div ref={applicationsRef} className="max-w-2xl mx-auto px-4 sm:px-0 mb-8 scroll-mt-20">
+        <MyCompanyApplications rows={applicationRows} loading={applicationsLoading} failed={Boolean(applicationsFailed)} onCancelRequest={cancelRequestJoinCompany} onWithdrawApplication={canWithdraw ? withdrawRow : undefined} />
+      </div>}
+
       {/* SIMULATOR SELECT */}
       <div className="max-w-2xl mx-auto px-4 sm:px-0 mb-4">
-        <label className="block text-[13px] font-medium text-slate-700 dark:text-[#d4d4d8] mb-1.5 ml-0.5">
+        <label className="block text-[13px] font-medium text-slate-700 dark:text-nvu-text-soft mb-1.5 ml-0.5">
           Simulador
         </label>
-        <select
+        <ModalSelect title="Selecionar simulador"
           value={selectedSimulatorId}
           onChange={(e) => setSelectedSimulatorId(e.target.value)}
-          className="w-full bg-white dark:bg-[#09090b] border border-slate-200 dark:border-[#2A2F3A] rounded-xl px-4 h-14 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-[#fafafa] transition-all shadow-sm appearance-none cursor-pointer"
+          className="w-full bg-white dark:bg-nvu-page border border-slate-200 dark:border-nvu-line rounded-xl px-4 h-14 text-[15px] outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:text-nvu-text transition-all shadow-sm appearance-none cursor-pointer"
         >
           <option value="" disabled>Selecione um simulador</option>
           {activeSimulators.map((sim:any) => (
@@ -168,7 +216,7 @@ export default function JoinCompany() {
               {sim.name}
             </option>
           ))}
-        </select>
+        </ModalSelect>
       </div>
 
       {/* SEARCH INPUT */}
@@ -184,7 +232,7 @@ export default function JoinCompany() {
           disabled={!selectedSimulatorId}
           placeholder={selectedSimulatorId ? "Buscar empresa ou frota..." : "Selecione um simulador antes"}
           autoFocus
-          className="w-full pl-12 sm:pl-14 pr-4 h-14 bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-200 dark:border-[#2A2F3A] focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-[15px] font-medium text-gray-900 dark:text-[#fafafa] placeholder:text-gray-400 dark:placeholder:text-[#71717a] shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full pl-12 sm:pl-14 pr-4 h-14 bg-white dark:bg-nvu-surface rounded-2xl border border-gray-200 dark:border-nvu-line focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 text-[15px] font-medium text-gray-900 dark:text-nvu-text placeholder:text-gray-400 dark:placeholder:text-nvu-muted shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -193,38 +241,45 @@ export default function JoinCompany() {
       {/* LIST */}
       <div className="space-y-3 max-w-2xl mx-auto px-4 sm:px-0">
         {!companyCatalogAttempted || companiesLoading ? (
-          <div className="text-center py-12 text-sm text-gray-500 dark:text-[#a1a1aa]">
+          <div role="status" aria-busy="true" className="text-center py-12 text-sm text-gray-500 dark:text-nvu-muted">
             Carregando empresas...
           </div>
         ) : !companyCatalogLoaded ? (
-          <div className="text-center py-12 text-sm text-red-500 dark:text-red-400">
-            Não foi possível carregar as empresas. Reabra esta página para tentar novamente.
+          <div role="alert" className="text-center py-12 text-sm text-red-500 dark:text-red-400">
+            <p>{offline ? "Sem conexão. Conecte-se à internet para ver as empresas." : "Não foi possível carregar as empresas agora."}</p>
+            <button type="button" onClick={retryCatalog} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-nvu-line px-4 py-2 text-[13px] font-semibold text-gray-700 dark:text-nvu-text-soft">
+              <RefreshCw size={14} aria-hidden="true" /> Tentar novamente
+            </button>
           </div>
         ) : !selectedSimulatorId ? (
-          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#1A1F26]">
+          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface">
             <Building2 size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-[15px] font-medium text-gray-900 dark:text-[#fafafa]">
+            <p className="text-[15px] font-medium text-gray-900 dark:text-nvu-text">
               Selecione um simulador
             </p>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
+            <p className="text-sm text-gray-500 dark:text-nvu-muted mt-1">
               Escolha um simulador acima para listar as empresas disponíveis.
             </p>
           </div>
         ) : filteredCompanies.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-[#2A2F3A] bg-gray-50 dark:bg-[#1A1F26]">
+          <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-gray-200 dark:border-nvu-line bg-gray-50 dark:bg-nvu-surface">
             <Search size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-[15px] font-medium text-gray-900 dark:text-[#fafafa]">
-              Nenhuma empresa encontrada
+            <p className="text-[15px] font-medium text-gray-900 dark:text-nvu-text">
+              {isSearching ? "Nenhuma empresa encontrada" : "Nenhuma empresa neste simulador por enquanto"}
             </p>
-            <p className="text-sm text-gray-500 dark:text-[#a1a1aa] mt-1">
-              Verifique a ortografia ou tente outro termo.
+            <p className="text-sm text-gray-500 dark:text-nvu-muted mt-1">
+              {isSearching ? "Verifique a ortografia ou tente outro termo." : "Escolha outro simulador ou volte mais tarde."}
             </p>
           </div>
         ) : (
-          filteredCompanies.map((company) => (
+          filteredCompanies.map((company) => {
+            const applyState = companyApplyState(company, memberCompanyIds, appliedCompanyIds);
+            const stateLabel = APPLY_STATE_LABEL[applyState];
+            return (
             <div
               key={company.id}
-              className="flex items-center p-3 sm:p-4 bg-white dark:bg-[#1A1F26] rounded-2xl border border-gray-100 dark:border-[#2A2F3A] hover:border-blue-200 dark:border-blue-500/30 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.05)] transition-all group"
+              data-apply-state={applyState}
+              className="flex items-center p-3 sm:p-4 bg-white dark:bg-nvu-surface rounded-2xl border border-gray-100 dark:border-nvu-line hover:border-blue-200 dark:border-blue-500/30 shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_24px_-8px_rgba(0,0,0,0.05)] transition-all group"
             >
               <div className="flex-1 flex items-center gap-3 sm:gap-4 min-w-0 pr-4">
                 {/* AVATAR */}
@@ -235,7 +290,7 @@ export default function JoinCompany() {
                       alt="Logo"
                       loading="lazy"
                       decoding="async"
-                      wrapperClassName="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-gray-100 dark:border-[#2A2F3A] shrink-0"
+                      wrapperClassName="w-10 h-10 sm:w-12 sm:h-12 rounded-full border border-gray-100 dark:border-nvu-line shrink-0"
                       className="object-cover"
                       referrerPolicy="no-referrer"
                       fallback={
@@ -249,46 +304,30 @@ export default function JoinCompany() {
                       {company.companyName.substring(0, 2).toUpperCase()}
                     </div>
                   )}
-                  <span className="sm:hidden px-1.5 py-0.5 bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 rounded-md text-[9px] font-bold tracking-wide truncate max-w-[60px]">
-                    {getSimulatorLabel(company)}
-                  </span>
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 dark:text-[#fafafa] tracking-tight truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                    {company.companyName}
+                  <h3 title={company.companyName} className="text-[15px] sm:text-[16px] font-bold text-gray-900 dark:text-nvu-text tracking-tight truncate leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {shortCompanyName(company.companyName)}
                   </h3>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-3 mt-1 sm:mt-1.5">
-                    <span className="text-xs font-medium text-gray-500 dark:text-[#a1a1aa] bg-gray-50 dark:bg-[#09090b] px-2 py-0.5 rounded-md border border-gray-100 dark:border-[#2A2F3A]">
-                      {company.memberCount}{" "}
-                      {company.memberCount === 1 ? "membro" : "membros"}
-                    </span>
-                    <span className="hidden sm:inline px-2 py-0.5 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 rounded-md text-xs font-bold tracking-wide border border-blue-100 dark:border-blue-500/20/50">
-                      {getSimulatorLabel(company)}
-                    </span>
-                  </div>
                 </div>
               </div>
 
               <Button
                 onClick={() => handleRequest(company.id)}
-                disabled={isRequestingId === company.id}
-                className="shrink-0 h-10 px-4 text-[13px] font-bold bg-gray-900 dark:bg-[#fafafa] text-white dark:text-[#09090b] hover:bg-black dark:hover:bg-white rounded-xl shadow-[0_2px_10px_-3px_rgba(0,0,0,0.1)] active:scale-95 transition-all w-24 sm:w-28 relative overflow-hidden group/btn"
+                disabled={applyState !== "open"}
+                aria-label={applyState === "open" ? `Enviar inscrição para ${company.companyName}` : `${company.companyName}: ${stateLabel}`}
+                className={`shrink-0 h-10 w-[100px] sm:w-28 px-2 text-[13px] font-bold whitespace-nowrap rounded-xl transition-all relative overflow-hidden group/btn disabled:opacity-100 ${APPLY_STATE_BUTTON[applyState]}`}
               >
-                {isRequestingId === company.id ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 dark:border-black/30 border-t-white dark:border-t-black rounded-full animate-spin"></div>
-                  </div>
-                ) : (
-                  <span className="relative z-10 flex items-center justify-center">
-                    Solicitar
-                  </span>
-                )}
+                <span className="relative z-10 flex items-center justify-center whitespace-nowrap">
+                  {stateLabel}
+                </span>
                 {/* Shine effect logic */}
-                <div className="absolute inset-0 -translate-x-[150%] animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-[-20deg] z-0"></div>
+                {applyState === "open" && <div className="absolute inset-0 -translate-x-[150%] animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/20 dark:via-black/10 to-transparent skew-x-[-20deg] z-0"></div>}
               </Button>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

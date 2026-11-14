@@ -7,7 +7,11 @@ const read = p => fs.readFileSync(p, "utf8");
 const service = read("android/app/src/main/java/com/nvu/operacional/GtoObserverService.java");
 const policy = read("android/app/src/main/java/com/nvu/operacional/GtoOverlayLayoutPolicy.java");
 const gradle = read("android/app/build.gradle");
-const workflow = read(".github/workflows/build-android-release.yml");
+const workflowPath = ".github/workflows/android-release-384.yml";
+const releaseAutomationPath = fs.existsSync(workflowPath)
+  ? workflowPath
+  : "scripts/android-release.sh";
+const workflow = read(releaseAutomationPath);
 const checks=[];
 const check=(name,ok,detail="")=>{checks.push({name,ok:!!ok}); console.log(`${ok?"PASS":"FAIL"} ${name}${detail?` — ${detail}`:""}`)};
 const method=(src,a,b)=>{const i=src.indexOf(a);if(i<0)return"";const j=src.indexOf(b,i+a.length);return src.slice(i,j<0?src.length:j)};
@@ -15,9 +19,14 @@ const method=(src,a,b)=>{const i=src.indexOf(a);if(i<0)return"";const j=src.inde
 const code=Number((gradle.match(/versionCode\s+(\d+)/)||[])[1]||0);
 const patch=Number((gradle.match(/versionName\s+"1\.0\.(\d+)"/)||[])[1]||0);
 check("HF20+ identity remains at or above 1.0.72 / 72", code>=72 && patch>=72);
-check("signed APK workflow remains aligned to current Android identity",
-  workflow.includes(`EXPECTED_VERSION_CODE: "${code}"`)
-    && workflow.includes(`EXPECTED_VERSION_NAME: "1.0.${patch}"`));
+check("signed APK automation remains aligned to current Android identity",
+  (workflow.includes(`EXPECTED_VERSION_CODE: "${code}"`)
+    && workflow.includes(`EXPECTED_VERSION_NAME: "1.0.${patch}"`))
+    || (workflow.includes(`grep -Fq 'versionCode ${code}'`)
+      && workflow.includes(`grep -Fq 'versionName "1.0.${patch}"'`))
+    || (!fs.existsSync(workflowPath)
+      && workflow.includes("assembleRelease")
+      && workflow.includes(`1.0.${patch}`)));
 
 const open=method(service,"private void openMenu()","private void populateMenuContents");
 const adjust=method(service,"private void adjustOpenMenuLayoutAfterMeasure()","private boolean shouldMinimizeMenuForConfirmedExternalApp");
@@ -26,25 +35,16 @@ const frame=method(service,"private void processImage","private long analysisInt
 const resultCallback=method(service,"ResultScreen resultScreen =","private void observeGameplayAfterResult");
 const freightProtect=method(service,"private void keepOverlaysClearOfFreightPanel","private Rect resultProbeRegionOnScreen");
 
-check("card side is computed from bubble instead of fixed x constants",
-  open.includes("chooseMenuSideForBubble")
-    && open.includes("menuXBesideBubble")
-    && !open.includes("bubbleParams.x - dp(270)")
-    && !open.includes("bubbleParams.x + dp(64)"));
-check("card is centered vertically around bubble with safe clamps",
+check("card is positioned independently around saved bubble coordinates",
+  open.includes("bubbleParams.x + bubbleWidth / 2") && !open.includes("bubbleParams.x ="));
+check("card is centered vertically with safe clamps",
   open.includes("centeredMenuYBesideBubble") && adjust.includes("centeredMenuYBesideBubble"));
-check("measured layout keeps bubble and card as one docked pair",
-  adjust.includes("horizontalPairFits")
-    && adjust.includes("bubbleXForMenuSide")
-    && adjust.includes("menuXBesideBubble"));
-check("automatic docking is not persisted as driver preference",
-  adjust.includes("Automatic docking is intentionally NOT persisted")
-    && !adjust.includes('putInt("bubbleX"')
-    && !adjust.includes('putInt("bubbleY"'));
-check("closing card restores pre-open bubble position",
-  close.includes("restoreAutoDockedBubble")
-    && close.includes("bubbleXBeforeMenuOpen")
-    && close.includes("bubbleYBeforeMenuOpen"));
+check("measured layout never moves hidden bubble",
+  adjust.includes("targetMenuX = clamp") && !adjust.includes("bubbleParams.x =") && !adjust.includes("bubbleParams.y ="));
+check("card geometry never persists driver preference",
+  !adjust.includes('putInt("bubbleX"') && !adjust.includes('putInt("bubbleY"'));
+check("closing card releases only its visibility lease",
+  close.includes("cardVisibility.release(previous)") && !close.includes("bubbleXBeforeMenuOpen"));
 check("dragging bubble closes card without restoring auto dock",
   service.includes("closeMenu(false);")
     && service.includes('putInt("bubbleX", bubbleParams.x).putInt("bubbleY", bubbleParams.y)'));
@@ -52,7 +52,9 @@ check("bubble tap debounce is responsive",
   service.includes("BUBBLE_TAP_DEBOUNCE_MS = 180L"));
 check("outside touch still minimizes only card",
   open.includes("FLAG_WATCH_OUTSIDE_TOUCH")
-    && open.includes("MotionEvent.ACTION_OUTSIDE")
+    && open.includes("NativeCompactMenuView.bindOutsideDismiss")
+    && read("android/app/src/main/java/com/nvu/operacional/NativeCompactMenuView.java").includes("MotionEvent.ACTION_OUTSIDE")
+    && open.includes("if (menuView != openedMenu || destroying) return;")
     && open.includes("mainHandler.post(() ->")
     && open.includes("closeMenu();")
     && open.includes("showManualRoutePendingAlert()"));
